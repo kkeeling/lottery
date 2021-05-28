@@ -1,0 +1,83 @@
+version: '3.5'
+
+services:
+  db:
+    container_name: lottery_dev_db
+    image: kartoza/postgis:12.1
+    expose:
+      - 5432
+    environment:
+      - POSTGRES_DB=lottery
+      - POSTGRES_USER=lottery
+      - POSTGRES_PASSWORD=lottery
+    volumes:
+      - ../data:/opt/data
+      - lottery_db:/var/lib/postgresql
+    networks:
+      - lottery_network
+
+  redis:
+    container_name: lottery_dev_redis
+    image: redis:5.0
+    command: redis-server
+    volumes:
+      - ../redis:/opt/redis
+      - 'lottery_redis:/data'
+    ports:
+      - 6379
+    networks:
+      - lottery_network
+
+  celery:
+    container_name: lottery_dev_celery
+    build:
+      context: ../django
+    env_file:
+      - dev/django.env
+    depends_on:
+      - redis
+    command: celery -A lottery worker -l info
+    volumes:
+      - ../django/lottery:/opt/lottery
+      - lottery_static:/opt/static
+      - lottery_media:/opt/media
+    networks:
+      - lottery_network
+
+  django:
+    container_name: lottery_dev_django
+    build:
+      context: ../django
+    env_file:
+      - dev/django.env
+    expose:
+      - 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ../django/lottery:/opt/lottery
+      - ../data:/opt/data
+      - lottery_static:/opt/static
+      - lottery_media:/opt/media
+    command: /opt/lottery/startup/start-dev-server.sh
+    networks:
+      - lottery_network
+
+volumes:
+  lottery_db:
+    name: lottery_db
+  lottery_redis:
+    name: lottery_redis
+  lottery_static:
+    name: lottery_static
+  lottery_media:
+    name: lottery_media
+  lottery_grafana:
+    name: lottery_grafana
+
+networks:
+  lottery_network:
+    name: lottery
