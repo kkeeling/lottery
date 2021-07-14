@@ -9,7 +9,6 @@ import traceback
 from collections import namedtuple
 from django.core.management.base import BaseCommand
 from django.db.models import ObjectDoesNotExist
-from fcpro_fd_nfl import models
 from pulp import PULP_CBC_CMD
 from pydfs_lineup_optimizer import Site, Sport, Player, PlayersGroup, get_optimizer, \
     PositionsStack, exceptions, Stack, TeamStack, AfterEachExposureStrategy, LineupOptimizer, LineupOptimizerException
@@ -26,7 +25,7 @@ class CustomPuLPSolver(PuLPSolver):
     LP_SOLVER = PULP_CBC_CMD(verbose=False, msg=False, threads=8, options=['preprocess off'])
 
 
-def optimize_for_stack(site, stack, slate_players, slate_teams, config, num_lineups):
+def optimize_for_stack(site, stack, slate_players, slate_teams, config, num_lineups, groups=[]):
     if site == 'fanduel':
         optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL, solver=CustomPuLPSolver)
     elif site == 'draftkings':
@@ -71,31 +70,22 @@ def optimize_for_stack(site, stack, slate_players, slate_teams, config, num_line
         if player is not None:
             optimizer.add_player_to_lineup(player)
 
-    # At least 1 Group
-    at_least_one_players = slate_players.filter(projection__at_least_one_in_lineup=True)
-    al1_players_list = []
-    for player in at_least_one_players:
-        p = optimizer.get_player_by_id(player.player_id)
+    # Groups
+    for group in groups:
+        group_player_list = []
+        for player in group.players.all(): 
+            p = optimizer.get_player_by_id(player.slate_player.player_id)
 
-        if p is not None:
-            al1_players_list.append(p)
-    
-    if len(al1_players_list) > 0:
-        al1_players_group = PlayersGroup(al1_players_list, min_from_group=1)
-        optimizer.add_players_group(al1_players_group)
-
-    # At least 2 Group
-    at_least_two_players = slate_players.filter(projection__at_least_two_in_lineup=True)
-    al2_players_list = []
-    for player in at_least_two_players:
-        p = optimizer.get_player_by_id(player.player_id)
-
-        if p is not None:
-            al2_players_list.append(p)
-    
-    if len(al2_players_list) > 0:
-        al2_players_group = PlayersGroup(al2_players_list, min_from_group=1)
-        optimizer.add_players_group(al2_players_group)
+            if p is not None:
+                group_player_list.append(p)
+        
+        if len(group_player_list) > 0:
+            opto_group = PlayersGroup(
+                group_player_list, 
+                min_from_group=group.min_from_group,
+                max_from_group=group.max_from_group
+            )
+            optimizer.add_players_group(opto_group)
 
     # Salary
     if config.min_salary > 0:

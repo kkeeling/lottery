@@ -30,6 +30,21 @@ DATABASES = {
     }
 }
 
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
 WSGI_APPLICATION = 'lottery.wsgi.application'
 
 ADMINS = (
@@ -51,13 +66,15 @@ INSTALLED_APPS = (
     'admin_tools',
     'django.contrib.contenttypes',
     'corsheaders',
+    'grappelli',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.messages',
     'django.contrib.sessions',
     'django.contrib.sites',
     'django.contrib.staticfiles',
-    'django.contrib.gis',
+    'django_admin_listfilter_dropdown',
+    'rangefilter',
     'rest_framework',
     'django_extensions',
     'nfl',
@@ -169,4 +186,41 @@ LOGGING = {
         'propagate': True,
         'level': 'INFO',
     },
+}
+
+TEAM_COLORS = {
+    'ARI': '#97233F',
+    'ATL': '#A71930',
+    'BAL': '#241773',
+    'BUF': '#00338D',
+    'CAR': '#0085CA',
+    'CHI': '#0B162A',
+    'CIN': '#FB4F14',
+    'CLE': '#FB4F14',
+    'DAL': '#B0B7BC',
+    'DEN': '#002244',
+    'DET': '#005A8B',
+    'GB': '#203731',
+    'HOU': '#03202F',
+    'IND': '#002C5F',
+    'JAC': '#006778',
+    'KC': '#E31837',
+    'LAC': '#0073CF',
+    'LAR': '#002244',
+    'LV': '#A5ACAF',
+    'MIA': '#008E97',
+    'MIN': '#4F2683',
+    'NE': '#C60C30',
+    'NO': '#9F8958',
+    'NYG': '#0B2265',
+    'NYJ': '#203731',
+    'OAK': '#A5ACAF',
+    'PHI': '#004953',
+    'PIT': '#FFB612',
+    'SF': '#AA0000',
+    'SEA': '#69BE28',
+    'TB': '#D50A0A',
+    'TEN': '#4B92DB',
+    'WAS': '#773141',
+    
 }
