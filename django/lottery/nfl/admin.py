@@ -1,5 +1,6 @@
 import csv
 import datetime
+import traceback
 from django.db.models.aggregates import Avg
 import requests
 import statistics
@@ -213,6 +214,9 @@ class BacktestSlateInline(admin.TabularInline):
         'great_build',
         'get_great_score_diff',
         'binked',
+        'get_stacks_link',
+        'get_lineups_link',
+        'get_optimals_link',
     )
     readonly_fields = (
         'total_lineups',
@@ -225,6 +229,9 @@ class BacktestSlateInline(admin.TabularInline):
         'great_build',
         'get_great_score_diff',
         'binked',
+        'get_stacks_link',
+        'get_lineups_link',
+        'get_optimals_link',
     )
 
     def get_cash_rate(self, obj):
@@ -253,6 +260,42 @@ class BacktestSlateInline(admin.TabularInline):
             return None
         return '{:.2f}'.format(obj.top_score - obj.great_score)
     get_great_score_diff.short_description = 'Diff'
+
+    def get_stacks_link(self, obj):
+        try:
+            slate_build = models.SlateBuild.objects.get(
+                backtest=obj
+            )
+            if slate_build.num_stacks_created() > 0:
+                return mark_safe('<a href="/admin/nfl/slatebuildstack/?build__id__exact={}">Stacks</a>'.format(slate_build.id))
+            return None
+        except models.SlateBuild.DoesNotExist:
+            return None
+    get_stacks_link.short_description = 'Stacks'
+
+    def get_lineups_link(self, obj):
+        try:
+            slate_build = models.SlateBuild.objects.get(
+                backtest=obj
+            )
+            if slate_build.num_lineups_created() > 0:
+                return mark_safe('<a href="/admin/nfl/slatebuildlineup/?build__id__exact={}">Lineups</a>'.format(slate_build.id))
+            return None
+        except models.SlateBuild.DoesNotExist:
+            return None
+    get_lineups_link.short_description = 'Lineups'
+
+    def get_optimals_link(self, obj):
+        try:
+            slate_build = models.SlateBuild.objects.get(
+                backtest=obj
+            )
+            if slate_build.num_actuals_created() > 0:
+                return mark_safe('<a href="/admin/nfl/slatebuildactualslineup/?build__id__exact={}">Optimals</a>'.format(slate_build.id))
+            return None
+        except models.SlateBuild.DoesNotExist:
+            return None
+    get_optimals_link.short_description = 'Optimals'
 
 
 class GroupCreationRuleInline(admin.TabularInline):
