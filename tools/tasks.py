@@ -43,18 +43,17 @@ def dev(ctx):
 @task
 def production(ctx):
     ctx.config.target = 'production'
-    ctx.config.host = '167.99.234.248'  # change this to new server
+    ctx.config.host = '157.230.54.112'  # change this to new server
     ctx.config.user = 'lottery'
     ctx.config.connection = Connection(host=ctx.config.host, user=ctx.config.user)
     ctx.config.runner = ctx.config.connection.run
-    ctx.config.path = 'lottery-docker'
+    ctx.config.path = 'lottery'
     ctx.config.containers = {
         'django': 'lottery_production_django',
         'db': 'lottery_production_db',
         'redis': 'lottery_production_redis',
         'celery': 'lottery_production_celery',
         'nginx': 'lottery_production_nginx',
-        'grafana': 'lottery_production_grafana',
     }
 
 @task
