@@ -1079,9 +1079,9 @@ class SlateBuild(models.Model):
                     projection.projection = player.projection.projection
                     projection.balanced_projection = player.projection.balanced_projection
                     projection.adjusted_opportunity = player.projection.adjusted_opportunity
-                projection.team_total = player.projection.team_total
-                projection.game_total = player.projection.game_total
-                projection.spread = player.projection.spread
+                projection.team_total = player.projection.get_team_total()
+                projection.game_total = player.projection.get_game_total()
+                projection.spread = player.projection.get_spread()
                 projection.save()
             else:
                 # player projection does not exist so remove build projection if it exists
