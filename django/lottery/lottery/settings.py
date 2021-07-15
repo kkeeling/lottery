@@ -4,7 +4,8 @@ import os
 DEBUG = (os.environ.get('DEBUG') == 'true')
 
 ALLOWED_HOSTS = [
-    'localhost'
+    'localhost',
+    'great-lotto.com'
 ]
 
 DEFAULT_HOST = 'localhost'
