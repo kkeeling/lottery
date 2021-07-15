@@ -1267,7 +1267,7 @@ class SlateBuild(models.Model):
 
             num_lineups_to_distribute = self.total_lineups - sum(s.count for s in ordered_stacks)
             for stack in ordered_stacks:
-                stack.count += math.ceil(num_lineups_to_distribute/num_stacks)
+                stack.count += math.ceil(num_lineups_to_distribute/self.stack_cutoff)
                 stack.save()
 
     def build(self):
