@@ -2026,6 +2026,12 @@ class BacktestAdmin(admin.ModelAdmin):
     readonly_fields = (
         'status',
         'pct_complete',
+        'total_lineups',
+        'total_optimals',
+        'completed_lineups',
+        'optimals_pct_complete',
+        'error_message',
+        
     )
     raw_id_fields = (
         'lineup_config',
