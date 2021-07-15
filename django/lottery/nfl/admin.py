@@ -2067,7 +2067,7 @@ class BacktestAdmin(admin.ModelAdmin):
         qs = qs.annotate(median_half_pct_rate_coalesced=Coalesce('median_half_pct_rate', 0))
 
         qs = qs.annotate(num_slates=Count('slates'))
-        qs = qs.annotate(num_slates_coalesced=Coalesce('num_slates', 1))
+        qs = qs.annotate(num_slates_coalesced=Coalesce('num_slates', 0))
 
         qs = qs.annotate(great_builds=Count(
             Case(When(slates__builds__great_build=True,
@@ -2075,7 +2075,10 @@ class BacktestAdmin(admin.ModelAdmin):
         ))
         qs = qs.annotate(great_builds_coalesced=Coalesce('great_builds', 0))
 
-        qs = qs.annotate(great_build_rate=Cast(F('great_builds'), FloatField()) / Cast(F('num_slates'), FloatField()))
+        qs = qs.annotate(great_build_rate=Case(
+            When(num_slates=0), 
+            default=Cast(F('great_builds'), FloatField()) / Cast(F('num_slates'), FloatField())
+        ))
         qs = qs.annotate(great_build_rate_coalesced=Coalesce('great_build_rate', 0))
 
         qs = qs.annotate(optimal_builds=Count(
@@ -2084,7 +2087,11 @@ class BacktestAdmin(admin.ModelAdmin):
         ))
         qs = qs.annotate(optimal_builds_coalesced=Coalesce('optimal_builds', 0))
 
-        qs = qs.annotate(optimal_build_rate=Cast(F('optimal_builds'), FloatField()) / Cast(F('num_slates'), FloatField()))
+        qs = qs.annotate(optimal_build_rate=Case(
+            When(num_slates=0), 
+            default=Cast(F('optimal_builds'), FloatField()) / Cast(F('num_slates'), FloatField())
+        ))
+        # qs = qs.annotate(optimal_build_rate=Cast(F('optimal_builds'), FloatField()) / Cast(F('num_slates'), FloatField()))
         qs = qs.annotate(optimal_build_rate_coalesced=Coalesce('optimal_build_rate', 0))
 
         return qs
