@@ -249,7 +249,7 @@ class BacktestSlateInline(admin.TabularInline):
     get_pct_half_pct.admin_order_field = 'total_half_pct'
 
     def get_great_score_diff(self, obj):
-        if obj.great_score is None:
+        if obj.great_score is None or obj.top_score is None:
             return None
         return '{:.2f}'.format(obj.top_score - obj.great_score)
     get_great_score_diff.short_description = 'Diff'
