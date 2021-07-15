@@ -78,7 +78,7 @@ services:
     depends_on:
         - django
     volumes:
-        - /home/lottery/certs/:/etc/nginx/certs/
+        - /etc/letsencrypt/live/great-lotto.com/:/etc/nginx/certs/
         - lottery_static:/opt/static
         - lottery_media:/opt/media
     restart: always
