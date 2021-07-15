@@ -2031,8 +2031,8 @@ class Backtest(models.Model):
             # analyze build
             build.get_actual_scores()
 
-            # build optimals
-            self.find_optimals()
+        # build optimals
+        self.find_optimals()
 
         self.pct_complete = 1.0
         self.optimals_pct_complete = 1.0
