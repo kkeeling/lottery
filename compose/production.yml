@@ -57,6 +57,7 @@ services:
       - db
       - redis
     volumes:
+      - ../data:/opt/data
       - ../django/lottery:/opt/lottery
       - lottery_static:/opt/static
       - lottery_media:/opt/media
@@ -78,7 +79,7 @@ services:
     depends_on:
         - django
     volumes:
-        - /etc/letsencrypt/live/great-lotto.com/:/etc/nginx/certs/
+        - /home/lottery/certs/:/etc/nginx/certs/
         - lottery_static:/opt/static
         - lottery_media:/opt/media
     restart: always
@@ -95,8 +96,6 @@ volumes:
     name: lottery_static
   lottery_media:
     name: lottery_media
-  lottery_grafana:
-    name: lottery_grafana
 
 networks:
   lottery_network:
