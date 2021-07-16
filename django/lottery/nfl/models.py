@@ -1290,7 +1290,7 @@ class SlateBuild(models.Model):
         slate_players = self.slate.players.filter(build_projections__isnull=False)
 
         last_qb = None
-        stacks = self.stacks.all().order_by('-qb__projection', 'qb__slate_player', 'build_order')
+        stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
         for stack in stacks:
             qb = stack.qb.id
             num_qb_stacks = self.stacks.filter(qb__id=qb).count()
@@ -1406,7 +1406,7 @@ class SlateBuild(models.Model):
         Returns a list of stacks for which there is at least 1 optimal lineups
         '''
         stacks_with_optimals = []
-        for stack in self.stacks.all().order_by('-qb__projection', 'qb'):
+        for stack in self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb'):
             has_possible_optimals = stack.has_possible_optimals()
             print('{}, {}'.format(stack, has_possible_optimals))
             if has_possible_optimals:
