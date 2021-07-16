@@ -1937,7 +1937,7 @@ class SlateBuildGroupPlayer(models.Model):
 
 class Backtest(models.Model):
     created = models.DateTimeField(auto_now_add=True, null=True, blank=True)
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, verbose_name='Backtest')
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
     lineups_per_slate = models.PositiveSmallIntegerField(default=600)
     lineup_config = models.ForeignKey(SlateBuildConfig, on_delete=models.SET_NULL, related_name='backtests', null=True, blank=True)
@@ -1959,7 +1959,7 @@ class Backtest(models.Model):
     class Meta:
         ordering = ('-created',)
         verbose_name = 'Backtest'
-        verbose_name_plural = 'Backtests'
+        verbose_name_plural = 'Backtesting Center'
 
     def execute(self):
         '''
