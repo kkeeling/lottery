@@ -1337,9 +1337,16 @@ class SlateBuild(models.Model):
 
             last_qb = qb
 
+        self.find_expected_lineup_order()
+        
         self.pct_complete = 1.0
         self.status = 'complete'
         self.save()
+    
+    def find_expected_lineup_order(self): 
+        for (index, lineup) in enumerate(self.lineups.all().order_by('order_number', '-qb__projection')):
+            lineup.expected_lineup_order = index + 1
+            lineup.save()
 
     def num_lineups_created(self):
         return self.lineups.all().count()
@@ -2068,7 +2075,24 @@ class Backtest(models.Model):
         self.total_optimals = complete_builds.aggregate(total=Sum('total_optimals')).get('total', 0) + build.total_optimals if complete_builds.count() > 0 else build.total_optimals
         self.optimals_pct_complete = complete_builds.count()/self.slates.all().count() + ((1/self.slates.all().count()) * build.optimals_pct_complete)
         self.save()
-        
+
+    def duplicate(self):
+        new_test = Backtest.objects.create(
+            name='{} COPY'.format(self.name),
+            site=self.site,
+            lineups_per_slate=self.lineups_per_slate,
+            lineup_config=self.lineup_config,
+            in_play_criteria=self.in_play_criteria,
+            lineup_construction=self.lineup_construction,
+            stack_construction=self.stack_construction,
+            stack_cutoff=self.stack_cutoff
+        )
+
+        for slate in self.slates.all():
+            BacktestSlate.objects.create(
+                backtest=new_test,
+                slate=slate.slate
+            )
 
 class BacktestSlate(models.Model):
     '''
