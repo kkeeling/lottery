@@ -2046,9 +2046,6 @@ class Backtest(models.Model):
             # analyze build
             build.get_actual_scores()
 
-        # build optimals
-        self.find_optimals()
-
         self.pct_complete = 1.0
         self.optimals_pct_complete = 1.0
         self.status = 'complete'
@@ -2058,6 +2055,7 @@ class Backtest(models.Model):
         max_optimals_per_stack = 50
         for slate in self.slates.all():
             build = slate.slate.builds.get(backtest__backtest=self)
+            # TODO: Cannot assume only 1 build per slate
             stacks_with_optimals = build.get_optimal_stacks()
             build.total_optimals = len(stacks_with_optimals) * max_optimals_per_stack
             build.optimals_pct_complete = 0.0

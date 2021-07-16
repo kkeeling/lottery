@@ -2201,6 +2201,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'add2020MainSlates',
         'execute',
         'duplicate',
+        'find_optimals'
     ]
 
     def get_queryset(self, request):
@@ -2349,3 +2350,8 @@ class BacktestAdmin(admin.ModelAdmin):
             backtest.duplicate()
             messages.success(request, 'Successfully duplicated {}.'.format(backtest.name))
     duplicate.short_description = 'Duplicate selected backtests'
+
+    def find_optimals(self, request, queryset):
+        for backtest in queryset:
+            backtest.find_optimals()
+            messages.success(request, 'Finding optimals for {}. Refresh page to check progress'.format(backtest.name))
