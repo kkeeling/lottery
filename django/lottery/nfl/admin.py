@@ -209,17 +209,15 @@ class BacktestSlateInline(admin.TabularInline):
         'get_cash_rate',
         'get_pct_one_pct',
         'get_pct_half_pct',
+        'get_el',
         'top_score',
         'great_score',
         'get_great_build',
         'get_great_score_diff',
         'get_binked',
+        'get_projections_link',
         'get_links',
-        'get_qb_exposures_link',
-        'get_rb_exposures_link',
-        'get_wr_exposures_link',
-        'get_te_exposures_link',
-        'get_dst_exposures_link',
+        'get_exposures_links',
     )
     readonly_fields = (
         'total_lineups',
@@ -227,17 +225,15 @@ class BacktestSlateInline(admin.TabularInline):
         'get_cash_rate',
         'get_pct_one_pct',
         'get_pct_half_pct',
+        'get_el',
         'top_score',
         'great_score',
         'get_great_build',
         'get_great_score_diff',
         'get_binked',
+        'get_projections_link',
         'get_links',
-        'get_qb_exposures_link',
-        'get_rb_exposures_link',
-        'get_wr_exposures_link',
-        'get_te_exposures_link',
-        'get_dst_exposures_link',
+        'get_exposures_links',
     )
 
     def get_binked(self, obj):
@@ -298,106 +294,30 @@ class BacktestSlateInline(admin.TabularInline):
             return mark_safe(html)
         except models.SlateBuild.DoesNotExist:
             return None
-    get_links.short_description = 'Stacks'
+    get_links.short_description = 'Links'
 
-    def get_stacks_link(self, obj):
-        try:
-            slate_build = models.SlateBuild.objects.get(
-                backtest=obj
-            )
-            if slate_build.num_stacks_created() > 0:
-                return mark_safe('<a href="/admin/nfl/slatebuildstack/?build__id__exact={}">Stacks</a>'.format(slate_build.id))
-            return None
-        except models.SlateBuild.DoesNotExist:
-            return None
-    get_stacks_link.short_description = 'Stacks'
-
-    def get_lineups_link(self, obj):
+    def get_exposures_links(self, obj):
         try:
             slate_build = models.SlateBuild.objects.get(
                 backtest=obj
             )
             if slate_build.num_lineups_created() > 0:
-                return mark_safe('<a href="/admin/nfl/slatebuildlineup/?build__id__exact={}">Lineups</a>'.format(slate_build.id))
-            return None
-        except models.SlateBuild.DoesNotExist:
-            return None
-    get_lineups_link.short_description = 'Lineups'
+                html = ''
+                html += '<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=QB">QB</a>'.format(slate_build.id)
+                html += '<br /><a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=RB">RB</a>'.format(slate_build.id)
+                html += '<br /><a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=WR">WR</a>'.format(slate_build.id)
+                html += '<br /><a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=TE">TE</a>'.format(slate_build.id)
 
-    def get_optimals_link(self, obj):
-        try:
-            slate_build = models.SlateBuild.objects.get(
-                backtest=obj
-            )
-            if slate_build.num_actuals_created() > 0:
-                return mark_safe('<a href="/admin/nfl/slatebuildactualslineup/?build__id__exact={}">Optimals</a>'.format(slate_build.id))
-            return None
-        except models.SlateBuild.DoesNotExist:
-            return None
-    get_optimals_link.short_description = 'Optimals'
-
-    def get_qb_exposures_link(self, obj):
-        try:
-            slate_build = models.SlateBuild.objects.get(
-                backtest=obj
-            )
-            if slate_build.num_lineups_created() > 0:
-                return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=QB">Exp</a>'.format(slate_build.id))
-            return None
-        except models.SlateBuild.DoesNotExist:
-            return None
-    get_qb_exposures_link.short_description = 'QB'
-
-    def get_rb_exposures_link(self, obj):
-        try:
-            slate_build = models.SlateBuild.objects.get(
-                backtest=obj
-            )
-            if slate_build.num_lineups_created() > 0:
-                return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=RB">Exp</a>'.format(slate_build.id))
-            return None
-        except models.SlateBuild.DoesNotExist:
-            return None
-    get_rb_exposures_link.short_description = 'RB'
-
-    def get_wr_exposures_link(self, obj):
-        try:
-            slate_build = models.SlateBuild.objects.get(
-                backtest=obj
-            )
-            if slate_build.num_lineups_created() > 0:
-                return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=WR">Exp</a>'.format(slate_build.id))
-            return None
-        except models.SlateBuild.DoesNotExist:
-            return None
-    get_wr_exposures_link.short_description = 'WR'
-
-    def get_te_exposures_link(self, obj):
-        try:
-            slate_build = models.SlateBuild.objects.get(
-                backtest=obj
-            )
-            if slate_build.num_lineups_created() > 0:
-                return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=TE">Exp</a>'.format(slate_build.id))
-            return None
-        except models.SlateBuild.DoesNotExist:
-            return None
-    get_te_exposures_link.short_description = 'TE'
-
-    def get_dst_exposures_link(self, obj):
-        try:
-            slate_build = models.SlateBuild.objects.get(
-                backtest=obj
-            )
-            if slate_build.num_lineups_created() > 0:
                 if slate_build.slate.site == 'fanduel':
-                    return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=D">Exp</a>'.format(slate_build.id))
+                    html += '<br /><a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=D">DST</a>'.format(slate_build.id)
                 elif slate_build.slate.site == 'draftkings':
-                    return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=DST">Exp</a>'.format(slate_build.id))
+                    html += '<br /><a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=DST">DST</a>'.format(slate_build.id)
+
+                return mark_safe(html)
             return None
         except models.SlateBuild.DoesNotExist:
             return None
-    get_dst_exposures_link.short_description = 'DST'
+    get_exposures_links.short_description = 'Exp'
 
     def get_el(self, obj):
         try:
@@ -411,6 +331,18 @@ class BacktestSlateInline(admin.TabularInline):
         except models.SlateBuild.DoesNotExist:
             return None
     get_el.short_description = 'EL'
+
+    def get_projections_link(self, obj):
+        try:
+            slate_build = models.SlateBuild.objects.get(
+                backtest=obj
+            )
+            if slate_build.projections.all().count() > 0:
+                return mark_safe('<a href="/admin/nfl/buildplayerprojection/?build_id={}">Projections</a>'.format(slate_build.id))
+            return None
+        except models.SlateBuild.DoesNotExist:
+            return None
+    get_projections_link.short_description = 'Proj'
 
 
 class GroupCreationRuleInline(admin.TabularInline):
@@ -1804,9 +1736,6 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'stack_only',
         'qb_stack_only',
         'opp_qb_stack_only',
-        'at_most_one_in_stack',
-        'at_least_one_in_lineup',
-        'at_least_two_in_lineup',
         'locked',
         'get_actual_score'
     )
@@ -1820,9 +1749,6 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'qb_stack_only',
         'opp_qb_stack_only',
         'locked',
-        'at_most_one_in_stack',
-        'at_least_one_in_lineup',
-        'at_least_two_in_lineup',
     )
     search_fields = ('slate_player__name',)
     list_filter = (

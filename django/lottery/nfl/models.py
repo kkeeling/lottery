@@ -961,7 +961,6 @@ class StackConstructionRule(models.Model):
         verbose_name_plural = 'Stack Construction Rules'
 
     def passes_rule(self, stack):
-        print(self.lock_top_pc, stack.contains_top_projected_pass_catcher(self.top_pc_margin))
         return not self.lock_top_pc or (self.lock_top_pc and stack.contains_top_projected_pass_catcher(self.top_pc_margin))
 
 # Importing
@@ -1184,7 +1183,6 @@ class SlateBuild(models.Model):
             qb_lineup_count = round(qb.balanced_projection/total_qb_projection * self.total_lineups)
 
             print('Making stacks for {} {} lineups...'.format(qb_lineup_count, qb.name))
-            print(qb.team, qb.get_opponent(), qb.get_game())
             stack_players = self.projections.filter(
                 Q(Q(slate_player__site_pos__in=self.configuration.qb_stack_positions) | Q(slate_player__site_pos__in=self.configuration.opp_qb_stack_positions))
             ).filter(
@@ -1708,16 +1706,16 @@ class SlateBuildLineup(models.Model):
         ]
 
     def contains_top_projected_pass_catcher(self):
-        pass_catchers = SlatePlayerProjection.objects.filter(
+        pass_catchers = BuildPlayerProjection.objects.filter(
             Q(Q(slate_player__site_pos='WR') | Q(slate_player__site_pos='TE')),
+            build=self.build,
             slate_player__slate=self.build.slate,
-            slate_player__team=self.qb.slate_player.team
+            slate_player__team=self.qb.slate_player.team,
         ).order_by('-projection')
 
         if pass_catchers.count() > 0:
             top_projection = pass_catchers[0].projection
             top_projected_players = [p for p in pass_catchers if top_projection - p.projection <= 2.0]
-            print(top_projected_players)
 
             return self.wr1 in top_projected_players or self.wr2 in top_projected_players or self.wr3 in top_projected_players or self.te in top_projected_players or self.flex in top_projected_players
         return False
@@ -2047,7 +2045,6 @@ class Backtest(models.Model):
             build.get_actual_scores()
 
         self.pct_complete = 1.0
-        self.optimals_pct_complete = 1.0
         self.status = 'complete'
         self.save()
 
