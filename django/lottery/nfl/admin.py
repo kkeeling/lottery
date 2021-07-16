@@ -2312,32 +2312,68 @@ class BacktestAdmin(admin.ModelAdmin):
     def addMainSlates(self, request, queryset):
         for backtest in queryset:
             for (index, slate) in enumerate(models.Slate.objects.filter(site=backtest.site, is_main_slate=True)):
-                (backtest_slate, created) = models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.get_or_create(
                     backtest=backtest,
                     slate=slate
                 )
-            messages.success(request, 'Added {} slates to {}.'.format(index + 1, backtest.name))
-    addMainSlates.short_description = 'Add all main slates to selected backtests'
+                models.BacktestSlate.objects.get_or_create(
+                    backtest=backtest,
+                    slate=slate
+                )
+                models.BacktestSlate.objects.get_or_create(
+                    backtest=backtest,
+                    slate=slate
+                )
+                models.BacktestSlate.objects.get_or_create(
+                    backtest=backtest,
+                    slate=slate
+                )
+            messages.success(request, 'Added {} slates (4x) to {}.'.format(index + 1, backtest.name))
+    addMainSlates.short_description = 'Add all main slates (4x) to selected backtests'
     
     def add2019MainSlates(self, request, queryset):
         for backtest in queryset:
             for (index, slate) in enumerate(models.Slate.objects.filter(site=backtest.site, is_main_slate=True, week__slate_year=2019)):
-                (backtest_slate, created) = models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.get_or_create(
                     backtest=backtest,
                     slate=slate
                 )
-            messages.success(request, 'Added {} slates to {}.'.format(index + 1, backtest.name))
-    add2019MainSlates.short_description = 'Add all 2019 main slates to selected backtests'
+                models.BacktestSlate.objects.get_or_create(
+                    backtest=backtest,
+                    slate=slate
+                )
+                models.BacktestSlate.objects.get_or_create(
+                    backtest=backtest,
+                    slate=slate
+                )
+                models.BacktestSlate.objects.get_or_create(
+                    backtest=backtest,
+                    slate=slate
+                )
+            messages.success(request, 'Added {} slates (4x) to {}.'.format(index + 1, backtest.name))
+    add2019MainSlates.short_description = 'Add all 2019 main slates (4x) to selected backtests'
     
     def add2020MainSlates(self, request, queryset):
         for backtest in queryset:
             for (index, slate) in enumerate(models.Slate.objects.filter(site=backtest.site, is_main_slate=True, week__slate_year=2020)):
-                (backtest_slate, created) = models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.get_or_create(
                     backtest=backtest,
                     slate=slate
                 )
-            messages.success(request, 'Added {} slates to {}.'.format(index + 1, backtest.name))
-    add2020MainSlates.short_description = 'Add all 2020 main slates to selected backtests'
+                models.BacktestSlate.objects.get_or_create(
+                    backtest=backtest,
+                    slate=slate
+                )
+                models.BacktestSlate.objects.get_or_create(
+                    backtest=backtest,
+                    slate=slate
+                )
+                models.BacktestSlate.objects.get_or_create(
+                    backtest=backtest,
+                    slate=slate
+                )
+            messages.success(request, 'Added {} slates (4x) to {}.'.format(index + 1, backtest.name))
+    add2020MainSlates.short_description = 'Add all 2020 main slates (4x) to selected backtests'
 
     def execute(self, request, queryset):
         for backtest in queryset:
