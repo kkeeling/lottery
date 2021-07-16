@@ -1255,6 +1255,14 @@ class SlateBuild(models.Model):
                 stack.count = round(stack.projection/total_stack_projection * qb_lineup_count, 0)
                 stack.save()
 
+        self.rank_stacks()
+
+    def rank_stacks(self):
+        stacks = self.stacks.all().order_by('-projection')
+        for (index, stack) in enumerate(stacks):
+            stack.rank = index + 1
+            stack.save()
+
     def clean_stacks(self):
         '''
         Will remove all but {stack_cutoff} stacks, and then redistribute the removed lineups evenly

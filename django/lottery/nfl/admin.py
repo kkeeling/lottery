@@ -1431,10 +1431,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
     def rank_stacks(self, request, queryset):
         for build in queryset:
-            stacks = build.stacks.all().order_by('-projection')
-            for (index, stack) in enumerate(stacks):
-                stack.rank = index + 1
-                stack.save()
+            build.rank_stacks()
 
     def build(self, request, queryset):
         for b in queryset:
