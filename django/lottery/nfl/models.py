@@ -1257,7 +1257,7 @@ class SlateBuild(models.Model):
                                         stack.contains_top_pc = stack.contains_top_projected_pass_catcher(self.stack_construction.top_pc_margin)
 
                                         # check stack construction rules; if not all are satisfied, do not save this stack
-                                        if self.stack_construction.passes_rule(stack):
+                                        if self.stack_construction is None or self.stack_construction.passes_rule(stack):
                                             stack.save()
                                         
             total_stack_projection = SlateBuildStack.objects.filter(build=self, qb=qb).aggregate(total_projection=Sum('projection')).get('total_projection')
@@ -2045,6 +2045,7 @@ class Backtest(models.Model):
             self.save()
 
     def handle_exception(self, slate, exc):
+        self.status = 'error'
         if self.error_message is None or self.error_message == '':
             self.error_message = '{} Error: {}'.format(slate, str(exc))
         else:
@@ -2171,23 +2172,24 @@ class BacktestSlate(models.Model):
         build.find_stack_only()
 
         # create groups
-        for (index, group_rule) in enumerate(build.lineup_construction.group_rules.all()):
-            group = SlateBuildGroup.objects.create(
-                build=build,
-                name='{}: Group {}'.format(self.slate.name, index+1),
-                min_from_group=group_rule.at_least
-            )
+        if build.lineup_construction is not None:
+            for (index, group_rule) in enumerate(build.lineup_construction.group_rules.all()):
+                group = SlateBuildGroup.objects.create(
+                    build=build,
+                    name='{}: Group {}'.format(self.slate.name, index+1),
+                    min_from_group=group_rule.at_least
+                )
 
-            # add players to group
-            for projection in build.projections.filter(in_play=True, slate_player__site_pos__in=group_rule.allowed_positions):
-                if group_rule.meets_threshold(projection):
-                    SlateBuildGroupPlayer.objects.create(
-                        group=group,
-                        slate_player=projection.slate_player
-                    )
+                # add players to group
+                for projection in build.projections.filter(in_play=True, slate_player__site_pos__in=group_rule.allowed_positions):
+                    if group_rule.meets_threshold(projection):
+                        SlateBuildGroupPlayer.objects.create(
+                            group=group,
+                            slate_player=projection.slate_player
+                        )
 
-            group.max_from_group = group.players.all().count()
-            group.save()
+                group.max_from_group = group.players.all().count()
+                group.save()
     
         # create stacks
         build.create_stacks()
