@@ -1254,7 +1254,8 @@ class SlateBuild(models.Model):
                                         )
                                         print(stack)
 
-                                        stack.contains_top_pc = stack.contains_top_projected_pass_catcher(self.stack_construction.top_pc_margin)
+                                        if self.stack_construction is not None:
+                                            stack.contains_top_pc = stack.contains_top_projected_pass_catcher(self.stack_construction.top_pc_margin)
 
                                         # check stack construction rules; if not all are satisfied, do not save this stack
                                         if self.stack_construction is None or self.stack_construction.passes_rule(stack):
