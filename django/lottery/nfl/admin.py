@@ -2238,19 +2238,19 @@ class BacktestAdmin(admin.ModelAdmin):
     def addMainSlates(self, request, queryset):
         for backtest in queryset:
             for (index, slate) in enumerate(models.Slate.objects.filter(site=backtest.site, is_main_slate=True)):
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
@@ -2260,19 +2260,19 @@ class BacktestAdmin(admin.ModelAdmin):
     def add2019MainSlates(self, request, queryset):
         for backtest in queryset:
             for (index, slate) in enumerate(models.Slate.objects.filter(site=backtest.site, is_main_slate=True, week__slate_year=2019)):
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
@@ -2282,19 +2282,19 @@ class BacktestAdmin(admin.ModelAdmin):
     def add2020MainSlates(self, request, queryset):
         for backtest in queryset:
             for (index, slate) in enumerate(models.Slate.objects.filter(site=backtest.site, is_main_slate=True, week__slate_year=2020)):
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.get_or_create(
+                models.BacktestSlate.objects.create(
                     backtest=backtest,
                     slate=slate
                 )
