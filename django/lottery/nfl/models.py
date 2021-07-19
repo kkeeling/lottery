@@ -22,6 +22,7 @@ from tagulous.models import SingleTagField
 
 from . import optimal
 from . import optimize
+from . import tasks
 
 
 BuildEval = namedtuple('BuildEval', ['top_score', 'total_cashes', 'total_one_pct', 'total_half_pct', 'binked'])
@@ -1028,7 +1029,7 @@ class SlateBuild(models.Model):
 
     # Build analysis
     top_score = models.DecimalField(verbose_name='top', decimal_places=2, max_digits=5, blank=True, null=True)
-    total_lineups = models.PositiveIntegerField(verbose_name='total')
+    total_lineups = models.PositiveIntegerField(verbose_name='total', default=0)
     total_optimals = models.PositiveIntegerField(default=0)
     total_cashes = models.PositiveIntegerField(verbose_name='cashes', blank=True, null=True)
     total_one_pct = models.PositiveIntegerField(verbose_name='1%', blank=True, null=True)
@@ -1050,6 +1051,18 @@ class SlateBuild(models.Model):
     def __str__(self):
         return '{} ({}) @ {}'.format(self.slate.name, self.configuration, self.created.replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime('%Y-%m-%d %H:%M'))
 
+    def reset(self):
+        self.clear_analysis()
+
+        self.groups.all().delete()
+        self.lineups.all().delete()
+
+        self.status = 'not_started'
+        self.error_message = None
+        self.pct_complete = 0.0
+
+        self.save()
+
     def clear_analysis(self):
         self.top_score = None
         self.total_optimals = 0.0
@@ -1057,7 +1070,7 @@ class SlateBuild(models.Model):
         self.total_one_pct = None
         self.total_half_pct = None
         self.great_build = False
-        self.binked = False
+        self.binked = False        
 
     def update_projections(self, replace=True):
         '''
@@ -1277,7 +1290,7 @@ class SlateBuild(models.Model):
                 stack.save()
 
     def build(self):
-        self.lineups.all().delete()
+        self.reset()
 
         print('Building {} lineups; {} unique stacks...'.format(self.total_lineups, self.stacks.all().count()))
         self.status = 'running'
@@ -1330,8 +1343,6 @@ class SlateBuild(models.Model):
 
             self.pct_complete = self.lineups.all().count() / self.total_lineups
             self.save()
-
-            self.backtest.backtest.update_pct_complete(len(lineups))
 
             last_qb = qb
 
@@ -1950,6 +1961,7 @@ class Backtest(models.Model):
     pct_complete = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     optimals_pct_complete = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     error_message = models.TextField(blank=True, null=True)
+    elapsed_time = models.DurationField(default=datetime.timedelta())
 
     def __str___(self):
         return '{}'.format(self.name)
@@ -1978,75 +1990,23 @@ class Backtest(models.Model):
 
         self.status = 'running'
         self.error_message = None
+        self.completed_lineups = 0
         self.pct_complete = 0.0
         self.total_lineups = self.slates.all().count() * self.lineups_per_slate
         self.total_optimals = 0
         self.optimals_pct_complete = 0.0
         self.save()
 
+        # reset any existing builds
+        for build in SlateBuild.objects.filter(backtest__in=self.slates.all()):
+            build.reset()
+
+        # start monitoring
+        tasks.monitor_backtest.delay(self.id)
+
+        # execute the builds
         for slate in self.slates.all():
-            print(slate)
-            
-            # create a build
-            (build, _) = SlateBuild.objects.get_or_create(
-                slate=slate.slate,
-                backtest=slate,
-                configuration=self.lineup_config,
-                in_play_criteria=self.in_play_criteria,
-                lineup_construction=self.lineup_construction,
-                stack_construction=self.stack_construction,
-                stack_cutoff=self.stack_cutoff,
-                total_lineups=self.lineups_per_slate
-            )
-
-            build.clear_analysis()
-
-            # copy default projections if they don't exist
-            build.update_projections(replace=True)
-
-            # find players that are in-play
-            for projection in build.projections.all():
-                projection.find_in_play()
-                projection.set_rb_group_value()
-            
-            # find stack-only players
-            build.find_stack_only()
-
-            # create groups
-            build.groups.all().delete()
-            for (index, group_rule) in enumerate(build.lineup_construction.group_rules.all()):
-                group = SlateBuildGroup.objects.create(
-                    build=build,
-                    name='{}: Group {}'.format(slate.slate.name, index+1),
-                    min_from_group=group_rule.at_least
-                )
-
-                # add players to group
-                for projection in build.projections.filter(in_play=True, slate_player__site_pos__in=group_rule.allowed_positions):
-                    if group_rule.meets_threshold(projection):
-                        SlateBuildGroupPlayer.objects.create(
-                            group=group,
-                            slate_player=projection.slate_player
-                        )
-
-                group.max_from_group = group.players.all().count()
-                group.save()
-        
-            # create stacks
-            build.create_stacks()
-
-            # clean stacks
-            build.clean_stacks()
-
-            # make lineups
-            build.build()
-
-            # analyze build
-            build.get_actual_scores()
-
-        self.pct_complete = 1.0
-        self.status = 'complete'
-        self.save()
+            tasks.run_slate_for_backtest.delay(slate.id)
 
     def find_optimals(self):
         max_optimals_per_stack = 50
@@ -2069,6 +2029,27 @@ class Backtest(models.Model):
         complete_builds = SlateBuild.objects.filter(backtest__in=self.slates.all(), optimals_pct_complete=1.0)
         self.total_optimals = complete_builds.aggregate(total=Sum('total_optimals')).get('total', 0) + build.total_optimals if complete_builds.count() > 0 else build.total_optimals
         self.optimals_pct_complete = complete_builds.count()/self.slates.all().count() + ((1/self.slates.all().count()) * build.optimals_pct_complete)
+        self.save()
+
+    def update_status(self):
+        completed_lineups = SlateBuild.objects.filter(backtest__in=self.slates.all()).aggregate(total_lineups=Count('lineups')).get('total_lineups')
+
+        if completed_lineups is not None:
+            self.completed_lineups = completed_lineups
+            self.pct_complete = float(self.completed_lineups)/float(self.total_lineups)
+
+            if SlateBuild.objects.filter(backtest__in=self.slates.all()).exclude(status='complete').count() == 0:
+                self.pct_complete = 1.0
+                self.status = 'complete'
+                
+            self.save()
+
+    def handle_exception(self, slate, exc):
+        if self.error_message is None or self.error_message == '':
+            self.error_message = '{} Error: {}'.format(slate, str(exc))
+        else:
+             self.error_message = '\n{} Error: {}'.format(slate, str(exc))
+        
         self.save()
 
     def duplicate(self):
@@ -2164,6 +2145,65 @@ class BacktestSlate(models.Model):
     def great_score(self):
         return self.slate.get_great_score()
     
+    def execute(self):
+        # create a build
+        (build, _) = SlateBuild.objects.get_or_create(
+            slate=self.slate,
+            backtest=self,
+        )
+        build.configuration = self.backtest.lineup_config
+        build.in_play_criteria = self.backtest.in_play_criteria
+        build.lineup_construction = self.backtest.lineup_construction
+        build.stack_construction = self.backtest.stack_construction
+        build.stack_cutoff = self.backtest.stack_cutoff
+        build.total_lineups = self.backtest.lineups_per_slate
+        build.save()
+
+        # copy default projections if they don't exist
+        build.update_projections(replace=True)
+
+        # find players that are in-play
+        for projection in build.projections.all():
+            projection.find_in_play()
+            projection.set_rb_group_value()
+        
+        # find stack-only players
+        build.find_stack_only()
+
+        # create groups
+        for (index, group_rule) in enumerate(build.lineup_construction.group_rules.all()):
+            group = SlateBuildGroup.objects.create(
+                build=build,
+                name='{}: Group {}'.format(self.slate.name, index+1),
+                min_from_group=group_rule.at_least
+            )
+
+            # add players to group
+            for projection in build.projections.filter(in_play=True, slate_player__site_pos__in=group_rule.allowed_positions):
+                if group_rule.meets_threshold(projection):
+                    SlateBuildGroupPlayer.objects.create(
+                        group=group,
+                        slate_player=projection.slate_player
+                    )
+
+            group.max_from_group = group.players.all().count()
+            group.save()
+    
+        # create stacks
+        build.create_stacks()
+
+        # clean stacks
+        build.clean_stacks()
+
+        # make lineups
+        build.build()
+
+        # analyze build
+        build.get_actual_scores()
+
+    def handle_exception(self, exc):
+        self.backtest.handle_exception(self, exc)
+
 
 # Signals
 

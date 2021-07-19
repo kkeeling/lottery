@@ -1308,6 +1308,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'get_dst_exposures_link',
         'get_pct_complete',
         'get_optimal_pct_complete',
+        'error_message',
     )
     list_editable = (
         'used_in_contests',
@@ -1367,7 +1368,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
     def build(self, request, queryset):
         for b in queryset:
-            b.build()
+            tasks.run_build.delay(b.id)
     build.short_description = 'Generate lineups for selected builds'
 
     def find_expected_lineup_order(self, request, queryset): 
@@ -2095,6 +2096,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'lineup_construction',
         'stack_construction',
         'status',
+        'elapsed_time',
         'get_pct_complete',
         'get_optimals_pct_complete',
         'error_message',
@@ -2112,6 +2114,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'completed_lineups',
         'optimals_pct_complete',
         'error_message',
+        'elapsed_time',
         
     )
     raw_id_fields = (
@@ -2317,3 +2320,4 @@ class BacktestAdmin(admin.ModelAdmin):
         for backtest in queryset:
             backtest.find_optimals()
             messages.success(request, 'Finding optimals for {}. Refresh page to check progress'.format(backtest.name))
+    find_optimals.short_description = 'Find optimal lineups for all unique slates in selected backtests'
