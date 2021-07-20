@@ -1284,6 +1284,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
     list_display = (
         'created',
         'slate',
+        'get_backtest',
         'used_in_contests',
         'configuration',
         'total_lineups',
@@ -1596,6 +1597,12 @@ class SlateBuildAdmin(admin.ModelAdmin):
             tasks.build_optimals.delay(build.id)
             messages.success(request, 'Building optimals for {}. Refresh page to check progress'.format(build))
     find_optimal_lineups.short_description = 'Generate optimal lineups for selected builds'
+
+    def get_backtest(self, obj):
+        if obj.backtest is None:
+            return None
+        return obj.backtest.backtest.name
+    get_backtest.short_description = 'Backtest'
 
     def get_pct_one_pct(self, obj):
         if obj.total_one_pct is None:

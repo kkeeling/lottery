@@ -2072,6 +2072,7 @@ class Backtest(models.Model):
                 slate=slate.slate
             )
 
+
 class BacktestSlate(models.Model):
     '''
     Slates in a backtest
