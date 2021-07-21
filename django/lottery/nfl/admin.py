@@ -1307,6 +1307,8 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'get_wr_exposures_link',
         'get_te_exposures_link',
         'get_dst_exposures_link',
+        'status',
+        'elapsed_time',
         'get_pct_complete',
         'get_optimal_pct_complete',
         'error_message',
@@ -2102,6 +2104,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'in_play_criteria',
         'lineup_construction',
         'stack_construction',
+        'get_num_slates',
         'status',
         'elapsed_time',
         'get_pct_complete',
@@ -2187,6 +2190,10 @@ class BacktestAdmin(admin.ModelAdmin):
         qs = qs.annotate(optimal_build_rate_coalesced=Coalesce('optimal_build_rate', 0))
 
         return qs
+
+    def get_num_slates(self, obj):
+        return obj.num_slates
+    get_num_slates.short_description = '# slates'
 
     def get_pct_complete(self, obj):
         return format_html(

@@ -1043,6 +1043,8 @@ class SlateBuild(models.Model):
     pct_complete = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     optimals_pct_complete = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     error_message = models.TextField(blank=True, null=True)
+    elapsed_time = models.DurationField(default=datetime.timedelta())
+    
 
     class Meta:
         verbose_name = 'Slate Build'
@@ -1293,13 +1295,16 @@ class SlateBuild(models.Model):
     def build(self):
         self.reset()
 
+        # get real total lineups
+        self.total_lineups = SlateBuildStack.objects.filter(build=self).aggregate(total=Sum('count')).get('total')
+
         print('Building {} lineups; {} unique stacks...'.format(self.total_lineups, self.stacks.all().count()))
         self.status = 'running'
         self.error_message = None
         self.pct_complete = 0.0
         self.save()
 
-        slate_players = self.slate.players.filter(build_projections__isnull=False)
+        tasks.monitor_build.delay(self.id)
 
         last_qb = None
         stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
@@ -1311,48 +1316,26 @@ class SlateBuild(models.Model):
             else:
                 lineup_number += 1
 
-            lineups = optimize.optimize_for_stack(
-                self.slate.site,
-                stack,
-                self.projections.all(),
-                self.slate.teams,
-                self.configuration,
-                stack.count,
-                groups=self.groups.filter(active=True)
-            )
+            tasks.optimize_for_stack.delay(self.slate.site, self.id, stack.id, lineup_number, num_qb_stacks)
 
-            for (index, lineup) in enumerate(lineups):
-                SlateBuildLineup.objects.create(
-                    build=self,
-                    stack=stack,
-                    order_number=lineup_number + (num_qb_stacks * index),
-                    qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self),
-                    rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self),
-                    rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self),
-                    wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self),
-                    wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self),
-                    wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self),
-                    te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self),
-                    flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self),
-                    dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self),
-                    salary=lineup.salary_costs,
-                    projection=lineup.fantasy_points_projection
-                )
+            last_qb = qb
+        
+    def update_build_progress(self):
+        if self.lineups.all().count() >= self.total_lineups:
+            self.pct_complete = 1.0
+            self.status = 'complete'
+            self.save()
 
-            stack.times_used = len(lineups)
-            stack.save()
+            self.find_expected_lineup_order()
 
+            if self.backtest is not None:
+                # analyze build
+                self.get_actual_scores()
+
+        else:
             self.pct_complete = self.lineups.all().count() / self.total_lineups
             self.save()
 
-            last_qb = qb
-
-        self.find_expected_lineup_order()
-        
-        self.pct_complete = 1.0
-        self.status = 'complete'
-        self.save()
-    
     def find_expected_lineup_order(self): 
         for (index, lineup) in enumerate(self.lineups.all().order_by('order_number', '-qb__projection')):
             lineup.expected_lineup_order = index + 1
@@ -2002,12 +1985,12 @@ class Backtest(models.Model):
         for build in SlateBuild.objects.filter(backtest__in=self.slates.all()):
             build.reset()
 
-        # start monitoring
-        tasks.monitor_backtest.delay(self.id)
-
         # execute the builds
         for slate in self.slates.all():
             tasks.run_slate_for_backtest.delay(slate.id)
+
+        # start monitoring
+        tasks.monitor_backtest.delay(self.id)
 
     def find_optimals(self):
         max_optimals_per_stack = 50
@@ -2163,7 +2146,7 @@ class BacktestSlate(models.Model):
         build.save()
 
         # copy default projections if they don't exist
-        build.update_projections(replace=True)
+        build.update_projections(replace=False)
 
         # find players that are in-play
         for projection in build.projections.all():
@@ -2201,9 +2184,6 @@ class BacktestSlate(models.Model):
 
         # make lineups
         build.build()
-
-        # analyze build
-        build.get_actual_scores()
 
     def handle_exception(self, exc):
         self.backtest.handle_exception(self, exc)
