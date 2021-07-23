@@ -157,7 +157,9 @@ def monitor_backtest(backtest_id):
     start = datetime.datetime.now()
     backtest = models.Backtest.objects.get(id=backtest_id)
     while backtest.status != 'complete':
+        print('checking backtest status...')
         backtest.update_status()
+        time.sleep(1)
 
     backtest.elapsed_time = (datetime.datetime.now() - start)
     backtest.save()
