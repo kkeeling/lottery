@@ -247,21 +247,21 @@ class BacktestSlateInline(admin.TabularInline):
     get_great_build.boolean = True
 
     def get_cash_rate(self, obj):
-        if obj.total_cashes is None:
+        if obj.total_cashes is None or obj.total_lineups() == 0:
             return None
         return '{:.2f}'.format(obj.total_cashes/obj.total_lineups() * 100)
     get_cash_rate.short_description = 'Cash %'
     get_cash_rate.admin_order_field = 'total_cashes'
 
     def get_pct_one_pct(self, obj):
-        if obj.total_one_pct is None:
+        if obj.total_one_pct is None or obj.total_lineups() == 0:
             return None
         return '{:.2f}'.format(obj.total_one_pct/obj.total_lineups() * 100)
     get_pct_one_pct.short_description = '1%'
     get_pct_one_pct.admin_order_field = 'total_one_pct'
 
     def get_pct_half_pct(self, obj):
-        if obj.total_half_pct is None:
+        if obj.total_half_pct is None or obj.total_lineups() == 0:
             return None
         return '{:.2f}'.format(obj.total_half_pct/obj.total_lineups() * 100)
     get_pct_half_pct.short_description = '0.5%'
@@ -282,12 +282,16 @@ class BacktestSlateInline(admin.TabularInline):
             html = ''
             if slate_build.num_stacks_created() > 0:
                 html += '<a href="/admin/nfl/slatebuildstack/?build__id__exact={}">Stacks</a>'.format(slate_build.id)
+            if slate_build.num_groups_created() > 0:
+                if html != '':
+                    html += '<br />'
+                html += '<a href="/admin/nfl/slatebuildgroup/?build__id__exact={}">Groups</a>'.format(slate_build.id)
             if slate_build.num_lineups_created() > 0:
-                if slate_build.num_stacks_created() > 0:
+                if html != '':
                     html += '<br />'
                 html += '<a href="/admin/nfl/slatebuildlineup/?build__id__exact={}">Lineups</a>'.format(slate_build.id)
             if slate_build.num_actuals_created() > 0:
-                if slate_build.num_stacks_created() > 0 or slate_build.num_lineups_created() > 0:
+                if html != '':
                     html += '<br />'
                 html += '<a href="/admin/nfl/slatebuildactualslineup/?build__id__exact={}">Optimals</a>'.format(slate_build.id)
 
@@ -1287,6 +1291,10 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'get_backtest',
         'used_in_contests',
         'configuration',
+        'in_play_criteria',
+        'lineup_construction',
+        'stack_construction',
+        'stack_cutoff',
         'total_lineups',
         'num_lineups_created',
         'total_cashes',
@@ -1299,7 +1307,9 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'get_bink_score',
         'binked', 
         'top_optimal_score',
+        'get_projections_link',
         'get_stacks_link',
+        'get_groups_link',
         'get_lineups_link',
         'get_actuals_link',
         'get_qb_exposures_link',
@@ -1316,6 +1326,10 @@ class SlateBuildAdmin(admin.ModelAdmin):
     list_editable = (
         'used_in_contests',
         'configuration',
+        'in_play_criteria',
+        'lineup_construction',
+        'stack_construction',
+        'stack_cutoff',
         'total_lineups',
         'slate',
     )
@@ -1329,20 +1343,41 @@ class SlateBuildAdmin(admin.ModelAdmin):
     )
     search_fields = ('slate__name',)
     actions = [
+        'reset',
+        'prepare_projections',
+        'prepare_construction',
+        'build', 
+        'export_for_upload', 
         'create_stacks', 
         'clean_stacks',
         'clean_stacks_50',
         'rank_stacks',
-        'build', 
         'find_expected_lineup_order',
         'export_lineups', 
-        'export_for_upload', 
         'get_actual_scores', 
         'find_optimal_lineups',
         'duplicate_builds', 
         'delete_lineups', 
         'clear_unused_stacks', 
         'clear_data']
+
+    def reset(self, request, queryset):
+        for build in queryset:
+            build.reset()
+            messages.success(request, 'Reset {}.'.format(build))
+    reset.short_description = 'Reset selected builds'
+
+    def prepare_projections(self, request, queryset):
+        for build in queryset:
+            build.prepare_projections()
+            messages.success(request, 'Projections prepared for {}.'.format(build))
+    prepare_projections.short_description = 'Prepare projections for selected builds'
+
+    def prepare_construction(self, request, queryset):
+        for build in queryset:
+            build.prepare_construction()
+            messages.success(request, 'Construction prepared for {}.'.format(build))
+    prepare_construction.short_description = 'Prepare construction for selected builds'
 
     def create_stacks(self, request, queryset):
         for b in queryset:
@@ -1640,11 +1675,23 @@ class SlateBuildAdmin(admin.ModelAdmin):
     did_get_great_score.boolean = True
     did_get_great_score.short_description = 'gb'
 
+    def get_projections_link(self, obj):
+        if obj.projections.all().count() > 0:
+            return mark_safe('<a href="/admin/nfl/buildplayerprojection/?build__id__exact={}">Proj</a>'.format(obj.id))
+        return 'None'
+    get_projections_link.short_description = 'Proj'
+
     def get_stacks_link(self, obj):
         if obj.num_stacks_created() > 0:
             return mark_safe('<a href="/admin/nfl/slatebuildstack/?build__id__exact={}">Stacks</a>'.format(obj.id))
         return 'None'
     get_stacks_link.short_description = 'Stacks'
+
+    def get_groups_link(self, obj):
+        if obj.num_groups_created() > 0:
+            return mark_safe('<a href="/admin/nfl/slatebuildgroup/?build__id__exact={}">Groups</a>'.format(obj.id))
+        return 'None'
+    get_groups_link.short_description = 'Groups'
 
     def get_lineups_link(self, obj):
         if obj.num_lineups_created() > 0:
@@ -2105,6 +2152,10 @@ class BacktestAdmin(admin.ModelAdmin):
         'lineup_construction',
         'stack_construction',
         'get_num_slates',
+        'total_lineups',
+        'projections_ready',
+        'construction_ready',
+        'ready',
         'status',
         'elapsed_time',
         'get_pct_complete',
@@ -2138,6 +2189,9 @@ class BacktestAdmin(admin.ModelAdmin):
         'addMainSlates',
         'add2019MainSlates',
         'add2020MainSlates',
+        'reset',
+        'prepare_projections',
+        'prepare_construction',
         'execute',
         'duplicate',
         'find_optimals'
@@ -2146,26 +2200,26 @@ class BacktestAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qs = super(BacktestAdmin, self).get_queryset(request)
 
-        qs = qs.annotate(median_cashed=models.Median('slates__builds__total_cashes'))
+        qs = qs.annotate(median_cashed=models.Median('slates__build__total_cashes'))
         qs = qs.annotate(median_cashed_coalesced=Coalesce('median_cashed', 0))
-        qs = qs.annotate(median_cash_rate=models.Median('slates__builds__total_cashes')/Avg('lineups_per_slate'))
+        qs = qs.annotate(median_cash_rate=models.Median('slates__build__total_cashes')/Avg('lineups_per_slate'))
         qs = qs.annotate(median_cash_rate_coalesced=Coalesce('median_cash_rate', 0))
 
-        qs = qs.annotate(median_one_pct=models.Median('slates__builds__total_one_pct'))
+        qs = qs.annotate(median_one_pct=models.Median('slates__build__total_one_pct'))
         qs = qs.annotate(median_one_pct_coalesced=Coalesce('median_one_pct', 0))
-        qs = qs.annotate(median_one_pct_rate=models.Median('slates__builds__total_one_pct')/Avg('lineups_per_slate'))
+        qs = qs.annotate(median_one_pct_rate=models.Median('slates__build__total_one_pct')/Avg('lineups_per_slate'))
         qs = qs.annotate(median_one_pct_rate_coalesced=Coalesce('median_one_pct_rate', 0))
 
-        qs = qs.annotate(median_half_pct=models.Median('slates__builds__total_half_pct'))
+        qs = qs.annotate(median_half_pct=models.Median('slates__build__total_half_pct'))
         qs = qs.annotate(median_half_pct_coalesced=Coalesce('median_half_pct', 0))
-        qs = qs.annotate(median_half_pct_rate=models.Median('slates__builds__total_half_pct')/Avg('lineups_per_slate'))
+        qs = qs.annotate(median_half_pct_rate=models.Median('slates__build__total_half_pct')/Avg('lineups_per_slate'))
         qs = qs.annotate(median_half_pct_rate_coalesced=Coalesce('median_half_pct_rate', 0))
 
         qs = qs.annotate(num_slates=Count('slates'))
         qs = qs.annotate(num_slates_coalesced=Coalesce('num_slates', 0))
 
         qs = qs.annotate(great_builds=Count(
-            Case(When(slates__builds__great_build=True,
+            Case(When(slates__build__great_build=True,
                         then=1))
         ))
         qs = qs.annotate(great_builds_coalesced=Coalesce('great_builds', 0))
@@ -2177,7 +2231,7 @@ class BacktestAdmin(admin.ModelAdmin):
         qs = qs.annotate(great_build_rate_coalesced=Coalesce('great_build_rate', 0))
 
         qs = qs.annotate(optimal_builds=Count(
-            Case(When(slates__builds__total_optimals__gte=20,
+            Case(When(slates__build__total_optimals__gte=20,
                         then=1))
         ))
         qs = qs.annotate(optimal_builds_coalesced=Coalesce('optimal_builds', 0))
@@ -2194,6 +2248,18 @@ class BacktestAdmin(admin.ModelAdmin):
     def get_num_slates(self, obj):
         return obj.num_slates
     get_num_slates.short_description = '# slates'
+
+    def ready(self, obj):
+        return obj.ready
+    ready.boolean = True
+
+    def projections_ready(self, obj):
+        return obj.projections_ready
+    projections_ready.boolean = True
+
+    def construction_ready(self, obj):
+        return obj.construction_ready
+    construction_ready.boolean = True
 
     def get_pct_complete(self, obj):
         return format_html(
@@ -2318,10 +2384,31 @@ class BacktestAdmin(admin.ModelAdmin):
             messages.success(request, 'Added {} slates (4x) to {}.'.format(index + 1, backtest.name))
     add2020MainSlates.short_description = 'Add all 2020 main slates (4x) to selected backtests'
 
+    def reset(self, request, queryset):
+        for backtest in queryset:
+            backtest.reset()
+            messages.success(request, 'Reset {}.'.format(backtest.name))
+    reset.short_description = 'Reset selected backtests'
+
+    def prepare_projections(self, request, queryset):
+        for backtest in queryset:
+            tasks.prepare_projections_for_backtest.delay(backtest.id)
+            messages.success(request, 'Preparing projections for {}. Refresh page to check progress'.format(backtest.name))
+    prepare_projections.short_description = 'Prepare projections for selected backtests'
+
+    def prepare_construction(self, request, queryset):
+        for backtest in queryset:
+            tasks.prepare_construction_for_backtest.delay(backtest.id)
+            messages.success(request, 'Preparing construction for {}. Refresh page to check progress'.format(backtest.name))
+    prepare_construction.short_description = 'Prepare construction for selected backtests'
+
     def execute(self, request, queryset):
         for backtest in queryset:
-            tasks.run_backtest.delay(backtest.id)
-            messages.success(request, 'Executing {}. Refresh page to check progress'.format(backtest.name))
+            if backtest.ready:
+                tasks.run_backtest.delay(backtest.id)
+                messages.success(request, 'Executing {}. Refresh page to check progress'.format(backtest.name))
+            else:
+                messages.error(request, 'Cannot execute {}. Backtest isn\'t ready yet.'.format(backtest.name))
     execute.short_description = 'Run selected backtests'
 
     def duplicate(self, request, queryset):

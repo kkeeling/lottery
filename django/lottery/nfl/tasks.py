@@ -51,6 +51,32 @@ def optimize_for_stack(self, site, build_id, stack_id, lineup_number, num_qb_sta
 
 
 @shared_task
+def prepare_projections_for_backtest(backtest_id):
+    try:
+        backtest = models.Backtest.objects.get(id=backtest_id)
+        backtest.prepare_projections()
+    except Exception as exc:
+        traceback.print_exc()
+
+        backtest.status = 'error'
+        backtest.error_message = str(exc)
+        backtest.save()
+
+
+@shared_task
+def prepare_construction_for_backtest(backtest_id):
+    try:
+        backtest = models.Backtest.objects.get(id=backtest_id)
+        backtest.prepare_construction()
+    except Exception as exc:
+        traceback.print_exc()
+
+        backtest.status = 'error'
+        backtest.error_message = str(exc)
+        backtest.save()
+
+
+@shared_task
 def run_backtest(backtest_id):
     try:
         backtest = models.Backtest.objects.get(id=backtest_id)
