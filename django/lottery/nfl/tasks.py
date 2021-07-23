@@ -64,6 +64,32 @@ def prepare_projections_for_backtest(backtest_id):
 
 
 @shared_task
+def prepare_construction(build_id):
+    try:
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.prepare_construction()
+    except Exception as exc:
+        traceback.print_exc()
+
+        build.status = 'error'
+        build.error_message = str(exc)
+        build.save()
+
+
+@shared_task
+def prepare_projections(build_id):
+    try:
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.prepare_projections()
+    except Exception as exc:
+        traceback.print_exc()
+
+        build.status = 'error'
+        build.error_message = str(exc)
+        build.save()
+
+
+@shared_task
 def prepare_construction_for_backtest(backtest_id):
     try:
         backtest = models.Backtest.objects.get(id=backtest_id)

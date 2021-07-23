@@ -2046,9 +2046,6 @@ class Backtest(models.Model):
     def prepare_construction(self):
         for slate in self.slates.all():
             slate.prepare_construction()
-        
-        self.total_lineups = self.slates.all().aggregate(total=Sum('build__total_lineups')).get('total')
-        self.save()
 
     def execute(self):
         self.status = 'running'
@@ -2058,6 +2055,8 @@ class Backtest(models.Model):
         self.total_optimals = 0
         self.optimals_pct_complete = 0.0
         self.elapsed_time = datetime.timedelta()
+        
+        self.total_lineups = self.slates.all().aggregate(total=Sum('build__total_lineups')).get('total')
         self.save()
 
         if self.ready:
@@ -2228,7 +2227,7 @@ class BacktestSlate(models.Model):
     def construction_ready(self):
         if self.build.lineup_construction is None:
             return True
-            
+
         group_rules = self.build.lineup_construction.group_rules.all()
         groups = SlateBuildGroup.objects.filter(
             build=self.build
@@ -2254,10 +2253,10 @@ class BacktestSlate(models.Model):
             build.reset()
 
     def prepare_projections(self):
-        self.build.prepare_projections()
+        tasks.prepare_projections.delay(self.build.id)
 
     def prepare_construction(self):
-        self.build.prepare_construction()
+        tasks.prepare_construction.delay(self.build.id)
     
     def execute(self):
         # make lineups
