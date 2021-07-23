@@ -2226,6 +2226,9 @@ class BacktestSlate(models.Model):
 
     @property
     def construction_ready(self):
+        if self.build.lineup_construction is None:
+            return True
+            
         group_rules = self.build.lineup_construction.group_rules.all()
         groups = SlateBuildGroup.objects.filter(
             build=self.build
