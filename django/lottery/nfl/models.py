@@ -1380,6 +1380,17 @@ class SlateBuild(models.Model):
             self.pct_complete = self.lineups.all().count() / self.total_lineups
             self.save()
 
+    def handle_exception(self, stack, exc):
+        # if a stack has an error, remove unmade lineups from total
+        self.total_lineups -= (stack.count - stack.times_used)
+
+        if self.error_message is None or self.error_message == '':
+            self.error_message = '{} Error: {}'.format(stack, str(exc))
+        else:
+             self.error_message = '\n{} Error: {}'.format(stack, str(exc))
+        
+        self.save()
+
     def find_expected_lineup_order(self): 
         for (index, lineup) in enumerate(self.lineups.all().order_by('order_number', '-qb__projection')):
             lineup.expected_lineup_order = index + 1

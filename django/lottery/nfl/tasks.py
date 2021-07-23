@@ -12,10 +12,10 @@ from . import optimize
 
 @shared_task(bind=True, base=AbortableTask)
 def optimize_for_stack(self, site, build_id, stack_id, lineup_number, num_qb_stacks):
-    try:
-        build = models.SlateBuild.objects.get(id=build_id)
-        stack = models.SlateBuildStack.objects.get(id=stack_id)
+    build = models.SlateBuild.objects.get(id=build_id)
+    stack = models.SlateBuildStack.objects.get(id=stack_id)
 
+    try:
         lineups = optimize.optimize_for_stack(
             site,
             stack,
@@ -49,6 +49,7 @@ def optimize_for_stack(self, site, build_id, stack_id, lineup_number, num_qb_sta
         stack.save()
     except Exception as exc:
         traceback.print_exc()
+        build.handle_exception(stack, exc)
 
 
 @shared_task
