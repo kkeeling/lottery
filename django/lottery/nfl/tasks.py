@@ -27,6 +27,7 @@ def optimize_for_stack(self, site, build_id, stack_id, lineup_number, num_qb_sta
         )
 
         for (index, lineup) in enumerate(lineups):
+            print(lineup)
             models.SlateBuildLineup.objects.create(
                 build=build,
                 stack=stack,
@@ -157,7 +158,6 @@ def monitor_backtest(backtest_id):
     start = datetime.datetime.now()
     backtest = models.Backtest.objects.get(id=backtest_id)
     while backtest.status != 'complete':
-        print('checking backtest status...')
         backtest.update_status()
         time.sleep(1)
 
