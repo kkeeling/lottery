@@ -20,7 +20,7 @@ GameInfo = namedtuple('GameInfo', ['home_team', 'away_team', 'starts_at', 'game_
 
 
 def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineups, groups=[]):
-    print('  Building for {}'.format(stack))
+    # print('  Building for {}'.format(stack))
     if site == 'fanduel':
         optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
     elif site == 'draftkings':
@@ -48,7 +48,7 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
         stack_positions=config.qb_stack_positions
     )
     optimizer.load_players(players_list)
-    print('  Loaded {} players.'.format(len(players_list)))
+    # print('  Loaded {} players.'.format(len(players_list)))
 
     lineups = []
 

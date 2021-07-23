@@ -27,7 +27,6 @@ def optimize_for_stack(self, site, build_id, stack_id, lineup_number, num_qb_sta
         )
 
         for (index, lineup) in enumerate(lineups):
-            print(lineup)
             models.SlateBuildLineup.objects.create(
                 build=build,
                 stack=stack,

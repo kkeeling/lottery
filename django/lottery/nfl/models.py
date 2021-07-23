@@ -2071,11 +2071,11 @@ class Backtest(models.Model):
         self.save()
 
         if self.ready:
-            # execute the builds
-            self.execute_next_slate()
-
             # start monitoring
             tasks.monitor_backtest.delay(self.id)
+
+            # execute the builds
+            self.execute_next_slate()
 
             return True
         return False
@@ -2084,6 +2084,9 @@ class Backtest(models.Model):
         incomplete_slates = self.slates.exclude(build__status='complete').order_by('slate__week')
         if incomplete_slates.count() > 0:
             slate = incomplete_slates[0]
+            print('next slate = {}'.format(slate))
+            slate.status = 'running'
+            slate.save()
             tasks.run_slate_for_backtest.delay(slate.id)
 
     def find_optimals(self):
@@ -2112,12 +2115,13 @@ class Backtest(models.Model):
     def update_status(self):
         completed_lineups = SlateBuild.objects.filter(backtest__in=self.slates.all()).aggregate(total_lineups=Count('lineups')).get('total_lineups')
 
-        if completed_lineups is not None:
+        if completed_lineups is not None and completed_lineups > 0:
             self.completed_lineups = completed_lineups
             self.pct_complete = float(self.completed_lineups)/float(self.total_lineups)
 
             if SlateBuild.objects.filter(backtest__in=self.slates.all()).exclude(status='complete').count() == 0:
                 self.pct_complete = 1.0
+                self.total_lineups = completed_lineups
                 self.status = 'complete'
             else:
                 # only one build running at once
@@ -2232,7 +2236,7 @@ class BacktestSlate(models.Model):
 
     @property
     def projections_ready(self):
-        return self.build is not None and self.slate.num_slate_players() >= self.build.projections.all().count()
+        return self.build is not None and self.build.projections.all().count() >= self.slate.num_projected_players()
 
     @property
     def construction_ready(self):
