@@ -1745,7 +1745,7 @@ class SlateBuildStack(models.Model):
             self.save()
         except Exception as exc:
             traceback.print_exc()
-            self.lineups_created = False
+            self.lineups_created = True
             self.error_message = str(exc)
             self.save()
 
