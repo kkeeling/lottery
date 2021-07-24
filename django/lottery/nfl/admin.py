@@ -1229,8 +1229,10 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
         'contains_top_projected_pass_catcher',
         'count',
         'times_used',
+        'lineups_created',
         'actual',
-        'get_lineups_link'
+        'get_lineups_link',
+        'error_message'
     )
 
     list_editable = (
@@ -1238,6 +1240,7 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
     )
 
     actions = [
+        'build', 
         'get_actual_scores'
     ]
 
@@ -1275,6 +1278,12 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
         return 'None'
     get_actuals_link.short_description = 'Actuals'
 
+    def build(self, request, queryset):
+        for stack in queryset:
+            tasks.build_lineups_for_stack.delay(stack.id, 1, 1)
+            messages.success(request, 'Building lineups for {}. Refresh page to check progress'.format(stack))
+    build.short_description = 'Generate lineups for selected stacks'
+
     def get_actual_scores(self, request, queryset):
         for stack in queryset:
             stack.calc_actual_score()
@@ -1284,7 +1293,7 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
 @admin.register(models.SlateBuild)
 class SlateBuildAdmin(admin.ModelAdmin):
     date_hierarchy = 'slate__datetime'
-    list_per_page = 34
+    list_per_page = 25
     list_display = (
         'created',
         'slate',
@@ -2153,6 +2162,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'stack_construction',
         'get_num_slates',
         'total_lineups',
+        'is_initialized',
         'projections_ready',
         'construction_ready',
         'ready',
@@ -2253,6 +2263,10 @@ class BacktestAdmin(admin.ModelAdmin):
         return obj.ready
     ready.boolean = True
 
+    def is_initialized(self, obj):
+        return obj.slates.all().count() == models.SlateBuild.objects.filter(backtest__backtest=obj).count()
+    is_initialized.boolean = True
+
     def projections_ready(self, obj):
         return obj.projections_ready
     projections_ready.boolean = True
@@ -2325,20 +2339,8 @@ class BacktestAdmin(admin.ModelAdmin):
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.create(
-                    backtest=backtest,
-                    slate=slate
-                )
-                models.BacktestSlate.objects.create(
-                    backtest=backtest,
-                    slate=slate
-                )
-                models.BacktestSlate.objects.create(
-                    backtest=backtest,
-                    slate=slate
-                )
-            messages.success(request, 'Added {} slates (4x) to {}.'.format(index + 1, backtest.name))
-    addMainSlates.short_description = 'Add all main slates (4x) to selected backtests'
+            messages.success(request, 'Added {} slates to {}.'.format(index + 1, backtest.name))
+    addMainSlates.short_description = 'Add all main slates to selected backtests'
     
     def add2019MainSlates(self, request, queryset):
         for backtest in queryset:
@@ -2347,20 +2349,8 @@ class BacktestAdmin(admin.ModelAdmin):
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.create(
-                    backtest=backtest,
-                    slate=slate
-                )
-                models.BacktestSlate.objects.create(
-                    backtest=backtest,
-                    slate=slate
-                )
-                models.BacktestSlate.objects.create(
-                    backtest=backtest,
-                    slate=slate
-                )
-            messages.success(request, 'Added {} slates (4x) to {}.'.format(index + 1, backtest.name))
-    add2019MainSlates.short_description = 'Add all 2019 main slates (4x) to selected backtests'
+            messages.success(request, 'Added {} slates to {}.'.format(index + 1, backtest.name))
+    add2019MainSlates.short_description = 'Add all 2019 main slates to selected backtests'
     
     def add2020MainSlates(self, request, queryset):
         for backtest in queryset:
@@ -2369,26 +2359,14 @@ class BacktestAdmin(admin.ModelAdmin):
                     backtest=backtest,
                     slate=slate
                 )
-                models.BacktestSlate.objects.create(
-                    backtest=backtest,
-                    slate=slate
-                )
-                models.BacktestSlate.objects.create(
-                    backtest=backtest,
-                    slate=slate
-                )
-                models.BacktestSlate.objects.create(
-                    backtest=backtest,
-                    slate=slate
-                )
-            messages.success(request, 'Added {} slates (4x) to {}.'.format(index + 1, backtest.name))
-    add2020MainSlates.short_description = 'Add all 2020 main slates (4x) to selected backtests'
+            messages.success(request, 'Added {} slates to {}.'.format(index + 1, backtest.name))
+    add2020MainSlates.short_description = 'Add all 2020 main slates to selected backtests'
 
     def reset(self, request, queryset):
         for backtest in queryset:
             backtest.reset()
             messages.success(request, 'Reset {}.'.format(backtest.name))
-    reset.short_description = 'Reset selected backtests'
+    reset.short_description = '(Re)Initialize selected backtests'
 
     def prepare_projections(self, request, queryset):
         for backtest in queryset:

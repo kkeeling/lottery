@@ -1044,7 +1044,6 @@ class SlateBuild(models.Model):
     optimals_pct_complete = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     error_message = models.TextField(blank=True, null=True)
     elapsed_time = models.DurationField(default=datetime.timedelta())
-    
 
     class Meta:
         verbose_name = 'Slate Build'
@@ -1056,7 +1055,8 @@ class SlateBuild(models.Model):
     def reset(self):
         self.clear_analysis()
 
-        self.lineups.all().delete()
+        for stack in self.stacks.all():
+            stack.reset()
 
         self.status = 'not_started'
         self.error_message = None
@@ -1360,12 +1360,13 @@ class SlateBuild(models.Model):
             else:
                 lineup_number += 1
 
-            tasks.optimize_for_stack.delay(self.slate.site, self.id, stack.id, lineup_number, num_qb_stacks)
+            tasks.build_lineups_for_stack.delay(stack.id, lineup_number, num_qb_stacks)
 
             last_qb = qb
         
     def update_build_progress(self):
-        if self.lineups.all().count() >= self.total_lineups:
+        remaining_stacks = self.stacks.filter(count__gt=0, lineups_created=False)
+        if remaining_stacks.count() == 0:
             self.pct_complete = 1.0
             self.status = 'complete'
             self.save()
@@ -1621,6 +1622,8 @@ class SlateBuildStack(models.Model):
     projection = models.DecimalField(max_digits=5, decimal_places=2)
     count = models.PositiveIntegerField(default=0, help_text='# of lineups in which this stack should appear')
     times_used = models.PositiveIntegerField(default=0)
+    lineups_created = models.BooleanField(default=False)
+    error_message = models.TextField(blank=True, null=True)
     actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
 
     class Meta:
@@ -1697,6 +1700,56 @@ class SlateBuildStack(models.Model):
         '''
         lineups = self.build_optimals(1)
         return len(lineups) > 0 and lineups[0].fantasy_points_projection  >= self.build.slate.get_great_score()
+
+    def reset(self):
+        self.lineups.all().delete()
+        self.times_used = 0
+        self.lineups_created = False
+        self.error_message = None
+        self.save()
+
+    def build_lineups_for_stack(self, lineup_number, num_qb_stacks):
+        self.reset()
+
+        try:
+            lineups = optimize.optimize_for_stack(
+                self.build.slate.site,
+                self,
+                self.build.projections.all(),
+                self.build.slate.teams,
+                self.build.configuration,
+                self.count,
+                groups=self.build.groups.filter(active=True)
+            )
+
+            for (index, lineup) in enumerate(lineups):
+                SlateBuildLineup.objects.create(
+                    build=self.build,
+                    stack=self,
+                    order_number=lineup_number + (num_qb_stacks * index),
+                    qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
+                    rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self.build),
+                    rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self.build),
+                    wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self.build),
+                    wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self.build),
+                    wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self.build),
+                    te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self.build),
+                    flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
+                    dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
+                    salary=lineup.salary_costs,
+                    projection=lineup.fantasy_points_projection
+                )
+
+            self.times_used = len(lineups)
+            self.lineups_created = True
+            self.save()
+        except Exception as exc:
+            traceback.print_exc()
+            self.lineups_created = False
+            self.error_message = str(exc)
+            self.save()
+
+            self.build.handle_exception(self, exc)
 
     def build_optimals(self, num_lineups=1):    
         slate_players = self.build.slate.players.filter(projection__isnull=False)
@@ -2100,11 +2153,6 @@ class Backtest(models.Model):
             build.save()
 
             build.build_optimals(stacks_with_optimals, max_optimals_per_stack)
-
-    def update_pct_complete(self, num_new_lineups):
-        self.completed_lineups += num_new_lineups
-        self.pct_complete = float(self.completed_lineups) / float(self.total_lineups)
-        self.save()
 
     def update_optimal_pct_complete(self, build):
         complete_builds = SlateBuild.objects.filter(backtest__in=self.slates.all(), optimals_pct_complete=1.0)

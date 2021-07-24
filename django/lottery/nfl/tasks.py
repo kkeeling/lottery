@@ -10,45 +10,10 @@ from . import models
 from . import optimize
 
 
-@shared_task(bind=True, base=AbortableTask)
-def optimize_for_stack(self, site, build_id, stack_id, lineup_number, num_qb_stacks):
-    build = models.SlateBuild.objects.get(id=build_id)
+@shared_task
+def build_lineups_for_stack(stack_id, lineup_number, num_qb_stacks):
     stack = models.SlateBuildStack.objects.get(id=stack_id)
-
-    try:
-        lineups = optimize.optimize_for_stack(
-            site,
-            stack,
-            build.projections.all(),
-            build.slate.teams,
-            build.configuration,
-            stack.count,
-            groups=build.groups.filter(active=True)
-        )
-
-        for (index, lineup) in enumerate(lineups):
-            models.SlateBuildLineup.objects.create(
-                build=build,
-                stack=stack,
-                order_number=lineup_number + (num_qb_stacks * index),
-                qb=models.BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=build),
-                rb1=models.BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=build),
-                rb2=models.BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=build),
-                wr1=models.BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=build),
-                wr2=models.BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=build),
-                wr3=models.BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=build),
-                te=models.BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=build),
-                flex=models.BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=build),
-                dst=models.BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=build),
-                salary=lineup.salary_costs,
-                projection=lineup.fantasy_points_projection
-            )
-
-        stack.times_used = len(lineups)
-        stack.save()
-    except Exception as exc:
-        traceback.print_exc()
-        build.handle_exception(stack, exc)
+    stack.build_lineups_for_stack(lineup_number, num_qb_stacks)
 
 
 @shared_task
