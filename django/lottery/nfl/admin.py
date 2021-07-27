@@ -325,6 +325,9 @@ class BacktestSlateInline(admin.TabularInline):
 
     def get_el(self, obj):
         try:
+            if obj is None:
+                return None
+                
             slate_build = models.SlateBuild.objects.get(
                 backtest=obj
             )
