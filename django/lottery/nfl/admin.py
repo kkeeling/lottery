@@ -298,6 +298,8 @@ class BacktestSlateInline(admin.TabularInline):
             return mark_safe(html)
         except models.SlateBuild.DoesNotExist:
             return None
+        except models.SlateBuild.MultipleObjectsReturned:
+            return None
     get_links.short_description = 'Links'
 
     def get_exposures_links(self, obj):
@@ -321,21 +323,23 @@ class BacktestSlateInline(admin.TabularInline):
             return None
         except models.SlateBuild.DoesNotExist:
             return None
+        except models.SlateBuild.MultipleObjectsReturned:
+            return None
     get_exposures_links.short_description = 'Exp'
 
     def get_el(self, obj):
         try:
-            if obj is None:
-                return None
-                
             slate_build = models.SlateBuild.objects.get(
                 backtest=obj
             )
+
             if slate_build.total_cashes == None:
                 return None
             lineups = slate_build.lineups.all().order_by('-actual')
             return lineups[0].expected_lineup_order if lineups.count() > 0 else None
         except models.SlateBuild.DoesNotExist:
+            return None
+        except models.SlateBuild.MultipleObjectsReturned:
             return None
     get_el.short_description = 'EL'
 
@@ -348,6 +352,8 @@ class BacktestSlateInline(admin.TabularInline):
                 return mark_safe('<a href="/admin/nfl/buildplayerprojection/?build_id={}">Projections</a>'.format(slate_build.id))
             return None
         except models.SlateBuild.DoesNotExist:
+            return None
+        except models.SlateBuild.MultipleObjectsReturned:
             return None
     get_projections_link.short_description = 'Proj'
 
