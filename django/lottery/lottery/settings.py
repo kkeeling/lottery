@@ -140,6 +140,8 @@ USE_TZ = False
 # https://docs.djangoproject.com/en/1.6/howto/static-files/
 STATIC_URL = '/static/'
 MEDIA_URL = '/media/'
+STATIC_ROOT = "/opt/static/"
+MEDIA_ROOT = "/opt/media/"
 
 LOGIN_URL = '/admin/login'
 
