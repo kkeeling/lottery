@@ -2352,7 +2352,7 @@ def process_projection_sheet(sender, instance, **kwargs):
 
 
 def process_fanduel_projection_sheet(instance):
-    with open(instance.projection_sheet.url, mode='r') as projection_file:
+    with open(instance.projection_sheet.path, mode='r') as projection_file:
         csv_reader = csv.reader(projection_file, delimiter=',')
         row_count = 0
         missing_players = []
@@ -2419,7 +2419,7 @@ def process_fanduel_projection_sheet(instance):
 
 
 def process_draftkings_projection_sheet(instance):
-    with open(instance.projection_sheet.url, mode='r') as projection_file:
+    with open(instance.projection_sheet.path, mode='r') as projection_file:
         csv_reader = csv.reader(projection_file, delimiter=',')
         row_count = 0
         missing_players = []
@@ -2507,7 +2507,7 @@ def process_slate_player_sheet(sender, instance, **kwargs):
 
 
 def process_fanduel_slate_player_sheet(instance):
-    with open(instance.sheet.url, mode='r') as actuals_file:
+    with open(instance.sheet.path, mode='r') as actuals_file:
         csv_reader = csv.reader(actuals_file, delimiter=',')
         row_count = 0
         missing_players = []
@@ -2565,7 +2565,7 @@ def process_fanduel_slate_player_sheet(instance):
 
 
 def process_draftkings_slate_player_sheet(instance):
-    with open(instance.sheet.url, mode='r') as actuals_file:
+    with open(instance.sheet.path, mode='r') as actuals_file:
         csv_reader = csv.reader(actuals_file, delimiter=',')
         row_count = 0
         missing_players = []
@@ -2625,7 +2625,7 @@ def process_draftkings_slate_player_sheet(instance):
 
 
 def process_fantasycruncher_slate_player_sheet(instance):
-    with open(instance.sheet.url, mode='r') as actuals_file:
+    with open(instance.sheet.path, mode='r') as actuals_file:
         csv_reader = csv.reader(actuals_file, delimiter=',')
         row_count = 0
         missing_players = []
@@ -2693,7 +2693,7 @@ def process_slate_player_actuals_sheet(sender, instance, **kwargs):
 
 
 def process_fanduel_slate_player_actuals_sheet(instance):
-    with open(instance.sheet.url, mode='r') as actuals_file:
+    with open(instance.sheet.path, mode='r') as actuals_file:
         csv_reader = csv.reader(actuals_file, delimiter=',')
         row_count = 0
 
@@ -2748,7 +2748,7 @@ def process_fanduel_slate_player_actuals_sheet(instance):
 
 
 def process_draftkings_slate_player_actuals_sheet(instance):
-    with open(instance.sheet.url, mode='r') as actuals_file:
+    with open(instance.sheet.path, mode='r') as actuals_file:
         csv_reader = csv.reader(actuals_file, delimiter=',')
         row_count = 0
 
@@ -2804,7 +2804,7 @@ def process_draftkings_slate_player_actuals_sheet(instance):
 
 @receiver(post_save, sender=ContestImportSheet)
 def process_contest_sheet(sender, instance, **kwargs):
-    with open(instance.sheet.url, mode='r') as f:
+    with open(instance.sheet.path, mode='r') as f:
         csv_reader = csv.reader(f, delimiter=',')
         row_count = 0
 
