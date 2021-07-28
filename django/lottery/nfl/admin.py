@@ -2373,8 +2373,8 @@ class BacktestAdmin(admin.ModelAdmin):
 
     def reset(self, request, queryset):
         for backtest in queryset:
-            backtest.reset()
-            messages.success(request, 'Reset {}.'.format(backtest.name))
+            tasks.initialize_backtest.delay(backtest.id)
+            messages.success(request, 'Initializing {}. Refresh page to check progress'.format(backtest.name))
     reset.short_description = '(Re)Initialize selected backtests'
 
     def prepare_projections(self, request, queryset):

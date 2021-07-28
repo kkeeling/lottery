@@ -17,6 +17,19 @@ def build_lineups_for_stack(stack_id, lineup_number, num_qb_stacks):
 
 
 @shared_task
+def initialize_backtest(backtest_id):
+    try:
+        backtest = models.Backtest.objects.get(id=backtest_id)
+        backtest.reset()
+    except Exception as exc:
+        traceback.print_exc()
+
+        backtest.status = 'error'
+        backtest.error_message = str(exc)
+        backtest.save()
+
+
+@shared_task
 def prepare_projections_for_backtest(backtest_id):
     try:
         backtest = models.Backtest.objects.get(id=backtest_id)
@@ -30,16 +43,16 @@ def prepare_projections_for_backtest(backtest_id):
 
 
 @shared_task
-def prepare_construction(build_id):
+def prepare_construction_for_backtest(backtest_id):
     try:
-        build = models.SlateBuild.objects.get(id=build_id)
-        build.prepare_construction()
+        backtest = models.Backtest.objects.get(id=backtest_id)
+        backtest.prepare_construction()
     except Exception as exc:
         traceback.print_exc()
 
-        build.status = 'error'
-        build.error_message = str(exc)
-        build.save()
+        backtest.status = 'error'
+        backtest.error_message = str(exc)
+        backtest.save()
 
 
 @shared_task
@@ -56,16 +69,16 @@ def prepare_projections(build_id):
 
 
 @shared_task
-def prepare_construction_for_backtest(backtest_id):
+def prepare_construction(build_id):
     try:
-        backtest = models.Backtest.objects.get(id=backtest_id)
-        backtest.prepare_construction()
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.prepare_construction()
     except Exception as exc:
         traceback.print_exc()
 
-        backtest.status = 'error'
-        backtest.error_message = str(exc)
-        backtest.save()
+        build.status = 'error'
+        build.error_message = str(exc)
+        build.save()
 
 
 @shared_task
