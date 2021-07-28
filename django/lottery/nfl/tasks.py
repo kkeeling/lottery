@@ -56,6 +56,15 @@ def prepare_construction_for_backtest(backtest_id):
 
 
 @shared_task
+def analyze_backtest(backtest_id):
+    try:
+        backtest = models.Backtest.objects.get(id=backtest_id)
+        backtest.analyze()
+    except Exception as exc:
+        traceback.print_exc()
+
+
+@shared_task
 def prepare_projections(build_id):
     try:
         build = models.SlateBuild.objects.get(id=build_id)

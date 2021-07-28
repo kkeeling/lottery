@@ -3,7 +3,6 @@ import datetime
 import json
 import math
 from os import EX_SOFTWARE
-from django.db.models.deletion import CASCADE
 import pytz
 import requests
 import statistics
@@ -12,13 +11,14 @@ import uuid
 
 from collections import namedtuple
 from django.conf import settings
-from django.db import models, signals
-from django.db.models import Q, Sum, Value, Aggregate, FloatField, Max, Count
+from django.db import models
+from django.db.models import Q, Aggregate, FloatField, Case, When, F
+from django.db.models.aggregates import Avg, Count, Sum, Max
+from django.db.models.functions import Coalesce, Cast
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from tagulous.models import SingleTagField
 
 from . import optimal
 from . import optimize
@@ -2055,6 +2055,12 @@ class Backtest(models.Model):
     optimals_pct_complete = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     error_message = models.TextField(blank=True, null=True)
     elapsed_time = models.DurationField(default=datetime.timedelta())
+    median_cash_rate = models.DecimalField(max_digits=4, decimal_places=3, default=0.0)
+    median_one_pct_rate = models.DecimalField(max_digits=4, decimal_places=3, default=0.0)
+    median_half_pct_rate = models.DecimalField(max_digits=4, decimal_places=3, default=0.0)
+    great_build_rate = models.DecimalField(max_digits=4, decimal_places=3, default=0.0)
+    optimal_build_rate = models.DecimalField(max_digits=4, decimal_places=3, default=0.0)
+    median_great_build_diff = models.DecimalField(max_digits=6, decimal_places=2, default=0.0)
 
     def __str___(self):
         return '{}'.format(self.name)
@@ -2097,6 +2103,12 @@ class Backtest(models.Model):
         self.total_optimals = 0
         self.optimals_pct_complete = 0.0
         self.elapsed_time = datetime.timedelta()
+        self.median_cash_rate = 0.0
+        self.median_one_pct_rate = 0.0
+        self.median_half_pct_rate = 0.0
+        self.great_build_rate = 0.0
+        self.optimal_build_rate = 0.0
+        self.median_great_build_diff = 0.0
         self.save()
 
         # reset any existing slate builds
@@ -2141,6 +2153,29 @@ class Backtest(models.Model):
             slate.status = 'running'
             slate.save()
             tasks.run_slate_for_backtest.delay(slate.id)
+
+    def analyze(self):
+        avg_total_lineups = self.slates.filter(build__status='complete').aggregate(avg_total_lineups=Avg('build__total_lineups')).get('avg_total_lineups')
+        median_cashed = self.slates.filter(build__status='complete').aggregate(median_cashed=Median('build__total_cashes')).get('median_cashed')
+        median_one_pct = self.slates.filter(build__status='complete').aggregate(median_one_pct=Median('build__total_one_pct')).get('median_one_pct')
+        median_half_pct = self.slates.filter(build__status='complete').aggregate(median_half_pct=Median('build__total_half_pct')).get('median_half_pct')
+
+        great_builds = self.slates.filter(build__status='complete').aggregate(great_builds=Count(
+            Case(When(build__great_build=True,
+                        then=1))
+        )).get('great_builds')
+
+        optimal_builds = self.slates.filter(build__status='complete').aggregate(optimal_builds=Count(
+            Case(When(build__total_optimals__gte=20,
+                        then=1))
+        )).get('optimal_builds')
+
+        self.median_cash_rate = median_cashed / avg_total_lineups
+        self.median_one_pct_rate = median_one_pct / avg_total_lineups
+        self.median_half_pct_rate = median_half_pct / avg_total_lineups
+        self.great_build_rate = great_builds / self.slates.filter(build__status='complete').count()
+        self.optimal_build_rate = optimal_builds / self.slates.filter(build__status='complete').count()
+        self.save()
 
     def find_optimals(self):
         max_optimals_per_stack = 50

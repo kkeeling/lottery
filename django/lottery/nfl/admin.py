@@ -1,15 +1,14 @@
 import csv
 import datetime
 import traceback
-from django.db.models.aggregates import Avg
 import requests
 import statistics
-import tagulous.admin
 
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.http import HttpResponse
 from django.db.models import Count, Case, When, F, FloatField
+from django.db.models.aggregates import Avg
 from django.db.models.functions import Coalesce, Cast
 from django.utils.html import mark_safe, format_html
 from django_admin_listfilter_dropdown.filters import DropdownFilter, RelatedDropdownFilter
@@ -1612,8 +1611,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 configuration=build.configuration,
                 lineup_start_number=build.lineup_start_number,
                 total_lineups=build.total_lineups,
-                notes=build.notes,
-                tag=build.tag
+                notes=build.notes
             )
 
             for stack in build.stacks.all():
@@ -2212,6 +2210,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'prepare_projections',
         'prepare_construction',
         'execute',
+        'analyze',
         'duplicate',
         'find_optimals'
     ]
@@ -2219,48 +2218,8 @@ class BacktestAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qs = super(BacktestAdmin, self).get_queryset(request)
 
-        qs = qs.annotate(median_cashed=models.Median('slates__build__total_cashes'))
-        qs = qs.annotate(median_cashed_coalesced=Coalesce('median_cashed', 0))
-        qs = qs.annotate(median_cash_rate=models.Median('slates__build__total_cashes')/Avg('lineups_per_slate'))
-        qs = qs.annotate(median_cash_rate_coalesced=Coalesce('median_cash_rate', 0))
-
-        qs = qs.annotate(median_one_pct=models.Median('slates__build__total_one_pct'))
-        qs = qs.annotate(median_one_pct_coalesced=Coalesce('median_one_pct', 0))
-        qs = qs.annotate(median_one_pct_rate=models.Median('slates__build__total_one_pct')/Avg('lineups_per_slate'))
-        qs = qs.annotate(median_one_pct_rate_coalesced=Coalesce('median_one_pct_rate', 0))
-
-        qs = qs.annotate(median_half_pct=models.Median('slates__build__total_half_pct'))
-        qs = qs.annotate(median_half_pct_coalesced=Coalesce('median_half_pct', 0))
-        qs = qs.annotate(median_half_pct_rate=models.Median('slates__build__total_half_pct')/Avg('lineups_per_slate'))
-        qs = qs.annotate(median_half_pct_rate_coalesced=Coalesce('median_half_pct_rate', 0))
-
         qs = qs.annotate(num_slates=Count('slates'))
         qs = qs.annotate(num_slates_coalesced=Coalesce('num_slates', 0))
-
-        qs = qs.annotate(great_builds=Count(
-            Case(When(slates__build__great_build=True,
-                        then=1))
-        ))
-        qs = qs.annotate(great_builds_coalesced=Coalesce('great_builds', 0))
-
-        qs = qs.annotate(great_build_rate=Case(
-            When(num_slates=0), 
-            default=Cast(F('great_builds'), FloatField()) / Cast(F('num_slates'), FloatField())
-        ))
-        qs = qs.annotate(great_build_rate_coalesced=Coalesce('great_build_rate', 0))
-
-        qs = qs.annotate(optimal_builds=Count(
-            Case(When(slates__build__total_optimals__gte=20,
-                        then=1))
-        ))
-        qs = qs.annotate(optimal_builds_coalesced=Coalesce('optimal_builds', 0))
-
-        qs = qs.annotate(optimal_build_rate=Case(
-            When(num_slates=0), 
-            default=Cast(F('optimal_builds'), FloatField()) / Cast(F('num_slates'), FloatField())
-        ))
-        # qs = qs.annotate(optimal_build_rate=Cast(F('optimal_builds'), FloatField()) / Cast(F('num_slates'), FloatField()))
-        qs = qs.annotate(optimal_build_rate_coalesced=Coalesce('optimal_build_rate', 0))
 
         return qs
 
@@ -2397,6 +2356,15 @@ class BacktestAdmin(admin.ModelAdmin):
             else:
                 messages.error(request, 'Cannot execute {}. Backtest isn\'t ready yet.'.format(backtest.name))
     execute.short_description = 'Run selected backtests'
+
+    def analyze(self, request, queryset):
+        for backtest in queryset:
+            if backtest.status == 'complete':
+                tasks.analyze_backtest.delay(backtest.id)
+                messages.success(request, 'Analyzing {}. Refresh page to check progress'.format(backtest.name))
+            else:
+                messages.error(request, 'Cannot analyze {}. Backtest isn\'t complete yet.'.format(backtest.name))
+    analyze.short_description = 'Analyze selected backtests'
 
     def duplicate(self, request, queryset):
         for backtest in queryset:
