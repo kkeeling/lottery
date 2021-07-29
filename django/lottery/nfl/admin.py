@@ -2107,11 +2107,11 @@ class BacktestAdmin(admin.ModelAdmin):
         'get_pct_complete',
         'get_optimals_pct_complete',
         'error_message',
-        'median_cash_rate',
-        'median_one_pct_rate',
-        'median_half_pct_rate',
-        'great_build_rate',
-        'optimal_build_rate'
+        'get_median_cash_rate',
+        'get_median_one_pct_rate',
+        'get_median_half_pct_rate',
+        'get_great_build_rate',
+        'get_optimal_build_rate'
     )
     readonly_fields = (
         'status',
@@ -2194,40 +2194,40 @@ class BacktestAdmin(admin.ModelAdmin):
     get_optimals_pct_complete.short_description = '% opt done'
     get_optimals_pct_complete.admin_order_field = 'optimals_pct_complete'
 
-    def median_cash_rate(self, obj):
+    def get_median_cash_rate(self, obj):
         if obj.median_cash_rate is None:
             return None
         return '{:.2f}%'.format(obj.median_cash_rate * 100)
-    median_cash_rate.short_description = 'cash'
-    median_cash_rate.admin_order_field = 'median_cash_rate_coalesced'
+    get_median_cash_rate.short_description = 'cash'
+    get_median_cash_rate.admin_order_field = 'median_cash_rate'
 
-    def median_one_pct_rate(self, obj):
+    def get_median_one_pct_rate(self, obj):
         if obj.median_one_pct_rate is None:
             return None
         return '{:.2f}%'.format(obj.median_one_pct_rate * 100)
-    median_one_pct_rate.short_description = '1%'
-    median_one_pct_rate.admin_order_field = 'median_one_pct_rate_coalesced'
+    get_median_one_pct_rate.short_description = '1%'
+    get_median_one_pct_rate.admin_order_field = 'median_one_pct_rate'
 
-    def median_half_pct_rate(self, obj):
+    def get_median_half_pct_rate(self, obj):
         if obj.median_half_pct_rate is None:
             return None
         return '{:.2f}%'.format(obj.median_half_pct_rate * 100)
-    median_half_pct_rate.short_description = '0.5%'
-    median_half_pct_rate.admin_order_field = 'median_half_pct_rate_coalesced'
+    get_median_half_pct_rate.short_description = '0.5%'
+    get_median_half_pct_rate.admin_order_field = 'median_half_pct_rate'
 
-    def great_build_rate(self, obj):
+    def get_great_build_rate(self, obj):
         if obj.great_build_rate is None:
             return None
         return '{:.2f}%'.format(obj.great_build_rate * 100)
-    great_build_rate.short_description = 'gb'
-    great_build_rate.admin_order_field = 'great_build_rate_coalesced'
+    get_great_build_rate.short_description = 'gb'
+    get_great_build_rate.admin_order_field = 'great_build_rate'
 
-    def optimal_build_rate(self, obj):
+    def get_optimal_build_rate(self, obj):
         if obj.optimal_build_rate is None:
             return None
         return '{:.2f}%'.format(obj.optimal_build_rate * 100)
-    optimal_build_rate.short_description = 'opt'
-    optimal_build_rate.admin_order_field = 'optimal_build_rate_coalesced'
+    get_optimal_build_rate.short_description = 'opt'
+    get_optimal_build_rate.admin_order_field = 'optimal_build_rate'
     
     def addMainSlates(self, request, queryset):
         for backtest in queryset:
