@@ -1103,6 +1103,9 @@ class SlateBuild(models.Model):
         self.save()
 
     def prepare_projections(self):
+        self.projections_ready = False
+        self.save()
+
         # copy default projections if they don't exist
         self.update_projections(replace=False)
 
@@ -1117,6 +1120,9 @@ class SlateBuild(models.Model):
         self.calc_projections_ready()
 
     def prepare_construction(self):
+        self.construction_ready = False
+        self.save()
+
         self.groups.all().delete()
 
         # create groups
@@ -2368,9 +2374,15 @@ class BacktestSlate(models.Model):
             build.reset()
 
     def prepare_projections(self):
+        self.build.projections_ready = False
+        self.save()
+
         tasks.prepare_projections.delay(self.build.id)
 
     def prepare_construction(self):
+        self.build.construction_ready = False
+        self.save()
+
         tasks.prepare_construction.delay(self.build.id)
     
     def execute(self):
