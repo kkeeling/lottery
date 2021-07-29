@@ -1312,6 +1312,14 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'lineup_construction',
         'stack_construction',
         'stack_cutoff',
+        'get_projections_ready',
+        'get_construction_ready',
+        'get_ready',
+        'status',
+        'elapsed_time',
+        'get_pct_complete',
+        'get_optimal_pct_complete',
+        'error_message',
         'total_lineups',
         'num_lineups_created',
         'total_cashes',
@@ -1324,21 +1332,8 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'get_bink_score',
         'binked', 
         'top_optimal_score',
-        'get_projections_link',
-        'get_stacks_link',
-        'get_groups_link',
-        'get_lineups_link',
-        'get_actuals_link',
-        'get_qb_exposures_link',
-        'get_rb_exposures_link',
-        'get_wr_exposures_link',
-        'get_te_exposures_link',
-        'get_dst_exposures_link',
-        'status',
-        'elapsed_time',
-        'get_pct_complete',
-        'get_optimal_pct_complete',
-        'error_message',
+        'get_links',
+        'get_exposures_links',
     )
     list_editable = (
         'used_in_contests',
@@ -1365,18 +1360,136 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'prepare_construction',
         'build', 
         'export_for_upload', 
-        'create_stacks', 
-        'clean_stacks',
-        'clean_stacks_50',
-        'rank_stacks',
-        'find_expected_lineup_order',
         'export_lineups', 
         'get_actual_scores', 
         'find_optimal_lineups',
         'duplicate_builds', 
-        'delete_lineups', 
-        'clear_unused_stacks', 
-        'clear_data']
+        'clear_data'
+    ]
+
+    def get_backtest(self, obj):
+        if obj.backtest is None:
+            return None
+        return obj.backtest.backtest.name
+    get_backtest.short_description = 'Backtest'
+
+    def get_ready(self, obj):
+        return obj.ready
+    get_ready.short_description = 'rdy'
+    get_ready.boolean = True
+
+    def get_projections_ready(self, obj):
+        return obj.projections_ready
+    get_projections_ready.short_description = 'p.rdy'
+    get_projections_ready.boolean = True
+
+    def get_construction_ready(self, obj):
+        return obj.construction_ready
+    get_construction_ready.short_description = 'c.rdy'
+    get_construction_ready.boolean = True
+
+    def get_pct_one_pct(self, obj):
+        if obj.total_one_pct is None:
+            return 0
+        return '{:.2f}'.format(obj.total_one_pct/obj.total_lineups * 100)
+    get_pct_one_pct.short_description = '1%'
+    get_pct_one_pct.admin_order_field = 'total_one_pct'
+
+    def get_pct_half_pct(self, obj):
+        if obj.total_half_pct is None:
+            return 0
+        return '{:.2f}'.format(obj.total_half_pct/obj.total_lineups * 100)
+    get_pct_half_pct.short_description = '0.5%'
+    get_pct_half_pct.admin_order_field = 'total_half_pct'
+
+    def get_great_score(self, obj):
+        if obj.slate.contests.all().count() > 0:
+            return obj.slate.contests.all()[0].great_score
+        return None
+    get_great_score.short_description = 'gs'
+
+    def get_bink_score(self, obj):
+        if obj.slate.contests.all().count() > 0:
+            return obj.slate.contests.all()[0].winning_score
+        return None
+    get_bink_score.short_description = 'milly'
+
+    def did_get_great_score(self, obj):
+        great_score = self.get_great_score(obj)
+        if great_score is None or obj.top_score is None:
+            return False
+        return obj.top_score >= great_score
+    did_get_great_score.boolean = True
+    did_get_great_score.short_description = 'gb'
+
+    def get_links(self, obj):
+        html = ''
+        if obj.projections.all().count() > 0:
+            html += '<a href="/admin/nfl/buildplayerprojection/?build_id={}">Projections</a>'.format(obj.id)
+        if obj.num_stacks_created() > 0:
+            if html != '':
+                html += '<br />'
+            html += '<a href="/admin/nfl/slatebuildstack/?build__id__exact={}">Stacks</a>'.format(obj.id)
+        if obj.num_groups_created() > 0:
+            if html != '':
+                html += '<br />'
+            html += '<a href="/admin/nfl/slatebuildgroup/?build__id__exact={}">Groups</a>'.format(obj.id)
+        if obj.num_lineups_created() > 0:
+            if html != '':
+                html += '<br />'
+            html += '<a href="/admin/nfl/slatebuildlineup/?build__id__exact={}">Lineups</a>'.format(obj.id)
+        if obj.num_actuals_created() > 0:
+            if html != '':
+                html += '<br />'
+            html += '<a href="/admin/nfl/slatebuildactualslineup/?build__id__exact={}">Optimals</a>'.format(obj.id)
+
+        return mark_safe(html)
+    get_links.short_description = 'Links'
+
+    def get_exposures_links(self, obj):
+        if obj.num_lineups_created() > 0:
+            html = ''
+            html += '<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=QB">QB</a>'.format(obj.id)
+            html += '<br /><a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=RB">RB</a>'.format(obj.id)
+            html += '<br /><a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=WR">WR</a>'.format(obj.id)
+            html += '<br /><a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=TE">TE</a>'.format(obj.id)
+
+            if obj.slate.site == 'fanduel':
+                html += '<br /><a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=D">DST</a>'.format(obj.id)
+            elif obj.slate.site == 'draftkings':
+                html += '<br /><a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=DST">DST</a>'.format(obj.id)
+
+            return mark_safe(html)
+    get_exposures_links.short_description = 'Exp'
+
+    def get_el(self, obj):
+        if obj.total_cashes == None:
+            return None
+        lineups = obj.lineups.all().order_by('-actual')
+        return lineups[0].expected_lineup_order if lineups.count() > 0 else None
+    get_el.short_description = 'EL'
+
+    def get_pct_complete(self, obj):
+        return format_html(
+            '''
+            <progress value="{0}" max="100"></progress>
+            <span style="font-weight:bold">{0}%</span>
+            ''',
+            float(obj.pct_complete) * 100.0
+        )
+    get_pct_complete.short_description = '% complete'
+    get_pct_complete.admin_order_field = 'pct_complete'
+
+    def get_optimal_pct_complete(self, obj):
+        return format_html(
+            '''
+            <progress value="{0}" max="100"></progress>
+            <span style="font-weight:bold">{0}%</span>
+            ''',
+            float(obj.optimals_pct_complete) * 100.0
+        )
+    get_optimal_pct_complete.short_description = '% opt done'
+    get_optimal_pct_complete.admin_order_field = 'optimals_pct_complete'
 
     def reset(self, request, queryset):
         for build in queryset:
@@ -1396,42 +1509,15 @@ class SlateBuildAdmin(admin.ModelAdmin):
             messages.success(request, 'Construction prepared for {}.'.format(build))
     prepare_construction.short_description = 'Prepare construction for selected builds'
 
-    def create_stacks(self, request, queryset):
-        for b in queryset:
-            b.create_stacks()
-    create_stacks.short_description = 'Create stacks for selected builds'
-
-    def clean_stacks(self, request, queryset):
-        for b in queryset:
-            if b.slate.site == 'fanduel':
-                b.clean_stacks(80)
-            elif b.slate.site == 'draftkings':
-                b.clean_stacks(90)
-    clean_stacks.short_description = 'Clean stacks to top 80 stacks (80 FD/90 DK)'
-
-    def clean_stacks_50(self, request, queryset):
-        for b in queryset:
-            if b.slate.site == 'fanduel':
-                b.clean_stacks(50)
-            elif b.slate.site == 'draftkings':
-                b.clean_stacks(50)
-    clean_stacks_50.short_description = 'Clean stacks to top 50 stacks (50 both)'
-
-    def rank_stacks(self, request, queryset):
-        for build in queryset:
-            build.rank_stacks()
-
     def build(self, request, queryset):
         for b in queryset:
-            tasks.run_build.delay(b.id)
-    build.short_description = 'Generate lineups for selected builds'
+            if b.ready:
+                tasks.run_build.delay(b.id)
+                messages.success(request, 'Generating lineups for {}. Refresh page to check progress.'.format(str(b)))
+            else:
+                messages.error(request, 'Cannot generate lineups for {}. Check projections and construction.'.format(str(b)))
 
-    def find_expected_lineup_order(self, request, queryset): 
-        for build in queryset:
-            for (index, lineup) in enumerate(build.lineups.all().order_by('order_number', '-qb__projection')):
-                lineup.expected_lineup_order = index + 1
-                lineup.save()
-    find_expected_lineup_order.short_description = 'Find expected lineup order'
+    build.short_description = 'Generate lineups for selected builds'
 
     def export_lineups(self, request, queryset):
         if queryset.count() > 1:
@@ -1620,168 +1706,11 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 stack.save()
     duplicate_builds.short_description = 'Duplicate selected builds'
 
-    def delete_lineups(self, request, queryset):
-        for build in queryset:
-            build.lineups.all().delete()
-    delete_lineups.short_description = 'Delete lineups from selected builds'
-
-    def clear_unused_stacks(self, request, queryset):
-        for build in queryset:
-            build.stacks.filter(count=0).delete()
-    clear_unused_stacks.short_description = 'Clear unused stacks from selected builds'
-
-    def build_actuals(self, request, queryset):
-        for b in queryset:
-            b.build(use_actuals=True)
-    build_actuals.short_description = 'Generate actuals for selected builds'
-
-    def clear_data(self, request, queryset):
-        for build in queryset:
-            build.total_cashes = None
-            build.total_one_pct = 0
-            build.total_half_pct = 0
-            build.top_score = None
-            build.binked = False
-            build.save()
-    clear_data.short_description = 'Clear data from selected builds'
-
     def find_optimal_lineups(self, request, queryset):
         for build in queryset:
             tasks.build_optimals.delay(build.id)
             messages.success(request, 'Building optimals for {}. Refresh page to check progress'.format(build))
     find_optimal_lineups.short_description = 'Generate optimal lineups for selected builds'
-
-    def get_backtest(self, obj):
-        if obj.backtest is None:
-            return None
-        return obj.backtest.backtest.name
-    get_backtest.short_description = 'Backtest'
-
-    def get_pct_one_pct(self, obj):
-        if obj.total_one_pct is None:
-            return 0
-        return '{:.2f}'.format(obj.total_one_pct/obj.total_lineups * 100)
-    get_pct_one_pct.short_description = '1%'
-    get_pct_one_pct.admin_order_field = 'total_one_pct'
-
-    def get_pct_half_pct(self, obj):
-        if obj.total_half_pct is None:
-            return 0
-        return '{:.2f}'.format(obj.total_half_pct/obj.total_lineups * 100)
-    get_pct_half_pct.short_description = '0.5%'
-    get_pct_half_pct.admin_order_field = 'total_half_pct'
-
-    def get_great_score(self, obj):
-        if obj.slate.contests.all().count() > 0:
-            return obj.slate.contests.all()[0].great_score
-        return None
-    get_great_score.short_description = 'gs'
-
-    def get_bink_score(self, obj):
-        if obj.slate.contests.all().count() > 0:
-            return obj.slate.contests.all()[0].winning_score
-        return None
-    get_bink_score.short_description = 'milly'
-
-    def did_get_great_score(self, obj):
-        great_score = self.get_great_score(obj)
-        if great_score is None or obj.top_score is None:
-            return False
-        return obj.top_score >= great_score
-    did_get_great_score.boolean = True
-    did_get_great_score.short_description = 'gb'
-
-    def get_projections_link(self, obj):
-        if obj.projections.all().count() > 0:
-            return mark_safe('<a href="/admin/nfl/buildplayerprojection/?build__id__exact={}">Proj</a>'.format(obj.id))
-        return 'None'
-    get_projections_link.short_description = 'Proj'
-
-    def get_stacks_link(self, obj):
-        if obj.num_stacks_created() > 0:
-            return mark_safe('<a href="/admin/nfl/slatebuildstack/?build__id__exact={}">Stacks</a>'.format(obj.id))
-        return 'None'
-    get_stacks_link.short_description = 'Stacks'
-
-    def get_groups_link(self, obj):
-        if obj.num_groups_created() > 0:
-            return mark_safe('<a href="/admin/nfl/slatebuildgroup/?build__id__exact={}">Groups</a>'.format(obj.id))
-        return 'None'
-    get_groups_link.short_description = 'Groups'
-
-    def get_lineups_link(self, obj):
-        if obj.num_lineups_created() > 0:
-            return mark_safe('<a href="/admin/nfl/slatebuildlineup/?build__id__exact={}">Lineups</a>'.format(obj.id))
-        return 'None'
-    get_lineups_link.short_description = 'Lineups'
-
-    def get_actuals_link(self, obj):
-        if obj.num_actuals_created() > 0:
-            return mark_safe('<a href="/admin/nfl/slatebuildactualslineup/?build__id__exact={}">Opt</a>'.format(obj.id))
-        return 'None'
-    get_actuals_link.short_description = 'Opt'
-
-    def get_qb_exposures_link(self, obj):
-        if obj.num_lineups_created() > 0:
-            return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=QB">Exp</a>'.format(obj.id))
-        return 'None'
-    get_qb_exposures_link.short_description = 'QB'
-
-    def get_rb_exposures_link(self, obj):
-        if obj.num_lineups_created() > 0:
-            return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=RB">Exp</a>'.format(obj.id))
-        return 'None'
-    get_rb_exposures_link.short_description = 'RB'
-
-    def get_wr_exposures_link(self, obj):
-        if obj.num_lineups_created() > 0:
-            return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=WR">Exp</a>'.format(obj.id))
-        return 'None'
-    get_wr_exposures_link.short_description = 'WR'
-
-    def get_te_exposures_link(self, obj):
-        if obj.num_lineups_created() > 0:
-            return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=TE">Exp</a>'.format(obj.id))
-        return 'None'
-    get_te_exposures_link.short_description = 'TE'
-
-    def get_dst_exposures_link(self, obj):
-        if obj.num_lineups_created() > 0:
-            if obj.slate.site == 'fanduel':
-                return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=D">Exp</a>'.format(obj.id))
-            elif obj.slate.site == 'draftkings':
-                return mark_safe('<a href="/admin/nfl/slateplayerbuildexposure/?build_id={}&pos=DST">Exp</a>'.format(obj.id))
-        return 'None'
-    get_dst_exposures_link.short_description = 'DST'
-
-    def get_el(self, obj):
-        if obj.total_cashes == None:
-            return None
-        lineups = obj.lineups.all().order_by('-actual')
-        return lineups[0].expected_lineup_order if lineups.count() > 0 else None
-    get_el.short_description = 'EL'
-
-    def get_pct_complete(self, obj):
-        return format_html(
-            '''
-            <progress value="{0}" max="100"></progress>
-            <span style="font-weight:bold">{0}%</span>
-            ''',
-            float(obj.pct_complete) * 100.0
-        )
-    get_pct_complete.short_description = '% complete'
-    get_pct_complete.admin_order_field = 'pct_complete'
-
-    def get_optimal_pct_complete(self, obj):
-        return format_html(
-            '''
-            <progress value="{0}" max="100"></progress>
-            <span style="font-weight:bold">{0}%</span>
-            ''',
-            float(obj.optimals_pct_complete) * 100.0
-        )
-    get_optimal_pct_complete.short_description = '% opt done'
-    get_optimal_pct_complete.admin_order_field = 'optimals_pct_complete'
 
 
 @admin.register(models.BuildPlayerProjection)

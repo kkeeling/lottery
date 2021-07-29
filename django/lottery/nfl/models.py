@@ -1040,6 +1040,8 @@ class SlateBuild(models.Model):
 
     # Build Status
     status = models.CharField(max_length=25, choices=BUILD_STATUS, default='not_started')
+    projections_ready = models.BooleanField(default=False)
+    construction_ready = models.BooleanField(default=False)
     pct_complete = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     optimals_pct_complete = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     error_message = models.TextField(blank=True, null=True)
@@ -1052,6 +1054,10 @@ class SlateBuild(models.Model):
     def __str__(self):
         return '{} ({}) @ {}'.format(self.slate.name, self.configuration, self.created.replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime('%Y-%m-%d %H:%M'))
 
+    @property
+    def ready(self):
+        return self.projections_ready and self.construction_ready
+
     def reset(self):
         self.clear_analysis()
 
@@ -1062,8 +1068,10 @@ class SlateBuild(models.Model):
         self.error_message = None
         self.pct_complete = 0.0
         self.elapsed_time = datetime.timedelta()
-
         self.save()
+
+        self.calc_projections_ready()
+        self.calc_construction_ready()
 
     def clear_analysis(self):
         self.top_score = None
@@ -1073,6 +1081,26 @@ class SlateBuild(models.Model):
         self.total_half_pct = None
         self.great_build = False
         self.binked = False        
+
+    def calc_projections_ready(self):
+        self.projections_ready = self.projections.all().count() >= self.slate.num_projected_players()
+        self.save()
+
+    def calc_construction_ready(self):
+        groups_ready = False
+        if self.lineup_construction is None:
+            groups_ready = True
+        else:
+            group_rules = self.lineup_construction.group_rules.all()
+            groups = SlateBuildGroup.objects.filter(
+                build=self
+            )
+            groups_ready = groups.count() >= group_rules.count()
+
+        stacks_ready = self.stacks.all().count() >= self.stack_cutoff * 0.60
+
+        self.construction_ready = groups_ready and stacks_ready
+        self.save()
 
     def prepare_projections(self):
         # copy default projections if they don't exist
@@ -1085,6 +1113,8 @@ class SlateBuild(models.Model):
         
         # find stack-only players
         self.find_stack_only()
+
+        self.calc_projections_ready()
 
     def prepare_construction(self):
         self.groups.all().delete()
@@ -1117,6 +1147,8 @@ class SlateBuild(models.Model):
 
         self.total_lineups = self.stacks.all().aggregate(total=Sum('count')).get('total')
         self.save()
+
+        self.calc_construction_ready()
 
     def update_projections(self, replace=True):
         '''
@@ -1339,30 +1371,31 @@ class SlateBuild(models.Model):
     def build(self):
         self.reset()
 
-        # get real total lineups
-        self.total_lineups = SlateBuildStack.objects.filter(build=self).aggregate(total=Sum('count')).get('total')
+        if self.ready:
+            # get real total lineups
+            self.total_lineups = SlateBuildStack.objects.filter(build=self).aggregate(total=Sum('count')).get('total')
 
-        print('Building {} lineups; {} unique stacks...'.format(self.total_lineups, self.stacks.all().count()))
-        self.status = 'running'
-        self.error_message = None
-        self.pct_complete = 0.0
-        self.save()
+            print('Building {} lineups; {} unique stacks...'.format(self.total_lineups, self.stacks.all().count()))
+            self.status = 'running'
+            self.error_message = None
+            self.pct_complete = 0.0
+            self.save()
 
-        tasks.monitor_build.delay(self.id)
+            tasks.monitor_build.delay(self.id)
 
-        last_qb = None
-        stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
-        for stack in stacks:
-            qb = stack.qb.id
-            num_qb_stacks = self.stacks.filter(qb__id=qb).count()
-            if last_qb is None or qb != last_qb:
-                lineup_number = 1
-            else:
-                lineup_number += 1
+            last_qb = None
+            stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
+            for stack in stacks:
+                qb = stack.qb.id
+                num_qb_stacks = self.stacks.filter(qb__id=qb).count()
+                if last_qb is None or qb != last_qb:
+                    lineup_number = 1
+                else:
+                    lineup_number += 1
 
-            tasks.build_lineups_for_stack.delay(stack.id, lineup_number, num_qb_stacks)
+                tasks.build_lineups_for_stack.delay(stack.id, lineup_number, num_qb_stacks)
 
-            last_qb = qb
+                last_qb = qb
         
     def update_build_progress(self):
         remaining_stacks = self.stacks.filter(count__gt=0, lineups_created=False)
