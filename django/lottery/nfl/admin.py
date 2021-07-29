@@ -1303,7 +1303,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
     date_hierarchy = 'slate__datetime'
     list_per_page = 25
     list_display = (
-        'created',
+        'id',
         'slate',
         'get_backtest',
         'used_in_contests',

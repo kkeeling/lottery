@@ -2105,27 +2105,15 @@ class Backtest(models.Model):
 
     @property
     def ready(self):
-        for slate in self.slates.all():
-            if not slate.projections_ready or not slate.construction_ready:
-                return False
-        
-        return True
+        return self.slates.filter(build__projections_ready=True, build__construction_ready=True).count() == self.slates.all().count()
 
     @property
     def projections_ready(self):
-        for slate in self.slates.all():
-            if not slate.projections_ready:
-                return False
-        
-        return True
+        return self.slates.filter(build__projections_ready=True).count() == self.slates.all().count()
 
     @property
     def construction_ready(self):
-        for slate in self.slates.all():
-            if not slate.construction_ready:
-                return False
-        
-        return True
+        return self.slates.filter(build__construction_ready=True).count() == self.slates.all().count()
 
     def reset(self):
         self.status = 'not_started'
@@ -2351,20 +2339,16 @@ class BacktestSlate(models.Model):
         return self.slate.get_great_score()
 
     @property
+    def ready(self):
+        return self.build.ready
+
+    @property
     def projections_ready(self):
-        return self.build is not None and self.build.projections.all().count() >= self.slate.num_projected_players()
+        return self.build.projections_ready
 
     @property
     def construction_ready(self):
-        if self.build.lineup_construction is None:
-            return True
-
-        group_rules = self.build.lineup_construction.group_rules.all()
-        groups = SlateBuildGroup.objects.filter(
-            build=self.build
-        )
-
-        return self.build is not None and groups.count() >= group_rules.count() and self.build.stacks.all().count() >= 0
+        self.build.construction_ready
 
     def reset(self):
         # create a build
