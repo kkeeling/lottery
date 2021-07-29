@@ -1097,7 +1097,7 @@ class SlateBuild(models.Model):
             )
             groups_ready = groups.count() >= group_rules.count()
 
-        stacks_ready = self.stacks.all().count() >= self.stack_cutoff * 0.80
+        stacks_ready = self.stacks.all().count() >= self.stack_cutoff * 0.75
 
         self.construction_ready = groups_ready and stacks_ready
         self.save()
