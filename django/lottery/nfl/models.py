@@ -1098,7 +1098,7 @@ class SlateBuild(models.Model):
             )
             groups_ready = groups.count() >= group_rules.count()
 
-        if self.stack_construction.lock_top_pc:
+        if self.stack_construction is not None and self.stack_construction.lock_top_pc:
             stacks_ready = self.stacks.all().count() >= self.stack_cutoff * 0.50
         else:
             stacks_ready = self.stacks.all().count() >= self.stack_cutoff * 0.90
