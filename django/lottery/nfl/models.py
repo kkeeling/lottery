@@ -1381,31 +1381,31 @@ class SlateBuild(models.Model):
     def build(self):
         self.reset()
 
-        if self.ready:
-            # get real total lineups
-            self.total_lineups = SlateBuildStack.objects.filter(build=self).aggregate(total=Sum('count')).get('total')
+        # if self.ready:
+        # get real total lineups
+        self.total_lineups = SlateBuildStack.objects.filter(build=self).aggregate(total=Sum('count')).get('total')
 
-            print('Building {} lineups; {} unique stacks...'.format(self.total_lineups, self.stacks.all().count()))
-            self.status = 'running'
-            self.error_message = None
-            self.pct_complete = 0.0
-            self.save()
+        print('Building {} lineups; {} unique stacks...'.format(self.total_lineups, self.stacks.all().count()))
+        self.status = 'running'
+        self.error_message = None
+        self.pct_complete = 0.0
+        self.save()
 
-            tasks.monitor_build.delay(self.id)
+        tasks.monitor_build.delay(self.id)
 
-            last_qb = None
-            stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
-            for stack in stacks:
-                qb = stack.qb.id
-                num_qb_stacks = self.stacks.filter(qb__id=qb).count()
-                if last_qb is None or qb != last_qb:
-                    lineup_number = 1
-                else:
-                    lineup_number += 1
+        last_qb = None
+        stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
+        for stack in stacks:
+            qb = stack.qb.id
+            num_qb_stacks = self.stacks.filter(qb__id=qb).count()
+            if last_qb is None or qb != last_qb:
+                lineup_number = 1
+            else:
+                lineup_number += 1
 
-                tasks.build_lineups_for_stack.delay(stack.id, lineup_number, num_qb_stacks)
+            tasks.build_lineups_for_stack.delay(stack.id, lineup_number, num_qb_stacks)
 
-                last_qb = qb
+            last_qb = qb
         
     def update_build_progress(self):
         remaining_stacks = self.stacks.filter(count__gt=0, lineups_created=False)
@@ -2166,15 +2166,15 @@ class Backtest(models.Model):
         self.total_lineups = self.slates.all().aggregate(total=Sum('build__total_lineups')).get('total')
         self.save()
 
-        if self.ready:
-            # start monitoring
-            tasks.monitor_backtest.delay(self.id)
+        # if self.ready:
+        # start monitoring
+        tasks.monitor_backtest.delay(self.id)
 
-            # execute the builds
-            self.execute_next_slate()
+        # execute the builds
+        self.execute_next_slate()
 
-            return True
-        return False
+        return True
+        # return False
 
     def execute_next_slate(self):
         incomplete_slates = self.slates.exclude(build__status='complete').order_by('slate__week')
