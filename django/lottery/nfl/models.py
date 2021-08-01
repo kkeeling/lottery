@@ -872,6 +872,7 @@ class PlayerSelectionCriteria(models.Model):
             'projection': float(build_projection.projection),
             'team_total': float(build_projection.team_total),
             'game_total': float(build_projection.game_total),
+            'spread': float(build_projection.spread),
             'adjusted_opportunity': float(build_projection.adjusted_opportunity)
         }
 
