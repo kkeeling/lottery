@@ -2279,7 +2279,8 @@ class BacktestAdmin(admin.ModelAdmin):
 
     def execute(self, request, queryset):
         for backtest in queryset:
-            if backtest.ready:
+            # if backtest.ready:
+            if True:
                 tasks.run_backtest.delay(backtest.id)
                 messages.success(request, 'Executing {}. Refresh page to check progress'.format(backtest.name))
             else:
