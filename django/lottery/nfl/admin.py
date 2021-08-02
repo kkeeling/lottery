@@ -1708,7 +1708,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
     def find_optimal_lineups(self, request, queryset):
         for build in queryset:
-            tasks.build_optimals.delay(build.id)
+            build.build_optimals()
             messages.success(request, 'Building optimals for {}. Refresh page to check progress'.format(build))
     find_optimal_lineups.short_description = 'Generate optimal lineups for selected builds'
 

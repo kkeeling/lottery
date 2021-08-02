@@ -1503,53 +1503,18 @@ class SlateBuild(models.Model):
             )
         ).count()
 
-    def get_optimal_stacks(self):
-        '''
-        Returns a list of stacks for which there is at least 1 optimal lineups
-        '''
-        stacks_with_optimals = []
-        for stack in self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb'):
-            has_possible_optimals = stack.has_possible_optimals()
-            print('{}, {}'.format(stack, has_possible_optimals))
-            if has_possible_optimals:
-                stacks_with_optimals.append(stack)
-
-        return stacks_with_optimals
-
-    def build_optimals(self, stacks_with_optimals, max_optimals_per_stack):
+    def build_optimals(self):
         self.actuals.all().delete()
+        self.total_optimals = 0
+        self.optimals_pct_complete = 0.0
+        self.save()
+        
+        self.stacks.all().update(optimals_created=False)
 
-        # For each stack with optimals, make 50 optimal lineups
-        for stack in stacks_with_optimals:
-            lineups = stack.build_optimals(num_lineups=max_optimals_per_stack)
+        tasks.monitor_build_optimals.delay(self.id)
 
-            # Store optimals in list until optimal threshold is reached
-            for lineup in lineups:
-                if lineup.fantasy_points_projection < self.slate.get_great_score():
-                    break
-
-                SlateBuildActualsLineup.objects.create(
-                    build=self,
-                    stack=stack,
-                    qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self),
-                    rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self),
-                    rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self),
-                    wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self),
-                    wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self),
-                    wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self),
-                    te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self),
-                    flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self),
-                    dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self),
-                    salary=lineup.salary_costs,
-                    actual=lineup.fantasy_points_projection
-                )
-            
-            # update progress
-            self.total_optimals -= max_optimals_per_stack - SlateBuildActualsLineup.objects.filter(build=self, stack=stack).count()
-            self.optimals_pct_complete = SlateBuildActualsLineup.objects.filter(build=self).count() / self.total_optimals
-
-            self.backtest.backtest.update_optimal_pct_complete(self)
-            self.save()
+        for stack in self.stacks.filter(count__gt=0):
+            tasks.build_optimals_for_stack.delay(stack.id)
 
     def top_optimal_score(self):
         return self.actuals.all().aggregate(top_score=Max('actual')).get('top_score')
@@ -1666,6 +1631,7 @@ class SlateBuildStack(models.Model):
     count = models.PositiveIntegerField(default=0, help_text='# of lineups in which this stack should appear')
     times_used = models.PositiveIntegerField(default=0)
     lineups_created = models.BooleanField(default=False)
+    optimals_created = models.BooleanField(default=False)
     error_message = models.TextField(blank=True, null=True)
     actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
 
@@ -1807,7 +1773,25 @@ class SlateBuildStack(models.Model):
             self.build.groups.filter(active=True)
         )
 
-        return lineups
+        for lineup in lineups:
+            if lineup.fantasy_points_projection < self.build.slate.get_great_score():
+                break
+
+            SlateBuildActualsLineup.objects.create(
+                build=self.build,
+                stack=self,
+                qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
+                rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self.build),
+                rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self.build),
+                wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self.build),
+                wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self.build),
+                wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self.build),
+                te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self.build),
+                flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
+                dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
+                salary=lineup.salary_costs,
+                actual=lineup.fantasy_points_projection
+            )
 
     def num_tes(self):
         count = 0
@@ -2209,16 +2193,17 @@ class Backtest(models.Model):
         self.save()
 
     def find_optimals(self):
-        max_optimals_per_stack = 50
-        for slate in self.slates.all():
-            build = slate.slate.builds.get(backtest__backtest=self)
-            # TODO: Cannot assume only 1 build per slate
-            stacks_with_optimals = build.get_optimal_stacks()
-            build.total_optimals = len(stacks_with_optimals) * max_optimals_per_stack
-            build.optimals_pct_complete = 0.0
-            build.save()
+        self.total_optimals = 0
+        self.optimals_pct_complete = 0.0
+        self.save()
 
-            build.build_optimals(stacks_with_optimals, max_optimals_per_stack)
+        models.SlateBuildStack.objects.filter(
+            build__backtest__backtest=self
+        ).update(optimals_created=False)
+
+        for slate in self.slates.all():
+            tasks.monitor_backtest_optimals.delay(self.id)
+            slate.build_optimals()
 
     def update_optimal_pct_complete(self, build):
         complete_builds = SlateBuild.objects.filter(backtest__in=self.slates.all(), optimals_pct_complete=1.0)
@@ -2392,6 +2377,10 @@ class BacktestSlate(models.Model):
     def execute(self):
         # make lineups
         self.build.build()
+    
+    def build_optimals(self):
+        # make lineups
+        self.build.build_optimals()
 
     def handle_exception(self, exc):
         self.backtest.handle_exception(self, exc)

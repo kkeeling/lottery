@@ -6,6 +6,8 @@ from celery import shared_task
 from celery.contrib.abortable import AbortableTask
 from celery.utils.log import get_task_logger
 
+from django.db.models.aggregates import Count
+
 from . import models
 from . import optimize
 
@@ -165,21 +167,47 @@ def monitor_build(build_id):
 
 
 @shared_task
-def build_optimals(build_id):
+def build_optimals_for_stack(stack_id):
     try:
         max_optimals_per_stack = 50
+        stack = models.SlateBuildStack.objects.get(id=stack_id)
 
-        build = models.SlateBuild.objects.get(id=build_id)
-        stacks_with_optimals = build.get_optimal_stacks()
-
-        build.total_optimals = len(stacks_with_optimals) * max_optimals_per_stack
-        build.optimals_pct_complete = 0.0
-        build.save()
-
-        build.build_optimals(stacks_with_optimals, max_optimals_per_stack)
-    except Exception as exc:
+        if stack.has_possible_optimals:
+            stack.build_optimals(max_optimals_per_stack)
+        
+        stack.optimals_created = True
+        stack.save()
+    except:
         traceback.print_exc()
 
-        build.status = 'error'
-        build.error_message = str(exc)
+
+@shared_task
+def monitor_build_optimals(build_id):
+    build = models.SlateBuild.objects.get(id=build_id)
+    stacks = build.stacks.filter(count__gt=0)
+
+    while stacks.filter(optimals_created=False).count() > 0:
+        build.optimals_pct_complete = stacks.filter(optimals_created=True).count() / stacks.count()
+        build.total_optimals = stacks.aggregate(total_optimals=Count('actuals')).get('total_optimals')
         build.save()
+        time.sleep(1)
+
+    build.optimals_pct_complete = 1.0
+    build.save()
+
+
+@shared_task
+def monitor_backtest_optimals(backtest_id):
+    backtest = models.Backtest.objects.get(id=backtest_id)
+    stacks = models.SlateBuildStack.objects.filter(
+        build__backtest__backtest=backtest
+    )
+
+    while stacks.filter(optimals_created=False).count() > 0:
+        backtest.optimals_pct_complete = stacks.filter(optimals_created=True).count() / stacks.count()
+        backtest.total_optimals = stacks.aggregate(total_optimals=Count('actuals')).get('total_optimals')
+        backtest.save()
+        time.sleep(1)
+
+    backtest.optimals_pct_complete = 1.0
+    backtest.save()
