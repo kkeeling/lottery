@@ -2197,7 +2197,7 @@ class Backtest(models.Model):
         self.optimals_pct_complete = 0.0
         self.save()
 
-        models.SlateBuildStack.objects.filter(
+        SlateBuildStack.objects.filter(
             build__backtest__backtest=self
         ).update(optimals_created=False)
 
