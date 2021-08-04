@@ -1761,16 +1761,15 @@ class SlateBuildStack(models.Model):
             self.build.handle_exception(self, exc)
 
     def build_optimals(self, num_lineups=1):    
-        slate_players = self.build.slate.players.filter(projection__isnull=False)
-
-        lineups = optimal.optimize_for_stack(
+        lineups = optimize.optimize_for_stack(
             self.build.slate.site,
             self,
-            slate_players,
+            self.build.projections.all(),
             self.build.slate.teams,
             self.build.configuration,
             num_lineups,
-            self.build.groups.filter(active=True)
+            self.build.groups.filter(active=True),
+            for_optimals=True
         )
 
         for lineup in lineups:

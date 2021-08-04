@@ -9,8 +9,7 @@ import traceback
 from collections import namedtuple
 from django.core.management.base import BaseCommand
 from pydfs_lineup_optimizer import Site, Sport, Player, PlayersGroup, get_optimizer, \
-    PositionsStack, exceptions, Stack, TeamStack, AfterEachExposureStrategy, LineupOptimizer
-from pydfs_lineup_optimizer.sites.fanduel.classic.settings import FanDuelSettings
+    exceptions, Stack, LineupOptimizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import CountVectorizer
 
@@ -19,7 +18,7 @@ from . import optimizer_settings
 GameInfo = namedtuple('GameInfo', ['home_team', 'away_team', 'starts_at', 'game_started'])
 
 
-def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineups, groups=[]):
+def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineups, groups=[], for_optimals=False):
     # print('  Building for {}'.format(stack))
     if site == 'fanduel':
         optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
@@ -45,7 +44,7 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
         allow_rb_qb_stack=config.allow_rb_qb_from_same_team,
         allow_opp_rb_qb_stack=config.allow_rb_qb_from_opp_team,
         max_dst_exposure=config.max_dst_exposure,
-        stack_positions=config.qb_stack_positions
+        for_optimals=for_optimals
     )
     optimizer.load_players(players_list)
     # print('  Loaded {} players.'.format(len(players_list)))
@@ -123,7 +122,7 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
     try:
         optimized_lineups = optimizer.optimize(
             n=num_lineups,
-            randomness=True, 
+            randomness=not for_optimals, 
         )
         count = 0
         for lineup in optimized_lineups:
@@ -137,7 +136,7 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
     return lineups
 
 
-def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75, use_stack_only=True, allow_rb_qb_stack=False, allow_opp_rb_qb_stack=False, max_dst_exposure=1.0, stack_positions=['WR', 'TE'], opp_stack_positions=['WR', 'TE']):
+def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75, use_stack_only=True, allow_rb_qb_stack=False, allow_opp_rb_qb_stack=False, max_dst_exposure=1.0, for_optimals=False):
     '''
     Returns the player list on which to optimize based on a game stack with game_qb
     '''
@@ -166,7 +165,6 @@ def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75,
                         first = player_projection.name
                         last = ''
 
-                    home_team, away_team = player_projection.get_game().split('_')
                     slate_game = player_projection.slate_player.get_slate_game().game
                     game_info = GameInfo(
                         home_team=slate_game.home_team, 
@@ -182,11 +180,11 @@ def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75,
                         ['D' if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel' else player_projection.position],
                         player_projection.team,
                         player_projection.salary,
-                        float(player_projection.balanced_projection),
+                        float(player_projection.balanced_projection) if not for_optimals else float(player_projection.slate_player.fantasy_points),
                         game_info=game_info,
-                        min_deviation=-float(randomness),
-                        max_deviation=float(randomness),
-                        max_exposure=float(max_dst_exposure) if player_projection.position == 'DST' or player_projection.position == 'D' else None
+                        min_deviation=-float(randomness) if not for_optimals else None,
+                        max_deviation=float(randomness) if not for_optimals else None,
+                        max_exposure=float(max_dst_exposure) if not for_optimals and (player_projection.position == 'DST' or player_projection.position == 'D') else None
                     )
 
                     player_list.append(player)
