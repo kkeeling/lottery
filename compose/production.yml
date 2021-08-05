@@ -49,9 +49,9 @@ services:
     image: mher/flower
     container_name: lottery_production_flower
     depends_on:
-      - redigs
+      - redis
       - celery
-    command: celery --broker=redis://redis:6379/0 flower --port=8888 --logging=DEBUG --url_prefix=flower --autoreload
+    command: celery --broker=redis://redis:6379/0 flower --port=8888 --logging=DEBUG --url_prefix=flower
     expose:
       - 8888
     ports:  
