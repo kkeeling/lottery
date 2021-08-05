@@ -59,6 +59,7 @@ services:
       - ../django/lottery:/opt/lottery
       - lottery_static:/opt/static
       - lottery_media:/opt/media
+      - lottery_redis:/data
     networks:
       - lottery_network
 
