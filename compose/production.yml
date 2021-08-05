@@ -49,8 +49,9 @@ services:
     image: mher/flower
     container_name: lottery_production_flower
     depends_on:
+      - redigs
       - celery
-    command: celery --broker=redis://redis:6379 flower --port=8888 --logging=DEBUG --url_prefix=flower
+    command: celery --broker=redis://redis:6379/0 flower --port=8888 --logging=DEBUG --url_prefix=flower --autoreload
     expose:
       - 8888
     ports:  
@@ -59,7 +60,6 @@ services:
       - ../django/lottery:/opt/lottery
       - lottery_static:/opt/static
       - lottery_media:/opt/media
-      - lottery_redis:/data
     networks:
       - lottery_network
 
