@@ -47,7 +47,7 @@ services:
   
   flower:  
     image: mher/flower
-    container_name: lottery_dev_flower
+    container_name: lottery_production_flower
     depends_on:
       - celery
     command: celery --broker=redis://redis:6379 flower --port=8888 --logging=INFO
