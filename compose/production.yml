@@ -51,6 +51,8 @@ services:
     depends_on:
       - celery
     command: celery --broker=redis://redis:6379 flower --port=8888 --logging=INFO
+    expose: 
+      - 8888
     ports:  
       - 8888:8888
     volumes:
