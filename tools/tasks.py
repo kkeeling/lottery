@@ -37,7 +37,6 @@ def dev(ctx):
         'db': 'lottery_dev_db',
         'redis': 'lottery_dev_redis',
         'celery': 'lottery_dev_celery',
-        'grafana': 'lottery_dev_grafana',
     }
 
 @task
@@ -54,6 +53,7 @@ def production(ctx):
         'redis': 'lottery_production_redis',
         'celery': 'lottery_production_celery',
         'nginx': 'lottery_production_nginx',
+        'flower': 'lottery_production_flower',
     }
 
 @task
@@ -75,6 +75,10 @@ def celery(ctx):
 @task
 def nginx(ctx):
     ctx.config.container = 'nginx'
+
+@task
+def flower(ctx):
+    ctx.config.container = 'flower'
 
 @task
 def rebuild(ctx):
