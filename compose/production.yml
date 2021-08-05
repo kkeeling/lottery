@@ -51,7 +51,7 @@ services:
     depends_on:
       - redis
       - celery
-    command: celery --broker=redis://redis:6379/0 flower --port=8888 --logging=DEBUG --url_prefix=flower
+    command: celery --broker=redis://redis:6379/0 flower --port=8888 --logging=DEBUG --url_prefix=flower --autoreload
     expose:
       - 8888
     ports:  
