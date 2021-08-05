@@ -52,6 +52,10 @@ services:
       - redis
       - celery
     command: celery --broker=redis://redis:6379/0 flower --port=8888 --logging=DEBUG --url_prefix=flower --autoreload
+    environment:
+      - CELERY_TIMEZONE='US/Eastern'
+      - TIME_ZONE='US/Eastern'
+      - USE_TZ=True
     expose:
       - 8888
     ports:  
