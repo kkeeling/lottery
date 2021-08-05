@@ -37,7 +37,22 @@ services:
       - production/django.env
     depends_on:
       - redis
-    command: celery -A lottery worker -l info --concurrency=16
+    command: celery -A lottery worker -l info --concurrency=16 --prefetch-multiplier=1 --task-events 
+    volumes:
+      - ../django/lottery:/opt/lottery
+      - lottery_static:/opt/static
+      - lottery_media:/opt/media
+    networks:
+      - lottery_network
+  
+  flower:  
+    image: mher/flower
+    container_name: lottery_dev_flower
+    depends_on:
+      - celery
+    command: celery --broker=redis://redis:6379 flower --port=8888 --logging=INFO
+    ports:  
+      - 8888:8888
     volumes:
       - ../django/lottery:/opt/lottery
       - lottery_static:/opt/static

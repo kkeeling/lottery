@@ -1760,7 +1760,7 @@ class SlateBuildStack(models.Model):
 
             self.build.handle_exception(self, exc)
 
-    def build_optimals(self, num_lineups=1):    
+    def build_optimals(self, num_lineups=1):  
         lineups = optimize.optimize_for_stack(
             self.build.slate.site,
             self,
