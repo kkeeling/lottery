@@ -90,6 +90,7 @@ services:
         - production/nginx.env
     links:
         - django
+        - flower
     ports:
         - "80:80"
         - "443:443"
