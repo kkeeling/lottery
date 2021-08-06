@@ -55,11 +55,9 @@ services:
     depends_on:
       - redis
       - celery
-    command: celery --broker=redis://redis:6379/0 flower --port=8888 --logging=DEBUG --url_prefix=flower --autoreload
+    command: celery --broker=redis://redis:6379 flower --port=5555 --logging=DEBUG --url_prefix=flower
     expose:
-      - 8888
-    ports:  
-      - 8888:8888
+      - 5555
     volumes:
       - ../django/lottery:/opt/lottery
       - lottery_static:/opt/static
