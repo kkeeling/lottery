@@ -2200,8 +2200,9 @@ class Backtest(models.Model):
             build__backtest__backtest=self
         ).update(optimals_created=False)
 
+        tasks.monitor_backtest_optimals.delay(self.id)
+
         for slate in self.slates.all():
-            tasks.monitor_backtest_optimals.delay(self.id)
             slate.build_optimals()
 
     def update_optimal_pct_complete(self, build):
