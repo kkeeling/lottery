@@ -200,6 +200,7 @@ def monitor_build_optimals(build_id):
 def monitor_backtest_optimals(backtest_id):
     backtest = models.Backtest.objects.get(id=backtest_id)
     stacks = models.SlateBuildStack.objects.filter(
+        count__gt=0,
         build__backtest__backtest=backtest
     )
 
