@@ -12,9 +12,8 @@ import uuid
 from collections import namedtuple
 from django.conf import settings
 from django.db import models
-from django.db.models import Q, Aggregate, FloatField, Case, When, F
+from django.db.models import Q, Aggregate, FloatField, Case, When
 from django.db.models.aggregates import Avg, Count, Sum, Max
-from django.db.models.functions import Coalesce, Cast
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -381,6 +380,7 @@ class SlatePlayer(models.Model):
 class SlatePlayerProjection(models.Model):
     slate_player = models.OneToOneField(SlatePlayer, related_name='projection', on_delete=models.CASCADE)
     projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Proj')
+    ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
     adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     rb_group = models.PositiveIntegerField(null=True, blank=True)
@@ -398,8 +398,8 @@ class SlatePlayerProjection(models.Model):
     locked = models.BooleanField(default=False)
 
     class Meta:
-        verbose_name = 'Player Projection'
-        verbose_name_plural = 'Player Projections'
+        verbose_name = 'Base Player Projection'
+        verbose_name_plural = 'Base Player Projections'
         ordering = ['-projection']
 
     def __str__(self):
@@ -829,24 +829,6 @@ class PlayerProjectionField(models.Model):
         verbose_name_plural = 'Selection Criteria Fields'
 
 
-# class PositionThreshold(models.Model):
-#     OPERATORS = (
-#         ('eq', '=='),
-#         ('gt', '>'),
-#         ('lt', '<'),
-#         ('gte', '>='),
-#         ('lte', '<='),
-#         ('ne', '!='),
-#     )
-#     site_pos = models.CharField(max_length=5)
-#     projection_field = models.ForeignKey(PlayerProjectionField, on_delete=models.CASCADE)
-#     operator = models.CharField(max_length=3, default='eq', choices=OPERATORS)
-#     value = models.DecimalField(max_digits=10, decimal_places=4, default=0.0000)
-
-#     def __str__(self):
-#         return 'For {}: SlatePlayerProjection.{} {} {}'.format(self.site_pos, self.projection_field.maps_to, self.operator, self.value)
-
-
 class PlayerSelectionCriteria(models.Model):
     name = models.CharField(max_length=255)
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
@@ -992,6 +974,14 @@ class SlatePlayerImportSheet(models.Model):
 class SlatePlayerActualsSheet(models.Model):
     slate = models.OneToOneField(Slate, related_name='actuals', on_delete=models.CASCADE)
     sheet = models.FileField(upload_to='uploads/actuals')
+
+    def __str__(self):
+        return '{}'.format(str(self.slate))
+
+
+class SlatePlayerOwnershipProjectionSheet(models.Model):
+    slate = models.OneToOneField(Slate, related_name='ownership_projections_sheets', on_delete=models.CASCADE)
+    sheet = models.FileField(upload_to='uploads/ownership_projections')
 
     def __str__(self):
         return '{}'.format(str(self.slate))
@@ -1177,6 +1167,7 @@ class SlateBuild(models.Model):
                 # only replace values if projection is new or replace == true
                 if replace or created:
                     projection.projection = player.projection.projection
+                    projection.ownership_projection = player.projection.ownership_projection
                     projection.balanced_projection = player.projection.balanced_projection
                     projection.adjusted_opportunity = player.projection.adjusted_opportunity
                 projection.team_total = player.projection.get_team_total()
@@ -1525,6 +1516,7 @@ class BuildPlayerProjection(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)
     slate_player = models.ForeignKey(SlatePlayer, related_name='build_projections', on_delete=models.CASCADE)
     projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Proj')
+    ownership_projection = models.DecimalField(max_digits=3, decimal_places=2, default=0.0, verbose_name='Own')
     adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     rb_group = models.PositiveIntegerField(null=True, blank=True)
@@ -2805,6 +2797,128 @@ def process_fanduel_slate_player_actuals_sheet(instance):
 
 
 def process_draftkings_slate_player_actuals_sheet(instance):
+    with open(instance.sheet.path, mode='r') as actuals_file:
+        csv_reader = csv.reader(actuals_file, delimiter=',')
+        row_count = 0
+
+        failed_rows = []
+        missing_players = []
+        for row in csv_reader:
+            if row_count > 0:
+                player_name = row[0]
+                print(player_name, row[22])
+
+                try:
+                    alias = Alias.objects.get(fc_name=player_name)
+                except Alias.DoesNotExist:
+                    try:
+                        alias = Alias.objects.get(dk_name=player_name)
+                    except Alias.DoesNotExist:
+                        try:
+                            alias = Alias.objects.get(four4four_name=player_name)
+                        except Alias.DoesNotExist:
+                            missing_players.append(player_name)
+                
+                if alias is not None:
+                    try:
+                        slate_player = SlatePlayer.objects.get(
+                            slate=instance.slate,
+                            name__in=[alias.dk_name, alias.tda_name, alias.fc_name, alias.four4four_name, alias.awesemo_name],
+                            team=row[2]
+                        )
+
+                        if row[12] is not None and row[12] != '':
+                            ownership = float(row[12].replace('%', ''))
+                        else:
+                            ownership = None
+
+                        slate_player.fantasy_points = float(row[22]) if row[22] is not None and row[22] != '' else 0.0
+                        slate_player.ownership = ownership
+                        slate_player.save()
+                    except SlatePlayer.DoesNotExist:
+                        failed_rows.append(row)
+                    
+            row_count += 1
+
+        print()
+        if len(missing_players) > 0:
+            print('Missing players:')
+            for p in missing_players:
+                print(p)
+        if len(failed_rows) > 0:
+            print('Failed rows:')
+            for r in failed_rows:
+                print(r)   
+
+
+@receiver(post_save, sender=SlatePlayerOwnershipProjectionSheet)
+def process_slate_player_ownership_sheet(sender, instance, **kwargs):
+    if instance.slate.site == 'fanduel':
+        process_fanduel_slate_player_ownership_sheet(instance)
+    elif instance.slate.site == 'draftkings':
+        process_draftkings_slate_player_ownership_sheet(instance)
+    else:
+        raise Exception('{} is not a supported dfs site.'.format(instance.slate.site))
+
+
+def process_fanduel_slate_player_ownership_sheet(instance):
+    with open(instance.sheet.path, mode='r') as actuals_file:
+        csv_reader = csv.reader(actuals_file, delimiter=',')
+        row_count = 0
+
+        failed_rows = []
+        missing_players = []
+        for row in csv_reader:
+            if row_count > 0:
+                player_name = row[0].replace('Redskins', 'Washington Football Team')
+                print(player_name, row[11])
+
+                try:
+                    alias = Alias.objects.get(fc_name=player_name)
+                except Alias.DoesNotExist:
+                    try:
+                        alias = Alias.objects.get(fd_name=player_name)
+                    except Alias.DoesNotExist:
+                        try:
+                            alias = Alias.objects.get(four4four_name=player_name)
+                        except Alias.DoesNotExist:
+                            missing_players.append(player_name)
+                
+                if alias is not None:
+                    try:
+                        slate_player = SlatePlayer.objects.get(
+                            slate=instance.slate,
+                            name=alias.fd_name,
+                            team=row[2]
+                        )
+
+                        if row[11] is not None and row[11] != '':
+                            ownership = float(row[11].replace('%', ''))/100.0
+                        else:
+                            ownership = None
+
+                        try:
+                            slate_player.projection.ownership_projection = ownership
+                            slate_player.projection.save()
+                        except SlatePlayer.projection.RelatedObjectDoesNotExist:
+                            pass
+                    except SlatePlayer.DoesNotExist:
+                        failed_rows.append(row)
+                    
+            row_count += 1
+
+        print()
+        # if len(missing_players) > 0:
+        #     print('Missing players:')
+        #     for p in missing_players:
+        #         print(p)
+        # if len(failed_rows) > 0:
+        #     print('Failed rows:')
+        #     for r in failed_rows:
+        #         print(r)   
+
+
+def process_draftkings_slate_player_ownership_sheet(instance):
     with open(instance.sheet.path, mode='r') as actuals_file:
         csv_reader = csv.reader(actuals_file, delimiter=',')
         row_count = 0

@@ -1,15 +1,17 @@
 import csv
 import datetime
 import traceback
+from django.db.models.expressions import ExpressionWrapper
+from django.db.models.fields import FloatField
 import requests
 import statistics
 
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.http import HttpResponse
-from django.db.models import Count, Case, When, F, FloatField
+from django.db.models import Count, Window, F
 from django.db.models.aggregates import Avg
-from django.db.models.functions import Coalesce, Cast
+from django.db.models.functions import Coalesce, PercentRank
 from django.utils.html import mark_safe, format_html
 from django_admin_listfilter_dropdown.filters import DropdownFilter, RelatedDropdownFilter
 
@@ -505,6 +507,19 @@ class SlatePlayerActualsSheetAdmin(admin.ModelAdmin):
     save_again.short_description = 'Re-import selected sheets'
 
 
+@admin.register(models.SlatePlayerOwnershipProjectionSheet)
+class SlatePlayerOwnershipProjectionSheetAdmin(admin.ModelAdmin):
+    list_display = (
+        'slate',
+    )
+    actions = ['save_again']
+
+    def save_again(self, request, queryset):
+        for sheet in queryset:
+            sheet.save()
+    save_again.short_description = 'Re-import selected sheets'
+
+
 @admin.register(models.SlateProjectionSheet)
 class SlateProjectionSheetAdmin(admin.ModelAdmin):
     list_display = (
@@ -614,6 +629,8 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_opponent',
         'get_player_game',
         'projection',
+        'get_ownership_projection',
+        'get_rating',
         'adjusted_opportunity',
         'get_player_value',
         'balanced_projection',
@@ -628,9 +645,6 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'stack_only',
         'qb_stack_only',
         'opp_qb_stack_only',
-        'at_most_one_in_stack',
-        'at_least_one_in_lineup',
-        'at_least_two_in_lineup',
         'locked',
         'get_actual_score'
     )
@@ -644,9 +658,6 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'qb_stack_only',
         'opp_qb_stack_only',
         'locked',
-        'at_most_one_in_stack',
-        'at_least_one_in_lineup',
-        'at_least_two_in_lineup',
     )
     search_fields = ('slate_player__name',)
     list_filter = (
@@ -666,11 +677,37 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     )
     raw_id_fields = ['slate_player']
     actions = ['find_in_play', 'find_stack_only', 'find_al1', 'find_al2', 'set_rb_group_values', 'group_rbs', 'balance_rb_exposures', 'export', 'add_to_stacks', 'remove_at_least_groups']
-    
-    # def get_queryset(self, request):
-    #     qs = super(SlatePlayerProjectionAdmin, self).get_queryset(request)
-    #     qs.annotate()
-    #     return qs
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        qs = qs.annotate(
+            slate=F('slate_player__slate'), 
+            site_pos=F('slate_player__site_pos'), 
+            player_salary=F('slate_player__salary')            
+        )
+        qs = qs.annotate(
+            player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
+        )
+        qs = qs.annotate(
+            proj_percentile=Window(
+                expression=PercentRank(),
+                partition_by=[F('slate'), F('site_pos'), F('in_play')],
+                order_by=F('projection').asc()
+            ),
+            own_proj_percentile=Window(
+                expression=PercentRank(),
+                partition_by=[F('slate'), F('site_pos'), F('in_play')],
+                order_by=F('ownership_projection').desc()
+            ),
+            value_projection_percentile=Window(
+                expression=PercentRank(),
+                partition_by=[F('slate'), F('site_pos'), F('in_play')],
+                order_by=F('player_value').asc()
+            )
+        )
+
+        return qs
+
 
     def get_slate(self, obj):
         return obj.slate_player.slate
@@ -682,9 +719,9 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_player_name.short_description = 'Player'
 
     def get_player_salary(self, obj):
-        return obj.slate_player.salary
+        return obj.player_salary
     get_player_salary.short_description = 'Sal'
-    get_player_salary.admin_order_field = 'slate_player__salary'
+    get_player_salary.admin_order_field = 'player_salary'
 
     def get_player_position(self, obj):
         return obj.slate_player.site_pos
@@ -708,6 +745,30 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_player_game.short_description = 'Game'
     get_player_game.admin_order_field = 'slate_player__game'
 
+    def get_proj_percentile(self, obj):
+        return '{:.2f}'.format(obj.proj_percentile * 100)
+    get_proj_percentile.short_description = 'proj rank'
+    get_proj_percentile.admin_order_field = 'proj_percentile'
+
+    def get_own_proj_percentile(self, obj):
+        return '{:.2f}'.format(obj.own_proj_percentile * 100)
+    get_own_proj_percentile.short_description = 'own rank'
+    get_own_proj_percentile.admin_order_field = 'own_proj_percentile'
+
+    def get_value_projection_percentile(self, obj):
+        return '{:.2f}'.format(obj.value_projection_percentile * 100)
+    get_value_projection_percentile.short_description = 'sal rank'
+    get_value_projection_percentile.admin_order_field = 'value_projection_percentile'
+
+    def get_rating(self, obj):
+        return '{:.2f}'.format((float(obj.proj_percentile) + float(obj.own_proj_percentile) + float(obj.value_projection_percentile))/3.0 * 100)
+    get_rating.short_description = 'Rtg'
+
+    def get_ownership_projection(self, obj):
+        return '{:.1f}'.format(round(float(obj.ownership_projection) * 100.0, 2))
+    get_ownership_projection.short_description = 'OP'
+    get_ownership_projection.admin_order_field = 'ownership_orjection'
+
     def get_spread(self, obj):
         game = obj.slate_player.get_slate_game()
 
@@ -718,8 +779,9 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_spread.short_description = 'Spread'
 
     def get_player_value(self, obj):
-        return round(float(obj.projection)/(self.get_player_salary(obj)/1000.0), 2)
-    get_player_value.short_description = 'Value'
+        return '{:.2f}'.format(float(obj.player_value))
+    get_player_value.short_description = 'Val'
+    get_player_value.admin_order_field = 'player_value'
 
     def get_balanced_player_value(self, obj):
         return round(float(obj.balanced_projection)/(self.get_player_salary(obj)/1000.0), 2)
@@ -1724,6 +1786,8 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_opponent',
         'get_player_game',
         'projection',
+        'get_ownership_projection',
+        'get_rating',
         'adjusted_opportunity',
         'get_player_value',
         'balanced_projection',
@@ -1770,11 +1834,36 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     )
     raw_id_fields = ['slate_player']
     actions = ['find_in_play', 'find_stack_only', 'find_al1', 'find_al2', 'set_rb_group_values', 'group_rbs', 'balance_rb_exposures', 'export', 'add_to_stacks', 'remove_at_least_groups']
-    
-    # def get_queryset(self, request):
-    #     qs = super(SlatePlayerProjectionAdmin, self).get_queryset(request)
-    #     qs.annotate()
-    #     return qs
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        qs = qs.annotate(
+            slate=F('slate_player__slate'), 
+            site_pos=F('slate_player__site_pos'), 
+            player_salary=F('slate_player__salary')            
+        )
+        qs = qs.annotate(
+            player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
+        )
+        qs = qs.annotate(
+            proj_percentile=Window(
+                expression=PercentRank(),
+                partition_by=[F('slate'), F('site_pos'), F('in_play')],
+                order_by=F('projection').asc()
+            ),
+            own_proj_percentile=Window(
+                expression=PercentRank(),
+                partition_by=[F('slate'), F('site_pos'), F('in_play')],
+                order_by=F('ownership_projection').desc()
+            ),
+            value_projection_percentile=Window(
+                expression=PercentRank(),
+                partition_by=[F('slate'), F('site_pos'), F('in_play')],
+                order_by=F('player_value').asc()
+            )
+        )
+
+        return qs
 
     def get_slate(self, obj):
         return obj.slate_player.slate
@@ -1811,6 +1900,30 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         return mark_safe('<a href="/admin/nfl/game/{}/">{}@{}</a>'.format(game.game.id, game.game.away_team, game.game.home_team))
     get_player_game.short_description = 'Game'
     get_player_game.admin_order_field = 'slate_player__game'
+
+    def get_proj_percentile(self, obj):
+        return '{:.2f}'.format(obj.proj_percentile * 100)
+    get_proj_percentile.short_description = 'proj rank'
+    get_proj_percentile.admin_order_field = 'proj_percentile'
+
+    def get_own_proj_percentile(self, obj):
+        return '{:.2f}'.format(obj.own_proj_percentile * 100)
+    get_own_proj_percentile.short_description = 'own rank'
+    get_own_proj_percentile.admin_order_field = 'own_proj_percentile'
+
+    def get_value_projection_percentile(self, obj):
+        return '{:.2f}'.format(obj.value_projection_percentile * 100)
+    get_value_projection_percentile.short_description = 'sal rank'
+    get_value_projection_percentile.admin_order_field = 'value_projection_percentile'
+
+    def get_rating(self, obj):
+        return '{:.2f}'.format((float(obj.proj_percentile) + float(obj.own_proj_percentile) + float(obj.value_projection_percentile))/3.0 * 100)
+    get_rating.short_description = 'Rtg'
+
+    def get_ownership_projection(self, obj):
+        return '{:.1f}'.format(round(float(obj.ownership_projection) * 100.0, 2))
+    get_ownership_projection.short_description = 'OP'
+    get_ownership_projection.admin_order_field = 'ownership_orjection'
 
     def get_spread(self, obj):
         game = obj.slate_player.get_slate_game()
