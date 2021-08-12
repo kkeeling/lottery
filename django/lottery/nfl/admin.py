@@ -12,6 +12,8 @@ from django.http import HttpResponse
 from django.db.models import Count, Window, F
 from django.db.models.aggregates import Avg
 from django.db.models.functions import Coalesce, PercentRank
+from django.shortcuts import redirect, get_object_or_404
+from django.urls import path
 from django.utils.html import mark_safe, format_html
 from django_admin_listfilter_dropdown.filters import DropdownFilter, RelatedDropdownFilter
 
@@ -1366,6 +1368,8 @@ class SlateBuildAdmin(admin.ModelAdmin):
     list_per_page = 25
     list_display = (
         'id',
+        'build_button',
+        'export_button',
         'slate',
         'get_backtest',
         'used_in_contests',
@@ -1420,14 +1424,27 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'reset',
         'prepare_projections',
         'prepare_construction',
-        'build', 
-        'export_for_upload', 
         'export_lineups', 
         'get_actual_scores', 
         'find_optimal_lineups',
         'duplicate_builds', 
         'clear_data'
     ]
+    
+    def export_button_field(self, obj):
+        return format_html(
+            "<button onclick='doSomething({})' style='width: 58px; margin: auto; color: #ffffff; background-color: #4fb2d3; font-weight: bold;'>Export</button>", 
+            obj.id
+        )
+    export_button_field.short_description = ''
+
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('slatebuild-build/<int:pk>/', self.build, name="admin_slatebuild_build"),
+            path('slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_slatebuild_export"),
+        ]
+        return my_urls + urls
 
     def get_backtest(self, obj):
         if obj.backtest is None:
@@ -1571,15 +1588,23 @@ class SlateBuildAdmin(admin.ModelAdmin):
             messages.success(request, 'Construction prepared for {}.'.format(build))
     prepare_construction.short_description = 'Prepare construction for selected builds'
 
-    def build(self, request, queryset):
-        for b in queryset:
-            if b.ready:
-                tasks.run_build.delay(b.id)
-                messages.success(request, 'Generating lineups for {}. Refresh page to check progress.'.format(str(b)))
-            else:
-                messages.error(request, 'Cannot generate lineups for {}. Check projections and construction.'.format(str(b)))
+    def build(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
 
-    build.short_description = 'Generate lineups for selected builds'
+        # Get the scenario to activate
+        build = get_object_or_404(models.SlateBuild, pk=pk)
+        if build.ready:
+            tasks.run_build.delay(build.id)
+            self.message_user(request, 'Generating lineups for {}. Refresh page to check progress.'.format(str(build)), level=messages.INFO)
+        else:
+            self.message_user(request, 'Cannot generate lineups for {}. Check projections and construction.'.format(str(build)), level=messages.ERROR)
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
 
     def export_lineups(self, request, queryset):
         if queryset.count() > 1:
@@ -1689,62 +1714,72 @@ class SlateBuildAdmin(admin.ModelAdmin):
         return response
     export_lineups.short_description = 'Export lineups for selected builds'            
 
-    def export_for_upload(self, request, queryset):
-        if queryset.count() > 1:
-            return
-        
-        build = queryset[0]
+    def export_for_upload(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
 
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename={}-{}_upload.csv'.format(build.slate.name, build.created)
+        # Get the scenario to activate
+        build = get_object_or_404(models.SlateBuild, pk=pk)
+        if build.num_lineups_created() > 0:
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename={}-{}_upload.csv'.format(build.slate.name, build.created)
 
 
-        build_writer = csv.writer(response, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        build_writer.writerow(['QB', 'RB', 'RB', 'WR', 'WR', 'WR', 'TE', 'FLEX', 'DEF'])
+            build_writer = csv.writer(response, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            build_writer.writerow(['QB', 'RB', 'RB', 'WR', 'WR', 'WR', 'TE', 'FLEX', 'DEF'])
 
-        for (index, lineup) in enumerate(build.lineups.all().order_by('order_number', '-qb__projection')):
-            rbs = lineup.get_rbs()
-            wrs = lineup.get_wrs()
-            tes = lineup.get_tes()
+            for (index, lineup) in enumerate(build.lineups.all().order_by('order_number', '-qb__projection')):
+                rbs = lineup.get_rbs()
+                wrs = lineup.get_wrs()
+                tes = lineup.get_tes()
+                
+                if lineup.get_num_rbs() > 2:
+                    flex = rbs[2]
+                elif lineup.get_num_wrs() > 3:
+                    flex = wrs[3]
+                else:
+                    flex = tes[1]
+                
+                if build.slate.site == 'fanduel':
+                    row = [
+                        '{}:{}'.format(lineup.qb.slate_player.player_id, lineup.qb.name),
+                        '{}:{}'.format(rbs[0].slate_player.player_id, rbs[0].name),
+                        '{}:{}'.format(rbs[1].slate_player.player_id, rbs[1].name),
+                        '{}:{}'.format(wrs[0].slate_player.player_id, wrs[0].name),
+                        '{}:{}'.format(wrs[1].slate_player.player_id, wrs[1].name),
+                        '{}:{}'.format(wrs[2].slate_player.player_id, wrs[2].name),
+                        '{}:{}'.format(tes[0].slate_player.player_id, tes[0].name),
+                        '{}:{}'.format(flex.slate_player.player_id, flex.name),
+                        '{}:{}'.format(lineup.dst.slate_player.player_id, lineup.dst.name)
+                    ]
+                elif build.slate.site == 'draftkings':
+                    row = [
+                        '{1} ({0})'.format(lineup.qb.slate_player.player_id, lineup.qb.name),
+                        '{1} ({0})'.format(rbs[0].slate_player.player_id, rbs[0].name),
+                        '{1} ({0})'.format(rbs[1].slate_player.player_id, rbs[1].name),
+                        '{1} ({0})'.format(wrs[0].slate_player.player_id, wrs[0].name),
+                        '{1} ({0})'.format(wrs[1].slate_player.player_id, wrs[1].name),
+                        '{1} ({0})'.format(wrs[2].slate_player.player_id, wrs[2].name),
+                        '{1} ({0})'.format(tes[0].slate_player.player_id, tes[0].name),
+                        '{1} ({0})'.format(flex.slate_player.player_id, flex.name),
+                        '{1} ({0})'.format(lineup.dst.slate_player.player_id, lineup.dst.name)
+                    ]
+                else:
+                    raise Exception('{} is not a supported dfs site.'.format(build.slate.site)) 
+
+                build_writer.writerow(row)
+                print('{} of {} lineups complete'.format(index+1, build.lineups.all().count()))
             
-            if lineup.get_num_rbs() > 2:
-                flex = rbs[2]
-            elif lineup.get_num_wrs() > 3:
-                flex = wrs[3]
-            else:
-                flex = tes[1]
-            
-            if build.slate.site == 'fanduel':
-                row = [
-                    '{}:{}'.format(lineup.qb.slate_player.player_id, lineup.qb.name),
-                    '{}:{}'.format(rbs[0].slate_player.player_id, rbs[0].name),
-                    '{}:{}'.format(rbs[1].slate_player.player_id, rbs[1].name),
-                    '{}:{}'.format(wrs[0].slate_player.player_id, wrs[0].name),
-                    '{}:{}'.format(wrs[1].slate_player.player_id, wrs[1].name),
-                    '{}:{}'.format(wrs[2].slate_player.player_id, wrs[2].name),
-                    '{}:{}'.format(tes[0].slate_player.player_id, tes[0].name),
-                    '{}:{}'.format(flex.slate_player.player_id, flex.name),
-                    '{}:{}'.format(lineup.dst.slate_player.player_id, lineup.dst.name)
-                ]
-            elif build.slate.site == 'draftkings':
-                row = [
-                    '{1} ({0})'.format(lineup.qb.slate_player.player_id, lineup.qb.name),
-                    '{1} ({0})'.format(rbs[0].slate_player.player_id, rbs[0].name),
-                    '{1} ({0})'.format(rbs[1].slate_player.player_id, rbs[1].name),
-                    '{1} ({0})'.format(wrs[0].slate_player.player_id, wrs[0].name),
-                    '{1} ({0})'.format(wrs[1].slate_player.player_id, wrs[1].name),
-                    '{1} ({0})'.format(wrs[2].slate_player.player_id, wrs[2].name),
-                    '{1} ({0})'.format(tes[0].slate_player.player_id, tes[0].name),
-                    '{1} ({0})'.format(flex.slate_player.player_id, flex.name),
-                    '{1} ({0})'.format(lineup.dst.slate_player.player_id, lineup.dst.name)
-                ]
-            else:
-                raise Exception('{} is not a supported dfs site.'.format(build.slate.site)) 
+            return response            
+        else:
+            self.message_user(request, 'Cannot export lineups for {}. No lineups exist.'.format(str(build)), level=messages.ERROR)
 
-            build_writer.writerow(row)
-            print('{} of {} lineups complete'.format(index+1, build.lineups.all().count()))
-        
-        return response
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
     export_for_upload.short_description = 'Export lineups for upload'
 
     def get_actual_scores(self, request, queryset):

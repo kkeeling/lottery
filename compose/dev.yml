@@ -47,11 +47,16 @@ services:
   flower:  
     image: mher/flower
     container_name: lottery_dev_flower
+    build:
+      context: ../django
+    env_file:
+      - dev/django.env
     depends_on:
+      - redis
       - celery
     command: celery --broker=redis://redis:6379 flower --port=8888 --logging=DEBUG
     # environment:
-    #   - CELERY_BROKER_URL=redis://redis:6379/0
+    #   - CELERY_BROKER_URL=redis://redis:6379/0 
     #   - FLOWER_PORT=8888
     ports:  
       - 8888:8888

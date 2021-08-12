@@ -1,9 +1,6 @@
 import csv
 import datetime
-import json
 import math
-from os import EX_SOFTWARE
-import pytz
 import requests
 import statistics
 import traceback
@@ -16,10 +13,9 @@ from django.db.models import Q, Aggregate, FloatField, Case, When
 from django.db.models.aggregates import Avg, Count, Sum, Max
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.utils import timezone
+from django.utils.html import format_html
+from django.urls import reverse_lazy
 
-
-from . import optimal
 from . import optimize
 from . import tasks
 
@@ -1510,7 +1506,18 @@ class SlateBuild(models.Model):
     def top_optimal_score(self):
         return self.actuals.all().aggregate(top_score=Max('actual')).get('top_score')
     top_optimal_score.short_description = 'Top Opt'
-
+    
+    def build_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Build</a>',
+            reverse_lazy("admin:admin_slatebuild_build", args=[self.pk])
+        )
+    build_button.short_description = ''
+    
+    def export_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Export</a>',
+            reverse_lazy("admin:admin_slatebuild_export", args=[self.pk])
+        )
+    export_button.short_description = ''
 
 class BuildPlayerProjection(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)
@@ -2140,6 +2147,7 @@ class Backtest(models.Model):
         
         self.total_lineups = self.slates.all().aggregate(total=Sum('build__total_lineups')).get('total')
         self.save()
+        print('execute backtest')
 
         # if self.ready:
         # start monitoring
