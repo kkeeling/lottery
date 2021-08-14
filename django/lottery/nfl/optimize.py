@@ -18,6 +18,60 @@ from . import optimizer_settings
 GameInfo = namedtuple('GameInfo', ['home_team', 'away_team', 'starts_at', 'game_started'])
 
 
+def optimize(site, projections, num_lineups=1):
+    if site == 'fanduel':
+        optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
+    elif site == 'draftkings':
+        optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
+    else:
+        raise Exception('{} is not a supported dfs site.'.format(site))
+
+    player_list = []
+
+    for player_projection in projections:
+        if ' ' in player_projection.name:
+            first, last = player_projection.name.split(' ', 1)
+        else:
+            first = player_projection.name
+            last = ''
+
+        slate_game = player_projection.slate_player.get_slate_game().game
+        game_info = GameInfo(
+            home_team=slate_game.home_team, 
+            away_team=slate_game.away_team,
+            starts_at=slate_game.game_date,
+            game_started=False
+        )
+
+        player = Player(
+            player_projection.slate_player.player_id,
+            first,
+            'DST' if player_projection.position == 'DST' else last,
+            ['D' if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel' else player_projection.position],
+            player_projection.team,
+            player_projection.salary,
+            float(player_projection.balanced_projection),
+            game_info=game_info
+        )
+
+        player_list.append(player)
+    
+    optimizer.load_players(player_list)
+
+    lineups = []
+    try:
+        optimized_lineups = optimizer.optimize(
+            n=num_lineups 
+        )
+
+        for lineup in optimized_lineups:
+            lineups.append(lineup)
+    except exceptions.LineupOptimizerException:
+        traceback.print_exc()
+
+    return lineups
+
+
 def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineups, groups=[], for_optimals=False):
     # print('  Building for {}'.format(stack))
     if site == 'fanduel':

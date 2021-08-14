@@ -1013,11 +1013,12 @@ class SlateBuild(models.Model):
     stack_construction = models.ForeignKey(StackConstructionRule, on_delete=models.SET_NULL, related_name='builds', null=True, blank=True)
     stack_cutoff = models.SmallIntegerField(default=0, help_text='# of allowe stacks (ex. 80 for FD, and 90 for DK)')
     lineup_start_number = models.IntegerField(default=1)
+    total_lineups = models.PositiveIntegerField(verbose_name='total', default=0)
+    target_score = models.DecimalField(verbose_name='target', decimal_places=2, max_digits=5, blank=True, null=True)
 
     # Build analysis
     top_score = models.DecimalField(verbose_name='top', decimal_places=2, max_digits=5, blank=True, null=True)
-    total_lineups = models.PositiveIntegerField(verbose_name='total', default=0)
-    total_optimals = models.PositiveIntegerField(default=0)
+    total_optimals = models.PositiveIntegerField(default=0, blank=True, null=True)
     total_cashes = models.PositiveIntegerField(verbose_name='cashes', blank=True, null=True)
     total_one_pct = models.PositiveIntegerField(verbose_name='1%', blank=True, null=True)
     total_half_pct = models.PositiveIntegerField(verbose_name='0.5%', blank=True, null=True)
@@ -1145,6 +1146,15 @@ class SlateBuild(models.Model):
         self.save()
 
         self.calc_construction_ready()
+
+    def get_target_score(self):
+        top_projected_lineup = optimize.optimize(
+            self.slate.site,
+            self.projections.all()
+        )[0]
+
+        self.target_score = top_projected_lineup.fantasy_points_projection
+        self.save()
 
     def update_projections(self, replace=True):
         '''
@@ -1518,6 +1528,7 @@ class SlateBuild(models.Model):
             reverse_lazy("admin:admin_slatebuild_export", args=[self.pk])
         )
     export_button.short_description = ''
+
 
 class BuildPlayerProjection(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)

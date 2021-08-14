@@ -1378,6 +1378,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'lineup_construction',
         'stack_construction',
         'stack_cutoff',
+        'target_score',
         'get_projections_ready',
         'get_construction_ready',
         'get_ready',
@@ -1424,6 +1425,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'reset',
         'prepare_projections',
         'prepare_construction',
+        'get_target_score',
         'export_lineups', 
         'get_actual_scores', 
         'find_optimal_lineups',
@@ -1588,6 +1590,12 @@ class SlateBuildAdmin(admin.ModelAdmin):
             messages.success(request, 'Construction prepared for {}.'.format(build))
     prepare_construction.short_description = 'Prepare construction for selected builds'
 
+    def get_target_score(self, request, queryset):
+        for build in queryset:
+            tasks.get_target_score.delay(build.id)
+            messages.success(request, 'Getting target score for {}. Refresh this page to check progress.'.format(build))
+    get_target_score.short_description = 'Get target score for selected builds'
+
     def build(self, request, pk):
         context = dict(
            # Include common variables for rendering the admin template.
@@ -1715,6 +1723,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
     export_lineups.short_description = 'Export lineups for selected builds'            
 
     def export_for_upload(self, request, pk):
+        # TODO: Left off here...Make this use the work flow branden used on BT Studies to take pressure off http request
         context = dict(
            # Include common variables for rendering the admin template.
            self.admin_site.each_context(request),
