@@ -93,12 +93,6 @@ def prepare_construction(build_id):
 
 
 @shared_task
-def get_target_score(build_id):
-    build = models.SlateBuild.objects.get(id=build_id)
-    build.get_target_score()
-
-
-@shared_task
 def run_backtest(backtest_id):
     try:
         backtest = models.Backtest.objects.get(id=backtest_id)

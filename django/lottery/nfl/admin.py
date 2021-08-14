@@ -1425,7 +1425,6 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'reset',
         'prepare_projections',
         'prepare_construction',
-        'get_target_score',
         'export_lineups', 
         'get_actual_scores', 
         'find_optimal_lineups',

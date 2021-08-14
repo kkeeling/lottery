@@ -1110,6 +1110,8 @@ class SlateBuild(models.Model):
 
         self.calc_projections_ready()
 
+        self.get_target_score()
+
     def prepare_construction(self):
         self.construction_ready = False
         self.save()
