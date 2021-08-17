@@ -759,6 +759,7 @@ class SlateBuildConfig(models.Model):
     allow_rb_in_opp_qb_stack = models.BooleanField(default=True)
     allow_wr_in_opp_qb_stack = models.BooleanField(default=True)
     allow_te_in_opp_qb_stack = models.BooleanField(default=True)
+    target_score_threshold = models.IntegerField(default=0)
 
     class Meta:
         verbose_name = 'Build Config'
@@ -1719,8 +1720,22 @@ class SlateBuildStack(models.Model):
         '''
         Returns true if this stack can make at least 1 lineup in the top 1% of the milly
         '''
-        lineups = self.build_optimals(1)
-        return len(lineups) > 0 and lineups[0].fantasy_points_projection  >= self.build.slate.get_great_score()
+        lineups = optimize.optimize_for_stack(
+            self.build.slate.site,
+            self,
+            self.build.projections.all(),
+            self.build.slate.teams,
+            self.build.configuration,
+            1,
+            self.build.groups.filter(active=True),
+            for_optimals=True
+        )
+
+        if len(lineups) > 0:
+            lineup = lineups[0]
+            return lineup.fantasy_points_projection >= self.build.slate.get_great_score()
+
+        return False
 
     def reset(self):
         self.lineups.all().delete()
@@ -1743,25 +1758,28 @@ class SlateBuildStack(models.Model):
                 groups=self.build.groups.filter(active=True)
             )
 
+            count = 0
             for (index, lineup) in enumerate(lineups):
-                SlateBuildLineup.objects.create(
-                    build=self.build,
-                    stack=self,
-                    order_number=lineup_number + (num_qb_stacks * index),
-                    qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
-                    rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self.build),
-                    rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self.build),
-                    wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self.build),
-                    wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self.build),
-                    wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self.build),
-                    te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self.build),
-                    flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
-                    dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
-                    salary=lineup.salary_costs,
-                    projection=lineup.fantasy_points_projection
-                )
+                if self.build.configuration.target_score_threshold == 0 or (self.build.target_score > 0 and float(self.build.target_score) - lineup.fantasy_points_projection < self.build.configuration.target_score_threshold):
+                    count += 1
+                    SlateBuildLineup.objects.create(
+                        build=self.build,
+                        stack=self,
+                        order_number=lineup_number + (num_qb_stacks * index),
+                        qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
+                        rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self.build),
+                        rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self.build),
+                        wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self.build),
+                        wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self.build),
+                        wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self.build),
+                        te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self.build),
+                        flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
+                        dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
+                        salary=lineup.salary_costs,
+                        projection=lineup.fantasy_points_projection
+                    )
 
-            self.times_used = len(lineups)
+            self.times_used = count
             self.lineups_created = True
             self.save()
         except Exception as exc:
@@ -1785,24 +1803,23 @@ class SlateBuildStack(models.Model):
         )
 
         for lineup in lineups:
-            if lineup.fantasy_points_projection < self.build.slate.get_great_score():
-                break
-
-            SlateBuildActualsLineup.objects.create(
-                build=self.build,
-                stack=self,
-                qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
-                rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self.build),
-                rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self.build),
-                wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self.build),
-                wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self.build),
-                wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self.build),
-                te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self.build),
-                flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
-                dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
-                salary=lineup.salary_costs,
-                actual=lineup.fantasy_points_projection
-            )
+            lineup_projection = sum([BuildPlayerProjection.objects.get(slate_player__player_id=x.id, build=self.build).balanced_projection for x in lineup.players])
+            if lineup.fantasy_points_projection >= self.build.slate.get_great_score() and self.build.configuration.target_score_threshold == 0 or (self.build.target_score > 0 and float(self.build.target_score) - float(lineup_projection) < self.build.configuration.target_score_threshold):
+                SlateBuildActualsLineup.objects.create(
+                    build=self.build,
+                    stack=self,
+                    qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
+                    rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self.build),
+                    rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self.build),
+                    wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self.build),
+                    wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self.build),
+                    wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self.build),
+                    te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self.build),
+                    flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
+                    dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
+                    salary=lineup.salary_costs,
+                    actual=lineup.fantasy_points_projection
+                )
 
     def num_tes(self):
         count = 0

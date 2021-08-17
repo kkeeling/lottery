@@ -73,7 +73,6 @@ def optimize(site, projections, num_lineups=1):
 
 
 def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineups, groups=[], for_optimals=False):
-    # print('  Building for {}'.format(stack))
     if site == 'fanduel':
         optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
     elif site == 'draftkings':

@@ -172,7 +172,7 @@ def build_optimals_for_stack(stack_id):
         max_optimals_per_stack = 50
         stack = models.SlateBuildStack.objects.get(id=stack_id)
 
-        if stack.has_possible_optimals:
+        if stack.has_possible_optimals():
             stack.build_optimals(max_optimals_per_stack)
         
         stack.optimals_created = True

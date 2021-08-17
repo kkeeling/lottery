@@ -2134,7 +2134,8 @@ class ConfigAdmin(admin.ModelAdmin):
         'allow_te_in_qb_stack',
         'allow_rb_in_opp_qb_stack',
         'allow_wr_in_opp_qb_stack',
-        'allow_te_in_opp_qb_stack'
+        'allow_te_in_opp_qb_stack',
+        'target_score_threshold'
     ]
 
     list_filter = [
