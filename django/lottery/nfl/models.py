@@ -1408,7 +1408,8 @@ class SlateBuild(models.Model):
             last_qb = qb
         
     def update_build_progress(self):
-        remaining_stacks = self.stacks.filter(count__gt=0, lineups_created=False)
+        all_stacks = self.stacks.filter(count__gt=0)
+        remaining_stacks = all_stacks.filter(lineups_created=False)
         if remaining_stacks.count() == 0:
             self.pct_complete = 1.0
             self.status = 'complete'
@@ -1419,9 +1420,8 @@ class SlateBuild(models.Model):
             if self.backtest is not None:
                 # analyze build
                 self.get_actual_scores()
-
         else:
-            self.pct_complete = self.lineups.all().count() / self.total_lineups
+            self.pct_complete = (all_stacks.count() - remaining_stacks.count()) / all_stacks.count()
             self.save()
 
     def handle_exception(self, stack, exc):
