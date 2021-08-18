@@ -710,7 +710,6 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
 
         return qs
 
-
     def get_slate(self, obj):
         return obj.slate_player.slate
     get_slate.short_description = 'Slate'
@@ -909,8 +908,8 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
 @admin.register(models.SlateBuildLineup)
 class SlateBuildLineupAdmin(admin.ModelAdmin):
     list_display = (
-        'get_game_stack',
-        'get_game_stack_rank',
+        'stack',
+        'get_stack_rank',
         'expected_lineup_order',
         'get_qb',
         'get_rb1',
@@ -926,10 +925,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'projection',
         'get_actual',
     )
-    # list_filter = (
-    #     ('build', RelatedDropdownFilter),
-    #     ('build__slate', RelatedDropdownFilter),
-    # )
+
     search_fields = (
         'qb__slate_player__name',
         'rb1__slate_player__name',
@@ -943,9 +939,14 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
     )
 
     def get_queryset(self, request):
-        return self.model.objects.all().annotate(
-            actual_coalesced=Coalesce('actual', 0)
+        qs = super().get_queryset(request)
+        qs = qs.annotate(
+            actual_coalesced=Coalesce('actual', 0),
+            stack_rank=F('stack__rank')
         )
+        print(qs)
+
+        return qs
 
     def get_game_stack(self, obj):
         if obj.stack is None:
@@ -953,11 +954,12 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         return str(obj.stack)
     get_game_stack.short_description = 'Game Stack'
 
-    def get_game_stack_rank(self, obj):
+    def get_stack_rank(self, obj):
         if obj.stack is None:
             return None
-        return obj.stack.rank
-    get_game_stack_rank.short_description = 'Rnk'
+        return obj.stack_rank
+    get_stack_rank.short_description = 'Rnk'
+    get_stack_rank.admin_order_field = 'stack_rank'
 
     def get_name(self, obj):
         return obj.slate.slate
