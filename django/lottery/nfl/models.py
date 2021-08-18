@@ -1,6 +1,7 @@
 import csv
 import datetime
 import math
+import numpy
 import requests
 import statistics
 import traceback
@@ -9,8 +10,9 @@ import uuid
 from collections import namedtuple
 from django.conf import settings
 from django.db import models
-from django.db.models import Q, Aggregate, FloatField, Case, When
+from django.db.models import Q, Aggregate, FloatField, Case, When, Window, F
 from django.db.models.aggregates import Avg, Count, Sum, Max
+from django.db.models.functions import PercentRank
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.html import format_html
@@ -759,7 +761,7 @@ class SlateBuildConfig(models.Model):
     allow_rb_in_opp_qb_stack = models.BooleanField(default=True)
     allow_wr_in_opp_qb_stack = models.BooleanField(default=True)
     allow_te_in_opp_qb_stack = models.BooleanField(default=True)
-    target_score_threshold = models.IntegerField(default=0)
+    lineup_removal_pct = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
 
     class Meta:
         verbose_name = 'Build Config'
@@ -1406,7 +1408,15 @@ class SlateBuild(models.Model):
             tasks.build_lineups_for_stack.delay(stack.id, lineup_number, num_qb_stacks)
 
             last_qb = qb
-        
+
+    def clean_lineups(self):
+        if self.configuration.lineup_removal_pct > 0.0:
+            sorted = self.lineups.all().order_by('-projection')
+            projections = numpy.array([float(v) for v in sorted.values_list('projection', flat=True)])
+            target_score = numpy.percentile(projections, int(float(self.configuration.lineup_removal_pct) * 100))
+
+            sorted.filter(projection__lt=target_score).delete()
+
     def update_build_progress(self):
         all_stacks = self.stacks.filter(count__gt=0)
         remaining_stacks = all_stacks.filter(lineups_created=False)
@@ -1414,6 +1424,8 @@ class SlateBuild(models.Model):
             self.pct_complete = 1.0
             self.status = 'complete'
             self.save()
+
+            self.clean_lineups()
 
             self.find_expected_lineup_order()
 
@@ -1760,24 +1772,23 @@ class SlateBuildStack(models.Model):
 
             count = 0
             for (index, lineup) in enumerate(lineups):
-                if self.build.configuration.target_score_threshold == 0 or (self.build.target_score > 0 and float(self.build.target_score) - lineup.fantasy_points_projection < self.build.configuration.target_score_threshold):
-                    count += 1
-                    SlateBuildLineup.objects.create(
-                        build=self.build,
-                        stack=self,
-                        order_number=lineup_number + (num_qb_stacks * index),
-                        qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
-                        rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self.build),
-                        rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self.build),
-                        wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self.build),
-                        wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self.build),
-                        wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self.build),
-                        te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self.build),
-                        flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
-                        dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
-                        salary=lineup.salary_costs,
-                        projection=lineup.fantasy_points_projection
-                    )
+                count += 1
+                SlateBuildLineup.objects.create(
+                    build=self.build,
+                    stack=self,
+                    order_number=lineup_number + (num_qb_stacks * index),
+                    qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
+                    rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self.build),
+                    rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self.build),
+                    wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self.build),
+                    wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self.build),
+                    wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self.build),
+                    te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self.build),
+                    flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
+                    dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
+                    salary=lineup.salary_costs,
+                    projection=lineup.fantasy_points_projection
+                )
 
             self.times_used = count
             self.lineups_created = True
@@ -1803,8 +1814,7 @@ class SlateBuildStack(models.Model):
         )
 
         for lineup in lineups:
-            lineup_projection = sum([BuildPlayerProjection.objects.get(slate_player__player_id=x.id, build=self.build).balanced_projection for x in lineup.players])
-            if lineup.fantasy_points_projection >= self.build.slate.get_great_score() and self.build.configuration.target_score_threshold == 0 or (self.build.target_score > 0 and float(self.build.target_score) - float(lineup_projection) < self.build.configuration.target_score_threshold):
+            if lineup.fantasy_points_projection >= self.build.slate.get_great_score():
                 SlateBuildActualsLineup.objects.create(
                     build=self.build,
                     stack=self,
@@ -2242,23 +2252,24 @@ class Backtest(models.Model):
         self.save()
 
     def update_status(self):
+        all_stacks = SlateBuildStack.objects.filter(build__backtest__in=self.slates.all(), count__gt=0)
+        remaining_stacks = all_stacks.filter(lineups_created=False)
         completed_lineups = SlateBuild.objects.filter(backtest__in=self.slates.all()).aggregate(total_lineups=Count('lineups')).get('total_lineups')
-
-        if completed_lineups is not None and completed_lineups > 0:
-            self.completed_lineups = completed_lineups
-            self.pct_complete = float(self.completed_lineups)/float(self.total_lineups)
-
-            if SlateBuild.objects.filter(backtest__in=self.slates.all()).exclude(status='complete').count() == 0:
-                self.pct_complete = 1.0
-                self.total_lineups = completed_lineups
-                self.status = 'complete'
-            else:
-                # only one build running at once
-                running_builds = self.slates.filter(build__status='running')
-                if running_builds.count() == 0:
-                    self.execute_next_slate()
-                
-            self.save()
+        
+        self.completed_lineups = completed_lineups
+        self.pct_complete = (all_stacks.count() - remaining_stacks.count())/all_stacks.count()
+        
+        if SlateBuild.objects.filter(backtest__in=self.slates.all()).exclude(status='complete').count() == 0:
+            self.pct_complete = 1.0
+            self.total_lineups = completed_lineups
+            self.status = 'complete'
+        else:
+            # only one build running at once
+            running_builds = self.slates.filter(build__status='running')
+            if running_builds.count() == 0:
+                self.execute_next_slate()
+            
+        self.save()
 
     def handle_exception(self, slate, exc):
         self.status = 'error'
