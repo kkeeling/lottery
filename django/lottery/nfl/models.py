@@ -12,7 +12,7 @@ from django.conf import settings
 from django.db import models
 from django.db.models import Q, Aggregate, FloatField, Case, When, Window, F
 from django.db.models.aggregates import Avg, Count, Sum, Max
-from django.db.models.functions import PercentRank
+from django.db.models.functions import Rank
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.html import format_html
@@ -854,7 +854,8 @@ class PlayerSelectionCriteria(models.Model):
             'team_total': float(build_projection.team_total),
             'game_total': float(build_projection.game_total),
             'spread': float(build_projection.spread),
-            'adjusted_opportunity': float(build_projection.adjusted_opportunity)
+            'adjusted_opportunity': float(build_projection.adjusted_opportunity),
+            'position_rank': build_projection.position_rank
         }
 
         if build_projection.slate_player.site_pos == 'QB' and self.qb_threshold is not None and self.qb_threshold != '':
@@ -1592,11 +1593,11 @@ class BuildPlayerProjection(models.Model):
 
     @property
     def position_rank(self):
-        aggregate = BuildPlayerProjection.objects.filter(
-            slate_player__slate=self.slate_player.slate,
+        rank = self.build.projections.filter(
             slate_player__site_pos=self.slate_player.site_pos,
-            projection__gt=self.projection).aggregate(ranking=Count('projection'))
-        return aggregate.get('ranking') + 1
+            balanced_projection__gt=self.balanced_projection
+        ).count()
+        return rank + 1
 
     def get_team_color(self):
         return self.slate_player.get_team_color()
