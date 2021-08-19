@@ -55,7 +55,7 @@ services:
     depends_on:
       - redis
       - celery
-    command: celery --broker=redis://redis:6379 flower --port=5555 --logging=DEBUG --url_prefix=flower --max-tasks-per-child=1
+    command: celery --broker=redis://redis:6379 flower --port=5555 --logging=INFO --url_prefix=flower --max-tasks-per-child=1
     expose:
       - 5555
     volumes:
