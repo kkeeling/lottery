@@ -944,7 +944,6 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
             actual_coalesced=Coalesce('actual', 0),
             stack_rank=F('stack__rank')
         )
-        print(qs)
 
         return qs
 
