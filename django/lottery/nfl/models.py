@@ -1383,7 +1383,9 @@ class SlateBuild(models.Model):
 
     def build(self):
         self.reset()
+        self.execute_build()
 
+    def execute_build(self):        
         # if self.ready:
         # get real total lineups
         self.total_lineups = SlateBuildStack.objects.filter(build=self).aggregate(total=Sum('count')).get('total')
@@ -2418,7 +2420,7 @@ class BacktestSlate(models.Model):
     
     def execute(self):
         # make lineups
-        self.build.build()
+        self.build.execute_build()
     
     def build_optimals(self):
         # make lineups
