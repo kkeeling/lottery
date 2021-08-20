@@ -14,7 +14,9 @@ from django.db.models.aggregates import Avg
 from django.db.models.functions import Coalesce, PercentRank
 from django.shortcuts import redirect, get_object_or_404
 from django.urls import path
+from django.utils.duration import _get_duration_components
 from django.utils.html import mark_safe, format_html
+
 from django_admin_listfilter_dropdown.filters import DropdownFilter, RelatedDropdownFilter
 
 from . import models
@@ -2261,7 +2263,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'construction_ready',
         'ready',
         'status',
-        'elapsed_time',
+        'get_elapsed_time',
         'get_pct_complete',
         'get_optimals_pct_complete',
         'error_message',
@@ -2317,73 +2319,71 @@ class BacktestAdmin(admin.ModelAdmin):
     def ready(self, obj):
         return obj.ready
     ready.boolean = True
+    ready.short_description = 'Go'
 
     def is_initialized(self, obj):
         return obj.slates.all().count() == models.SlateBuild.objects.filter(backtest__backtest=obj).count()
     is_initialized.boolean = True
+    is_initialized.short_description = 'Init'
 
     def projections_ready(self, obj):
         return obj.projections_ready
     projections_ready.boolean = True
+    projections_ready.short_description = 'PR'
 
     def construction_ready(self, obj):
         return obj.construction_ready
     construction_ready.boolean = True
+    construction_ready.short_description = 'CR'
+
+    def get_elapsed_time(self, obj):
+        _, hours, minutes, _, _ = _get_duration_components(obj.elapsed_time)
+        return '{:02d}:{:02d}'.format(hours, minutes)
+    get_elapsed_time.short_description = 'Time'
+    get_elapsed_time.admin_order_field = 'elapsed_time'
 
     def get_pct_complete(self, obj):
-        return format_html(
-            '''
-            <progress value="{0}" max="100"></progress>
-            <span style="font-weight:bold">{0}%</span>
-            ''',
-            float(obj.pct_complete) * 100.0
-        )
-    get_pct_complete.short_description = '% complete'
+        return '{0}%'.format(float(obj.pct_complete) * 100.0)
+    get_pct_complete.short_description = 'Prog'
     get_pct_complete.admin_order_field = 'pct_complete'
 
     def get_optimals_pct_complete(self, obj):
-        return format_html(
-            '''
-            <progress value="{0}" max="100"></progress>
-            <span style="font-weight:bold">{0}%</span>
-            ''',
-            float(obj.optimals_pct_complete) * 100.0
-        )
-    get_optimals_pct_complete.short_description = '% opt done'
+        return '{0}%'.format(float(obj.optimals_pct_complete) * 100.0)
+    get_optimals_pct_complete.short_description = 'O Prog'
     get_optimals_pct_complete.admin_order_field = 'optimals_pct_complete'
 
     def get_median_cash_rate(self, obj):
         if obj.median_cash_rate is None:
             return None
-        return '{:.2f}%'.format(obj.median_cash_rate * 100)
+        return '{:.1f}%'.format(obj.median_cash_rate * 100)
     get_median_cash_rate.short_description = 'cash'
     get_median_cash_rate.admin_order_field = 'median_cash_rate'
 
     def get_median_one_pct_rate(self, obj):
         if obj.median_one_pct_rate is None:
             return None
-        return '{:.2f}%'.format(obj.median_one_pct_rate * 100)
+        return '{:.1f}%'.format(obj.median_one_pct_rate * 100)
     get_median_one_pct_rate.short_description = '1%'
     get_median_one_pct_rate.admin_order_field = 'median_one_pct_rate'
 
     def get_median_half_pct_rate(self, obj):
         if obj.median_half_pct_rate is None:
             return None
-        return '{:.2f}%'.format(obj.median_half_pct_rate * 100)
+        return '{:.1f}%'.format(obj.median_half_pct_rate * 100)
     get_median_half_pct_rate.short_description = '0.5%'
     get_median_half_pct_rate.admin_order_field = 'median_half_pct_rate'
 
     def get_great_build_rate(self, obj):
         if obj.great_build_rate is None:
             return None
-        return '{:.2f}%'.format(obj.great_build_rate * 100)
+        return '{:.1f}%'.format(obj.great_build_rate * 100)
     get_great_build_rate.short_description = 'gb'
     get_great_build_rate.admin_order_field = 'great_build_rate'
 
     def get_optimal_build_rate(self, obj):
         if obj.optimal_build_rate is None:
             return None
-        return '{:.2f}%'.format(obj.optimal_build_rate * 100)
+        return '{:.1f}%'.format(obj.optimal_build_rate * 100)
     get_optimal_build_rate.short_description = 'opt'
     get_optimal_build_rate.admin_order_field = 'optimal_build_rate'
     
