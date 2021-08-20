@@ -1597,7 +1597,7 @@ class BuildPlayerProjection(models.Model):
     def position_rank(self):
         rank = self.build.projections.filter(
             slate_player__site_pos=self.slate_player.site_pos,
-            balanced_projection__gt=self.balanced_projection
+            balanced_projection__gt=self.balanced_projection if self.balanced_projection else 0
         ).count()
         return rank + 1
 
