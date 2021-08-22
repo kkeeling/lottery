@@ -12,7 +12,8 @@ from django.conf import settings
 from django.db import models
 from django.db.models import Q, Aggregate, FloatField, Case, When, Window, F
 from django.db.models.aggregates import Avg, Count, Sum, Max
-from django.db.models.functions import Rank
+from django.db.models.expressions import ExpressionWrapper
+from django.db.models.functions import PercentRank
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.html import format_html
@@ -273,6 +274,11 @@ class Slate(models.Model):
     def get_great_score(self):
         if self.contests.all().count() > 0:
             return self.contests.all()[0].great_score
+        return None
+
+    def get_bink_score(self):
+        if self.contests.all().count() > 0:
+            return self.contests.all()[0].winning_score
         return None
 
     def get_one_pct_score(self):
@@ -1107,7 +1113,7 @@ class SlateBuild(models.Model):
         # find players that are in-play
         for projection in self.projections.all():
             projection.find_in_play()
-            projection.set_rb_group_value()
+            # projection.set_rb_group_value()
         
         # find stack-only players
         self.find_stack_only()
@@ -1547,6 +1553,9 @@ class SlateBuild(models.Model):
         )
     export_button.short_description = ''
 
+    def rb_matrix(self):
+        # Return a matrix of rb comparisons
+        return None
 
 class BuildPlayerProjection(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)
@@ -1597,9 +1606,61 @@ class BuildPlayerProjection(models.Model):
     def position_rank(self):
         rank = self.build.projections.filter(
             slate_player__site_pos=self.slate_player.site_pos,
-            balanced_projection__gt=self.balanced_projection if self.balanced_projection else 0
+            projection__gt=self.projection if self.projection else 0
         ).count()
         return rank + 1
+
+    @property
+    def projection_rating(self):
+        '''
+        Player projection rating (0-1) among "in play" players
+        '''
+        qs = BuildPlayerProjection.objects.filter(
+            build=self.build,
+            slate_player__site_pos=self.position
+        )
+
+        qs = qs.annotate(
+            slate=F('slate_player__slate'), 
+            site_pos=F('slate_player__site_pos'), 
+            player_salary=F('slate_player__salary')            
+        )
+        qs = qs.annotate(
+            player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
+        )
+
+        qs = qs.annotate(
+            proj_percentile=Window(
+                expression=PercentRank(),
+                partition_by=[F('slate'), F('site_pos')],
+                order_by=F('projection').asc()
+            ),
+            value_projection_percentile=Window(
+                expression=PercentRank(),
+                partition_by=[F('slate'), F('site_pos')],
+                order_by=F('player_value').asc()
+            )
+        )
+
+        if self.position == 'RB':
+            qs = qs.annotate(
+                ao_percentile=Window(
+                    expression=PercentRank(),
+                    partition_by=[F('slate'), F('site_pos')],
+                    order_by=F('adjusted_opportunity').asc()
+                )
+            )
+
+            for p in qs:
+                if p.id == self.id:
+                    return (float(p.proj_percentile) + float(p.ao_percentile) + float(p.value_projection_percentile))/3.0
+        else:
+            obj = qs.get(id=self.id)
+
+            if obj is None:
+                raise Exception('Cannot generate projection rating for {}. Player is not in play')
+
+            return (float(obj.proj_percentile) + float(obj.value_projection_percentile))/2.0
 
     def get_team_color(self):
         return self.slate_player.get_team_color()
@@ -1643,6 +1704,24 @@ class BuildPlayerProjection(models.Model):
     def find_in_play(self):
         self.in_play = self.build.in_play_criteria.meets_threshold(self)
         self.save()
+
+    def compare(self, player2):
+        '''
+        Returns a number between -1 and 1 that indicates differences between 2 players.
+
+        A value of -1.0 indicates that player 1 is 100% different (worse) than player 2
+        A value of 0.0 indicates the two players are exactly the same
+        A value of 1.0 indicates that player 1 is 100% different (better) than player 2
+
+        value = (Sum of player1's metric percentiles - Sum of player2's metric percentiles) / Sum of player2's metric percentiles
+        '''
+        if self.position != player2.position:
+            raise Exception('{} and {} cannot be compared as they play different positions'.format(self.name, player2.name))
+        
+        player1_rating = self.projection_rating
+        player2_rating = player2.projection_rating
+
+        return (player1_rating - player2_rating) / player2_rating
 
 
 class SlateBuildStack(models.Model):
@@ -2327,7 +2406,7 @@ class BacktestSlate(models.Model):
     @property
     def total_lineups(self):
         try:
-            return SlateBuild.objects.get(backtest=self).num_lineups_created
+            return SlateBuild.objects.get(backtest=self).num_lineups_created()
         except:
             return None
 
@@ -2376,6 +2455,10 @@ class BacktestSlate(models.Model):
     @property
     def great_score(self):
         return self.slate.get_great_score()
+
+    @property
+    def bink_score(self):
+        return self.slate.get_bink_score()
 
     @property
     def ready(self):

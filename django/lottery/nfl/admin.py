@@ -1,8 +1,6 @@
 import csv
 import datetime
 import traceback
-from django.db.models.expressions import ExpressionWrapper
-from django.db.models.fields import FloatField
 import requests
 import statistics
 
@@ -11,6 +9,8 @@ from django.contrib.admin import SimpleListFilter
 from django.http import HttpResponse
 from django.db.models import Count, Window, F
 from django.db.models.aggregates import Avg
+from django.db.models.expressions import ExpressionWrapper
+from django.db.models.fields import FloatField
 from django.db.models.functions import Coalesce, PercentRank
 from django.shortcuts import redirect, get_object_or_404
 from django.urls import path
@@ -209,37 +209,45 @@ class BacktestSlateInline(admin.TabularInline):
     )
     fields = (
         'slate',
-        'total_lineups',
-        'total_optimals',
+        'get_tl',
+        'get_to',
         'get_cash_rate',
         'get_pct_one_pct',
         'get_pct_half_pct',
         'get_el',
-        'top_score',
+        'get_ts',
         'great_score',
-        'get_great_build',
         'get_great_score_diff',
+        'bink_score',
+        'get_great_build',
         'get_binked',
-        'get_projections_link',
         'get_links',
         'get_exposures_links',
     )
     readonly_fields = (
-        'total_lineups',
-        'total_optimals',
+        'get_tl',
+        'get_to',
         'get_cash_rate',
         'get_pct_one_pct',
         'get_pct_half_pct',
         'get_el',
-        'top_score',
+        'get_ts',
         'great_score',
+        'bink_score',
         'get_great_build',
         'get_great_score_diff',
         'get_binked',
-        'get_projections_link',
         'get_links',
         'get_exposures_links',
     )
+
+    def get_tl(self, obj):
+        return obj.total_lineups
+    get_tl.short_description = 'TL'
+
+    def get_to(self, obj):
+        return obj.total_optimals
+    get_to.short_description = 'TO'
 
     def get_binked(self, obj):
         return obj.binked
@@ -252,25 +260,33 @@ class BacktestSlateInline(admin.TabularInline):
     get_great_build.boolean = True
 
     def get_cash_rate(self, obj):
-        if obj.total_cashes is None or obj.total_lineups() == 0:
+        if obj.total_cashes is None or obj.total_lineups == 0:
             return None
-        return '{:.2f}'.format(obj.total_cashes/obj.total_lineups() * 100)
-    get_cash_rate.short_description = 'Cash %'
+        return '{:.2f}'.format(obj.total_cashes/obj.total_lineups * 100)
+    get_cash_rate.short_description = 'Cash'
     get_cash_rate.admin_order_field = 'total_cashes'
 
     def get_pct_one_pct(self, obj):
-        if obj.total_one_pct is None or obj.total_lineups() == 0:
+        if obj.total_one_pct is None or obj.total_lineups == 0:
             return None
-        return '{:.2f}'.format(obj.total_one_pct/obj.total_lineups() * 100)
+        return '{:.2f}'.format(obj.total_one_pct/obj.total_lineups * 100)
     get_pct_one_pct.short_description = '1%'
     get_pct_one_pct.admin_order_field = 'total_one_pct'
 
     def get_pct_half_pct(self, obj):
-        if obj.total_half_pct is None or obj.total_lineups() == 0:
+        if obj.total_half_pct is None or obj.total_lineups == 0:
             return None
-        return '{:.2f}'.format(obj.total_half_pct/obj.total_lineups() * 100)
+        return '{:.2f}'.format(obj.total_half_pct/obj.total_lineups * 100)
     get_pct_half_pct.short_description = '0.5%'
     get_pct_half_pct.admin_order_field = 'total_half_pct'
+
+    def get_ts(self, obj):
+        return obj.top_score
+    get_ts.short_description = 'TS'
+
+    def get_gs(self, obj):
+        return obj.great_score
+    get_gs.short_description = 'GS'
 
     def get_great_score_diff(self, obj):
         if obj.great_score is None or obj.top_score is None:
@@ -285,7 +301,11 @@ class BacktestSlateInline(admin.TabularInline):
             )
 
             html = ''
+            if slate_build.projections.all().count() > 0:
+                html += '<a href="/admin/nfl/buildplayerprojection/?build_id={}">Proj</a>'.format(slate_build.id)
             if slate_build.num_stacks_created() > 0:
+                if html != '':
+                    html += '<br />'
                 html += '<a href="/admin/nfl/slatebuildstack/?build__id__exact={}">Stacks</a>'.format(slate_build.id)
             if slate_build.num_groups_created() > 0:
                 if html != '':
@@ -1894,17 +1914,22 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         qs = qs.annotate(
             proj_percentile=Window(
                 expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos'), F('in_play')],
+                partition_by=[F('slate'), F('site_pos')],
                 order_by=F('projection').asc()
+            ),
+            ao_percentile=Window(
+                expression=PercentRank(),
+                partition_by=[F('slate'), F('site_pos')],
+                order_by=F('adjusted_opportunity').asc()
             ),
             own_proj_percentile=Window(
                 expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos'), F('in_play')],
+                partition_by=[F('slate'), F('site_pos')],
                 order_by=F('ownership_projection').desc()
             ),
             value_projection_percentile=Window(
                 expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos'), F('in_play')],
+                partition_by=[F('slate'), F('site_pos')],
                 order_by=F('player_value').asc()
             )
         )
@@ -1963,7 +1988,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     get_value_projection_percentile.admin_order_field = 'value_projection_percentile'
 
     def get_rating(self, obj):
-        return '{:.2f}'.format((float(obj.proj_percentile) + float(obj.own_proj_percentile) + float(obj.value_projection_percentile))/3.0 * 100)
+        return '{:.2f}'.format((float(obj.proj_percentile) + float(obj.ao_percentile) + float(obj.proj_percentile) + float(obj.ao_percentile) + float(obj.own_proj_percentile) + float(obj.value_projection_percentile))/6.0 * 100)
     get_rating.short_description = 'Rtg'
 
     def get_ownership_projection(self, obj):
