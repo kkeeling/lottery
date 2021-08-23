@@ -1394,7 +1394,6 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'view_page_button',
         'build_button',
         'export_button',
-        'backtest',
         'slate',
         'used_in_contests',
         'configuration',
@@ -1425,6 +1424,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'top_optimal_score',
         'get_links',
         'get_exposures_links',
+        'get_backtest'
     )
     list_editable = (
         'used_in_contests',
