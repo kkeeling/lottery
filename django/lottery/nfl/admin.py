@@ -1391,10 +1391,10 @@ class SlateBuildAdmin(admin.ModelAdmin):
     list_per_page = 25
     list_display = (
         'id',
+        'view_page_button',
         'build_button',
         'export_button',
         'slate',
-        'get_backtest',
         'used_in_contests',
         'configuration',
         'in_play_criteria',
@@ -1406,7 +1406,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'get_construction_ready',
         'get_ready',
         'status',
-        'elapsed_time',
+        'get_elapsed_time',
         'get_pct_complete',
         'get_optimal_pct_complete',
         'error_message',
@@ -1427,13 +1427,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
     )
     list_editable = (
         'used_in_contests',
-        'configuration',
-        'in_play_criteria',
-        'lineup_construction',
-        'stack_construction',
-        'stack_cutoff',
         'total_lineups',
-        'slate',
     )
     list_filter = (
         ('configuration', RelatedDropdownFilter),
@@ -1478,17 +1472,17 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
     def get_ready(self, obj):
         return obj.ready
-    get_ready.short_description = 'rdy'
+    get_ready.short_description = 'GO'
     get_ready.boolean = True
 
     def get_projections_ready(self, obj):
         return obj.projections_ready
-    get_projections_ready.short_description = 'p.rdy'
+    get_projections_ready.short_description = 'PR'
     get_projections_ready.boolean = True
 
     def get_construction_ready(self, obj):
         return obj.construction_ready
-    get_construction_ready.short_description = 'c.rdy'
+    get_construction_ready.short_description = 'CR'
     get_construction_ready.boolean = True
 
     def get_pct_one_pct(self, obj):
@@ -1572,26 +1566,20 @@ class SlateBuildAdmin(admin.ModelAdmin):
         return lineups[0].expected_lineup_order if lineups.count() > 0 else None
     get_el.short_description = 'EL'
 
+    def get_elapsed_time(self, obj):
+        _, _, minutes, seconds, _ = _get_duration_components(obj.elapsed_time)
+        return '{:02d}:{:02d}'.format(minutes, seconds)
+    get_elapsed_time.short_description = 'Time'
+    get_elapsed_time.admin_order_field = 'elapsed_time'
+
     def get_pct_complete(self, obj):
-        return format_html(
-            '''
-            <progress value="{0}" max="100"></progress>
-            <span style="font-weight:bold">{0}%</span>
-            ''',
-            float(obj.pct_complete) * 100.0
-        )
-    get_pct_complete.short_description = '% complete'
+        return '{:.2f}%'.format(float(obj.pct_complete) * 100.0)
+    get_pct_complete.short_description = 'prog'
     get_pct_complete.admin_order_field = 'pct_complete'
 
     def get_optimal_pct_complete(self, obj):
-        return format_html(
-            '''
-            <progress value="{0}" max="100"></progress>
-            <span style="font-weight:bold">{0}%</span>
-            ''',
-            float(obj.optimals_pct_complete) * 100.0
-        )
-    get_optimal_pct_complete.short_description = '% opt done'
+        return '{:.2f}%'.format(float(obj.optimals_pct_complete) * 100.0)
+    get_optimal_pct_complete.short_description = 'o prog'
     get_optimal_pct_complete.admin_order_field = 'optimals_pct_complete'
 
     def reset(self, request, queryset):

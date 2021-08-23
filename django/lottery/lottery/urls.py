@@ -14,13 +14,12 @@ if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 router = DefaultRouter()
-# NOTE: Old session formats removed
-# router.register(r'v1_5/session', releaf.views.SessionViewSetV1_5, 'sessions_v1_5')
 
 urlpatterns += [
     url(r'^admin_tools/', include('admin_tools.urls')),
     url(r'^favicon\.ico$', RedirectView.as_view(url=settings.STATIC_URL + 'img/favicon.ico', permanent=True)),
     url(r'^grappelli/', include('grappelli.urls')), # grappelli URLS
+    url(r'^admin/nfl/slate_build/', nfl.views.slate_build, name='slate_build'),
     url(r'^admin/', admin.site.urls),
     url(r'^api/', include(router.urls)),
     # include URLs

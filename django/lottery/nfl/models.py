@@ -1,6 +1,7 @@
 import csv
 import datetime
 import math
+from django.urls.base import reverse
 import numpy
 import requests
 import statistics
@@ -1017,14 +1018,14 @@ class SlateBuild(models.Model):
     # Configuration & Rules
     created = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     used_in_contests = models.BooleanField(default=False, verbose_name='Used')
-    configuration = models.ForeignKey(SlateBuildConfig, related_name='builds', verbose_name='Config', on_delete=models.SET_NULL, null=True)
-    in_play_criteria = models.ForeignKey(PlayerSelectionCriteria, on_delete=models.SET_NULL, related_name='builds', null=True, blank=True)
-    lineup_construction = models.ForeignKey(LineupConstructionRule, on_delete=models.SET_NULL, related_name='builds', null=True, blank=True)
-    stack_construction = models.ForeignKey(StackConstructionRule, on_delete=models.SET_NULL, related_name='builds', null=True, blank=True)
-    stack_cutoff = models.SmallIntegerField(default=0, help_text='# of allowe stacks (ex. 80 for FD, and 90 for DK)')
+    configuration = models.ForeignKey(SlateBuildConfig, related_name='builds', verbose_name='CFG', on_delete=models.SET_NULL, null=True)
+    in_play_criteria = models.ForeignKey(PlayerSelectionCriteria, on_delete=models.SET_NULL, related_name='builds', verbose_name='IPC', null=True, blank=True)
+    lineup_construction = models.ForeignKey(LineupConstructionRule, on_delete=models.SET_NULL, related_name='builds', verbose_name='LC', null=True, blank=True)
+    stack_construction = models.ForeignKey(StackConstructionRule, on_delete=models.SET_NULL, related_name='builds', verbose_name='SC', null=True, blank=True)
+    stack_cutoff = models.SmallIntegerField('SO', default=0, help_text='# of allowe stacks (ex. 80 for FD, and 90 for DK)')
     lineup_start_number = models.IntegerField(default=1)
     total_lineups = models.PositiveIntegerField(verbose_name='total', default=0)
-    target_score = models.DecimalField(verbose_name='target', decimal_places=2, max_digits=5, blank=True, null=True)
+    target_score = models.DecimalField(verbose_name='TRGT', decimal_places=2, max_digits=5, blank=True, null=True)
 
     # Build analysis
     top_score = models.DecimalField(verbose_name='top', decimal_places=2, max_digits=5, blank=True, null=True)
@@ -1552,10 +1553,12 @@ class SlateBuild(models.Model):
             reverse_lazy("admin:admin_slatebuild_export", args=[self.pk])
         )
     export_button.short_description = ''
+    
+    def view_page_button(self):
+        return format_html('<a href="/admin/nfl/slate_build/?build={}" class="link" style="color: #ffffff; background-color: #bf3030; font-weight: bold; padding: 10px 15px;">Page</a>',
+            self.pk)
+    view_page_button.short_description = ''
 
-    def rb_matrix(self):
-        # Return a matrix of rb comparisons
-        return None
 
 class BuildPlayerProjection(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)
@@ -1632,12 +1635,12 @@ class BuildPlayerProjection(models.Model):
         qs = qs.annotate(
             proj_percentile=Window(
                 expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos')],
+                partition_by=[F('slate'), F('site_pos'), F('in_play')],
                 order_by=F('projection').asc()
             ),
             value_projection_percentile=Window(
                 expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos')],
+                partition_by=[F('slate'), F('site_pos'), F('in_play')],
                 order_by=F('player_value').asc()
             )
         )
@@ -1646,7 +1649,7 @@ class BuildPlayerProjection(models.Model):
             qs = qs.annotate(
                 ao_percentile=Window(
                     expression=PercentRank(),
-                    partition_by=[F('slate'), F('site_pos')],
+                    partition_by=[F('slate'), F('site_pos'), F('in_play')],
                     order_by=F('adjusted_opportunity').asc()
                 )
             )
@@ -1721,7 +1724,7 @@ class BuildPlayerProjection(models.Model):
         player1_rating = self.projection_rating
         player2_rating = player2.projection_rating
 
-        return (player1_rating - player2_rating) / player2_rating
+        return (player1_rating - player2_rating) / max(player1_rating, player2_rating)
 
 
 class SlateBuildStack(models.Model):
