@@ -18,10 +18,11 @@ def rb_matrix(build):
         <div class="table">
             <div class="row">
                 <div class="cell">&nbsp;</div>
-                <div class="cell">Salary</div>
-                <div class="cell">Projection</div>
-                <div class="cell">Opportunity</div>
-                <div class="cell">Exposure</div>
+                <div class="cell value">Salary</div>
+                <div class="cell value">Projection</div>
+                <div class="cell value">Opportunity</div>
+                <div class="cell value">OP</div>
+                <div class="cell value">Exposure</div>
     '''
 
     for player in build.projections.filter(slate_player__site_pos='RB', in_play=True):
@@ -37,11 +38,12 @@ def rb_matrix(build):
         html += '''
             <div class="row">
                 <div class="cell">{}</div>
-                <div class="cell">{}</div>
-                <div class="cell">{:.2f}</div>
-                <div class="cell">{:.2f}</div>
-                <div class="cell">{:.2f}%</div>
-        '''.format(player.name, player.salary, player.projection, player.adjusted_opportunity, player.exposure * 100)
+                <div class="cell value">{}</div>
+                <div class="cell value">{:.2f}</div>
+                <div class="cell value">{:.2f}</div>
+                <div class="cell value">{:.2f}%</div>
+                <div class="cell value">{:.2f}%</div>
+        '''.format(player.name, player.salary, player.projection, player.adjusted_opportunity, player.ownership_projection * 100, player.exposure * 100)
 
         for player2 in build.projections.filter(slate_player__site_pos='RB', in_play=True):
             html += '''
