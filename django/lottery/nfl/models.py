@@ -1665,6 +1665,22 @@ class BuildPlayerProjection(models.Model):
 
             return (float(obj.proj_percentile) + float(obj.value_projection_percentile))/2.0
 
+    @property
+    def exposure(self):
+        return self.build.lineups.filter(
+            Q(
+                Q(qb=self) | 
+                Q(rb1=self) | 
+                Q(rb2=self) | 
+                Q(wr1=self) | 
+                Q(wr2=self) | 
+                Q(wr3=self) | 
+                Q(te=self) | 
+                Q(flex=self) | 
+                Q(dst=self)
+            )
+        ).count() / self.build.lineups.all().count()
+
     def get_team_color(self):
         return self.slate_player.get_team_color()
 
