@@ -1394,6 +1394,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'view_page_button',
         'build_button',
         'export_button',
+        'backtest',
         'slate',
         'used_in_contests',
         'configuration',

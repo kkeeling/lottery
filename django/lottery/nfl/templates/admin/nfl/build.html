@@ -5,6 +5,9 @@
 {% block extrastyle %}
 {{ block.super }}
 <style type="text/css">
+header {
+    text-align: center;
+}
 .table { display:table; }
 .row   { display:table-row; }
 .cell  { display:table-cell; border:1px solid black; padding:3px; width:110px; }
@@ -13,8 +16,11 @@
 
 {% block content %}
 <div id="content-main">
+    <header class="header">
+        <h1>{{ build.slate.week }}</h1>
+    </header>
     <section class="dashboard-section">
-        <header><h2>{{ build.slate.week }}</h2></header>
+        <h1>RB Matrix</h1>
         {% rb_matrix build %}
     </section>
 </div>
