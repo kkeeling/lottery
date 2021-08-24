@@ -18,11 +18,15 @@ def rb_matrix(build):
         <div class="table">
             <div class="row">
                 <div class="cell">&nbsp;</div>
-                <div class="cell value">Salary</div>
-                <div class="cell value">Projection</div>
-                <div class="cell value">Opportunity</div>
+                <div class="cell value">Sal</div>
+                <div class="cell value">Proj</div>
+                <div class="cell value">Val</div>
+                <div class="cell value">BP</div>
+                <div class="cell value">AO</div>
+                <div class="cell value">BV</div>
                 <div class="cell value">OP</div>
-                <div class="cell value">Exposure</div>
+                <div class="cell value">Exp</div>
+                <div class="cell value">Rtg</div>
     '''
 
     for player in build.projections.filter(slate_player__site_pos='RB', in_play=True):
@@ -41,9 +45,13 @@ def rb_matrix(build):
                 <div class="cell value">{}</div>
                 <div class="cell value">{:.2f}</div>
                 <div class="cell value">{:.2f}</div>
+                <div class="cell value">{:.2f}</div>
+                <div class="cell value">{:.2f}</div>
+                <div class="cell value">{:.2f}</div>
                 <div class="cell value">{:.2f}%</div>
                 <div class="cell value">{:.2f}%</div>
-        '''.format(player.name, player.salary, player.projection, player.adjusted_opportunity, player.ownership_projection * 100, player.exposure * 100)
+                <div class="cell value">{:.2f}</div>
+        '''.format(player.name, player.salary, player.projection, (player.projection / player.salary) * 1000, player.balanced_projection, player.adjusted_opportunity, (player.balanced_projection / player.salary) * 1000, player.ownership_projection * 100, player.exposure * 100, player.projection_rating * 100)
 
         for player2 in build.projections.filter(slate_player__site_pos='RB', in_play=True):
             html += '''

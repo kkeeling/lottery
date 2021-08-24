@@ -15,6 +15,10 @@ header {
     display: inline-block;
     margin-right: 20px;
 }
+.action {
+    display: inline-block;
+    margin-right: 20px;
+}
 .value  { width:50px; }
 </style>
 {% endblock %}
@@ -23,7 +27,13 @@ header {
 <div id="content-main">
     <header class="header">
         <h1>{{ build.slate.week }}</h1>
+        <h2>Status: {{ build.status }}
+        <h2>Progress: {{ build.pct_complete|to_percent:2 }}
     </header>
+    <section class="dashboard-section">
+        <div class="action">{{ build.build_button }}</div>
+        <div class="action">{{ build.balance_rbs_button }}</div>
+    </section>
     <section class="dashboard-section">
         <h1>RB Matrix</h1>
         {% rb_matrix build %}

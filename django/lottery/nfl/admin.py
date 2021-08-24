@@ -601,6 +601,7 @@ class SlatePlayerBuildExposureAdmin(admin.ModelAdmin):
         'salary',
         'get_projection',
         'get_adjusted_opportunity',
+        'get_balanced_projection',
         'get_rb_group',
         'fantasy_points',
         'game',
@@ -630,6 +631,12 @@ class SlatePlayerBuildExposureAdmin(admin.ModelAdmin):
             return None
         return obj.projection.adjusted_opportunity
     get_adjusted_opportunity.short_description = 'AO'
+
+    def get_balanced_projection(self, obj):
+        if obj.projection is None:
+            return None
+        return obj.projection.balanced_projection
+    get_balanced_projection.short_description = 'BP'
 
     def get_rb_group(self, obj):
         if obj.projection is None:
@@ -1462,6 +1469,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         my_urls = [
             path('slatebuild-build/<int:pk>/', self.build, name="admin_slatebuild_build"),
             path('slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_slatebuild_export"),
+            path('slatebuild-balance-rbs/<int:pk>/', self.balance_rbs, name="admin_slatebuild_balance_rbs"),
         ]
         return my_urls + urls
 
@@ -1600,6 +1608,24 @@ class SlateBuildAdmin(admin.ModelAdmin):
             build.prepare_construction()
             messages.success(request, 'Construction prepared for {}.'.format(build))
     prepare_construction.short_description = 'Prepare construction for selected builds'
+
+    def balance_rbs(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        # Get the scenario to activate
+        build = get_object_or_404(models.SlateBuild, pk=pk)
+        if build.ready:
+            build.balance_rbs()
+            self.message_user(request, 'RBs balanced for {}.'.format(str(build)), level=messages.INFO)
+        else:
+            self.message_user(request, 'Cannot balance RBs for {}. Check projections and construction.'.format(str(build)), level=messages.ERROR)
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
 
     def get_target_score(self, request, queryset):
         for build in queryset:
