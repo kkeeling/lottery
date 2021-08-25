@@ -2286,6 +2286,7 @@ class WeekAdmin(admin.ModelAdmin):
 
 @admin.register(models.Backtest)
 class BacktestAdmin(admin.ModelAdmin):
+    list_per_page = 15
     list_display = (
         'name',
         'initialize_button',
