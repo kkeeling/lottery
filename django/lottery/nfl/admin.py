@@ -2335,6 +2335,9 @@ class BacktestAdmin(admin.ModelAdmin):
         'addMainSlates',
         'add2019MainSlates',
         'add2020MainSlates',
+        'addMainSlates10x',
+        'add2019MainSlates10x',
+        'add2020MainSlates10x',
         'reset',
         'prepare_projections',
         'prepare_construction',
@@ -2456,6 +2459,39 @@ class BacktestAdmin(admin.ModelAdmin):
                 )
             messages.success(request, 'Added {} slates to {}.'.format(index + 1, backtest.name))
     add2020MainSlates.short_description = 'Add all 2020 main slates to selected backtests'
+    
+    def addMainSlates10x(self, request, queryset):
+        for backtest in queryset:
+            for _ in range(0,10):
+                for (index, slate) in enumerate(models.Slate.objects.filter(site=backtest.site, is_main_slate=True)):
+                    models.BacktestSlate.objects.create(
+                        backtest=backtest,
+                        slate=slate
+                    )
+            messages.success(request, 'Added {} slates to {}.'.format(index + 1, backtest.name))
+    addMainSlates10x.short_description = 'Add all 10x main slates to selected backtests'
+    
+    def add2019MainSlates10x(self, request, queryset):
+        for backtest in queryset:
+            for _ in range(0,10):
+                for (index, slate) in enumerate(models.Slate.objects.filter(site=backtest.site, is_main_slate=True, week__slate_year=2019)):
+                    models.BacktestSlate.objects.create(
+                        backtest=backtest,
+                        slate=slate
+                    )
+            messages.success(request, 'Added {} slates to {}.'.format(index + 1, backtest.name))
+    add2019MainSlates10x.short_description = 'Add all 10x 2019 main slates to selected backtests'
+    
+    def add2020MainSlates10x(self, request, queryset):
+        for backtest in queryset:
+            for _ in range(0,10):
+                for (index, slate) in enumerate(models.Slate.objects.filter(site=backtest.site, is_main_slate=True, week__slate_year=2020)):
+                    models.BacktestSlate.objects.create(
+                        backtest=backtest,
+                        slate=slate
+                    )
+            messages.success(request, 'Added {} slates to {}.'.format(index + 1, backtest.name))
+    add2020MainSlates10x.short_description = 'Add all 10x 2020 main slates to selected backtests'
 
     def reset(self, request, queryset):
         for backtest in queryset:

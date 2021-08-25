@@ -1282,23 +1282,36 @@ class SlateBuild(models.Model):
             proj_rating=ExpressionWrapper(F('proj_percentile') + F('proj_percentile') + F('ao_percentile'), output_field=FloatField())
         )
 
-        rbs = list(rbs.order_by('-projection'))
+        rbs = list(rbs.order_by('-proj_rating'))
         processed = []
         for (index, rb) in enumerate(rbs):
             processed.append(rb.id)
-            rb_value = float(rb.projection) / (float(rb.salary) / 1000)
-            
-            for rb2 in rbs[index:index+5]:
-                if rb2.id not in processed:
-                    diff = rb.compare(rb2)
-                    rb2_value = float(rb2.balanced_projection) / (float(rb2.salary) / 1000)
+            if index < len(rbs) - 1:
+                rb_value = float(rb.balanced_projection) / (float(rb.salary) / 1000)
+                rb2 = rbs[index+1]
+                diff = rb.compare(rb2)
+                print(rb.name, rb_value, rb2.name, diff)
+                if abs(diff) <= .02:  # means they are "the same" player
+                    rb2.balanced_projection = rb2.salary / 1000 * rb_value
 
-                    if abs(diff) <= 1.0:
-                        old_rb2_value = rb2_value
-                        rb2_value = rb2_value - (rb2_value * diff)
-                        print(rb.name, rb_value, rb2.name, old_rb2_value, rb2_value)
-                        # new_rb2_value = rb_value - (rb_value * diff)
-                        rb2.balanced_projection = rb2.salary / 1000 * rb2_value
+        # for (index, rb) in enumerate(rbs):
+        #     processed.append(rb.id)
+        #     rb_value = float(rb.balanced_projection) / (float(rb.salary) / 1000)
+            
+        #     for rb2 in rbs:
+        #         if rb2.id not in processed:
+        #             diff = rb.compare(rb2)
+        #             rb2_value = float(rb2.balanced_projection) / (float(rb2.salary) / 1000)
+
+        #             if abs(diff) <= 1.0:
+        #                 old_rb_value = rb_value
+        #                 old_rb2_value = rb2_value
+        #                 rb_value = rb_value + (rb_value * (diff))
+        #                 rb2_value = rb2_value - (rb2_value * (diff))
+        #                 print(rb.name, old_rb_value, rb_value, rb2.name, old_rb2_value, rb2_value)
+        #                 # new_rb2_value = rb_value - (rb_value * diff)
+        #                 rb.balanced_projection = rb.salary / 1000 * rb_value
+        #                 rb2.balanced_projection = rb2.salary / 1000 * rb2_value
         
         for rb in rbs:
             rb.save()
