@@ -1293,25 +1293,6 @@ class SlateBuild(models.Model):
                 print(rb.name, rb_value, rb2.name, diff)
                 if abs(diff) <= .02:  # means they are "the same" player
                     rb2.balanced_projection = rb2.salary / 1000 * rb_value
-
-        # for (index, rb) in enumerate(rbs):
-        #     processed.append(rb.id)
-        #     rb_value = float(rb.balanced_projection) / (float(rb.salary) / 1000)
-            
-        #     for rb2 in rbs:
-        #         if rb2.id not in processed:
-        #             diff = rb.compare(rb2)
-        #             rb2_value = float(rb2.balanced_projection) / (float(rb2.salary) / 1000)
-
-        #             if abs(diff) <= 1.0:
-        #                 old_rb_value = rb_value
-        #                 old_rb2_value = rb2_value
-        #                 rb_value = rb_value + (rb_value * (diff))
-        #                 rb2_value = rb2_value - (rb2_value * (diff))
-        #                 print(rb.name, old_rb_value, rb_value, rb2.name, old_rb2_value, rb2_value)
-        #                 # new_rb2_value = rb_value - (rb_value * diff)
-        #                 rb.balanced_projection = rb.salary / 1000 * rb_value
-        #                 rb2.balanced_projection = rb2.salary / 1000 * rb2_value
         
         for rb in rbs:
             rb.save()
@@ -2527,6 +2508,30 @@ class Backtest(models.Model):
                 backtest=new_test,
                 slate=slate.slate
             )
+    
+    def initialize_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #a5408a; font-weight: bold; padding: 10px 15px;">Init</a>',
+            reverse_lazy("admin:admin_backtest_init", args=[self.pk])
+        )
+    initialize_button.short_description = ''
+    
+    def prepare_projections_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Prep Proj</a>',
+            reverse_lazy("admin:admin_backtest_prepare_projections", args=[self.pk])
+        )
+    prepare_projections_button.short_description = ''
+    
+    def prepare_construction_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #bf3030; font-weight: bold; padding: 10px 15px;">Prep Const</a>',
+            reverse_lazy("admin:admin_backtest_prepare_construction", args=[self.pk])
+        )
+    prepare_construction_button.short_description = ''
+    
+    def build_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Build</a>',
+            reverse_lazy("admin:admin_backtest_build", args=[self.pk])
+        )
+    build_button.short_description = ''
 
 
 class BacktestSlate(models.Model):

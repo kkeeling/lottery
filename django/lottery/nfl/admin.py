@@ -1826,8 +1826,6 @@ class SlateBuildAdmin(admin.ModelAdmin):
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
 
-    export_for_upload.short_description = 'Export lineups for upload'
-
     def get_actual_scores(self, request, queryset):
         for build in queryset:
             build.get_actual_scores()
@@ -2290,6 +2288,10 @@ class WeekAdmin(admin.ModelAdmin):
 class BacktestAdmin(admin.ModelAdmin):
     list_display = (
         'name',
+        'initialize_button',
+        'prepare_projections_button',
+        'prepare_construction_button',
+        'build_button',
         'created',
         'site',
         'lineup_config',
@@ -2311,7 +2313,8 @@ class BacktestAdmin(admin.ModelAdmin):
         'get_median_one_pct_rate',
         'get_median_half_pct_rate',
         'get_great_build_rate',
-        'get_optimal_build_rate'
+        'get_optimal_build_rate',
+        'get_links',
     )
     readonly_fields = (
         'status',
@@ -2346,6 +2349,16 @@ class BacktestAdmin(admin.ModelAdmin):
         'duplicate',
         'find_optimals'
     ]
+
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('backtest-init/<int:pk>/', self.init_one, name="admin_backtest_init"),
+            path('backtest-prepare-projections/<int:pk>/', self.prepare_projections_one, name="admin_backtest_prepare_projections"),
+            path('backtest-prepare-construction/<int:pk>/', self.prepare_construction_one, name="admin_backtest_prepare_construction"),
+            path('backtest-build/<int:pk>/', self.execute_one, name="admin_backtest_build"),
+        ]
+        return my_urls + urls
 
     def get_queryset(self, request):
         qs = super(BacktestAdmin, self).get_queryset(request)
@@ -2429,6 +2442,18 @@ class BacktestAdmin(admin.ModelAdmin):
         return '{:.1f}%'.format(obj.optimal_build_rate * 100)
     get_optimal_build_rate.short_description = 'opt'
     get_optimal_build_rate.admin_order_field = 'optimal_build_rate'
+
+    def get_links(self, obj):
+        html = ''
+        if obj.completed_lineups > 0:
+            html += '<a href="/admin/nfl/slatebuildlineup/?build__id__in={}">Lineups</a>'.format(','.join([str(x.build.id) for x in obj.slates.all()]))
+        if obj.total_optimals > 0:
+            if html != '':
+                html += '<br />'
+            html += '<a href="/admin/nfl/slatebuildactualslineup/?build__id__in={}">Optimals</a>'.format(','.join([str(x.build.id) for x in obj.slates.all()]))
+
+        return mark_safe(html)
+    get_links.short_description = 'Links'
     
     def addMainSlates(self, request, queryset):
         for backtest in queryset:
@@ -2520,6 +2545,63 @@ class BacktestAdmin(admin.ModelAdmin):
             else:
                 messages.error(request, 'Cannot execute {}. Backtest isn\'t ready yet.'.format(backtest.name))
     execute.short_description = 'Run selected backtests'
+
+    def init_one(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        backtest = get_object_or_404(models.Backtest, pk=pk)
+        tasks.initialize_backtest.delay(backtest.id)
+        messages.success(request, 'Initializing {}. Refresh page to check progress'.format(backtest.name))
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def prepare_projections_one(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        backtest = get_object_or_404(models.Backtest, pk=pk)
+        tasks.prepare_projections_for_backtest.delay(backtest.id)
+        messages.success(request, 'Preparing projections for {}. Refresh page to check progress'.format(backtest.name))
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def prepare_construction_one(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        backtest = get_object_or_404(models.Backtest, pk=pk)
+        tasks.prepare_construction_for_backtest.delay(backtest.id)
+        messages.success(request, 'Preparing construction for {}. Refresh page to check progress'.format(backtest.name))
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def execute_one(self, request, pk):
+        # TODO: Left off here...Make this use the work flow branden used on BT Studies to take pressure off http request
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        backtest = get_object_or_404(models.Backtest, pk=pk)
+        tasks.run_backtest.delay(backtest.id)
+        messages.success(request, 'Executing {}. Refresh page to check progress'.format(backtest.name))
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
 
     def analyze(self, request, queryset):
         for backtest in queryset:
