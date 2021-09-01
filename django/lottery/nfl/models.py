@@ -2394,7 +2394,7 @@ class Backtest(models.Model):
     stack_construction = models.ForeignKey(StackConstructionRule, on_delete=models.SET_NULL, related_name='backtests', verbose_name='SC', null=True, blank=True)
     stack_cutoff = models.SmallIntegerField(default=0, help_text='# of allowe stacks (ex. 80 for FD, and 90 for DK)')
     total_lineups = models.PositiveIntegerField('TL', default=0)
-    total_optimals = models.PositiveIntegerField(default=0)
+    total_optimals = models.PositiveIntegerField('TO', default=0)
     status = models.CharField(max_length=25, choices=BUILD_STATUS, default='not_started')
     completed_lineups = models.PositiveIntegerField(default=0)
     pct_complete = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
@@ -2510,6 +2510,7 @@ class Backtest(models.Model):
         self.median_half_pct_rate = median_half_pct / avg_total_lineups
         self.great_build_rate = great_builds / self.slates.filter(build__status='complete').count()
         self.optimal_build_rate = optimal_builds / self.slates.filter(build__status='complete').count()
+        
         self.save()
 
     def find_optimals(self):
@@ -2526,11 +2527,11 @@ class Backtest(models.Model):
         for slate in self.slates.all():
             slate.build_optimals()
 
-    def update_optimal_pct_complete(self, build):
-        complete_builds = SlateBuild.objects.filter(backtest__in=self.slates.all(), optimals_pct_complete=1.0)
-        self.total_optimals = complete_builds.aggregate(total=Sum('total_optimals')).get('total', 0) + build.total_optimals if complete_builds.count() > 0 else build.total_optimals
-        self.optimals_pct_complete = complete_builds.count()/self.slates.all().count() + ((1/self.slates.all().count()) * build.optimals_pct_complete)
-        self.save()
+    # def update_optimal_pct_complete(self, build):
+    #     complete_builds = SlateBuild.objects.filter(backtest__in=self.slates.all(), optimals_pct_complete=1.0)
+    #     self.total_optimals = self.slates.filter(build__status='complete').aggregate(total_optimals=Sum('build__total_optimals'))
+    #     self.optimals_pct_complete = complete_builds.count()/self.slates.all().count() + ((1/self.slates.all().count()) * build.optimals_pct_complete)
+    #     self.save()
 
     def update_status(self):
         all_stacks = SlateBuildStack.objects.filter(build__backtest__in=self.slates.all(), count__gt=0)
@@ -2586,13 +2587,13 @@ class Backtest(models.Model):
     initialize_button.short_description = ''
     
     def prepare_projections_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Prep Proj</a>',
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Proj</a>',
             reverse_lazy("admin:admin_backtest_prepare_projections", args=[self.pk])
         )
     prepare_projections_button.short_description = ''
     
     def prepare_construction_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #bf3030; font-weight: bold; padding: 10px 15px;">Prep Const</a>',
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #bf3030; font-weight: bold; padding: 10px 15px;">Const</a>',
             reverse_lazy("admin:admin_backtest_prepare_construction", args=[self.pk])
         )
     prepare_construction_button.short_description = ''

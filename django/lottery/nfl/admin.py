@@ -2378,6 +2378,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'get_median_half_pct_rate',
         'get_great_build_rate',
         'get_optimal_build_rate',
+        'total_optimals',
         'get_links',
     )
     readonly_fields = (
@@ -2497,14 +2498,14 @@ class BacktestAdmin(admin.ModelAdmin):
         if obj.great_build_rate is None:
             return None
         return '{:.1f}%'.format(obj.great_build_rate * 100)
-    get_great_build_rate.short_description = 'gb'
+    get_great_build_rate.short_description = 'gb%'
     get_great_build_rate.admin_order_field = 'great_build_rate'
 
     def get_optimal_build_rate(self, obj):
         if obj.optimal_build_rate is None:
             return None
         return '{:.1f}%'.format(obj.optimal_build_rate * 100)
-    get_optimal_build_rate.short_description = 'opt'
+    get_optimal_build_rate.short_description = 'opt%'
     get_optimal_build_rate.admin_order_field = 'optimal_build_rate'
 
     def get_links(self, obj):

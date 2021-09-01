@@ -6,7 +6,7 @@ from celery import shared_task
 from celery.contrib.abortable import AbortableTask
 from celery.utils.log import get_task_logger
 
-from django.db.models.aggregates import Count
+from django.db.models.aggregates import Count, Sum
 
 from . import models
 from . import optimize
@@ -205,6 +205,7 @@ def monitor_build_optimals(build_id):
         build.save()
         time.sleep(1)
 
+    build.total_optimals = stacks.aggregate(total_optimals=Count('actuals')).get('total_optimals')
     build.optimals_pct_complete = 1.0
     build.save()
 
@@ -219,10 +220,13 @@ def monitor_backtest_optimals(backtest_id):
 
     while stacks.filter(optimals_created=False).count() > 0:
         backtest.optimals_pct_complete = stacks.filter(optimals_created=True).count() / stacks.count()
-        backtest.total_optimals = stacks.aggregate(total_optimals=Count('actuals')).get('total_optimals')
+        backtest.total_optimals = backtest.slates.all().aggregate(total_optimals=Sum('build__total_optimals')).get('total_optimals')
+
+        
         backtest.save()
         time.sleep(1)
 
+    backtest.total_optimals = backtest.slates.all().aggregate(total_optimals=Sum('build__total_optimals')).get('total_optimals')
     backtest.optimals_pct_complete = 1.0
     backtest.save()
 
