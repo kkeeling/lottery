@@ -1506,6 +1506,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         my_urls = [
+            path('slatebuild-speed-test/<int:pk>/', self.speed_test, name="admin_slatebuild_speed_test"),
             path('slatebuild-build/<int:pk>/', self.build, name="admin_slatebuild_build"),
             path('slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_slatebuild_export"),
             path('slatebuild-balance-rbs/<int:pk>/', self.balance_rbs, name="admin_slatebuild_balance_rbs"),
@@ -1671,6 +1672,21 @@ class SlateBuildAdmin(admin.ModelAdmin):
             tasks.get_target_score.delay(build.id)
             messages.success(request, 'Getting target score for {}. Refresh this page to check progress.'.format(build))
     get_target_score.short_description = 'Get target score for selected builds'
+
+    def speed_test(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        # Get the scenario to activate
+        build = get_object_or_404(models.SlateBuild, pk=pk)
+        tasks.speed_test.delay(build.id)
+        self.message_user(request, 'Speed test for {}.'.format(str(build)), level=messages.INFO)
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
 
     def build(self, request, pk):
         context = dict(

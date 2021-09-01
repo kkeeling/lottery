@@ -1489,6 +1489,13 @@ class SlateBuild(models.Model):
                 stack.count += math.ceil(num_lineups_to_distribute/self.stack_cutoff)
                 stack.save()
 
+    def speed_test(self):
+        _ = optimize.optimize(
+            self.slate.site,
+            self.projections.all(),
+            150
+        )
+
     def build(self):
         self.reset()
         self.execute_build()
@@ -1648,6 +1655,12 @@ class SlateBuild(models.Model):
             reverse_lazy("admin:admin_slatebuild_balance_rbs", args=[self.pk])
         )
     balance_rbs_button.short_description = ''
+    
+    def speed_test_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Test</a>',
+            reverse_lazy("admin:admin_slatebuild_speed_test", args=[self.pk])
+        )
+    speed_test_button.short_description = ''
     
     def build_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Build</a>',

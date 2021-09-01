@@ -42,10 +42,11 @@ def rb_matrix(build):
     '''
 
     for player in build.projections.filter(slate_player__site_pos='RB', in_play=True):
+        n = 0
         # n = random.lognormal(player.projection, 9.180413934/100)
-        n = random.default_rng().standard_gamma(player.projection, 1)[0]
-        vals = random.default_rng().standard_gamma(player.projection, 10000)
-        print(player.name, player.projection, numpy.average(vals), numpy.min(vals), numpy.max(vals))
+        # n = random.default_rng().standard_gamma(player.projection, 1)[0]
+        # vals = random.default_rng().standard_gamma(player.projection, 10000)
+        # print(player.name, player.projection, numpy.average(vals), numpy.min(vals), numpy.max(vals))
 
         html += '''
             <div class="row">

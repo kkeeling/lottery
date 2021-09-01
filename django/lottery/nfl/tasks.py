@@ -119,6 +119,19 @@ def find_optimals_for_backtest(backtest_id):
 
 
 @shared_task
+def speed_test(build_id):
+    try:
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.speed_test()
+    except Exception as exc:
+        traceback.print_exc()
+
+        build.status = 'error'
+        build.error_message = str(exc)
+        build.save()
+
+
+@shared_task
 def run_build(build_id):
     try:
         build = models.SlateBuild.objects.get(id=build_id)
