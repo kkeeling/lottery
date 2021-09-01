@@ -168,6 +168,7 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
         stack,
         randomness=config.randomness,
         use_stack_only=True,
+        allow_qb_dst_stack=config.allow_qb_dst_from_same_team,
         allow_rb_qb_stack=config.allow_rb_qb_from_same_team,
         allow_opp_rb_qb_stack=config.allow_rb_qb_from_opp_team,
         max_dst_exposure=config.max_dst_exposure,
@@ -263,7 +264,7 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
     return lineups
 
 
-def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75, use_stack_only=True, allow_rb_qb_stack=False, allow_opp_rb_qb_stack=False, max_dst_exposure=1.0, for_optimals=False):
+def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75, use_stack_only=True, allow_rb_qb_stack=False, allow_qb_dst_stack=False, allow_opp_rb_qb_stack=False, max_dst_exposure=1.0, for_optimals=False):
     '''
     Returns the player list on which to optimize based on a game stack with game_qb
     '''
@@ -277,6 +278,8 @@ def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75,
             if player_projection.in_play:
                 # If player is stack-only and not in the same game as qb, not a valid player
                 if use_stack_only and player_projection.stack_only and player_projection.get_game() != game_qb.game:
+                    valid_player = False
+                elif not allow_qb_dst_stack and (player_projection.position == 'DST' or player_projection.position == 'D') and player_projection.team == game_qb.team and not stack.contains_slate_player(player_projection.slate_player):
                     valid_player = False
                 elif not allow_rb_qb_stack and player_projection.position == 'RB' and player_projection.team == game_qb.team and not stack.contains_slate_player(player_projection.slate_player):
                     valid_player = False

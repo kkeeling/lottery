@@ -2209,6 +2209,7 @@ class ContestAdmin(admin.ModelAdmin):
         ContestPrizeInline
     ]
 
+
 @admin.register(models.SlateBuildConfig)
 class ConfigAdmin(admin.ModelAdmin):
     list_display = [
@@ -2218,6 +2219,7 @@ class ConfigAdmin(admin.ModelAdmin):
         'num_players_vs_dst',
         'max_dst_exposure',
         'allow_rbs_from_same_game',
+        'allow_qb_dst_from_same_team',
         'allow_rb_qb_from_same_team',
         'allow_rb_qb_from_opp_team',
         'allow_dst_rb_stack',
@@ -2242,6 +2244,7 @@ class ConfigAdmin(admin.ModelAdmin):
     list_filter = [
         'site',
         'allow_rbs_from_same_game',
+        'allow_qb_dst_from_same_team',
         'allow_rb_qb_from_same_team',
         'allow_rb_qb_from_opp_team',
         'allow_dst_rb_stack',

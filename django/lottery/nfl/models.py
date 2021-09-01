@@ -804,6 +804,7 @@ class SlateBuildConfig(models.Model):
     num_players_vs_dst = models.IntegerField(default=0)
     max_dst_exposure = models.DecimalField(decimal_places=2, max_digits=2, default=0.15)
     allow_rbs_from_same_game = models.BooleanField(default=False)
+    allow_qb_dst_from_same_team = models.BooleanField(default=True)
     allow_rb_qb_from_same_team = models.BooleanField(default=False)
     allow_rb_qb_from_opp_team = models.BooleanField(default=False)
     allow_dst_rb_stack = models.BooleanField(default=True)
