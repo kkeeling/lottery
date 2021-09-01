@@ -72,6 +72,80 @@ def optimize(site, projections, num_lineups=1):
     return lineups
 
 
+def simulate_contest(contest, projections):
+    site = contest.slate.site
+
+    if site == 'fanduel':
+        optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
+    elif site == 'draftkings':
+        optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
+    else:
+        raise Exception('{} is not a supported dfs site.'.format(site))
+
+    player_list = []
+
+    for player_projection in projections:
+        if ' ' in player_projection.name:
+            first, last = player_projection.name.split(' ', 1)
+        else:
+            first = player_projection.name
+            last = ''
+
+        slate_game = player_projection.slate_player.get_slate_game().game
+        game_info = GameInfo(
+            home_team=slate_game.home_team, 
+            away_team=slate_game.away_team,
+            starts_at=slate_game.game_date,
+            game_started=False
+        )
+
+        player = Player(
+            player_projection.slate_player.player_id,
+            first,
+            'DST' if player_projection.position == 'DST' else last,
+            ['D' if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel' else player_projection.position],
+            player_projection.team,
+            player_projection.salary,
+            float(player_projection.projection),
+            game_info=game_info,
+            min_deviation=-0.4,
+            max_deviation=0.4,
+            # max_exposure=float(player_projection.ownership_projection) + (float(player_projection.ownership_projection) * 0.5),
+            min_exposure=float(player_projection.ownership_projection) - (float(player_projection.ownership_projection) * 0.5)
+        )
+
+        player_list.append(player)
+    
+    optimizer.load_players(player_list)
+
+    ### SETTINGS ###
+    dst_label = 'D' if site == 'fanduel' else 'DST'
+
+    # Salary
+    optimizer.set_min_salary_cap(49300 if site == 'fanduel' else 59300)
+    
+    # Uniques 
+    optimizer.set_max_repeating_players(8) # 1 unique
+
+    ### STACKING RULES ###
+
+    # Players vs DST
+    optimizer.restrict_positions_for_opposing_team([dst_label], ['QB', 'RB', 'WR', 'TE'], max_allowed=1)
+
+    lineups = []
+    try:
+        optimized_lineups = optimizer.optimize(
+            n=contest.max_entrants 
+        )
+
+        for lineup in optimized_lineups:
+            lineups.append(lineup)
+    except exceptions.LineupOptimizerException:
+        traceback.print_exc()
+
+    return lineups
+
+
 def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineups, groups=[], for_optimals=False):
     if site == 'fanduel':
         optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)

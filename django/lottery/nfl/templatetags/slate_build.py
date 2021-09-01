@@ -1,6 +1,8 @@
 from django import template
 from django.contrib.staticfiles.templatetags.staticfiles import static
 from django.utils.safestring import mark_safe
+from numpy import random
+import numpy
 
 register = template.Library()
 
@@ -27,6 +29,7 @@ def rb_matrix(build):
                 <div class="cell value">OP</div>
                 <div class="cell value">Exp</div>
                 <div class="cell value">Rtg</div>
+                <div class="cell value">Rand</div>
     '''
 
     for player in build.projections.filter(slate_player__site_pos='RB', in_play=True):
@@ -39,6 +42,11 @@ def rb_matrix(build):
     '''
 
     for player in build.projections.filter(slate_player__site_pos='RB', in_play=True):
+        # n = random.lognormal(player.projection, 9.180413934/100)
+        n = random.default_rng().standard_gamma(player.projection, 1)[0]
+        vals = random.default_rng().standard_gamma(player.projection, 10000)
+        print(player.name, player.projection, numpy.average(vals), numpy.min(vals), numpy.max(vals))
+
         html += '''
             <div class="row">
                 <div class="cell">{}</div>
@@ -51,7 +59,8 @@ def rb_matrix(build):
                 <div class="cell value">{:.2f}%</div>
                 <div class="cell value">{:.2f}%</div>
                 <div class="cell value">{:.2f}</div>
-        '''.format(player.name, player.salary, player.projection, (player.projection / player.salary) * 1000, player.balanced_projection, player.adjusted_opportunity, (player.balanced_projection / player.salary) * 1000, player.ownership_projection * 100, player.exposure * 100, player.projection_rating * 100)
+                <div class="cell value">{:.2f}</div>
+        '''.format(player.name, player.salary, player.projection, (player.projection / player.salary) * 1000, player.balanced_projection, player.adjusted_opportunity, (player.balanced_projection / player.salary) * 1000, player.ownership_projection * 100, player.exposure * 100, player.projection_rating * 100, n)
 
         for player2 in build.projections.filter(slate_player__site_pos='RB', in_play=True):
             html += '''

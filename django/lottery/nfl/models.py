@@ -1,7 +1,6 @@
 import csv
 import datetime
 import math
-from django.urls.base import reverse
 import numpy
 import requests
 import statistics
@@ -16,11 +15,13 @@ from django.db.models.aggregates import Avg, Count, Sum, Max
 from django.db.models.expressions import ExpressionWrapper
 from django.db.models.functions import PercentRank
 from django.db.models.signals import post_save
+from django.urls.base import reverse
 from django.dispatch import receiver
 from django.utils.html import format_html
 from django.urls import reverse_lazy
 
 from . import optimize
+from . import new_optimize
 from . import tasks
 
 
@@ -206,6 +207,9 @@ class Slate(models.Model):
 
         return home_teams + away_teams
 
+    def get_projections(self):
+        return SlatePlayerProjection.objects.filter(slate_player__slate=self)
+
     def num_games(self):
         return self.games.all().count()
     num_games.short_description = '# games'
@@ -304,6 +308,25 @@ class Slate(models.Model):
                 slate=self,
                 game=game
             )
+    
+    def simulate(self):
+        sim_scores = {}
+        for proj in SlatePlayerProjection.objects.filter(slate_player__slate=self):
+            if proj.projection >= 3:
+                sim_scores[proj.id] = numpy.random.gamma(proj.projection, proj.stdev, 10000)
+
+        if self.site == 'fanduel':
+            self.simulate_fanduel_contests()
+
+    def simulate_fanduel_contests(self):
+        for contest in self.contests.all():
+            tasks.simulate_contest.delay(contest.id)
+
+    def sim_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Sim</a>',
+            reverse_lazy("admin:admin_slate_simulate", args=[self.pk])
+        )
+    sim_button.short_description = ''
 
 
 class SlateGame(models.Model):
@@ -339,12 +362,41 @@ class Contest(models.Model):
     half_pct_score = models.DecimalField('0.5% Score', decimal_places=2, max_digits=10, null=True, blank=True)
     half_pct_rank = models.IntegerField('0.5% Rank', null=True, blank=True)
     great_score = models.DecimalField('Great Score', decimal_places=2, max_digits=10, null=True, blank=True)
+    play_order = models.IntegerField(default=1)
 
     def __str__(self):
         return '{}'.format(self.name)
 
     class Meta:
         ordering = ['slate', '-prize_pool']
+
+    def simulate(self):
+        # lineups = optimize.simulate_contest(self, self.slate.get_projections())
+        new_optimize.simulate_contest(self, self.slate.get_projections())
+
+
+class ContestPrize(models.Model):
+    contest = models.ForeignKey(Contest, related_name='prizes', on_delete=models.CASCADE)
+    min_rank = models.IntegerField(default=1)
+    max_rank = models.IntegerField(default=1)
+    prize = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+
+    def __str__(self):
+        if self.min_rank == self.max_rank:
+            return '{}: ${}'.format(self.ordinal(self.min_rank), self.prize)
+        else:
+            return '{} - {}: {}'.format(self.ordinal(self.min_rank), self.ordinal(self.max_rank), self.prize)
+
+    def ordinal(self, num):
+        SUFFIXES = {1: 'st', 2: 'nd', 3: 'rd'}
+        # I'm checking for 10-20 because those are the digits that
+        # don't follow the normal counting scheme. 
+        if 10 <= num % 100 <= 20:
+            suffix = 'th'
+        else:
+            # the second parameter is a default.
+            suffix = SUFFIXES.get(num % 10, 'th')
+        return str(num) + suffix
 
 
 class SlatePlayer(models.Model):
@@ -385,11 +437,14 @@ class SlatePlayer(models.Model):
 class SlatePlayerProjection(models.Model):
     slate_player = models.OneToOneField(SlatePlayer, related_name='projection', on_delete=models.CASCADE)
     projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Proj')
+    floor = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Flr')
+    ceiling = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Ceil')
+    stdev = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Stdev')
     ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
     adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
-    rb_group = models.PositiveIntegerField(null=True, blank=True)
-    balanced_projection = models.DecimalField(null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
+    rb_group = models.PositiveIntegerField('RBG', null=True, blank=True)
+    balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
     team_total = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True, verbose_name='tt')
     game_total = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True, verbose_name='gt')
     spread = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True)
@@ -953,6 +1008,7 @@ class StackConstructionRule(models.Model):
 
     def passes_rule(self, stack):
         return not self.lock_top_pc or (self.lock_top_pc and stack.contains_top_projected_pass_catcher(self.top_pc_margin))
+
 
 # Importing
 
@@ -1618,8 +1674,8 @@ class BuildPlayerProjection(models.Model):
     ownership_projection = models.DecimalField(max_digits=3, decimal_places=2, default=0.0, verbose_name='Own')
     adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
-    rb_group = models.PositiveIntegerField(null=True, blank=True)
-    balanced_projection = models.DecimalField(null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
+    rb_group = models.PositiveIntegerField('RBG', null=True, blank=True)
+    balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
     team_total = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True, verbose_name='tt')
     game_total = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True, verbose_name='gt')
     spread = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True)
@@ -2722,20 +2778,30 @@ def process_fanduel_projection_sheet(instance):
 
                         print('Found {} on slate.'.format(slate_player), row[40])
                         if row[40] != '':
+                            mu = float(row[40])
+                            ceil = float(row[47])
+                            flr = float(row[44])
+                            stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
                             try:
                                 projection = SlatePlayerProjection.objects.get(
                                     slate_player=slate_player
                                 )
-                                projection.projection=float(row[40])
-                                projection.balanced_projection=float(row[40]) #if slate_player.site_pos != 'RB' else projection.balanced_projection
+                                projection.projection=mu
+                                projection.floor=flr
+                                projection.ceiling=ceil
+                                projection.stdev=stdev
+                                projection.balanced_projection=mu #if slate_player.site_pos != 'RB' else projection.balanced_projection
                                 projection.adjusted_opportunity=float(row[18])*2.0+float(row[15]) if slate_player.site_pos == 'RB' else 0.0
                                 projection.save()
                             except SlatePlayerProjection.DoesNotExist:
                                 try:
                                     projection = SlatePlayerProjection.objects.create(
                                         slate_player=slate_player,
-                                        projection=float(row[40]),
-                                        balanced_projection=float(row[40]),
+                                        projection=mu,
+                                        floor=flr,
+                                        ceiling=ceil,
+                                        stdev=stdev,
+                                        balanced_projection=mu,
                                         adjusted_opportunity=float(row[18])*2.0+float(row[15]) if slate_player.site_pos == 'RB' else 0.0,
                                         in_play=False,
                                         stack_only=False

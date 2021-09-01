@@ -16,6 +16,7 @@ from django.shortcuts import redirect, get_object_or_404
 from django.urls import path
 from django.utils.duration import _get_duration_components
 from django.utils.html import mark_safe, format_html
+from django import forms
 
 from django_admin_listfilter_dropdown.filters import DropdownFilter, RelatedDropdownFilter
 
@@ -170,6 +171,12 @@ class SkillPlayersOnlyFilter(SimpleListFilter):
         if self.value():
             return queryset.filter(slate_player__site_pos__in=['RB', 'WR', 'TE'])
         return queryset
+
+
+class ProjectionListForm(forms.ModelForm):
+	projection = forms.DecimalField(widget=forms.TextInput(attrs={'style':'width:50px;'}))
+	balanced_projection = forms.DecimalField(widget=forms.TextInput(attrs={'style':'width:50px;'}))
+	rb_group = forms.DecimalField(widget=forms.TextInput(attrs={'style':'width:35px;'}))
 
 
 class SlateBuildInline(admin.TabularInline):
@@ -393,6 +400,10 @@ class SlateBuildGroupPlayerInline(admin.TabularInline):
     raw_id_fields = ['slate_player']
 
 
+class ContestPrizeInline(admin.TabularInline):
+    model = models.ContestPrize
+
+
 @admin.register(models.Alias)
 class AliasAdmin(admin.ModelAdmin):
     list_display = (
@@ -438,6 +449,7 @@ class SlateAdmin(admin.ModelAdmin):
         'median_rb_ao',
         'num_in_play',
         'num_stack_only',
+        'sim_button',
     )
     list_editable = (
         'name',
@@ -471,6 +483,13 @@ class SlateAdmin(admin.ModelAdmin):
         'num_in_play',
         'num_stack_only',
     )
+
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('slate-simulate/<int:pk>/', self.simulate, name="admin_slate_simulate"),
+        ]
+        return my_urls + urls
     
     def get_num_games(self, obj):
         game_ids = list(obj.games.all().values_list('game__id', flat=True))
@@ -503,6 +522,21 @@ class SlateAdmin(admin.ModelAdmin):
         for slate in queryset:
             slate.players.all().delete()
     clear_slate_players.short_description = 'Clear players from selected slates'
+
+    def simulate(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        # Get the scenario to activate
+        slate = get_object_or_404(models.Slate, pk=pk)
+        tasks.simulate_slate.delay(slate.id)
+        self.message_user(request, 'Simulating '.format(str(slate)), level=messages.INFO)
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
 
 
 @admin.register(models.SlatePlayerImportSheet)
@@ -660,13 +694,15 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_opponent',
         'get_player_game',
         'projection',
+        'ceiling',
+        'floor',
+        'stdev',
         'get_ownership_projection',
         'get_rating',
         'adjusted_opportunity',
         'get_player_value',
         'balanced_projection',
         'get_balanced_player_value',
-        'rb_group_value',
         'rb_group',
         'game_total',
         'team_total',
@@ -683,7 +719,6 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'in_play',
         'projection',
         'balanced_projection',
-        'rb_group_value',
         'rb_group',
         'stack_only',
         'qb_stack_only',
@@ -738,6 +773,10 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         )
 
         return qs
+
+    def get_changelist_form(self, request, **kwargs):
+        kwargs.setdefault('form', ProjectionListForm)
+        return super(SlatePlayerProjectionAdmin, self).get_changelist_form(request, **kwargs)
 
     def get_slate(self, obj):
         return obj.slate_player.slate
@@ -1888,7 +1927,6 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'in_play',
         'projection',
         'balanced_projection',
-        'rb_group_value',
         'rb_group',
         'stack_only',
         'qb_stack_only',
@@ -1948,6 +1986,10 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         )
 
         return qs
+
+    def get_changelist_form(self, request, **kwargs):
+        kwargs.setdefault('form', ProjectionListForm)
+        return super(BuildPlayerProjectionAdmin, self).get_changelist_form(request, **kwargs)
 
     def get_slate(self, obj):
         return obj.slate_player.slate
@@ -2147,7 +2189,9 @@ class ContestAdmin(admin.ModelAdmin):
         ('slate', RelatedDropdownFilter),
         'slate__site',
     )
-
+    inlines = [
+        ContestPrizeInline
+    ]
 
 @admin.register(models.SlateBuildConfig)
 class ConfigAdmin(admin.ModelAdmin):

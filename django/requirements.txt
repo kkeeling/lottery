@@ -1,9 +1,9 @@
 amply==0.1.2
-amqp==2.6.0
+amqp<6.0.0,>=5.0.6
 astroid==2.4.2
 certifi==2020.6.20
 chardet==3.0.4
-celery==4.3.0
+celery==5.0.5
 Django==2.2
 django-admin-list-filter-dropdown==1.0.3
 django-admin-rangefilter==0.6.2
@@ -15,6 +15,8 @@ django-grappelli==2.13.4
 django-tagulous==1.0.0
 djangorestframework==3.8.2
 docutils==0.16
+draftfast==3.5.7
+flower==1.0.0
 idna==2.6
 isort==4.3.21
 joblib==0.16.0

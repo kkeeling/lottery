@@ -212,3 +212,14 @@ def monitor_backtest_optimals(backtest_id):
 
     backtest.optimals_pct_complete = 1.0
     backtest.save()
+
+
+@shared_task
+def simulate_slate(slate_id):
+    slate = models.Slate.objects.get(pk=slate_id)
+    slate.simulate()
+
+@shared_task
+def simulate_contest(contest_id):
+    contest = models.Contest.objects.get(pk=contest_id)
+    contest.simulate()
