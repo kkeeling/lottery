@@ -212,7 +212,8 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
         optimizer.set_min_salary_cap(config.min_salary)
     
     # Uniques
-    optimizer.set_max_repeating_players(9 - config.uniques) 
+    if not for_optimals:
+        optimizer.set_max_repeating_players(9 - config.uniques) 
 
     ### LIMIT RULES ###
 
