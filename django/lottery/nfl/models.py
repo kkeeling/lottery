@@ -2510,6 +2510,7 @@ class Backtest(models.Model):
         self.median_half_pct_rate = median_half_pct / avg_total_lineups
         self.great_build_rate = great_builds / self.slates.filter(build__status='complete').count()
         self.optimal_build_rate = optimal_builds / self.slates.filter(build__status='complete').count()
+        self.total_optimals = self.slates.all().aggregate(total_optimals=Sum('build__total_optimals')).get('total_optimals')
         
         self.save()
 
