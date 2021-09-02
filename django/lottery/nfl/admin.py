@@ -991,6 +991,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'contains_top_projected_pass_catcher',
         'salary',
         'projection',
+        'rating',
         'get_actual',
     )
 
@@ -1489,6 +1490,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'reset',
         'prepare_projections',
         'prepare_construction',
+        'analyze_lineups',
         'export_lineups', 
         'get_actual_scores', 
         'find_optimal_lineups',
@@ -1880,6 +1882,11 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def analyze_lineups(self, request, queryset):
+        for build in queryset:
+            build.analyze_lineups()
+    analyze_lineups.short_description = 'Analyze lineups for selected builds'
 
     def get_actual_scores(self, request, queryset):
         for build in queryset:

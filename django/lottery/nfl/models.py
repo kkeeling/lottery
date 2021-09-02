@@ -1528,6 +1528,25 @@ class SlateBuild(models.Model):
 
             last_qb = qb
 
+    def analyze_lineups(self):
+        lineups = self.lineups.all()
+        lineups = lineups.annotate(
+            proj_percentile=Window(
+                expression=PercentRank(),
+                order_by=F('projection').asc()
+            ),
+            own_proj_percentile=Window(
+                expression=PercentRank(),
+                order_by=F('ownership_projection').desc()
+            ),
+        )
+
+        for lineup in lineups:
+            lineup.projection_percentile = lineup.proj_percentile
+            lineup.ownership_projection_percentile = lineup.own_proj_percentile
+            lineup.rating = lineup.proj_percentile + lineup.own_proj_percentile
+            lineup.save()
+
     def clean_lineups(self):
         if self.configuration.lineup_removal_pct > 0.0:
             sorted = self.lineups.all().order_by('-projection')
@@ -2054,6 +2073,7 @@ class SlateBuildStack(models.Model):
             count = 0
             for (index, lineup) in enumerate(lineups):
                 count += 1
+                player_ids = [p.id for p in lineup.players]
                 SlateBuildLineup.objects.create(
                     build=self.build,
                     stack=self,
@@ -2068,7 +2088,8 @@ class SlateBuildStack(models.Model):
                     flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
                     dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
                     salary=lineup.salary_costs,
-                    projection=lineup.fantasy_points_projection
+                    projection=lineup.fantasy_points_projection,
+                    ownership_projection=sum(x.projection for x in BuildPlayerProjection.objects.filter(build=self.build, slate_player__player_id__in=player_ids))
                 )
 
             self.times_used = count
@@ -2139,6 +2160,7 @@ class SlateBuildLineup(models.Model):
     projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     ownership_projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    rating = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
 
     class Meta:

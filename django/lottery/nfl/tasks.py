@@ -175,6 +175,7 @@ def monitor_build(build_id):
         build.update_build_progress()
         time.sleep(1)
 
+    build.analyze_lineups()
     build.elapsed_time = (datetime.datetime.now() - start)
     build.save()
 
