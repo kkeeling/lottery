@@ -1544,7 +1544,7 @@ class SlateBuild(models.Model):
         for lineup in lineups:
             lineup.projection_percentile = lineup.proj_percentile
             lineup.ownership_projection_percentile = lineup.own_proj_percentile
-            lineup.rating = lineup.proj_percentile + lineup.own_proj_percentile
+            lineup.rating = lineup.proj_percentile + lineup.proj_percentile + lineup.own_proj_percentile
             lineup.save()
 
     def clean_lineups(self):
