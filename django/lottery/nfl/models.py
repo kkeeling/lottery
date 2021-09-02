@@ -2136,9 +2136,9 @@ class SlateBuildLineup(models.Model):
     dst = models.ForeignKey(BuildPlayerProjection, related_name='dst', on_delete=models.CASCADE)
     salary = models.PositiveIntegerField()
     projection = models.DecimalField(max_digits=5, decimal_places=2)
-    # projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
-    # ownership_projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
-    # ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    ownership_projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
+    ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
 
     class Meta:

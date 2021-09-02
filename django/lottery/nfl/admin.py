@@ -2368,7 +2368,6 @@ class BacktestAdmin(admin.ModelAdmin):
         'projections_ready',
         'construction_ready',
         'ready',
-        'get_optimals_pct_complete',
         'get_median_cash_rate',
         'get_median_one_pct_rate',
         'get_median_half_pct_rate',
@@ -2378,6 +2377,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'status',
         'get_elapsed_time',
         'get_pct_complete',
+        'get_optimals_pct_complete',
         'get_links',
         'error_message',
     )
