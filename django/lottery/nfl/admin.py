@@ -23,6 +23,7 @@ from django_admin_listfilter_dropdown.filters import DropdownFilter, RelatedDrop
 from . import models
 from . import tasks
 
+# Filters
 
 class GameTotalFilter(SimpleListFilter):
     title = 'game total' # or use _('country') for translated title
@@ -171,6 +172,30 @@ class SkillPlayersOnlyFilter(SimpleListFilter):
         if self.value():
             return queryset.filter(slate_player__site_pos__in=['RB', 'WR', 'TE'])
         return queryset
+
+
+class NumSlatesFilter(SimpleListFilter):
+    title = '# slates' # or use _('country') for translated title
+    parameter_name = 'game_total'
+
+    def lookups(self, request, model_admin):
+        return (
+            (17, '17'),
+            (34, '34'),
+            (136, '136'),
+            (170, '170'),
+            (340, '340'),
+        )
+
+    def queryset(self, request, queryset):
+        queryset = queryset.annotate(num_slates=Count('slates'))
+
+        if self.value():
+            return queryset.filter(num_slates=self.value())
+        return queryset
+
+
+# Forms
 
 
 class ProjectionListForm(forms.ModelForm):
@@ -2375,6 +2400,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'in_play_criteria',
         'lineup_construction',
         'stack_construction',
+        NumSlatesFilter,
     )
     search_fields = ('name', )
     readonly_fields = (
