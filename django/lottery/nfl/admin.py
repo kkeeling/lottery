@@ -1913,6 +1913,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_opponent',
         'get_player_game',
         'projection',
+        'get_exposure',
         'get_ownership_projection',
         'get_rating',
         'adjusted_opportunity',
@@ -1960,6 +1961,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     )
     raw_id_fields = ['slate_player']
     actions = ['find_in_play', 'find_stack_only', 'find_al1', 'find_al2', 'set_rb_group_values', 'group_rbs', 'balance_rb_exposures', 'export', 'add_to_stacks', 'remove_at_least_groups']
+    change_list_template = 'admin/nfl/build_player_projection_changelist.html'
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -1977,6 +1979,17 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     def get_changelist_form(self, request, **kwargs):
         kwargs.setdefault('form', ProjectionListForm)
         return super(BuildPlayerProjectionAdmin, self).get_changelist_form(request, **kwargs)
+    
+    def changelist_view(self, request, extra_context=None):
+        response = super().changelist_view(
+            request,
+            extra_context=extra_context,)
+
+        build_id = request.GET.get('build_id', None)
+        if build_id:
+            response.context_data['build'] = models.SlateBuild.objects.get(pk=build_id)
+
+        return response
 
     def get_slate(self, obj):
         return obj.slate_player.slate
@@ -2085,6 +2098,11 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         for player in queryset:
             player.find_al2()
     find_al2.short_description = 'Calculate AL2 for selected players'
+
+    def get_exposure(self, obj):
+        return '{:.2f}%'.format(float(obj.exposure) * 100.0)
+    get_exposure.short_description = 'Exp'
+    get_exposure.admin_order_field = 'exposure'
 
     def get_actual_score(self, obj):
         return obj.slate_player.fantasy_points

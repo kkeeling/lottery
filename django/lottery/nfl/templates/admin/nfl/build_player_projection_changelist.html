@@ -1,0 +1,40 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_static admin_list %}
+{% load slate_build %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style type="text/css">
+header {
+    text-align: center;
+}
+.table { display:table; }
+.row   { display:table-row; }
+.cell  { display:table-cell; border:1px solid black; padding:3px; width:110px; }
+.exposure {
+    display: inline-block;
+    margin-right: 20px;
+}
+.action {
+    display: inline-block;
+    margin: 20px;
+}
+.value  { width:50px; }
+</style>
+{% endblock %}
+
+{% block object-tools %}
+{% if build %}
+<div id="content-main">
+    <header class="header">
+        <h1>{{ build.slate.week }}</h1>
+        <h2>Status: {{ build.status }}
+        <h2>Progress: {{ build.pct_complete|to_percent:2 }}
+    </header>
+    <section class="dashboard-section">
+        <div class="action">{{ build.build_button }}</div>
+    </section>
+</div>
+{% endif %}
+    {{ block.super }}
+{% endblock %}
