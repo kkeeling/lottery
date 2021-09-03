@@ -461,7 +461,7 @@ class SlateAdmin(admin.ModelAdmin):
         'is_main_slate',
         
     )
-    actions = ['find_games', 'update_vegas', 'clear_slate_players']
+    actions = ['find_games', 'update_vegas', 'clear_slate_players', 'analyze_projections']
     inlines = (SlateGameInline, )
     fields = (
         'datetime',
@@ -522,6 +522,11 @@ class SlateAdmin(admin.ModelAdmin):
         for slate in queryset:
             slate.players.all().delete()
     clear_slate_players.short_description = 'Clear players from selected slates'
+
+    def analyze_projections(self, request, queryset):
+        for slate in queryset:
+            slate.analyze_projections()
+    analyze_projections.short_description = 'Analyze projections for selected slates'
 
     def simulate(self, request, pk):
         context = dict(
@@ -751,26 +756,6 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
             site_pos=F('slate_player__site_pos'), 
             player_salary=F('slate_player__salary')            
         )
-        qs = qs.annotate(
-            player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
-        )
-        qs = qs.annotate(
-            proj_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos'), F('in_play')],
-                order_by=F('projection').asc()
-            ),
-            own_proj_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos'), F('in_play')],
-                order_by=F('ownership_projection').desc()
-            ),
-            value_projection_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos'), F('in_play')],
-                order_by=F('player_value').asc()
-            )
-        )
 
         return qs
 
@@ -830,8 +815,9 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_value_projection_percentile.admin_order_field = 'value_projection_percentile'
 
     def get_rating(self, obj):
-        return '{:.2f}'.format((float(obj.proj_percentile) + float(obj.own_proj_percentile) + float(obj.value_projection_percentile))/3.0 * 100)
+        return '{:.2f}'.format(obj.rating)
     get_rating.short_description = 'Rtg'
+    get_rating.admin_order_field = 'rating'
 
     def get_ownership_projection(self, obj):
         return '{:.1f}'.format(round(float(obj.ownership_projection) * 100.0, 2))
@@ -848,9 +834,9 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_spread.short_description = 'Spread'
 
     def get_player_value(self, obj):
-        return '{:.2f}'.format(float(obj.player_value))
+        return '{:.2f}'.format(float(obj.value))
     get_player_value.short_description = 'Val'
-    get_player_value.admin_order_field = 'player_value'
+    get_player_value.admin_order_field = 'value'
 
     def get_balanced_player_value(self, obj):
         return round(float(obj.balanced_projection)/(self.get_player_salary(obj)/1000.0), 2)
@@ -1985,28 +1971,6 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         qs = qs.annotate(
             player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
         )
-        qs = qs.annotate(
-            proj_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos')],
-                order_by=F('projection').asc()
-            ),
-            ao_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos')],
-                order_by=F('adjusted_opportunity').asc()
-            ),
-            own_proj_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos')],
-                order_by=F('ownership_projection').desc()
-            ),
-            value_projection_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos')],
-                order_by=F('player_value').asc()
-            )
-        )
 
         return qs
 
@@ -2066,8 +2030,9 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     get_value_projection_percentile.admin_order_field = 'value_projection_percentile'
 
     def get_rating(self, obj):
-        return '{:.2f}'.format((float(obj.proj_percentile) + float(obj.ao_percentile) + float(obj.proj_percentile) + float(obj.ao_percentile) + float(obj.own_proj_percentile) + float(obj.value_projection_percentile))/6.0 * 100)
+        return '{:.2f}'.format(float(obj.rating))
     get_rating.short_description = 'Rtg'
+    get_rating.admin_order_field = 'rating'
 
     def get_ownership_projection(self, obj):
         return '{:.1f}'.format(round(float(obj.ownership_projection) * 100.0, 2))

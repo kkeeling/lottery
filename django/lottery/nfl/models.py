@@ -210,6 +210,55 @@ class Slate(models.Model):
     def get_projections(self):
         return SlatePlayerProjection.objects.filter(slate_player__slate=self)
 
+    def analyze_projections(self):
+        qs = SlatePlayerProjection.objects.filter(
+            slate_player__slate=self
+        )
+
+        qs = qs.annotate(
+            site_pos=F('slate_player__site_pos'), 
+            player_salary=F('slate_player__salary')            
+        )
+        qs = qs.annotate(
+            player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
+        )
+
+        qs = qs.annotate(
+            proj_percentile=Window(
+                expression=PercentRank(),
+                partition_by=['site_pos'],
+                order_by=F('projection').asc()
+            ),
+            value_proj_percentile=Window(
+                expression=PercentRank(),
+                partition_by=['site_pos'],
+                order_by=F('player_value').asc()
+            ),
+            own_proj_percentile=Window(
+                expression=PercentRank(),
+                partition_by=['site_pos'],
+                order_by=F('ownership_projection').desc()
+            ),
+            ao_percentile=Window(
+                expression=PercentRank(),
+                partition_by=['site_pos'],
+                order_by=F('adjusted_opportunity').asc()
+            ),
+        )
+
+        for p in qs:
+            p.value = p.player_value
+            p.projection_percentile = p.proj_percentile
+            p.ownership_projection_percentile =  p.own_proj_percentile
+            p.value_projection_percentile = p.value_proj_percentile
+            if p.position == 'RB':
+                p.adjusted_opportunity_percentile = p.ao_percentile
+                p.rating = float(p.proj_percentile) + float(p.proj_percentile) + float(p.ao_percentile) + float(p.own_proj_percentile) + float(p.value_proj_percentile)
+            else:
+                p.rating = float(p.proj_percentile) + float(p.proj_percentile) + float(p.own_proj_percentile) + float(p.value_proj_percentile)
+
+            p.save()
+
     def num_games(self):
         return self.games.all().count()
     num_games.short_description = '# games'
@@ -442,6 +491,12 @@ class SlatePlayerProjection(models.Model):
     stdev = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Stdev')
     ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
     adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')
+    value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
+    projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    value_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    adjusted_opportunity_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    rating = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     rb_group = models.PositiveIntegerField('RBG', null=True, blank=True)
     balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
@@ -1160,6 +1215,55 @@ class SlateBuild(models.Model):
 
         self.construction_ready = groups_ready and stacks_ready
         self.save()
+    
+    def analyze_projections(self):
+        qs = BuildPlayerProjection.objects.filter(
+            build=self
+        )
+
+        qs = qs.annotate(
+            site_pos=F('slate_player__site_pos'), 
+            player_salary=F('slate_player__salary')            
+        )
+        qs = qs.annotate(
+            player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
+        )
+
+        qs = qs.annotate(
+            proj_percentile=Window(
+                expression=PercentRank(),
+                partition_by=['site_pos'],
+                order_by=F('projection').asc()
+            ),
+            value_proj_percentile=Window(
+                expression=PercentRank(),
+                partition_by=['site_pos'],
+                order_by=F('player_value').asc()
+            ),
+            own_proj_percentile=Window(
+                expression=PercentRank(),
+                partition_by=['site_pos'],
+                order_by=F('ownership_projection').desc()
+            ),
+            ao_percentile=Window(
+                expression=PercentRank(),
+                partition_by=['site_pos'],
+                order_by=F('adjusted_opportunity').asc()
+            ),
+        )
+
+        for p in qs:
+            p.value = p.player_value
+            p.projection_percentile = p.proj_percentile
+            p.ownership_projection_percentile =  p.own_proj_percentile
+            p.value_projection_percentile = p.value_proj_percentile
+            if p.position == 'RB':
+                p.adjusted_opportunity_percentile = p.ao_percentile
+                p.rating = float(p.proj_percentile) + float(p.proj_percentile) + float(p.ao_percentile) + float(p.own_proj_percentile) + float(p.value_proj_percentile)
+            else:
+                p.rating = float(p.proj_percentile) + float(p.proj_percentile) + float(p.own_proj_percentile) + float(p.value_proj_percentile)
+
+            p.save()
 
     def prepare_projections(self):
         self.projections_ready = False
@@ -1167,6 +1271,7 @@ class SlateBuild(models.Model):
 
         # copy default projections if they don't exist
         self.update_projections(replace=True)
+        self.analyze_projections()
 
         # find players that are in-play
         for projection in self.projections.all():
@@ -1706,6 +1811,12 @@ class BuildPlayerProjection(models.Model):
     projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Proj')
     ownership_projection = models.DecimalField(max_digits=3, decimal_places=2, default=0.0, verbose_name='Own')
     adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')
+    value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
+    projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    value_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    adjusted_opportunity_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    rating = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     rb_group = models.PositiveIntegerField('RBG', null=True, blank=True)
     balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
@@ -1727,7 +1838,7 @@ class BuildPlayerProjection(models.Model):
         ordering = ['-projection']
 
     def __str__(self):
-        return '{} -- Proj: {} -- Rtg: {}'.format(str(self.slate_player), self.projection, self.total_rating)
+        return '{} -- Proj: {} -- Rtg: {:.2f}'.format(str(self.slate_player), self.projection, self.total_rating)
 
     @property
     def name(self):
@@ -1752,115 +1863,6 @@ class BuildPlayerProjection(models.Model):
             projection__gt=self.projection if self.projection else 0
         ).count()
         return rank + 1
-
-    @property
-    def projection_rating(self):
-        '''
-        Player projection rating (0-1) among "in play" players
-        '''
-        qs = BuildPlayerProjection.objects.filter(
-            build=self.build,
-            slate_player__site_pos=self.position
-        )
-
-        qs = qs.annotate(
-            slate=F('slate_player__slate'), 
-            site_pos=F('slate_player__site_pos'), 
-            player_salary=F('slate_player__salary')            
-        )
-        qs = qs.annotate(
-            player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
-        )
-
-        qs = qs.annotate(
-            proj_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos')],
-                order_by=F('projection').asc()
-            ),
-            value_projection_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos')],
-                order_by=F('player_value').asc()
-            )
-        )
-
-        if self.position == 'RB':
-            qs = qs.annotate(
-                ao_percentile=Window(
-                    expression=PercentRank(),
-                    partition_by=[F('slate'), F('site_pos')],
-                    order_by=F('adjusted_opportunity').asc()
-                )
-            )
-
-            for p in qs:
-                if p.id == self.id:
-                    return (float(p.proj_percentile) + float(p.proj_percentile) + float(p.ao_percentile))/3.0
-        else:
-            obj = qs.get(id=self.id)
-
-            if obj is None:
-                raise Exception('Cannot generate projection rating for {}. Player is not in play')
-
-            return (float(obj.proj_percentile) + float(obj.value_projection_percentile))/2.0
-
-    @property
-    def total_rating(self):
-        '''
-        Player total rating (0-1) among "in play" players
-        '''
-        qs = BuildPlayerProjection.objects.filter(
-            build=self.build,
-            slate_player__site_pos=self.position
-        )
-
-        qs = qs.annotate(
-            slate=F('slate_player__slate'), 
-            site_pos=F('slate_player__site_pos'), 
-            player_salary=F('slate_player__salary')            
-        )
-        qs = qs.annotate(
-            player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
-        )
-
-        qs = qs.annotate(
-            proj_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos')],
-                order_by=F('projection').asc()
-            ),
-            value_projection_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos')],
-                order_by=F('player_value').asc()
-            ),
-            own_proj_percentile=Window(
-                expression=PercentRank(),
-                partition_by=[F('slate'), F('site_pos')],
-                order_by=F('ownership_projection').desc()
-            ),
-        )
-
-        if self.position == 'RB':
-            qs = qs.annotate(
-                ao_percentile=Window(
-                    expression=PercentRank(),
-                    partition_by=[F('slate'), F('site_pos')],
-                    order_by=F('adjusted_opportunity').asc()
-                )
-            )
-
-            for p in qs:
-                if p.id == self.id:
-                    return (float(p.proj_percentile) + float(p.proj_percentile) + float(p.ao_percentile) + float(p.own_proj_percentile) + float(p.value_projection_percentile))/6.0
-        else:
-            obj = qs.get(id=self.id)
-
-            if obj is None:
-                raise Exception('Cannot generate projection rating for {}. Player is not in play')
-
-            return (float(obj.proj_percentile) + float(obj.proj_percentile) + float(obj.own_proj_percentile) + float(obj.value_projection_percentile))/4.0
 
     @property
     def exposure(self):
