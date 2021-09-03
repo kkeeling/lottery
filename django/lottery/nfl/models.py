@@ -1800,7 +1800,7 @@ class SlateBuild(models.Model):
     export_button.short_description = ''
     
     def view_page_button(self):
-        return format_html('<a href="/admin/nfl/slate_build/?build={}" class="link" style="color: #ffffff; background-color: #bf3030; font-weight: bold; padding: 10px 15px;">Page</a>',
+        return format_html('<a href="/admin/nfl/buildplayerprojection/?build_id={}" class="link" style="color: #ffffff; background-color: #bf3030; font-weight: bold; padding: 10px 15px;">Proj</a>',
             self.pk)
     view_page_button.short_description = ''
 

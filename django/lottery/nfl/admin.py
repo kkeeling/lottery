@@ -1558,8 +1558,6 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
     def get_links(self, obj):
         html = ''
-        if obj.projections.all().count() > 0:
-            html += '<a href="/admin/nfl/buildplayerprojection/?build_id={}">Projections</a>'.format(obj.id)
         if obj.num_stacks_created() > 0:
             if html != '':
                 html += '<br />'
