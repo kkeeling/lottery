@@ -2369,6 +2369,14 @@ class BacktestAdmin(admin.ModelAdmin):
         'get_links',
         'error_message',
     )
+    list_filter = (
+        'site',
+        'lineup_config',
+        'in_play_criteria',
+        'lineup_construction',
+        'stack_construction',
+    )
+    search_fields = ('name', )
     readonly_fields = (
         'status',
         'pct_complete',
@@ -2377,8 +2385,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'completed_lineups',
         'optimals_pct_complete',
         'error_message',
-        'elapsed_time',
-        
+        'elapsed_time',    
     )
     raw_id_fields = (
         'lineup_config',
