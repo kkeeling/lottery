@@ -1,0 +1,16 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}
+<script type="text/javascript" src="{% static 'admin/js/jquery-3.6.0.min.js' %}"></script>
+<script type="text/javascript" src="{% static 'admin/js/background-tasks.js' %}"></script>
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name" style="float:left;margin-right:10px;"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></h1>
+<h2 style="float:left;margin:0px;padding:6px 0 0 5px;">{% if user.is_authenticated %}{{ user.organization_user.organization }}{% endif %}</h2>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

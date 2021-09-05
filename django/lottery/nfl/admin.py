@@ -3,12 +3,14 @@ import datetime
 import traceback
 import requests
 import statistics
+import os
 
+from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.http import HttpResponse
 from django.db.models import Count, Window, F
-from django.db.models.aggregates import Avg
+from django.db.models.aggregates import Sum
 from django.db.models.expressions import ExpressionWrapper
 from django.db.models.fields import FloatField
 from django.db.models.functions import Coalesce, PercentRank
@@ -19,6 +21,9 @@ from django.utils.html import mark_safe, format_html
 from django import forms
 
 from django_admin_listfilter_dropdown.filters import DropdownFilter, RelatedDropdownFilter
+
+from lottery.admin import lottery_admin_site
+from configuration.models import BackgroundTask
 
 from . import models
 from . import tasks
@@ -429,7 +434,7 @@ class ContestPrizeInline(admin.TabularInline):
     model = models.ContestPrize
 
 
-@admin.register(models.Alias)
+@admin.register(models.Alias, site=lottery_admin_site)
 class AliasAdmin(admin.ModelAdmin):
     list_display = (
         'dk_name',
@@ -455,7 +460,7 @@ class AliasAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(models.Slate)
+@admin.register(models.Slate, site=lottery_admin_site)
 class SlateAdmin(admin.ModelAdmin):
     list_display = (
         'datetime',
@@ -569,7 +574,7 @@ class SlateAdmin(admin.ModelAdmin):
         return redirect(request.META.get('HTTP_REFERER'), context=context)
 
 
-@admin.register(models.SlatePlayerImportSheet)
+@admin.register(models.SlatePlayerImportSheet, site=lottery_admin_site)
 class SlatePlayerImportSheetAdmin(admin.ModelAdmin):
     list_display = (
         'slate',
@@ -582,7 +587,7 @@ class SlatePlayerImportSheetAdmin(admin.ModelAdmin):
     save_again.short_description = 'Re-import selected sheets'
 
 
-@admin.register(models.SlatePlayerActualsSheet)
+@admin.register(models.SlatePlayerActualsSheet, site=lottery_admin_site)
 class SlatePlayerActualsSheetAdmin(admin.ModelAdmin):
     list_display = (
         'slate',
@@ -595,7 +600,7 @@ class SlatePlayerActualsSheetAdmin(admin.ModelAdmin):
     save_again.short_description = 'Re-import selected sheets'
 
 
-@admin.register(models.SlatePlayerOwnershipProjectionSheet)
+@admin.register(models.SlatePlayerOwnershipProjectionSheet, site=lottery_admin_site)
 class SlatePlayerOwnershipProjectionSheetAdmin(admin.ModelAdmin):
     list_display = (
         'slate',
@@ -608,7 +613,7 @@ class SlatePlayerOwnershipProjectionSheetAdmin(admin.ModelAdmin):
     save_again.short_description = 'Re-import selected sheets'
 
 
-@admin.register(models.SlateProjectionSheet)
+@admin.register(models.SlateProjectionSheet, site=lottery_admin_site)
 class SlateProjectionSheetAdmin(admin.ModelAdmin):
     list_display = (
         'slate',
@@ -621,7 +626,7 @@ class SlateProjectionSheetAdmin(admin.ModelAdmin):
     save_all.short_description = 'Save all selected projection sheets'
 
 
-@admin.register(models.ContestImportSheet)
+@admin.register(models.ContestImportSheet, site=lottery_admin_site)
 class ContestSheetAdmin(admin.ModelAdmin):
     list_display = (
         'site',
@@ -634,7 +639,7 @@ class ContestSheetAdmin(admin.ModelAdmin):
     save_again.short_description = 'Re-import selected sheets'
 
 
-@admin.register(models.SlatePlayer)
+@admin.register(models.SlatePlayer, site=lottery_admin_site)
 class SlatePlayerAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -655,7 +660,7 @@ class SlatePlayerAdmin(admin.ModelAdmin):
         'team')
 
 
-@admin.register(models.SlatePlayerBuildExposure)
+@admin.register(models.SlatePlayerBuildExposure, site=lottery_admin_site)
 class SlatePlayerBuildExposureAdmin(admin.ModelAdmin):
     build = None
     list_display = (
@@ -713,7 +718,7 @@ class SlatePlayerBuildExposureAdmin(admin.ModelAdmin):
     get_exposure.short_description = 'Exposure'
 
 
-@admin.register(models.SlatePlayerProjection)
+@admin.register(models.SlatePlayerProjection, site=lottery_admin_site)
 class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     list_display = (
         'get_player_name',
@@ -965,7 +970,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     remove_at_least_groups.short_description = 'Remove ALx designations from selected players'
 
 
-@admin.register(models.SlateBuildGroup)
+@admin.register(models.SlateBuildGroup, site=lottery_admin_site)
 class SlateBuildGroupAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -984,7 +989,7 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
     ]
 
 
-@admin.register(models.SlateBuildLineup)
+@admin.register(models.SlateBuildLineup, site=lottery_admin_site)
 class SlateBuildLineupAdmin(admin.ModelAdmin):
     list_display = (
         'stack',
@@ -1086,7 +1091,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
     get_actual.admin_order_field = 'actual_coalesced'
 
 
-@admin.register(models.SlateBuildActualsLineup)
+@admin.register(models.SlateBuildActualsLineup, site=lottery_admin_site)
 class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
     list_display = (
         'build',
@@ -1172,203 +1177,30 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
     get_dst.short_description = 'DST'
 
     def export(self, request, queryset):
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename=optimals.csv'
+        task = BackgroundTask()
+        task.name = 'Export Optimals'
+        task.user = request.user
+        task.save()
 
-        lineup_writer = csv.writer(response, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        lineup_writer.writerow([
-            'slate', 
-            'week',
-            'qb', 
-            'rb', 
-            'rb', 
-            'wr', 
-            'wr',
-            'wr', 
-            'te', 
-            'flex', 
-            'dst', 
-            'score',
-            'salary',
-            'flex_pos',
-            'stack_rank',
-            'qb_team', 
-            'rb_team', 
-            'rb_team', 
-            'wr_team', 
-            'wr_team',
-            'wr_team', 
-            'te_team', 
-            'flex_team', 
-            'dst_team', 
-            'qb_opponent', 
-            'rb_opponent', 
-            'rb_opponent', 
-            'wr_opponent', 
-            'wr_opponent',
-            'wr_opponent', 
-            'te_opponent', 
-            'flex_opponent', 
-            'dst_opponent', 
-            'qb_salary', 
-            'rb_salary', 
-            'rb_salary', 
-            'wr_salary', 
-            'wr_salary',
-            'wr_salary', 
-            'te_salary', 
-            'flex_salary', 
-            'dst_salary', 
-            'qb_projection', 
-            'rb_projection', 
-            'rb_projection', 
-            'wr_projection', 
-            'wr_projection',
-            'wr_projection', 
-            'te_projection', 
-            'flex_projection', 
-            'dst_projection', 
-            'qb_actual', 
-            'rb_actual', 
-            'rb_actual', 
-            'wr_actual', 
-            'wr_actual',
-            'wr_actual', 
-            'te_actual', 
-            'flex_actual', 
-            'dst_actual', 
-            'qb_rank', 
-            'rb_rank', 
-            'rb_rank', 
-            'wr_rank', 
-            'wr_rank',
-            'wr_rank', 
-            'te_rank', 
-            'flex_rank', 
-            'dst_rank',
-            'qb_game_total',
-            'qb_team_total',
-            'rb_game_total',
-            'rb_team_total',
-            'rb_game_total',
-            'rb_team_total',
-            'wr_game_total',
-            'wr_team_total',
-            'wr_game_total',
-            'wr_team_total',
-            'wr_game_total',
-            'wr_team_total',
-            'te_game_total',
-            'te_team_total',
-            'flex_game_total',
-            'flex_team_total',
-            'dst_game_total',
-            'dst_team_total',
-            'dst_spread',
-            'top_pass_catcher_for_qb',
-            'top_opp_pass_catchers_for_qb'
-        ])
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file = 'Optimals Export {}.csv'.format(timestamp)
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
-        for lineup in queryset:
-            print(lineup.players)
-            lineup_writer.writerow([
-                lineup.build.slate.name,
-                lineup.build.slate.week,
-                lineup.qb.name,
-                lineup.rb1.name,
-                lineup.rb2.name,
-                lineup.wr1.name,
-                lineup.wr2.name,
-                lineup.wr3.name,
-                lineup.te.name,
-                lineup.flex.name,
-                lineup.dst.name,
-                lineup.actual,
-                lineup.salary,
-                lineup.flex.slate_player.site_pos,
-                lineup.stack.rank,
-                lineup.qb.team,
-                lineup.rb1.team,
-                lineup.rb2.team,
-                lineup.wr1.team,
-                lineup.wr2.team,
-                lineup.wr3.team,
-                lineup.te.team,
-                lineup.flex.team,
-                lineup.dst.team,
-                lineup.qb.get_opponent(),
-                lineup.rb1.get_opponent(),
-                lineup.rb2.get_opponent(),
-                lineup.wr1.get_opponent(),
-                lineup.wr2.get_opponent(),
-                lineup.wr3.get_opponent(),
-                lineup.te.get_opponent(),
-                lineup.flex.get_opponent(),
-                lineup.dst.get_opponent(),
-                lineup.qb.salary,
-                lineup.rb1.salary,
-                lineup.rb2.salary,
-                lineup.wr1.salary,
-                lineup.wr2.salary,
-                lineup.wr3.salary,
-                lineup.te.salary,
-                lineup.flex.salary,
-                lineup.dst.salary,
-                lineup.qb.projection,
-                lineup.rb1.projection,
-                lineup.rb2.projection,
-                lineup.wr1.projection,
-                lineup.wr2.projection,
-                lineup.wr3.projection,
-                lineup.te.projection,
-                lineup.flex.projection,
-                lineup.dst.projection,
-                lineup.qb.slate_player.fantasy_points,
-                lineup.rb1.slate_player.fantasy_points,
-                lineup.rb2.slate_player.fantasy_points,
-                lineup.wr1.slate_player.fantasy_points,
-                lineup.wr2.slate_player.fantasy_points,
-                lineup.wr3.slate_player.fantasy_points,
-                lineup.te.slate_player.fantasy_points,
-                lineup.flex.slate_player.fantasy_points,
-                lineup.dst.slate_player.fantasy_points,
-                lineup.qb.position_rank,
-                lineup.rb1.position_rank,
-                lineup.rb2.position_rank,
-                lineup.wr1.position_rank,
-                lineup.wr2.position_rank,
-                lineup.wr3.position_rank,
-                lineup.te.position_rank,
-                lineup.flex.position_rank,
-                lineup.dst.position_rank,
-                lineup.qb.get_game_total(),
-                lineup.qb.get_team_total(),
-                lineup.rb1.get_game_total(),
-                lineup.rb1.get_team_total(),
-                lineup.rb2.get_game_total(),
-                lineup.rb2.get_team_total(),
-                lineup.wr1.get_game_total(),
-                lineup.wr1.get_team_total(),
-                lineup.wr2.get_game_total(),
-                lineup.wr2.get_team_total(),
-                lineup.wr3.get_game_total(),
-                lineup.wr3.get_team_total(),
-                lineup.te.get_game_total(),
-                lineup.te.get_team_total(),
-                lineup.flex.get_game_total(),
-                lineup.flex.get_team_total(),
-                lineup.dst.get_game_total(),
-                lineup.dst.get_team_total(),
-                lineup.dst.get_spread(),
-                lineup.contains_top_projected_pass_catcher(),
-                lineup.contains_opp_top_projected_pass_catcher()
-            ])
-        
-        return response
+        tasks.export_optimal_lineups.delay(list(queryset.values_list('id', flat=True)), result_path, result_url, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
+
     export.short_description = 'Export selected lineups'
 
 
-@admin.register(models.SlateBuildStack)
+@admin.register(models.SlateBuildStack, site=lottery_admin_site)
 class SlateBuildStackAdmin(admin.ModelAdmin):
     list_display = (
         'get_stack_name',
@@ -1443,7 +1275,7 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
     get_actual_scores.short_description = 'Get actual scores for selected stacks'
 
 
-@admin.register(models.SlateBuild)
+@admin.register(models.SlateBuild, site=lottery_admin_site)
 class SlateBuildAdmin(admin.ModelAdmin):
     date_hierarchy = 'slate__datetime'
     list_per_page = 25
@@ -1706,13 +1538,40 @@ class SlateBuildAdmin(admin.ModelAdmin):
            # Anything else you want in the context...
         )
 
-        # Get the scenario to activate
-        build = get_object_or_404(models.SlateBuild, pk=pk)
-        if build.ready:
-            tasks.run_build.delay(build.id)
-            self.message_user(request, 'Generating lineups for {}. Refresh page to check progress.'.format(str(build)), level=messages.INFO)
-        else:
-            self.message_user(request, 'Cannot generate lineups for {}. Check projections and construction.'.format(str(build)), level=messages.ERROR)
+        task = BackgroundTask()
+        task.name = 'Build Lineups'
+        task.user = request.user
+        task.save()
+
+        build = models.SlateBuild.objects.get(pk=pk)
+        build.total_lineups = models.SlateBuildStack.objects.filter(build=build).aggregate(total=Sum('count')).get('total')
+        build.stacks.all().update(lineups_created=False)
+
+        build.status = 'running'
+        build.error_message = None
+        build.pct_complete = 0.0
+        build.save()
+
+        tasks.monitor_build.delay(build.id, task.id)
+
+        last_qb = None
+        stacks = build.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
+        for stack in stacks:
+            qb = stack.qb.id
+            num_qb_stacks = build.stacks.filter(qb__id=qb).count()
+            if last_qb is None or qb != last_qb:
+                lineup_number = 1
+            else:
+                lineup_number += 1
+
+            tasks.build_lineups_for_stack.delay(stack.id, lineup_number, num_qb_stacks)
+
+            last_qb = qb
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Building {} lineups from {} unique stacks. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once they are ready.'.format(build.total_lineups, build.stacks.filter(count__gt=0).count()))
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
@@ -1836,56 +1695,25 @@ class SlateBuildAdmin(admin.ModelAdmin):
         # Get the scenario to activate
         build = get_object_or_404(models.SlateBuild, pk=pk)
         if build.num_lineups_created() > 0:
-            response = HttpResponse(content_type='text/csv')
-            response['Content-Disposition'] = 'attachment; filename={}-{}_upload.csv'.format(build.slate.name, build.created)
+            task = BackgroundTask()
+            task.name = 'Export Build For Upload'
+            task.user = request.user
+            task.save()
 
+            now = datetime.datetime.now()
+            timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+            result_file = '{}-{}_upload.csv'.format(build.slate.name, timestamp)
+            result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+            os.makedirs(result_path, exist_ok=True)
+            result_path = os.path.join(result_path, result_file)
+            result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
-            build_writer = csv.writer(response, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            build_writer.writerow(['QB', 'RB', 'RB', 'WR', 'WR', 'WR', 'TE', 'FLEX', 'DEF'])
+            tasks.export_build_for_upload.delay(build.id, result_path, result_url, task.id)
 
-            for (index, lineup) in enumerate(build.lineups.all().order_by('order_number', '-qb__projection')):
-                rbs = lineup.get_rbs()
-                wrs = lineup.get_wrs()
-                tes = lineup.get_tes()
-                
-                if lineup.get_num_rbs() > 2:
-                    flex = rbs[2]
-                elif lineup.get_num_wrs() > 3:
-                    flex = wrs[3]
-                else:
-                    flex = tes[1]
-                
-                if build.slate.site == 'fanduel':
-                    row = [
-                        '{}:{}'.format(lineup.qb.slate_player.player_id, lineup.qb.name),
-                        '{}:{}'.format(rbs[0].slate_player.player_id, rbs[0].name),
-                        '{}:{}'.format(rbs[1].slate_player.player_id, rbs[1].name),
-                        '{}:{}'.format(wrs[0].slate_player.player_id, wrs[0].name),
-                        '{}:{}'.format(wrs[1].slate_player.player_id, wrs[1].name),
-                        '{}:{}'.format(wrs[2].slate_player.player_id, wrs[2].name),
-                        '{}:{}'.format(tes[0].slate_player.player_id, tes[0].name),
-                        '{}:{}'.format(flex.slate_player.player_id, flex.name),
-                        '{}:{}'.format(lineup.dst.slate_player.player_id, lineup.dst.name)
-                    ]
-                elif build.slate.site == 'draftkings':
-                    row = [
-                        '{1} ({0})'.format(lineup.qb.slate_player.player_id, lineup.qb.name),
-                        '{1} ({0})'.format(rbs[0].slate_player.player_id, rbs[0].name),
-                        '{1} ({0})'.format(rbs[1].slate_player.player_id, rbs[1].name),
-                        '{1} ({0})'.format(wrs[0].slate_player.player_id, wrs[0].name),
-                        '{1} ({0})'.format(wrs[1].slate_player.player_id, wrs[1].name),
-                        '{1} ({0})'.format(wrs[2].slate_player.player_id, wrs[2].name),
-                        '{1} ({0})'.format(tes[0].slate_player.player_id, tes[0].name),
-                        '{1} ({0})'.format(flex.slate_player.player_id, flex.name),
-                        '{1} ({0})'.format(lineup.dst.slate_player.player_id, lineup.dst.name)
-                    ]
-                else:
-                    raise Exception('{} is not a supported dfs site.'.format(build.slate.site)) 
-
-                build_writer.writerow(row)
-                print('{} of {} lineups complete'.format(index+1, build.lineups.all().count()))
-            
-            return response            
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Your build export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
         else:
             self.message_user(request, 'Cannot export lineups for {}. No lineups exist.'.format(str(build)), level=messages.ERROR)
 
@@ -1925,7 +1753,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
     find_optimal_lineups.short_description = 'Generate optimal lineups for selected builds'
 
 
-@admin.register(models.BuildPlayerProjection)
+@admin.register(models.BuildPlayerProjection, site=lottery_admin_site)
 class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     list_display = (
         'get_player_name',
@@ -2195,7 +2023,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     remove_at_least_groups.short_description = 'Remove ALx designations from selected players'
 
 
-@admin.register(models.Contest)
+@admin.register(models.Contest, site=lottery_admin_site)
 class ContestAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -2223,7 +2051,7 @@ class ContestAdmin(admin.ModelAdmin):
     ]
 
 
-@admin.register(models.SlateBuildConfig)
+@admin.register(models.SlateBuildConfig, site=lottery_admin_site)
 class ConfigAdmin(admin.ModelAdmin):
     list_display = [
         'name',
@@ -2276,7 +2104,7 @@ class ConfigAdmin(admin.ModelAdmin):
     ]
 
 
-@admin.register(models.PlayerSelectionCriteria)
+@admin.register(models.PlayerSelectionCriteria, site=lottery_admin_site)
 class PlayerSelectionCriteriaAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -2289,7 +2117,7 @@ class PlayerSelectionCriteriaAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(models.LineupConstructionRule)
+@admin.register(models.LineupConstructionRule, site=lottery_admin_site)
 class LineupConstructionRuleAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -2300,7 +2128,7 @@ class LineupConstructionRuleAdmin(admin.ModelAdmin):
     ]
 
 
-@admin.register(models.StackConstructionRule)
+@admin.register(models.StackConstructionRule, site=lottery_admin_site)
 class StackConstructionRuleAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -2310,7 +2138,7 @@ class StackConstructionRuleAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(models.Game)
+@admin.register(models.Game, site=lottery_admin_site)
 class GameAdmin(admin.ModelAdmin):
     list_display = (
         'get_game_title',
@@ -2331,7 +2159,7 @@ class GameAdmin(admin.ModelAdmin):
     get_game_title.short_description = 'Game'
 
 
-@admin.register(models.Week)
+@admin.register(models.Week, site=lottery_admin_site)
 class WeekAdmin(admin.ModelAdmin):
     list_display = (
         'get_week_title',
@@ -2360,7 +2188,7 @@ class WeekAdmin(admin.ModelAdmin):
     get_num_games.short_description = '# Games'
 
 
-@admin.register(models.Backtest)
+@admin.register(models.Backtest, site=lottery_admin_site)
 class BacktestAdmin(admin.ModelAdmin):
     list_per_page = 15
     list_display = (

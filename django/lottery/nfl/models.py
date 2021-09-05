@@ -1602,37 +1602,6 @@ class SlateBuild(models.Model):
             10
         )
 
-    def build(self):
-        self.reset()
-        self.execute_build()
-
-    def execute_build(self):        
-        # if self.ready:
-        # get real total lineups
-        self.total_lineups = SlateBuildStack.objects.filter(build=self).aggregate(total=Sum('count')).get('total')
-
-        print('Building {} lineups; {} unique stacks...'.format(self.total_lineups, self.stacks.all().count()))
-        self.status = 'running'
-        self.error_message = None
-        self.pct_complete = 0.0
-        self.save()
-
-        tasks.monitor_build.delay(self.id)
-
-        last_qb = None
-        stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
-        for stack in stacks:
-            qb = stack.qb.id
-            num_qb_stacks = self.stacks.filter(qb__id=qb).count()
-            if last_qb is None or qb != last_qb:
-                lineup_number = 1
-            else:
-                lineup_number += 1
-
-            tasks.build_lineups_for_stack.delay(stack.id, lineup_number, num_qb_stacks)
-
-            last_qb = qb
-
     def analyze_lineups(self):
         lineups = self.lineups.all()
         lineups = lineups.annotate(

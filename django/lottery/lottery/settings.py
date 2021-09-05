@@ -1,19 +1,20 @@
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 import os
 
-DEBUG = (os.environ.get('DEBUG') == 'true')
+DEBUG = (os.environ.get('DEBUG', 'False') == 'true')
 
-ALLOWED_HOSTS = [
-    'localhost',
-    'great-lotto.com'
-]
+ALLOWED_HOSTS = [os.environ.get('HOSTNAME')]
+HOSTNAME = os.environ.get('HOSTNAME')
+SHORT_URL = os.environ.get('SHORT_URL')
+SITE_ID = 1
+APPEND_SLASH = True
 
 DEFAULT_HOST = 'great-lotto.com'
 
 CORS_ORIGIN_ALLOW_ALL = True
 
-SECURE_SSL_REDIRECT = True
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# SECURE_SSL_REDIRECT = True
+# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = True
@@ -65,24 +66,25 @@ SECRET_KEY = 'mcaic5mccxc4kel7l4iv%tb*&t9d=_j6i&hbhc8hrje@)z2)jy)zb='
 # Application definition
 
 INSTALLED_APPS = (
-    'admin_tools',
     'django.contrib.contenttypes',
-    'corsheaders',
-    'grappelli',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.messages',
     'django.contrib.sessions',
     'django.contrib.sites',
     'django.contrib.staticfiles',
+    'corsheaders',
+    'grappelli',
+    'rest_framework',
     'django_admin_listfilter_dropdown',
     'rangefilter',
-    'rest_framework',
     'django_extensions',
+    'configuration',
     'nfl',
 )
 
 MIDDLEWARE = (
+    'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -95,24 +97,14 @@ MIDDLEWARE = (
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': False,
+        'DIRS': [os.path.join(BASE_DIR, 'templates'),],
+        'APP_DIRS': True,
         'OPTIONS': {
-            'debug': True,
             'context_processors': [
-                "django.contrib.auth.context_processors.auth",
-                "django.template.context_processors.debug",
-                "django.template.context_processors.i18n",
-                "django.template.context_processors.media",
-                "django.template.context_processors.static",
-                "django.template.context_processors.tz",
-                "django.contrib.messages.context_processors.messages",
-                "django.template.context_processors.request",
-            ],
-            'loaders': [
-                "admin_tools.template_loaders.Loader",
-                "django.template.loaders.filesystem.Loader",
-                "django.template.loaders.app_directories.Loader",
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
             ],
         },
     },

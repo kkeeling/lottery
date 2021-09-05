@@ -13,7 +13,7 @@ django-debug-toolbar==1.9.1
 django-extensions==2.0.7
 django-grappelli==2.13.4
 django-tagulous==1.0.0
-djangorestframework==3.8.2
+djangorestframework==3.12.4
 docutils==0.16
 draftfast==3.5.7
 flower==1.0.0
