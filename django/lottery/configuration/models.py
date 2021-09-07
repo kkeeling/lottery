@@ -20,6 +20,7 @@ class BackgroundTask(models.Model):
     action = models.CharField(max_length=20, default='message', choices=ACTION_CHOICES)
     name = models.CharField(max_length=255)
     content = models.TextField(null=True, blank=True)
+    link = models.CharField(max_length=255, blank=True, null=True)
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:

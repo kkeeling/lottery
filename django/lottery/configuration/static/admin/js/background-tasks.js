@@ -48,7 +48,11 @@
               link.remove();
             } else {
               $messages = getMessages()
-              $message = $('<li class="' + task.status + '">' + task.content + '</li>');
+              if (task.link == null) {
+                $message = $('<li class="' + task.status + '">' + task.content + '</li>');
+              } else {
+                $message = $('<li class="' + task.status + '">' + task.content + ' <a target="_blank" href="' + task.link + '">Review here</a>.</li>');
+              }
               $messages.append($message);
               $message.hide();
               $message.slideDown();

@@ -209,6 +209,9 @@ class ProjectionListForm(forms.ModelForm):
 	rb_group = forms.DecimalField(widget=forms.TextInput(attrs={'style':'width:35px;'}))
 
 
+# Inlines
+
+
 class SlateBuildInline(admin.TabularInline):
     model = models.SlateBuild
     extra = 0
@@ -434,6 +437,9 @@ class ContestPrizeInline(admin.TabularInline):
     model = models.ContestPrize
 
 
+# Admins
+
+
 @admin.register(models.Alias, site=lottery_admin_site)
 class AliasAdmin(admin.ModelAdmin):
     list_display = (
@@ -443,9 +449,6 @@ class AliasAdmin(admin.ModelAdmin):
         'fc_name',
         'tda_name',
         'fd_name',
-        'fdraft_name',
-        'ss_name',
-        'yahoo_name',     
     )
     search_fields = (
         'dk_name',
@@ -454,10 +457,104 @@ class AliasAdmin(admin.ModelAdmin):
         'fc_name',
         'tda_name',
         'fd_name',
-        'fdraft_name',
-        'ss_name',
-        'yahoo_name',     
     )
+
+
+@admin.register(models.MissingAlias, site=lottery_admin_site)
+class MissingAliasAdmin(admin.ModelAdmin):
+    list_display = (
+        'player_name',
+        'site',
+        'choose_alias_1_button',
+        'choose_alias_2_button',
+        'choose_alias_3_button',
+        'create_new_alias_button',
+    )
+    search_fields = (
+        'player_name',
+        'alias_1',
+        'alias_2',
+        'alias_3',
+    )
+    actions = [
+        'create_new_aliases'
+    ]
+
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('alias-choose/<int:pk>/<int:chosen_alias_pk>/', self.choose_alias, name="admin_choose_alias"),
+        ]
+        return my_urls + urls
+
+    def choose_alias(self, request, pk, chosen_alias_pk=0):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        # Get the scenario to activate
+        missing_alias = get_object_or_404(models.MissingAlias, pk=pk)
+        if chosen_alias_pk > 0:
+            # update chosen alias with new player name
+            alias = models.Alias.objects.get(pk=chosen_alias_pk)
+
+            if missing_alias.site == 'fanduel':
+                alias.fd_name = missing_alias.player_name
+            elif missing_alias.site == 'draftkings':
+                alias.dk_name = missing_alias.player_name
+            elif missing_alias.site == '4for4':
+                alias.four4four_name = missing_alias.player_name
+            elif missing_alias.site == 'awesemo':
+                alias.awesemo_name = missing_alias.player_name
+            elif missing_alias.site == 'etr':
+                alias.etr_name = missing_alias.player_name
+            elif missing_alias.site == 'tda':
+                alias.tda_name = missing_alias.player_name
+            elif missing_alias.site == 'rg':
+                alias.rg_name = missing_alias.player_name
+            elif missing_alias.site == 'fc':
+                alias.fc_name = missing_alias.player_name
+            
+            alias.save()
+
+            self.message_user(request, 'Alias updated: {}'.format(str(alias)), level=messages.INFO)
+        else:
+            alias = models.Alias.objects.create(
+                dk_name=missing_alias.player_name,
+                four4four_name=missing_alias.player_name,
+                awesemo_name=missing_alias.player_name,
+                fc_name=missing_alias.player_name,
+                tda_name=missing_alias.player_name,
+                fd_name=missing_alias.player_name,
+                etr_name=missing_alias.player_name,
+                rg_name=missing_alias.player_name
+            )
+
+            self.message_user(request, 'New alias created: {}'.format(str(alias)), level=messages.INFO)
+
+        missing_alias.delete()
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def create_new_aliases(self, request, queryset):
+        count = queryset.count()
+        for missing_alias in queryset:
+            models.Alias.objects.create(
+                dk_name=missing_alias.player_name,
+                four4four_name=missing_alias.player_name,
+                awesemo_name=missing_alias.player_name,
+                fc_name=missing_alias.player_name,
+                tda_name=missing_alias.player_name,
+                fd_name=missing_alias.player_name,
+                etr_name=missing_alias.player_name,
+                rg_name=missing_alias.player_name
+            )
+
+        self.message_user(request, '{} new aliases created.'.format(count), level=messages.INFO)
+        queryset.delete()
 
 
 @admin.register(models.Slate, site=lottery_admin_site)
@@ -491,13 +588,16 @@ class SlateAdmin(admin.ModelAdmin):
         'is_main_slate',
         
     )
-    actions = ['find_games', 'update_vegas', 'clear_slate_players', 'analyze_projections']
+    actions = ['process_slates', 'find_games', 'update_vegas', 'clear_slate_players', 'analyze_projections']
     inlines = (SlateGameInline, )
     fields = (
         'datetime',
         'name',
         'is_main_slate',
+        'week',
         'site',
+        'salaries_sheet_type',
+        'salaries',
         'num_games',
         'num_slate_players',
         'num_projected_players',
@@ -513,6 +613,29 @@ class SlateAdmin(admin.ModelAdmin):
         'num_in_play',
         'num_stack_only',
     )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.process_slate(request, obj)
+
+    def process_slate(self, request, slate):
+        task = BackgroundTask()
+        task.name = 'Process Slate Players'
+        task.user = request.user
+        task.save()
+
+        task_2 = BackgroundTask()
+        task_2.name = 'Finding Slate Games'
+        task_2.user = request.user
+        task_2.save()
+
+        tasks.process_slate_players.delay(slate.id, task.id)
+        tasks.find_slate_games.delay(slate.id, task_2.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your slate is being processed. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the slate is ready.')
 
     def get_urls(self):
         urls = super().get_urls()
@@ -531,6 +654,11 @@ class SlateAdmin(admin.ModelAdmin):
             return None
         return mark_safe('<a href="/admin/nfl/contest/?id__exact={}">{}</a>'.format(obj.contests.all()[0].id, obj.contests.all()[0].name))
     get_contest_link.short_description = 'Contest'
+
+    def process_slates(self, request, queryset):
+        for slate in queryset:
+            self.process_slate(request, slate)
+    process_slates.short_description = '(Re)Process selected slates'
 
     def update_vegas(self, request, queryset):
         for slate in queryset:
@@ -574,17 +702,17 @@ class SlateAdmin(admin.ModelAdmin):
         return redirect(request.META.get('HTTP_REFERER'), context=context)
 
 
-@admin.register(models.SlatePlayerImportSheet, site=lottery_admin_site)
-class SlatePlayerImportSheetAdmin(admin.ModelAdmin):
-    list_display = (
-        'slate',
-    )
-    actions = ['save_again']
+# @admin.register(models.SlatePlayerImportSheet, site=lottery_admin_site)
+# class SlatePlayerImportSheetAdmin(admin.ModelAdmin):
+#     list_display = (
+#         'slate',
+#     )
+#     actions = ['save_again']
 
-    def save_again(self, request, queryset):
-        for sheet in queryset:
-            sheet.save()
-    save_again.short_description = 'Re-import selected sheets'
+#     def save_again(self, request, queryset):
+#         for sheet in queryset:
+#             sheet.save()
+#     save_again.short_description = 'Re-import selected sheets'
 
 
 @admin.register(models.SlatePlayerActualsSheet, site=lottery_admin_site)
@@ -1340,13 +1468,6 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'duplicate_builds', 
         'clear_data'
     ]
-    
-    def export_button_field(self, obj):
-        return format_html(
-            "<button onclick='doSomething({})' style='width: 58px; margin: auto; color: #ffffff; background-color: #4fb2d3; font-weight: bold;'>Export</button>", 
-            obj.id
-        )
-    export_button_field.short_description = ''
 
     def get_urls(self):
         urls = super().get_urls()
@@ -1357,6 +1478,13 @@ class SlateBuildAdmin(admin.ModelAdmin):
             path('slatebuild-balance-rbs/<int:pk>/', self.balance_rbs, name="admin_slatebuild_balance_rbs"),
         ]
         return my_urls + urls
+    
+    def export_button_field(self, obj):
+        return format_html(
+            "<button onclick='doSomething({})' style='width: 58px; margin: auto; color: #ffffff; background-color: #4fb2d3; font-weight: bold;'>Export</button>", 
+            obj.id
+        )
+    export_button_field.short_description = ''
 
     def get_backtest(self, obj):
         if obj.backtest is None:

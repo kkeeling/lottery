@@ -11,6 +11,7 @@ from celery.utils.log import get_task_logger
 from contextlib import contextmanager
 
 from django.db.models.aggregates import Count, Sum
+from django.urls import reverse_lazy
 
 from configuration.models import BackgroundTask
 
@@ -271,6 +272,7 @@ def monitor_backtest_optimals(backtest_id):
 def simulate_slate(slate_id):
     slate = models.Slate.objects.get(pk=slate_id)
     slate.simulate()
+
 
 @shared_task
 def simulate_contest(contest_id):
@@ -552,3 +554,105 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
             task.save()
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def process_slate_players(slate_id, task_id):
+    task = None
+
+    try:
+        task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
+        
+        with open(slate.salaries.path, mode='r') as salaries_file:
+            csv_reader = csv.DictReader(salaries_file)
+            success_count = 0
+            missing_players = []
+
+            for row in csv_reader:
+                if slate.site == 'fanduel':
+                    player_id = row['Id']
+                    site_pos = row['Position']
+                    player_name = row['Nickname'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
+                    salary = int(row['Salary'])
+                    game = row['Game'].replace('@', '_').replace('JAX', 'JAC')
+                    team = row['Team']
+                elif slate.site == 'draftkings':
+                    player_id = row[13]
+                    site_pos = row[10]
+                    player_name = row[12].strip()
+                    salary = row[15]
+                    game = row[16].replace('@', '_').replace('JAX', 'JAC')
+                    game = game[:game.find(' ')]
+                    team = 'JAC' if row[17] == 'JAX' else row[17]
+
+
+                alias = models.Alias.find_alias(player_name, slate.site)
+                
+                if alias is not None:
+                    try:
+                        slate_player = models.SlatePlayer.objects.get(
+                            player_id=player_id,
+                            slate=slate,
+                            name=alias.fd_name,
+                            team=team
+                        )
+                    except models.SlatePlayer.DoesNotExist:
+                        slate_player = models.SlatePlayer(
+                            player_id=player_id,
+                            slate=slate,
+                            team=team,
+                            name=player_name
+                        )
+
+                    slate_player.salary = salary
+                    slate_player.site_pos = site_pos
+                    slate_player.game = game
+                    slate_player.save()
+
+                    success_count += 1
+                else:
+                    missing_players.append(player_name)
+
+
+        task.status = 'success'
+        task.content = '{} players have been successfully added to {}.'.format(success_count, str(slate)) if len(missing_players) == 0 else '{} players have been successfully added to {}. {} players could not be identified.'.format(success_count, str(slate), len(missing_players))
+        task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem processing slate players: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def find_slate_games(slate_id, task_id):
+    task = None
+
+    try:
+        task = BackgroundTask.objects.get(id=task_id)
+
+        slate = models.Slate.objects.get(id=slate_id)
+        slate.find_games()
+
+        task.status = 'success'
+        task.content = '{} games found for {}'.format(slate.num_games(), str(slate))
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem finding games for this slate: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+

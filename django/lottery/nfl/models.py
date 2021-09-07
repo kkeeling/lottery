@@ -1,5 +1,6 @@
 import csv
 import datetime
+import difflib
 import math
 import numpy
 import requests
@@ -40,6 +41,20 @@ BUILD_STATUS = (
     ('error', 'Error'),
 )
 
+SHEET_TYPES = (
+    ('site', 'Salary File'),
+    ('fantasycruncher', 'FantasyCruncher Export')
+)
+
+PROJECTION_SITES = (
+    ('4for4', '4For4'),
+    ('awesemo', 'Awesemo'),
+    ('etr', 'Establish The Run'),
+    ('tda', 'The Daily Average'),
+    ('rg', 'Rotogrinders'),
+    ('fc', 'Fantasy Cruncher'),
+)
+
 GREAT_BUILD_CASH_THRESHOLD = 0.3
 
 
@@ -60,9 +75,8 @@ class Alias(models.Model):
     fc_name = models.CharField(max_length=255, null=True, blank=True)
     tda_name = models.CharField(max_length=255, null=True, blank=True)
     fd_name = models.CharField(max_length=255, null=True, blank=True)
-    fdraft_name = models.CharField(max_length=255, null=True, blank=True)
-    ss_name = models.CharField(max_length=255, null=True, blank=True)
-    yahoo_name = models.CharField(max_length=255, null=True, blank=True)
+    etr_name = models.CharField(max_length=255, null=True, blank=True)
+    rg_name = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         verbose_name = 'Alias'
@@ -70,6 +84,112 @@ class Alias(models.Model):
 
     def __str__(self):
         return '{}'.format(self.dk_name)
+
+    @classmethod
+    def find_alias(clz, player_name, site):
+        try:
+            if site == 'draftkings':
+                alias = Alias.objects.get(dk_name=player_name)
+            elif site == 'fanduel':
+                alias = Alias.objects.get(fd_name=player_name)
+            elif site == '4for4':
+                alias = Alias.objects.get(four4four_name=player_name)
+            elif site == 'awesemo':
+                alias = Alias.objects.get(awesemo_name=player_name)
+            elif site == 'etr':
+                alias = Alias.objects.get(etr_name=player_name)
+            elif site == 'tda':
+                alias = Alias.objects.get(tda_name=player_name)
+            elif site == 'rg':
+                alias = Alias.objects.get(rg_name=player_name)
+            elif site == 'fc':
+                alias = Alias.objects.get(fc_name=player_name)
+            else:
+                raise Exception('{} is not a supported site yet.'.format(site))
+        except Alias.DoesNotExist:
+            scores = []
+            normal_name = player_name.lower()
+            possible_matches = Alias.objects.all()
+            for possible_match in possible_matches:
+                if site == 'draftkings':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.dk_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'fanduel':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.fd_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == '4for4':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.four4four_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'awesemo':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'etr':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.etr_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'tda':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.tda_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'rg':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rg_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'fc':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.fc_name.lower())
+                    score = seqmatch.quick_ratio()
+                else:
+                    raise Exception('{} is not a supported site yet.'.format(site))
+
+                scores.append({'alias': possible_match, 'score': score})
+            
+            scores = sorted(scores, key=lambda x: x.get('score'), reverse=True)
+
+            # add top 3 scoring aliases to MissingAlias table
+            MissingAlias.objects.create(
+                player_name=player_name,
+                site=site,
+                alias_1=scores[0].get('alias'),
+                alias_2=scores[1].get('alias'),
+                alias_3=scores[2].get('alias'),
+            )
+
+            return None
+
+        return alias
+
+
+class MissingAlias(models.Model):
+    player_name = models.CharField(max_length=255, null=True, blank=True)
+    site = models.CharField(max_length=50, choices=SITE_OPTIONS+PROJECTION_SITES, default='fanduel')
+    alias_1 = models.ForeignKey(Alias, related_name='hint_1', on_delete=models.CASCADE)
+    alias_2 = models.ForeignKey(Alias, related_name='hint_2', on_delete=models.CASCADE)
+    alias_3 = models.ForeignKey(Alias, related_name='hint_3', on_delete=models.CASCADE)
+
+    class Meta:
+        verbose_name = 'Missing Alias'
+        verbose_name_plural = 'Missing Aliases'
+    
+    def choose_alias_1_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px; width:100px">{}</a>',
+            reverse_lazy("admin:admin_choose_alias", args=[self.pk, self.alias_1.pk]), str(self.alias_1)
+        )
+    choose_alias_1_button.short_description = ''
+    
+    def choose_alias_2_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px; width:100px">{}</a>',
+            reverse_lazy("admin:admin_choose_alias", args=[self.pk, self.alias_2.pk]), str(self.alias_2)
+        )
+    choose_alias_2_button.short_description = ''
+    
+    def choose_alias_3_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px; width:100px">{}</a>',
+            reverse_lazy("admin:admin_choose_alias", args=[self.pk, self.alias_3.pk]), str(self.alias_3)
+        )
+    choose_alias_3_button.short_description = ''
+    
+    def create_new_alias_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px; width:100px">Add New</a>',
+            reverse_lazy("admin:admin_choose_alias", args=[self.pk, 0])
+        )
+    create_new_alias_button.short_description = ''
 
 
 # Slate Infrastructure
@@ -192,6 +312,9 @@ class Slate(models.Model):
     week = models.ForeignKey(Week, related_name='slates', verbose_name='Week', on_delete=models.SET_NULL, null=True, blank=True)
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
     is_main_slate = models.BooleanField(default=False)
+
+    salaries_sheet_type = models.CharField(max_length=255, choices=SHEET_TYPES, default='site')
+    salaries = models.FileField(upload_to='uploads/salaries', blank=True, null=True)
 
     class Meta:
         ordering = ['-name']
@@ -1071,20 +1194,8 @@ class StackConstructionRule(models.Model):
 
 class SlateProjectionSheet(models.Model):
     slate = models.OneToOneField(Slate, related_name='projections', on_delete=models.CASCADE)
+    projection_site = models.CharField(max_length=255, choices=PROJECTION_SITES, default='4for4')
     projection_sheet = models.FileField(upload_to='uploads/projections')
-
-    def __str__(self):
-        return '{}'.format(str(self.slate))
-
-
-class SlatePlayerImportSheet(models.Model):
-    SHEET_TYPES = (
-        ('site', 'Salary File'),
-        ('fantasycruncher', 'FantasyCruncher Export')
-    )
-    slate = models.OneToOneField(Slate, related_name='salaries', on_delete=models.CASCADE)
-    sheet_type = models.CharField(max_length=255, choices=SHEET_TYPES, default='site')
-    sheet = models.FileField(upload_to='uploads/salaries')
 
     def __str__(self):
         return '{}'.format(str(self.slate))
@@ -2906,19 +3017,19 @@ def process_draftkings_projection_sheet(instance):
                 print(p)
 
 
-@receiver(post_save, sender=SlatePlayerImportSheet)
-def process_slate_player_sheet(sender, instance, **kwargs):
-    if instance.sheet_type == 'site':
-        if instance.slate.site == 'fanduel':
-            process_fanduel_slate_player_sheet(instance)
-        elif instance.slate.site == 'draftkings':
-            process_draftkings_slate_player_sheet(instance)
-        else:
-            raise Exception('{} is not a supported dfs site.'.format(instance.slate.site))
-    elif instance.sheet_type == 'fantasycruncher':
-        process_fantasycruncher_slate_player_sheet(instance)
-    else:
-        raise Exception('{} is nto a valid sheet type.'.format(instance.sheet_type))
+# @receiver(post_save, sender=SlatePlayerImportSheet)
+# def process_slate_player_sheet(sender, instance, **kwargs):
+#     if instance.sheet_type == 'site':
+#         if instance.slate.site == 'fanduel':
+#             process_fanduel_slate_player_sheet(instance)
+#         elif instance.slate.site == 'draftkings':
+#             process_draftkings_slate_player_sheet(instance)
+#         else:
+#             raise Exception('{} is not a supported dfs site.'.format(instance.slate.site))
+#     elif instance.sheet_type == 'fantasycruncher':
+#         process_fantasycruncher_slate_player_sheet(instance)
+#     else:
+#         raise Exception('{} is nto a valid sheet type.'.format(instance.sheet_type))
 
 
 def process_fanduel_slate_player_sheet(instance):

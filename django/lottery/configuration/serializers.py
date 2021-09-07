@@ -4,4 +4,4 @@ from . import models
 class BackgroundTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.BackgroundTask
-        fields = ('id', 'action', 'name', 'status', 'content')
+        fields = ('id', 'action', 'name', 'status', 'content', 'link')
