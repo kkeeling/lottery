@@ -25,7 +25,6 @@ header {
 
 {% block object-tools %}
 {% if build %}
-<div id="content-main">
     <header class="header">
         <h1>{{ build.slate.week }}</h1>
         <h2>Status: {{ build.status }}
@@ -34,7 +33,6 @@ header {
     <section class="dashboard-section">
         <div class="action">{{ build.build_button }}</div>
     </section>
-</div>
 {% endif %}
     {{ block.super }}
 {% endblock %}

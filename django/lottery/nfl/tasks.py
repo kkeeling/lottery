@@ -708,6 +708,7 @@ def process_projection_sheet(sheet_id, task_id):
                                 )
 
                                 projection.projection = mu
+                                projection.balanced_projection = mu
                                 projection.floor = flr
                                 projection.ceiling = ceil
                                 projection.stdev = stdev
