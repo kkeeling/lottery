@@ -747,8 +747,8 @@ def process_projection_sheet(sheet_id, task_id):
                 projection_site=sheet.projection_site,
                 site=sheet.slate.site
             )
-            # headers.column_player_name = csv_reader.fieldnames[0]
-            # headers.save()
+            headers.column_player_name = csv_reader.fieldnames[0]
+            headers.save()
 
             for row in csv_reader:
                 # print(csv_reader.fieldnames[0], row[csv_reader.fieldnames[0]])
