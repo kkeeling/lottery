@@ -437,6 +437,11 @@ class ContestPrizeInline(admin.TabularInline):
     model = models.ContestPrize
 
 
+class SlateProjectionSheetInline(admin.TabularInline):
+    model = models.SlateProjectionSheet
+    extra = 0
+
+
 # Admins
 
 
@@ -557,6 +562,22 @@ class MissingAliasAdmin(admin.ModelAdmin):
         queryset.delete()
 
 
+@admin.register(models.SheetColumnHeaders, site=lottery_admin_site)
+class SheetColumnHeadersAdmin(admin.ModelAdmin):
+    list_display = (
+        'projection_site',
+        'site',
+        'column_player_name',
+        'column_team',
+        'column_median_projection',
+        'column_floor_projection',
+        'column_ceiling_projection',
+        'column_rush_att_projection',
+        'column_rec_projection',
+        'column_own_projection',
+    )
+
+
 @admin.register(models.Slate, site=lottery_admin_site)
 class SlateAdmin(admin.ModelAdmin):
     list_display = (
@@ -576,7 +597,6 @@ class SlateAdmin(admin.ModelAdmin):
         'median_rb_ao',
         'num_in_play',
         'num_stack_only',
-        'sim_button',
     )
     list_editable = (
         'name',
@@ -589,7 +609,7 @@ class SlateAdmin(admin.ModelAdmin):
         
     )
     actions = ['process_slates', 'find_games', 'update_vegas', 'clear_slate_players', 'analyze_projections']
-    inlines = (SlateGameInline, )
+    inlines = (SlateProjectionSheetInline, SlateGameInline, )
     fields = (
         'datetime',
         'name',
@@ -617,6 +637,23 @@ class SlateAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         self.process_slate(request, obj)
+    
+    def save_related(self, request, form, formsets, change):
+        super(SlateAdmin, self).save_related(request, form, formsets, change)
+
+        for formset in formsets:
+            # Found this simple way to check dynamic class instance.
+            if formset.model == models.SlateProjectionSheet:
+                # instances = formset.save(commit=True)
+                slate = form.instance
+
+                for projection_sheet in slate.projections.all():
+                    task_proj = BackgroundTask()
+                    task_proj.name = 'Processing Projections'
+                    task_proj.user = request.user
+                    task_proj.save()
+
+                    tasks.process_projection_sheet.delay(projection_sheet.id, task_proj.id)
 
     def process_slate(self, request, slate):
         task = BackgroundTask()
@@ -631,6 +668,7 @@ class SlateAdmin(admin.ModelAdmin):
 
         tasks.process_slate_players.delay(slate.id, task.id)
         tasks.find_slate_games.delay(slate.id, task_2.id)
+
 
         messages.add_message(
             request,
@@ -700,19 +738,6 @@ class SlateAdmin(admin.ModelAdmin):
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
-
-
-# @admin.register(models.SlatePlayerImportSheet, site=lottery_admin_site)
-# class SlatePlayerImportSheetAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'slate',
-#     )
-#     actions = ['save_again']
-
-#     def save_again(self, request, queryset):
-#         for sheet in queryset:
-#             sheet.save()
-#     save_again.short_description = 'Re-import selected sheets'
 
 
 @admin.register(models.SlatePlayerActualsSheet, site=lottery_admin_site)

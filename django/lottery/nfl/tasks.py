@@ -1,6 +1,7 @@
 import csv
 import datetime
 import logging
+import numpy
 import sys
 import time
 import traceback
@@ -626,6 +627,110 @@ def process_slate_players(slate_id, task_id):
         if task is not None:
             task.status = 'error'
             task.content = f'There was a problem processing slate players: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def process_projection_sheet(sheet_id, task_id):
+    task = None
+
+    try:
+        task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        sheet = models.SlateProjectionSheet.objects.get(id=sheet_id)
+        with open(sheet.projection_sheet.path, mode='r') as projection_file:
+            csv_reader = csv.DictReader(projection_file)
+            success_count = 0
+            missing_players = []
+
+            headers = models.SheetColumnHeaders.objects.get(
+                projection_site=sheet.projection_site,
+                site=sheet.slate.site
+            )
+
+            for row in csv_reader:
+                player_name = row[headers.column_player_name]
+                team = 'JAC' if row[headers.column_team] == 'JAX' else row[headers.column_team]
+                median_projection = row[headers.column_median_projection] if row[headers.column_median_projection] != '' else 0.0
+                floor_projection = row[headers.column_floor_projection] if headers.column_floor_projection is not None and row[headers.column_floor_projection] != '' else 0.0
+                ceiling_projection = row[headers.column_ceiling_projection] if headers.column_ceiling_projection is not None and row[headers.column_ceiling_projection] != '' else 0.0
+                rush_att_projection = row[headers.column_rush_att_projection] if headers.column_rush_att_projection is not None and row[headers.column_rush_att_projection] != '' else 0.0
+                rec_projection = row[headers.column_rec_projection] if headers.column_rec_projection is not None and row[headers.column_rec_projection] != '' else 0.0
+                ownership_projection = row[headers.column_own_projection] if headers.column_own_projection is not None and row[headers.column_own_projection] != '' else 0.0
+
+                alias = models.Alias.find_alias(player_name, sheet.projection_site)
+                
+                if alias is not None:
+                    try:
+                        slate_player = models.SlatePlayer.objects.get(
+                            slate=sheet.slate,
+                            name=alias.get_alias(sheet.projection_site),
+                            team=team
+                        )
+
+                        if median_projection != '':
+                            mu = float(median_projection)
+
+                            if floor_projection is not None and ceiling_projection is not None:
+                                ceil = float(ceiling_projection)
+                                flr = float(floor_projection)
+
+                                stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
+                            else:
+                                ceil = None
+                                flr = None
+                                stdev = None
+
+                            (raw_projection, _) = models.SlatePlayerRawProjection.objects.get_or_create(
+                                slate_player=slate_player,
+                                projection_site=sheet.projection_site
+                            )
+
+                            raw_projection.projection = mu
+                            raw_projection.floor = flr
+                            raw_projection.ceiling = ceil
+                            raw_projection.stdev = stdev
+                            raw_projection.ownership_projection = float(ownership_projection)
+                            raw_projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)                            
+
+                            raw_projection.save()
+                            
+                            success_count += 1
+
+                            # if this sheet is primary (4for4, likely) then duplicate the projection data to SlatePlayerProjection model instance
+                            if sheet.is_primary:
+                                (projection, _) = models.SlatePlayerProjection.objects.get_or_create(
+                                    slate_player=slate_player,
+                                )
+
+                                projection.projection = mu
+                                projection.floor = flr
+                                projection.ceiling = ceil
+                                projection.stdev = stdev
+                                projection.ownership_projection = float(ownership_projection) if ownership_projection else 0.0
+
+                                if rush_att_projection is not None and rec_projection is not None:
+                                    projection.adjusted_opportunity = float(float(rec_projection))*2.0+float(float(rush_att_projection))                            
+
+                                projection.save()
+
+                    except models.SlatePlayer.DoesNotExist:
+                        print('{} is not on slate.'.format(player_name))
+                else:
+                    missing_players.append(player_name)
+
+        task.status = 'success'
+        task.content = '{} projections have been successfully added to {} for {}.'.format(success_count, str(sheet.slate), sheet.projection_site) if len(missing_players) == 0 else '{} players have been successfully added to {} for {}. {} players could not be identified.'.format(success_count, str(sheet.slate), sheet.projection_site, len(missing_players))
+        task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
+        task.save()        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a importing your projections: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))

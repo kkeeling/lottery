@@ -53,6 +53,7 @@ PROJECTION_SITES = (
     ('tda', 'The Daily Average'),
     ('rg', 'Rotogrinders'),
     ('fc', 'Fantasy Cruncher'),
+    ('rts', 'Run The Sims'),
 )
 
 GREAT_BUILD_CASH_THRESHOLD = 0.3
@@ -77,6 +78,7 @@ class Alias(models.Model):
     fd_name = models.CharField(max_length=255, null=True, blank=True)
     etr_name = models.CharField(max_length=255, null=True, blank=True)
     rg_name = models.CharField(max_length=255, null=True, blank=True)
+    rts_name = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         verbose_name = 'Alias'
@@ -154,6 +156,26 @@ class Alias(models.Model):
             return None
 
         return alias
+
+    def get_alias(self, for_site):
+        if for_site == 'fanduel':
+            return self.fd_name
+        elif for_site == 'draftkings':
+            return self.dk_name
+        elif for_site == '4for4':
+            return self.four4four_name
+        elif for_site == 'awesemo':
+            return self.awesemo_name
+        elif for_site == 'etr':
+            return self.etr_name
+        elif for_site == 'tda':
+            return self.tda_name
+        elif for_site == 'rg':
+            return self.rg_name
+        elif for_site == 'fc':
+            return self.fc_name
+        elif for_site == 'rts':
+            return self.rts_name
 
 
 class MissingAlias(models.Model):
@@ -972,6 +994,88 @@ class SlatePlayerProjection(models.Model):
             pass_catcher.save()
 
 
+class SlatePlayerRawProjection(models.Model):
+    slate_player = models.ForeignKey(SlatePlayer, related_name='raw_projections', on_delete=models.CASCADE)
+    projection_site = models.CharField(max_length=255, choices=PROJECTION_SITES, default='4for4')
+    projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Proj')
+    floor = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Flr')
+    ceiling = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Ceil')
+    stdev = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Stdev')
+    ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
+    adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')
+    value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
+    projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    value_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    adjusted_opportunity_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    rating = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+
+    class Meta:
+        verbose_name = 'Raw Player Projection'
+        verbose_name_plural = 'Raw Player Projections'
+        ordering = ['-projection']
+
+    def __str__(self):
+        return '{} -- {}}: {}'.format(str(self.slate_player), self.projection)
+
+    @property
+    def name(self):
+        return self.slate_player.name
+
+    @property
+    def salary(self):
+        return self.slate_player.salary
+
+    @property
+    def team(self):
+        return self.slate_player.team
+
+    @property
+    def position(self):
+        return self.slate_player.site_pos
+
+    @property
+    def position_rank(self):
+        aggregate = SlatePlayerRawProjection.objects.filter(
+            slate_player__slate=self.slate_player.slate,
+            slate_player__site_pos=self.slate_player.site_pos,
+            projection__gt=self.projection).aggregate(ranking=Count('projection'))
+        return aggregate.get('ranking') + 1
+
+    def get_team_color(self):
+        return self.slate_player.get_team_color()
+
+    def get_game(self):
+        return self.slate_player.game
+
+    def get_game_total(self):
+        game = self.slate_player.get_slate_game()
+
+        if game == None:
+            return None
+        
+        return game.game.game_total
+
+    def get_team_total(self):
+        game = self.slate_player.get_slate_game()
+
+        if game == None:
+            return None
+        
+        return game.game.home_implied if self.slate_player.team == game.game.home_team else game.game.away_implied
+
+    def get_spread(self):
+        game = self.slate_player.get_slate_game()
+
+        if game == None:
+            return None
+        
+        return game.game.home_spread if self.slate_player.team == game.game.home_team else game.game.away_spread
+
+    def get_opponent(self):
+        return self.get_game().replace(self.slate_player.team, '').replace('_', '')
+
+
 # Rules & Configuration
 
 
@@ -1192,8 +1296,30 @@ class StackConstructionRule(models.Model):
 # Importing
 
 
+class SheetColumnHeaders(models.Model):
+    projection_site = models.CharField(max_length=255, choices=PROJECTION_SITES, default='4for4')
+    site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
+    column_player_name = models.CharField(max_length=50)
+    column_team = models.CharField(max_length=50)
+    column_median_projection = models.CharField(max_length=50)
+    column_floor_projection = models.CharField(max_length=50, blank=True, null=True)
+    column_ceiling_projection = models.CharField(max_length=50, blank=True, null=True)
+    column_rush_att_projection = models.CharField(max_length=50, blank=True, null=True)
+    column_rec_projection = models.CharField(max_length=50, blank=True, null=True)
+    column_own_projection = models.CharField(max_length=50, blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'Column Headers'
+        verbose_name_plural = 'Column Headers'
+
+
+    def __str__(self):
+        return '{} -{}'.format(self.projection_site, self.site)
+
+
 class SlateProjectionSheet(models.Model):
-    slate = models.OneToOneField(Slate, related_name='projections', on_delete=models.CASCADE)
+    slate = models.ForeignKey(Slate, related_name='projections', on_delete=models.CASCADE)
+    is_primary = models.BooleanField(default=False)
     projection_site = models.CharField(max_length=255, choices=PROJECTION_SITES, default='4for4')
     projection_sheet = models.FileField(upload_to='uploads/projections')
 
@@ -2848,7 +2974,7 @@ class BacktestSlate(models.Model):
 # Signals
 
 
-@receiver(post_save, sender=SlateProjectionSheet)
+# @receiver(post_save, sender=SlateProjectionSheet)
 def process_projection_sheet(sender, instance, **kwargs):
     SlatePlayerProjection.objects.filter(slate_player__slate=instance.slate).update(projection=0.0, in_play=False, stack_only=False)
 
@@ -3008,139 +3134,6 @@ def process_draftkings_projection_sheet(instance):
                             print(player_name, float(row[18])*2.0+float(row[15]) if slate_player.site_pos == 'RB' else 0.0)
                     except:
                         pass
-            row_count += 1
-
-        if len(missing_players) > 0:
-            print()
-            print('Missing players:')
-            for p in missing_players:
-                print(p)
-
-
-# @receiver(post_save, sender=SlatePlayerImportSheet)
-# def process_slate_player_sheet(sender, instance, **kwargs):
-#     if instance.sheet_type == 'site':
-#         if instance.slate.site == 'fanduel':
-#             process_fanduel_slate_player_sheet(instance)
-#         elif instance.slate.site == 'draftkings':
-#             process_draftkings_slate_player_sheet(instance)
-#         else:
-#             raise Exception('{} is not a supported dfs site.'.format(instance.slate.site))
-#     elif instance.sheet_type == 'fantasycruncher':
-#         process_fantasycruncher_slate_player_sheet(instance)
-#     else:
-#         raise Exception('{} is nto a valid sheet type.'.format(instance.sheet_type))
-
-
-def process_fanduel_slate_player_sheet(instance):
-    with open(instance.sheet.path, mode='r') as actuals_file:
-        csv_reader = csv.reader(actuals_file, delimiter=',')
-        row_count = 0
-        missing_players = []
-
-        for row in csv_reader:
-            if row_count > 0:
-                player_id = row[0]
-                site_pos = row[1]
-                player_name = row[3].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
-                salary = row[7]
-                game = row[8].replace('@', '_').replace('JAX', 'JAC')
-                team = row[9]
-
-                alias = None
-
-                try:
-                    alias = Alias.objects.get(fd_name=player_name)
-                except Alias.DoesNotExist:
-                    try:
-                        alias = Alias.objects.get(tda_name=player_name)
-                    except Alias.DoesNotExist:
-                        try:
-                            alias = Alias.objects.get(four4four_name=player_name)
-                        except Alias.DoesNotExist:
-                            missing_players.append(player_name)
-                
-                if alias is not None:
-                    try:
-                        slate_player = SlatePlayer.objects.get(
-                            player_id=player_id,
-                            slate=instance.slate,
-                            name=alias.fd_name,
-                            team=team
-                        )
-                    except SlatePlayer.DoesNotExist:
-                        slate_player = SlatePlayer(
-                            player_id=player_id,
-                            slate=instance.slate,
-                            team=team,
-                            name=player_name
-                        )
-
-                    slate_player.salary = salary
-                    slate_player.site_pos = site_pos
-                    slate_player.game = game
-                    slate_player.save()
-                    
-                    print(slate_player)
-            row_count += 1
-
-        if len(missing_players) > 0:
-            print('Missing players:')
-            for p in missing_players:
-                print(p)
-
-
-def process_draftkings_slate_player_sheet(instance):
-    with open(instance.sheet.path, mode='r') as actuals_file:
-        csv_reader = csv.reader(actuals_file, delimiter=',')
-        row_count = 0
-        missing_players = []
-
-        for row in csv_reader:
-            if row_count > 7:
-                player_id = row[13]
-                site_pos = row[10]
-                player_name = row[12].strip()
-                salary = row[15]
-                game = row[16].replace('@', '_').replace('JAX', 'JAC')
-                game = game[:game.find(' ')]
-                team = 'JAC' if row[17] == 'JAX' else row[17]
-
-                alias = None
-
-                try:
-                    alias = Alias.objects.get(dk_name=player_name)
-                except Alias.DoesNotExist:
-                    try:
-                        alias = Alias.objects.get(tda_name=player_name)
-                    except Alias.DoesNotExist:
-                        try:
-                            alias = Alias.objects.get(four4four_name=player_name)
-                        except Alias.DoesNotExist:
-                            missing_players.append(player_name)
-                
-                if alias is not None:
-                    try:
-                        slate_player = SlatePlayer.objects.get(
-                            player_id=player_id,
-                            slate=instance.slate,
-                            name=alias.dk_name,
-                            team=team
-                        )
-                    except SlatePlayer.DoesNotExist:
-                        slate_player = SlatePlayer(
-                            player_id=player_id,
-                            slate=instance.slate,
-                            team=team,
-                            name=player_name
-                        )
-
-                    slate_player.salary = salary
-                    slate_player.site_pos = site_pos
-                    slate_player.game = game
-                    slate_player.save()
-                    
-                    print(slate_player)
             row_count += 1
 
         if len(missing_players) > 0:
