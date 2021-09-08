@@ -663,7 +663,7 @@ class SlateAdmin(admin.ModelAdmin):
 
         slate = form.instance
 
-        for projection_sheet in slate.projections.all():
+        for projection_sheet in slate.projections.filter(projection_site='etr'):
             task_proj = BackgroundTask()
             task_proj.name = 'Processing Projections'
             task_proj.user = request.user
