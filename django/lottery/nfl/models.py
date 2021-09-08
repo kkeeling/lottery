@@ -361,6 +361,14 @@ class Slate(models.Model):
 
         return home_teams + away_teams
 
+    @property
+    def available_projections(self):
+        return list(self.projections.all().values_list('projection_site', flat=True))
+
+    @property
+    def aux_projections(self):
+        return list(self.projections.filter(is_primary=False).values_list('projection_site', flat=True))
+
     def get_projections(self):
         return SlatePlayerProjection.objects.filter(slate_player__slate=self)
 
@@ -2112,6 +2120,10 @@ class BuildPlayerProjection(models.Model):
                 )
             ).count() / self.build.lineups.all().count()
         return 0
+
+    @property
+    def available_projections(self):
+        return self.slate_player.raw_projections.all()
 
     def get_team_color(self):
         return self.slate_player.get_team_color()

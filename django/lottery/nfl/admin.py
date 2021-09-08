@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.http import HttpResponse
-from django.db.models import Count, Window, F
+from django.db.models import Count, Window, F, Case, When
 from django.db.models.aggregates import Sum
 from django.db.models.expressions import ExpressionWrapper
 from django.db.models.fields import FloatField
@@ -1653,12 +1653,6 @@ class SlateBuildAdmin(admin.ModelAdmin):
             messages.success(request, 'Reset {}.'.format(build))
     reset.short_description = 'Reset selected builds'
 
-    # def prepare_projections(self, request, queryset):
-    #     for build in queryset:
-    #         build.prepare_projections()
-    #         messages.success(request, 'Projections prepared for {}.'.format(build))
-    # prepare_projections.short_description = 'Prepare projections for selected builds'
-
     def prepare_projections(self, request, pk):
         context = dict(
            # Include common variables for rendering the admin template.
@@ -1704,12 +1698,6 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
-
-    # def prepare_construction(self, request, queryset):
-    #     for build in queryset:
-    #         build.prepare_construction()
-    #         messages.success(request, 'Construction prepared for {}.'.format(build))
-    # prepare_construction.short_description = 'Prepare construction for selected builds'
 
     def balance_rbs(self, request, pk):
         context = dict(
@@ -1983,6 +1971,10 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_opponent',
         'get_player_game',
         'projection',
+        'get_awesemo_proj',
+        'get_etr_proj',
+        'get_tda_proj',
+        'get_rts_proj',
         'get_exposure',
         'get_ownership_projection',
         'get_rating',
@@ -2049,7 +2041,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     def get_changelist_form(self, request, **kwargs):
         kwargs.setdefault('form', ProjectionListForm)
         return super(BuildPlayerProjectionAdmin, self).get_changelist_form(request, **kwargs)
-    
+
     def changelist_view(self, request, extra_context=None):
         response = super().changelist_view(
             request,
@@ -2096,6 +2088,41 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         return mark_safe('<a href="/admin/nfl/game/{}/">{}@{}</a>'.format(game.game.id, game.game.away_team, game.game.home_team))
     get_player_game.short_description = 'Game'
     get_player_game.admin_order_field = 'slate_player__game'
+
+    def get_4for4_proj(self, obj):
+        projs = obj.available_projections.filter(projection_site='four4four')
+        if projs.count() > 0:
+            return projs[0].projection
+        return None
+    get_4for4_proj.short_description = '444'
+
+    def get_awesemo_proj(self, obj):
+        projs = obj.available_projections.filter(projection_site='awesemo')
+        if projs.count() > 0:
+            return projs[0].projection
+        return None
+    get_awesemo_proj.short_description = 'A'
+
+    def get_etr_proj(self, obj):
+        projs = obj.available_projections.filter(projection_site='etr')
+        if projs.count() > 0:
+            return projs[0].projection
+        return None
+    get_etr_proj.short_description = 'ETR'
+
+    def get_tda_proj(self, obj):
+        projs = obj.available_projections.filter(projection_site='tda')
+        if projs.count() > 0:
+            return projs[0].projection
+        return None
+    get_tda_proj.short_description = 'TDA'
+
+    def get_rts_proj(self, obj):
+        projs = obj.available_projections.filter(projection_site='rts')
+        if projs.count() > 0:
+            return projs[0].projection
+        return None
+    get_rts_proj.short_description = 'RTS'
 
     def get_proj_percentile(self, obj):
         return '{:.2f}'.format(obj.proj_percentile * 100)
