@@ -15,7 +15,6 @@ django-grappelli==2.13.4
 django-tagulous==1.0.0
 djangorestframework==3.12.4
 docutils==0.16
-draftfast==3.5.7
 flower==1.0.0
 idna==2.6
 isort==4.3.21
