@@ -461,6 +461,8 @@ class AliasAdmin(admin.ModelAdmin):
         'fc_name',
         'tda_name',
         'fd_name',
+        'rts_name',
+        'etr_name',
     )
     search_fields = (
         'dk_name',
@@ -470,6 +472,8 @@ class AliasAdmin(admin.ModelAdmin):
         'fc_name',
         'tda_name',
         'fd_name',
+        'rts_name',
+        'etr_name',
     )
 
 
@@ -531,6 +535,8 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 alias.rg_name = missing_alias.player_name
             elif missing_alias.site == 'fc':
                 alias.fc_name = missing_alias.player_name
+            elif missing_alias.site == 'rts':
+                alias.rts_name = missing_alias.player_name
             
             alias.save()
 
@@ -545,6 +551,7 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 tda_name=missing_alias.player_name,
                 fd_name=missing_alias.player_name,
                 etr_name=missing_alias.player_name,
+                rts_name=missing_alias.player_name,
                 rg_name=missing_alias.player_name
             )
 
@@ -567,6 +574,7 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 tda_name=missing_alias.player_name,
                 fd_name=missing_alias.player_name,
                 etr_name=missing_alias.player_name,
+                rts_name=missing_alias.player_name,
                 rg_name=missing_alias.player_name
             )
 
@@ -655,7 +663,7 @@ class SlateAdmin(admin.ModelAdmin):
 
         slate = form.instance
 
-        for projection_sheet in slate.projections.all():
+        for projection_sheet in slate.projections.filter(projection_site='rts'):
             task_proj = BackgroundTask()
             task_proj.name = 'Processing Projections'
             task_proj.user = request.user

@@ -110,6 +110,8 @@ class Alias(models.Model):
                 alias = Alias.objects.get(rg_name=player_name)
             elif site == 'fc':
                 alias = Alias.objects.get(fc_name=player_name)
+            elif site == 'rts':
+                alias = Alias.objects.get(rts_name=player_name)
             else:
                 raise Exception('{} is not a supported site yet.'.format(site))
         except Alias.DoesNotExist:
@@ -143,6 +145,9 @@ class Alias(models.Model):
                     score = seqmatch.quick_ratio()
                 elif site == 'fc':
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.fc_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'rts':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rts_name.lower())
                     score = seqmatch.quick_ratio()
                 else:
                     raise Exception('{} is not a supported site yet.'.format(site))
