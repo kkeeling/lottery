@@ -49,6 +49,7 @@ SHEET_TYPES = (
 PROJECTION_SITES = (
     ('4for4', '4For4'),
     ('awesemo', 'Awesemo'),
+    ('awesemo_own', 'Awesemo Ownership'),
     ('etr', 'Establish The Run'),
     ('tda', 'The Daily Average'),
     ('rg', 'Rotogrinders'),
@@ -73,6 +74,7 @@ class Alias(models.Model):
     dk_name = models.CharField(max_length=255, null=True, blank=True)
     four4four_name = models.CharField(max_length=255, null=True, blank=True)
     awesemo_name = models.CharField(max_length=255, null=True, blank=True)
+    awesemo_ownership_name = models.CharField(max_length=255, null=True, blank=True)
     fc_name = models.CharField(max_length=255, null=True, blank=True)
     tda_name = models.CharField(max_length=255, null=True, blank=True)
     fd_name = models.CharField(max_length=255, null=True, blank=True)
@@ -98,6 +100,8 @@ class Alias(models.Model):
                 alias = Alias.objects.get(four4four_name=player_name)
             elif site == 'awesemo':
                 alias = Alias.objects.get(awesemo_name=player_name)
+            elif site == 'awesemo_own':
+                alias = Alias.objects.get(awesemo_ownership_name=player_name)
             elif site == 'etr':
                 alias = Alias.objects.get(etr_name=player_name)
             elif site == 'tda':
@@ -124,6 +128,9 @@ class Alias(models.Model):
                     score = seqmatch.quick_ratio()
                 elif site == 'awesemo':
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'awesemo_own':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_ownership_name.lower())
                     score = seqmatch.quick_ratio()
                 elif site == 'etr':
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.etr_name.lower())
@@ -1338,6 +1345,7 @@ class SlatePlayerActualsSheet(models.Model):
 class SlatePlayerOwnershipProjectionSheet(models.Model):
     slate = models.OneToOneField(Slate, related_name='ownership_projections_sheets', on_delete=models.CASCADE)
     sheet = models.FileField(upload_to='uploads/ownership_projections')
+    projection_site = models.CharField(max_length=255, choices=PROJECTION_SITES, default='awesemo')
 
     def __str__(self):
         return '{}'.format(str(self.slate))
@@ -1405,6 +1413,9 @@ class SlateBuild(models.Model):
     @property
     def ready(self):
         return self.projections_ready and self.construction_ready
+
+    def num_in_play(self, pos):
+        return self.projections.filter(slate_player__site_pos=pos, in_play=True).count()
 
     def reset(self):
         self.clear_analysis()
@@ -1992,6 +2003,18 @@ class SlateBuild(models.Model):
             reverse_lazy("admin:admin_slatebuild_speed_test", args=[self.pk])
         )
     speed_test_button.short_description = ''
+    
+    def prepare_projections_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Prep Proj</a>',
+            reverse_lazy("admin:admin_slatebuild_prepare_projections", args=[self.pk])
+        )
+    prepare_projections_button.short_description = ''
+    
+    def prepare_construction_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #bf3030; font-weight: bold; padding: 10px 15px;">Prep Const</a>',
+            reverse_lazy("admin:admin_slatebuild_prepare_construction", args=[self.pk])
+        )
+    prepare_construction_button.short_description = ''
     
     def build_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Build</a>',
@@ -3321,7 +3344,7 @@ def process_draftkings_slate_player_actuals_sheet(instance):
                 print(r)   
 
 
-@receiver(post_save, sender=SlatePlayerOwnershipProjectionSheet)
+# @receiver(post_save, sender=SlatePlayerOwnershipProjectionSheet)
 def process_slate_player_ownership_sheet(sender, instance, **kwargs):
     if instance.slate.site == 'fanduel':
         process_fanduel_slate_player_ownership_sheet(instance)

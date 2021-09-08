@@ -39,6 +39,82 @@ def lock_task(key, timeout=None):
 
 
 @shared_task
+def prepare_projections_for_build(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        start = datetime.datetime.now()
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.prepare_projections()
+
+        qbs = build.num_in_play('QB')
+        rbs = build.num_in_play('RB')
+        wrs = build.num_in_play('WR')
+        tes = build.num_in_play('TE')
+        dsts = build.num_in_play('D') if build.slate.site == 'fanduel' else build.num_in_play('DST')
+        
+        task.status = 'success'
+        task.content = 'Projections ready for {}: {} qbs in play, {} rbs in play, {} wrs in play, {} tes in play, {} dsts in play'.format(str(build), qbs, rbs, wrs, tes, dsts)
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem preparing projections: {e}'
+            task.save()
+
+        if build is not None:
+            build.status = 'error'
+            build.error_message = str(e)
+            build.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def prepare_construction_for_build(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        start = datetime.datetime.now()
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.prepare_construction()
+
+        task.status = 'success'
+        task.content = 'Stacks and groups are ready for {}'.format(str(build))
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem preparing groups and stacks: {e}'
+            task.save()
+
+        if build is not None:
+            build.status = 'error'
+            build.error_message = str(e)
+            build.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def build_lineups_for_stack(stack_id, lineup_number, num_qb_stacks):
     stack = models.SlateBuildStack.objects.get(id=stack_id)
     stack.build_lineups_for_stack(lineup_number, num_qb_stacks)
@@ -185,7 +261,11 @@ def monitor_build(build_id, task_id):
     task = None
 
     try:
-        task = BackgroundTask.objects.get(id=task_id)
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
 
         # Task implementation goes here
         start = datetime.datetime.now()
@@ -286,7 +366,11 @@ def export_build_for_upload(build_id, result_path, result_url, task_id):
     task = None
 
     try:
-        task = BackgroundTask.objects.get(id=task_id)
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
         build = models.SlateBuild.objects.get(pk=build_id)
 
         with open(result_path, 'w') as temp_csv:
@@ -352,7 +436,11 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
     task = None
 
     try:
-        task = BackgroundTask.objects.get(id=task_id)
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
         lineups = models.SlateBuildActualsLineup.objects.filter(id__in=lineup_ids)
 
         with open(result_path, 'w') as temp_csv:
@@ -562,7 +650,11 @@ def process_slate_players(slate_id, task_id):
     task = None
 
     try:
-        task = BackgroundTask.objects.get(id=task_id)
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
 
         # Task implementation goes here
         slate = models.Slate.objects.get(id=slate_id)
@@ -638,7 +730,11 @@ def process_projection_sheet(sheet_id, task_id):
     task = None
 
     try:
-        task = BackgroundTask.objects.get(id=task_id)
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
 
         # Task implementation goes here
         sheet = models.SlateProjectionSheet.objects.get(id=sheet_id)
@@ -660,7 +756,6 @@ def process_projection_sheet(sheet_id, task_id):
                 ceiling_projection = row[headers.column_ceiling_projection] if headers.column_ceiling_projection is not None and row[headers.column_ceiling_projection] != '' else 0.0
                 rush_att_projection = row[headers.column_rush_att_projection] if headers.column_rush_att_projection is not None and row[headers.column_rush_att_projection] != '' else 0.0
                 rec_projection = row[headers.column_rec_projection] if headers.column_rec_projection is not None and row[headers.column_rec_projection] != '' else 0.0
-                ownership_projection = row[headers.column_own_projection] if headers.column_own_projection is not None and row[headers.column_own_projection] != '' else 0.0
 
                 alias = models.Alias.find_alias(player_name, sheet.projection_site)
                 
@@ -694,7 +789,6 @@ def process_projection_sheet(sheet_id, task_id):
                             raw_projection.floor = flr
                             raw_projection.ceiling = ceil
                             raw_projection.stdev = stdev
-                            raw_projection.ownership_projection = float(ownership_projection)
                             raw_projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)                            
 
                             raw_projection.save()
@@ -712,7 +806,6 @@ def process_projection_sheet(sheet_id, task_id):
                                 projection.floor = flr
                                 projection.ceiling = ceil
                                 projection.stdev = stdev
-                                projection.ownership_projection = float(ownership_projection) if ownership_projection else 0.0
 
                                 if rush_att_projection is not None and rec_projection is not None:
                                     projection.adjusted_opportunity = float(float(rec_projection))*2.0+float(float(rush_att_projection))                            
@@ -739,11 +832,87 @@ def process_projection_sheet(sheet_id, task_id):
 
 
 @shared_task
+def process_ownership_sheet(sheet_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        sheet = models.SlatePlayerOwnershipProjectionSheet.objects.get(id=sheet_id)
+        with open(sheet.sheet.path, mode='r') as projection_file:
+            csv_reader = csv.DictReader(projection_file)
+            success_count = 0
+            missing_players = []
+
+            headers = models.SheetColumnHeaders.objects.get(
+                projection_site=sheet.projection_site,
+                site=sheet.slate.site
+            )
+
+            for row in csv_reader:
+                player_name = row[headers.column_player_name]
+                team = 'JAC' if row[headers.column_team] == 'JAX' else row[headers.column_team]
+                ownership_projection = row[headers.column_own_projection] if headers.column_own_projection is not None and row[headers.column_own_projection] != '' else 0.0
+
+                alias = models.Alias.find_alias(player_name, sheet.projection_site)
+                
+                if alias is not None:
+                    try:
+                        slate_player = models.SlatePlayer.objects.get(
+                            slate=sheet.slate,
+                            name=alias.get_alias(sheet.projection_site),
+                            team=team
+                        )
+
+                        if ownership_projection is not None and ownership_projection != '':
+                            (projection, _) = models.SlatePlayerProjection.objects.get_or_create(
+                                slate_player=slate_player,
+                            )
+
+                            # must convert ownership projection if it's greater than 1
+                            ownership_projection = float(ownership_projection)
+                            if ownership_projection > 1.0:
+                                ownership_projection = ownership_projection / 100
+
+                            projection.ownership_projection = ownership_projection
+                            projection.save()
+
+                            success_count += 1
+
+                    except models.SlatePlayer.DoesNotExist:
+                        print('{} is not on slate.'.format(player_name))
+                else:
+                    missing_players.append(player_name)
+
+        task.status = 'success'
+        task.content = '{} ownership projections have been successfully added to {} for {}.'.format(success_count, str(sheet.slate), sheet.projection_site) if len(missing_players) == 0 else '{} ownership projections have been successfully added to {} for {}. {} players could not be identified.'.format(success_count, str(sheet.slate), sheet.projection_site, len(missing_players))
+        task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
+        task.save()        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error importing your ownership projections: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def find_slate_games(slate_id, task_id):
     task = None
 
     try:
-        task = BackgroundTask.objects.get(id=task_id)
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
 
         slate = models.Slate.objects.get(id=slate_id)
         slate.find_games()

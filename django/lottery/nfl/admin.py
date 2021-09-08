@@ -1,5 +1,6 @@
 import csv
 import datetime
+from time import sleep
 import traceback
 import requests
 import statistics
@@ -442,6 +443,11 @@ class SlateProjectionSheetInline(admin.TabularInline):
     extra = 0
 
 
+class SlatePlayerOwnershipProjectionSheetInline(admin.TabularInline):
+    model = models.SlatePlayerOwnershipProjectionSheet
+    extra = 0
+
+
 # Admins
 
 
@@ -451,6 +457,7 @@ class AliasAdmin(admin.ModelAdmin):
         'dk_name',
         'four4four_name',
         'awesemo_name',
+        'awesemo_ownership_name',
         'fc_name',
         'tda_name',
         'fd_name',
@@ -459,6 +466,7 @@ class AliasAdmin(admin.ModelAdmin):
         'dk_name',
         'four4four_name',
         'awesemo_name',
+        'awesemo_ownership_name',
         'fc_name',
         'tda_name',
         'fd_name',
@@ -513,6 +521,8 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 alias.four4four_name = missing_alias.player_name
             elif missing_alias.site == 'awesemo':
                 alias.awesemo_name = missing_alias.player_name
+            elif missing_alias.site == 'awesemo_own':
+                alias.awesemo_ownership_name = missing_alias.player_name
             elif missing_alias.site == 'etr':
                 alias.etr_name = missing_alias.player_name
             elif missing_alias.site == 'tda':
@@ -530,6 +540,7 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 dk_name=missing_alias.player_name,
                 four4four_name=missing_alias.player_name,
                 awesemo_name=missing_alias.player_name,
+                awesemo_ownership_name=missing_alias.player_name,
                 fc_name=missing_alias.player_name,
                 tda_name=missing_alias.player_name,
                 fd_name=missing_alias.player_name,
@@ -551,6 +562,7 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 dk_name=missing_alias.player_name,
                 four4four_name=missing_alias.player_name,
                 awesemo_name=missing_alias.player_name,
+                awesemo_ownership_name=missing_alias.player_name,
                 fc_name=missing_alias.player_name,
                 tda_name=missing_alias.player_name,
                 fd_name=missing_alias.player_name,
@@ -609,7 +621,7 @@ class SlateAdmin(admin.ModelAdmin):
         
     )
     actions = ['process_slates', 'find_games', 'update_vegas', 'clear_slate_players', 'analyze_projections']
-    inlines = (SlateProjectionSheetInline, SlateGameInline, )
+    inlines = (SlateProjectionSheetInline, SlatePlayerOwnershipProjectionSheetInline, SlateGameInline, )
     fields = (
         'datetime',
         'name',
@@ -639,21 +651,25 @@ class SlateAdmin(admin.ModelAdmin):
         self.process_slate(request, obj)
     
     def save_related(self, request, form, formsets, change):
-        super(SlateAdmin, self).save_related(request, form, formsets, change)
+        super().save_related(request, form, formsets, change)
 
-        for formset in formsets:
-            # Found this simple way to check dynamic class instance.
-            if formset.model == models.SlateProjectionSheet:
-                # instances = formset.save(commit=True)
-                slate = form.instance
+        slate = form.instance
 
-                for projection_sheet in slate.projections.all():
-                    task_proj = BackgroundTask()
-                    task_proj.name = 'Processing Projections'
-                    task_proj.user = request.user
-                    task_proj.save()
+        for projection_sheet in slate.projections.all():
+            task_proj = BackgroundTask()
+            task_proj.name = 'Processing Projections'
+            task_proj.user = request.user
+            task_proj.save()
 
-                    tasks.process_projection_sheet.delay(projection_sheet.id, task_proj.id)
+            tasks.process_projection_sheet.delay(projection_sheet.id, task_proj.id)
+        
+        task_own_proj = BackgroundTask()
+        task_own_proj.name = 'Processing Ownership Projections'
+        task_own_proj.user = request.user
+        task_own_proj.save()
+
+        tasks.process_ownership_sheet.delay(slate.ownership_projections_sheets.id, task_own_proj.id)
+
 
     def process_slate(self, request, slate):
         task = BackgroundTask()
@@ -661,14 +677,14 @@ class SlateAdmin(admin.ModelAdmin):
         task.user = request.user
         task.save()
 
+        tasks.process_slate_players.delay(slate.id, task.id)
+
         task_2 = BackgroundTask()
         task_2.name = 'Finding Slate Games'
         task_2.user = request.user
         task_2.save()
 
-        tasks.process_slate_players.delay(slate.id, task.id)
         tasks.find_slate_games.delay(slate.id, task_2.id)
-
 
         messages.add_message(
             request,
@@ -1435,6 +1451,8 @@ class SlateBuildAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'view_page_button',
+        'prepare_projections_button',
+        'prepare_construction_button',
         'build_button',
         'export_button',
         'slate',
@@ -1484,8 +1502,8 @@ class SlateBuildAdmin(admin.ModelAdmin):
     search_fields = ('slate__name',)
     actions = [
         'reset',
-        'prepare_projections',
-        'prepare_construction',
+        # 'prepare_projections',
+        # 'prepare_construction',
         'analyze_lineups',
         'export_lineups', 
         'get_actual_scores', 
@@ -1501,6 +1519,8 @@ class SlateBuildAdmin(admin.ModelAdmin):
             path('slatebuild-build/<int:pk>/', self.build, name="admin_slatebuild_build"),
             path('slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_slatebuild_export"),
             path('slatebuild-balance-rbs/<int:pk>/', self.balance_rbs, name="admin_slatebuild_balance_rbs"),
+            path('slatebuild-prepare-projections/<int:pk>/', self.prepare_projections, name="admin_slatebuild_prepare_projections"),
+            path('slatebuild-prepare-construction/<int:pk>/', self.prepare_construction, name="admin_slatebuild_prepare_construction"),
         ]
         return my_urls + urls
     
@@ -1633,17 +1653,63 @@ class SlateBuildAdmin(admin.ModelAdmin):
             messages.success(request, 'Reset {}.'.format(build))
     reset.short_description = 'Reset selected builds'
 
-    def prepare_projections(self, request, queryset):
-        for build in queryset:
-            build.prepare_projections()
-            messages.success(request, 'Projections prepared for {}.'.format(build))
-    prepare_projections.short_description = 'Prepare projections for selected builds'
+    # def prepare_projections(self, request, queryset):
+    #     for build in queryset:
+    #         build.prepare_projections()
+    #         messages.success(request, 'Projections prepared for {}.'.format(build))
+    # prepare_projections.short_description = 'Prepare projections for selected builds'
 
-    def prepare_construction(self, request, queryset):
-        for build in queryset:
-            build.prepare_construction()
-            messages.success(request, 'Construction prepared for {}.'.format(build))
-    prepare_construction.short_description = 'Prepare construction for selected builds'
+    def prepare_projections(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        task = BackgroundTask()
+        task.name = 'Prepare Projections'
+        task.user = request.user
+        task.save()
+
+        build = models.SlateBuild.objects.get(pk=pk)
+        tasks.prepare_projections_for_build.delay(build.id, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Preparing projections for {}. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once they are ready.'.format(str(build)))
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def prepare_construction(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        task = BackgroundTask()
+        task.name = 'Prepare Construction'
+        task.user = request.user
+        task.save()
+
+        build = models.SlateBuild.objects.get(pk=pk)
+        tasks.prepare_construction_for_build.delay(build.id, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Preparing stacks and groups for {}. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once they are ready.'.format(str(build)))
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    # def prepare_construction(self, request, queryset):
+    #     for build in queryset:
+    #         build.prepare_construction()
+    #         messages.success(request, 'Construction prepared for {}.'.format(build))
+    # prepare_construction.short_description = 'Prepare construction for selected builds'
 
     def balance_rbs(self, request, pk):
         context = dict(
