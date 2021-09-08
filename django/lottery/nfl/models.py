@@ -173,6 +173,8 @@ class Alias(models.Model):
             return self.four4four_name
         elif for_site == 'awesemo':
             return self.awesemo_name
+        elif for_site == 'awesemo_own':
+            return self.awesemo_ownership_name
         elif for_site == 'etr':
             return self.etr_name
         elif for_site == 'tda':
