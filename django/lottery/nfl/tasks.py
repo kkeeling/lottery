@@ -813,7 +813,7 @@ def process_projection_sheet(sheet_id, task_id):
                                 projection.save()
 
                     except models.SlatePlayer.DoesNotExist:
-                        print('{} is not on slate.'.format(player_name))
+                        pass
                 else:
                     missing_players.append(player_name)
 
@@ -855,6 +855,7 @@ def process_ownership_sheet(sheet_id, task_id):
             )
 
             for row in csv_reader:
+                print(row)
                 player_name = row[headers.column_player_name]
                 team = 'JAC' if row[headers.column_team] == 'JAX' else row[headers.column_team]
                 ownership_projection = row[headers.column_own_projection] if headers.column_own_projection is not None and row[headers.column_own_projection] != '' else 0.0
