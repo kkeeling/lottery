@@ -1979,6 +1979,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_opponent',
         'get_player_game',
         'projection',
+        'get_4for4_proj',
         'get_awesemo_proj',
         'get_etr_proj',
         'get_tda_proj',
@@ -2098,7 +2099,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     get_player_game.admin_order_field = 'slate_player__game'
 
     def get_4for4_proj(self, obj):
-        projs = obj.available_projections.filter(projection_site='four4four')
+        projs = obj.available_projections.filter(projection_site='4for4')
         if projs.count() > 0:
             return projs[0].projection
         return None
