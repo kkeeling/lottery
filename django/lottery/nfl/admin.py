@@ -1990,7 +1990,6 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_value',
         'balanced_projection',
         'get_balanced_player_value',
-        'rb_group_value',
         'rb_group',
         'game_total',
         'team_total',
@@ -2030,7 +2029,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         NumGamesFilter
     )
     raw_id_fields = ['slate_player']
-    actions = ['find_in_play', 'find_stack_only', 'find_al1', 'find_al2', 'set_rb_group_values', 'group_rbs', 'balance_rb_exposures', 'export', 'add_to_stacks', 'remove_at_least_groups']
+    actions = ['find_in_play', 'find_stack_only', 'export']
     change_list_template = 'admin/nfl/build_player_projection_changelist.html'
 
     def get_queryset(self, request):
@@ -2057,7 +2056,8 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
 
         build_id = request.GET.get('build_id', None)
         if build_id:
-            response.context_data['build'] = models.SlateBuild.objects.get(pk=build_id)
+            if hasattr(response, 'context_data'):
+                response.context_data['build'] = models.SlateBuild.objects.get(pk=build_id)
 
         return response
 

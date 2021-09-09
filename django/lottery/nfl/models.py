@@ -1521,6 +1521,7 @@ class SlateBuild(models.Model):
             p.projection_percentile = p.proj_percentile
             p.ownership_projection_percentile =  p.own_proj_percentile
             p.value_projection_percentile = p.value_proj_percentile
+            p.rb_group = 0
             if p.position == 'RB':
                 p.adjusted_opportunity_percentile = p.ao_percentile
                 p.rating = float(p.proj_percentile) + float(p.proj_percentile) + float(p.ao_percentile) + float(p.own_proj_percentile) + float(p.value_proj_percentile)
@@ -2062,8 +2063,8 @@ class BuildPlayerProjection(models.Model):
     value_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     adjusted_opportunity_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     rating = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
-    rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
-    rb_group = models.PositiveIntegerField('RBG', null=True, blank=True)
+    rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, null=True, blank=True)
+    rb_group = models.PositiveIntegerField('RBG', default=0, null=True, blank=True)
     balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
     team_total = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True, verbose_name='tt')
     game_total = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True, verbose_name='gt')
