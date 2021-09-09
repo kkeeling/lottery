@@ -1259,7 +1259,8 @@ class GroupCreationRule(models.Model):
     allow_wr = models.BooleanField(default=False)
     allow_te = models.BooleanField(default=False)
     at_least = models.PositiveSmallIntegerField(default=0, help_text='At least X players meeting threshold, where X is the number you input')
-    at_least_threshold = models.TextField(null=True, blank=True, help_text='Forumla for limit threshold')
+    at_most = models.PositiveSmallIntegerField(default=0, help_text='At most X players meeting threshold, where X is the number you input')
+    threshold = models.TextField(null=True, blank=True, help_text='Forumla for limit threshold')
 
     def __str__(self):
         return '{}'.format(self.name)
@@ -1292,7 +1293,7 @@ class GroupCreationRule(models.Model):
         }
 
         if build_projection.slate_player.site_pos in self.allowed_positions:
-            return eval(self.at_least_threshold, {'__builtins__': {}}, locals)
+            return eval(self.threshold, {'__builtins__': {}}, locals)
         
         return False
 
@@ -1560,7 +1561,8 @@ class SlateBuild(models.Model):
                 group = SlateBuildGroup.objects.create(
                     build=self,
                     name='{}: Group {}'.format(self.slate.name, index+1),
-                    min_from_group=group_rule.at_least
+                    min_from_group=group_rule.at_least,
+                    max_from_group=group_rule.at_most
                 )
 
                 # add players to group
@@ -1571,7 +1573,6 @@ class SlateBuild(models.Model):
                             slate_player=projection.slate_player
                         )
 
-                group.max_from_group = group.players.all().count()
                 group.save()
     
         # create stacks
