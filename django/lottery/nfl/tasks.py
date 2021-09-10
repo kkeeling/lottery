@@ -726,7 +726,6 @@ def process_slate_players(slate_id, task_id):
                     game = game[:game.find(' ')]
                     team = 'JAC' if row[17] == 'JAX' else row[17]
 
-
                 alias = models.Alias.find_alias(player_name, slate.site)
                 
                 if alias is not None:
@@ -810,8 +809,8 @@ def process_projection_sheet(sheet_id, task_id):
             #     headers.save()
 
             for row in csv_reader:
-                player_name = row[headers.column_player_name]
-                team = 'JAC' if row[headers.column_team] == 'JAX' else row[headers.column_team]
+                player_name = row[headers.column_player_name].strip()
+                team = 'JAC' if row[headers.column_team] == 'JAX' else row[headers.column_team].strip()
                 median_projection = row[headers.column_median_projection] if row[headers.column_median_projection] != '' else 0.0
                 floor_projection = row[headers.column_floor_projection] if headers.column_floor_projection is not None and row[headers.column_floor_projection] != '' else 0.0
                 ceiling_projection = row[headers.column_ceiling_projection] if headers.column_ceiling_projection is not None and row[headers.column_ceiling_projection] != '' else 0.0
