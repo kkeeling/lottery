@@ -806,10 +806,8 @@ def process_projection_sheet(sheet_id, task_id):
 
             if sheet.projection_site == 'rts':
                 headers.column_player_name = csv_reader.fieldnames[0]
-                headers.column_team = csv_reader.fieldnames[2]
                 headers.save()
-
-            if sheet.projection_site == 'etr':
+            elif sheet.projection_site == 'etr':
                 headers.column_player_name = csv_reader.fieldnames[0]
                 headers.save()
 
