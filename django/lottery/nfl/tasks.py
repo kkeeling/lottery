@@ -773,8 +773,20 @@ def process_projection_sheet(sheet_id, task_id):
             time.sleep(0.2)
             task = BackgroundTask.objects.get(id=task_id)
 
-        # Task implementation goes here
         sheet = models.SlateProjectionSheet.objects.get(id=sheet_id)
+        
+        # delete previous base projections (if this is primary projection sheet)
+        if sheet.is_primary:
+            models.SlatePlayerProjection.objects.filter(
+                slate_player__slate=sheet.slate
+            ).delete()
+
+        # delete previous raw projections
+        models.SlatePlayerRawProjection.objects.filter(
+            projection_site=sheet.projection_site,
+            slate_player__slate=sheet.slate
+        ).delete()
+
         with open(sheet.projection_sheet.path, mode='r') as projection_file:
             csv_reader = csv.DictReader(projection_file)
             success_count = 0
@@ -817,38 +829,31 @@ def process_projection_sheet(sheet_id, task_id):
                                 flr = None
                                 stdev = None
 
-                            (raw_projection, _) = models.SlatePlayerRawProjection.objects.get_or_create(
+                            models.SlatePlayerRawProjection.objects.create(
                                 slate_player=slate_player,
-                                projection_site=sheet.projection_site
+                                projection_site=sheet.projection_site,
+                                projection=mu,
+                                floor=flr,
+                                ceiling=ceil,
+                                stdev=stdev,
+                                adjusted_opportunity=float(rec_projection) * 2.0 + float(rush_att_projection)                            
                             )
-
-                            raw_projection.projection = mu
-                            raw_projection.floor = flr
-                            raw_projection.ceiling = ceil
-                            raw_projection.stdev = stdev
-                            raw_projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)                            
-
-                            raw_projection.save()
                             
                             success_count += 1
 
                             # if this sheet is primary (4for4, likely) then duplicate the projection data to SlatePlayerProjection model instance
                             if sheet.is_primary:
                                 (projection, _) = models.SlatePlayerProjection.objects.get_or_create(
-                                    slate_player=slate_player,
+                                    slate_player=slate_player
                                 )
-
                                 projection.projection = mu
                                 projection.balanced_projection = mu
                                 projection.floor = flr
                                 projection.ceiling = ceil
                                 projection.stdev = stdev
+                                projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)
 
-                                if rush_att_projection is not None and rec_projection is not None:
-                                    projection.adjusted_opportunity = float(float(rec_projection))*2.0+float(float(rush_att_projection))                            
-
-                                projection.save()
-
+                                projection.save()                 
                     except models.SlatePlayer.DoesNotExist:
                         pass
                 else:
@@ -861,7 +866,7 @@ def process_projection_sheet(sheet_id, task_id):
     except Exception as e:
         if task is not None:
             task.status = 'error'
-            task.content = f'There was a importing your projections: {e}'
+            task.content = 'There was a importing your {} projections: {}'.format(sheet.projection_site, str(e))
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))

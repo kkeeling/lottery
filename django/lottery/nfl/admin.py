@@ -919,42 +919,18 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'game_total',
         'team_total',
         'get_spread',
-        'get_num_pass_catchers',
-        'in_play',
-        'stack_only',
-        'qb_stack_only',
-        'opp_qb_stack_only',
-        'locked',
         'get_actual_score'
-    )
-    list_editable = (
-        'in_play',
-        'projection',
-        'balanced_projection',
-        'rb_group',
-        'stack_only',
-        'qb_stack_only',
-        'opp_qb_stack_only',
-        'locked',
     )
     search_fields = ('slate_player__name',)
     list_filter = (
-        PassCatchersOnlyFilter,
-        SkillPlayersOnlyFilter,
         ('slate_player__site_pos', DropdownFilter),
         ('slate_player__team', DropdownFilter),
         'slate_player__slate__is_main_slate',
         ('slate_player__slate__name', DropdownFilter),
-        ProjectionFilter,
-        'in_play',
-        'stack_only',
-        'qb_stack_only',
-        'opp_qb_stack_only',
-        'slate_player__slate__site',
-        NumGamesFilter
+        ('slate_player__slate__site', DropdownFilter),
     )
     raw_id_fields = ['slate_player']
-    actions = ['find_in_play', 'find_stack_only', 'find_al1', 'find_al2', 'set_rb_group_values', 'group_rbs', 'balance_rb_exposures', 'export', 'add_to_stacks', 'remove_at_least_groups']
+    actions = ['export']
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -1059,45 +1035,10 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         return None
     get_num_pass_catchers.short_description = '# PC'
 
-    def find_in_play(self, request, queryset):
-        for player in queryset:
-            player.find_in_play()
-    find_in_play.short_description = 'Calculate in-play for selected players'
-
-    def find_stack_only(self, request, queryset):
-        for player in queryset:
-            player.find_stack_only()
-    find_stack_only.short_description = 'Calculate stack only for selected players'
-
-    def find_al1(self, request, queryset):
-        for player in queryset:
-            player.find_al1()
-    find_al1.short_description = 'Calculate AL1 for selected players'
-
-    def find_al2(self, request, queryset):
-        for player in queryset:
-            player.find_al2()
-    find_al2.short_description = 'Calculate AL2 for selected players'
-
     def get_actual_score(self, obj):
         return obj.slate_player.fantasy_points
     get_actual_score.short_description = 'Actual'
     get_actual_score.admin_order_field = 'slate_player__fantasy_points'
-
-    def set_rb_group_values(self, request, queryset):
-        for rb in queryset:
-            rb.set_rb_group_value()
-    set_rb_group_values.short_description = 'Set rb group values for selected players'
-
-    def group_rbs(self, request, queryset):
-        rb = queryset[0]
-        rb.slate_player.slate.group_rbs()
-    group_rbs.short_description = 'Create rb groups'
-
-    def balance_rb_exposures(self, request, queryset):
-        rb = queryset[0]
-        rb.slate_player.slate.balance_rb_exposures()
-    balance_rb_exposures.short_description = 'Create balanced RB projections for selected players'
 
     def export(self, request, queryset):
         response = HttpResponse(content_type='text/csv')
@@ -1139,12 +1080,182 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         return response
     export.short_description = 'Export selected player projections'
 
-    def add_to_stacks(self, request, queryset):
-        queryset.update(in_play=True, qb_stack_only=True, opp_qb_stack_only=True)
+@admin.register(models.SlatePlayerRawProjection, site=lottery_admin_site)
+class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_player_name',
+        'projection_site',
+        'get_slate',
+        'get_player_salary',
+        'get_player_position',
+        'get_player_team',
+        'get_player_opponent',
+        'get_player_game',
+        'projection',
+        'ceiling',
+        'floor',
+        'stdev',
+        'get_ownership_projection',
+        'get_rating',
+        'adjusted_opportunity',
+        'get_player_value',
+        'get_actual_score'
+    )
+    search_fields = ('slate_player__name',)
+    list_filter = (
+        ('slate_player__site_pos', DropdownFilter),
+        ('slate_player__team', DropdownFilter),
+        'slate_player__slate__is_main_slate',
+        ('slate_player__slate__name', DropdownFilter),
+        ('projection_site', DropdownFilter),
+        ('slate_player__slate__site', DropdownFilter),
+    )
+    raw_id_fields = ['slate_player']
+    actions = ['export']
 
-    def remove_at_least_groups(self, request, queryset):
-        queryset.update(at_least_one_in_lineup=False, at_least_two_in_lineup=False)
-    remove_at_least_groups.short_description = 'Remove ALx designations from selected players'
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        qs = qs.annotate(
+            slate=F('slate_player__slate'), 
+            site_pos=F('slate_player__site_pos'), 
+            player_salary=F('slate_player__salary')            
+        )
+
+        return qs
+
+    def get_changelist_form(self, request, **kwargs):
+        kwargs.setdefault('form', ProjectionListForm)
+        return super(SlatePlayerProjectionAdmin, self).get_changelist_form(request, **kwargs)
+
+    def get_slate(self, obj):
+        return obj.slate_player.slate
+    get_slate.short_description = 'Slate'
+    get_slate.admin_order_field = 'slate_player__slate__name'
+
+    def get_player_name(self, obj):
+        return obj.slate_player.name
+    get_player_name.short_description = 'Player'
+
+    def get_player_salary(self, obj):
+        return obj.player_salary
+    get_player_salary.short_description = 'Sal'
+    get_player_salary.admin_order_field = 'player_salary'
+
+    def get_player_position(self, obj):
+        return obj.slate_player.site_pos
+    get_player_position.short_description = 'Pos'
+    get_player_position.admin_order_field = 'slate_player__site_pos'
+
+    def get_player_team(self, obj):
+        return obj.slate_player.team
+    get_player_team.short_description = 'Tm'
+    get_player_team.admin_order_field = 'slate_player__team'
+
+    def get_player_opponent(self, obj):
+        return obj.slate_player.get_opponent()
+    get_player_opponent.short_description = 'Opp'
+
+    def get_player_game(self, obj):
+        game = obj.slate_player.get_slate_game()
+        if game == None:
+            return None
+        return mark_safe('<a href="/admin/nfl/game/{}/">{}@{}</a>'.format(game.game.id, game.game.away_team, game.game.home_team))
+    get_player_game.short_description = 'Game'
+    get_player_game.admin_order_field = 'slate_player__game'
+
+    def get_proj_percentile(self, obj):
+        return '{:.2f}'.format(obj.proj_percentile * 100)
+    get_proj_percentile.short_description = 'proj rank'
+    get_proj_percentile.admin_order_field = 'proj_percentile'
+
+    def get_own_proj_percentile(self, obj):
+        return '{:.2f}'.format(obj.own_proj_percentile * 100)
+    get_own_proj_percentile.short_description = 'own rank'
+    get_own_proj_percentile.admin_order_field = 'own_proj_percentile'
+
+    def get_value_projection_percentile(self, obj):
+        return '{:.2f}'.format(obj.value_projection_percentile * 100)
+    get_value_projection_percentile.short_description = 'sal rank'
+    get_value_projection_percentile.admin_order_field = 'value_projection_percentile'
+
+    def get_rating(self, obj):
+        return '{:.2f}'.format(obj.rating)
+    get_rating.short_description = 'Rtg'
+    get_rating.admin_order_field = 'rating'
+
+    def get_ownership_projection(self, obj):
+        return '{:.1f}'.format(round(float(obj.ownership_projection) * 100.0, 2))
+    get_ownership_projection.short_description = 'OP'
+    get_ownership_projection.admin_order_field = 'ownership_orjection'
+
+    def get_spread(self, obj):
+        game = obj.slate_player.get_slate_game()
+
+        if game == None:
+            return None
+        
+        return game.game.home_spread if obj.slate_player.team == game.game.home_team else game.game.away_spread
+    get_spread.short_description = 'Spread'
+
+    def get_player_value(self, obj):
+        return '{:.2f}'.format(float(obj.value))
+    get_player_value.short_description = 'Val'
+    get_player_value.admin_order_field = 'value'
+
+    def get_num_pass_catchers(self, obj):
+        if obj.slate_player.site_pos == 'QB':
+            return models.SlatePlayerProjection.objects.filter(
+                slate_player__slate=obj.slate_player.slate,
+                slate_player__team=obj.slate_player.team, 
+                slate_player__site_pos__in=['WR', 'TE'], 
+                qb_stack_only=True).count()
+        return None
+    get_num_pass_catchers.short_description = '# PC'
+
+    def get_actual_score(self, obj):
+        return obj.slate_player.fantasy_points
+    get_actual_score.short_description = 'Actual'
+    get_actual_score.admin_order_field = 'slate_player__fantasy_points'
+
+    def export(self, request, queryset):
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename=projections.csv'
+
+
+        build_writer = csv.writer(response, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        build_writer.writerow([
+            'player', 
+            'slate', 
+            'salary', 
+            'position', 
+            'team', 
+            'projection', 
+            'adjusted_opportunity',
+            'value', 
+            'game_total', 
+            'team_total', 
+            'spread', 
+            'actual'
+        ])
+
+        for projection in queryset:
+            build_writer.writerow([
+                self.get_player_name(projection), 
+                self.get_slate(projection), 
+                self.get_player_salary(projection), 
+                self.get_player_position(projection), 
+                self.get_player_team(projection), 
+                projection.projection, 
+                projection.adjusted_opportunity,
+                self.get_player_value(projection), 
+                projection.game_total, 
+                projection.team_total, 
+                projection.spread, 
+                self.get_actual_score(projection)
+            ])
+        
+        return response
+    export.short_description = 'Export selected player projections'
 
 
 @admin.register(models.SlateBuildGroup, site=lottery_admin_site)
