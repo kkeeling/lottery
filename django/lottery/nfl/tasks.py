@@ -814,7 +814,10 @@ def process_projection_sheet(sheet_id, task_id):
                 rush_att_projection = row[headers.column_rush_att_projection] if headers.column_rush_att_projection is not None and row[headers.column_rush_att_projection] != '' else 0.0
                 rec_projection = row[headers.column_rec_projection] if headers.column_rec_projection is not None and row[headers.column_rec_projection] != '' else 0.0
 
-                alias = models.Alias.find_alias(player_name, sheet.projection_site)
+                if sheet.projection_site == 'etr':
+                    alias = models.Alias.find_alias(player_name, sheet.slate.site)
+                else:
+                    alias = models.Alias.find_alias(player_name, sheet.projection_site)
                 
                 if alias is not None:
                     try:
