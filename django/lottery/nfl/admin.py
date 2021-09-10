@@ -671,13 +671,13 @@ class SlateAdmin(admin.ModelAdmin):
 
             tasks.process_projection_sheet.delay(projection_sheet.id, task_proj.id)
         
-        task_own_proj = BackgroundTask()
-        task_own_proj.name = 'Processing Ownership Projections'
-        task_own_proj.user = request.user
-        task_own_proj.save()
+        if hasattr(slate, 'ownership_projections_sheets'):
+            task_own_proj = BackgroundTask()
+            task_own_proj.name = 'Processing Ownership Projections'
+            task_own_proj.user = request.user
+            task_own_proj.save()
 
-        tasks.process_ownership_sheet.delay(slate.ownership_projections_sheets.id, task_own_proj.id)
-
+            tasks.process_ownership_sheet.delay(slate.ownership_projections_sheets.id, task_own_proj.id)
 
     def process_slate(self, request, slate):
         task = BackgroundTask()

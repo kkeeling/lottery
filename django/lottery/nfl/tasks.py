@@ -1,6 +1,7 @@
 import csv
 import datetime
 import logging
+from django.contrib.messages.api import success
 import numpy
 import sys
 import time
@@ -697,7 +698,10 @@ def process_slate_players(slate_id, task_id):
         slate = models.Slate.objects.get(id=slate_id)
         
         with open(slate.salaries.path, mode='r') as salaries_file:
-            csv_reader = csv.DictReader(salaries_file)
+            if slate.site == 'fanduel':
+                csv_reader = csv.DictReader(salaries_file)
+            else:
+                csv_reader = csv.reader(salaries_file, delimiter=',')
             success_count = 0
             missing_players = []
 
@@ -710,6 +714,10 @@ def process_slate_players(slate_id, task_id):
                     game = row['Game'].replace('@', '_').replace('JAX', 'JAC')
                     team = row['Team']
                 elif slate.site == 'draftkings':
+                    if success_count < 8:
+                        success_count += 1
+                        continue
+
                     player_id = row[13]
                     site_pos = row[10]
                     player_name = row[12].strip()
