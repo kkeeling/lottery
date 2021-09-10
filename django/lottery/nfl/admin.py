@@ -2031,7 +2031,9 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     )
     raw_id_fields = ['slate_player']
     actions = [
-        'balance_rbs', 
+        'set_rb_group_values', 
+        'group_rbs', 
+        'balance_rb_exposures'
     ]
     change_list_template = 'admin/nfl/build_player_projection_changelist.html'
 
@@ -2217,22 +2219,20 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     get_actual_score.short_description = 'Actual'
     get_actual_score.admin_order_field = 'slate_player__fantasy_points'
 
-    def balance_rbs(self, request, queryset):
+    def set_rb_group_values(self, request, queryset):
         for rb in queryset:
             rb.set_rb_group_value()
-        queryset[0].slate_player.group_rbs()
-        queryset[0].slate_player.balance_rb_exposures()
-    balance_rbs.short_description = 'Balance selected RBs'
+    set_rb_group_values.short_description = 'Set rb group values for selected players'
 
-    # def group_rbs(self, request, queryset):
-    #     rb = queryset[0]
-    #     rb.slate_player.slate.group_rbs()
-    # group_rbs.short_description = 'Create rb groups'
+    def group_rbs(self, request, queryset):
+        rb = queryset[0]
+        rb.slate_player.slate.group_rbs()
+    group_rbs.short_description = 'Create rb groups'
 
-    # def balance_rb_exposures(self, request, queryset):
-    #     rb = queryset[0]
-    #     rb.slate_player.slate.balance_rb_exposures()
-    # balance_rb_exposures.short_description = 'Create balanced RB projections for selected players'
+    def balance_rb_exposures(self, request, queryset):
+        rb = queryset[0]
+        rb.slate_player.slate.balance_rb_exposures()
+    balance_rb_exposures.short_description = 'Create balanced RB projections for selected players'
 
     def export(self, request, queryset):
         response = HttpResponse(content_type='text/csv')
