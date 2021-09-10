@@ -471,8 +471,8 @@ class Slate(models.Model):
     median_rb_ao.short_description = 'median rb ao'
     
     def group_rbs(self):
-        SlatePlayerProjection.objects.filter(slate_player__slate=self).update(rb_group=None)
-        rbs = SlatePlayerProjection.objects.filter(slate_player__slate=self, slate_player__site_pos='RB', in_play=True)
+        BuildPlayerProjection.objects.filter(slate_player__slate=self).update(rb_group=None)
+        rbs = BuildPlayerProjection.objects.filter(slate_player__slate=self, slate_player__site_pos='RB', in_play=True)
 
         group_index = 1
         top_rb = rbs.order_by('-rb_group_value')[0]
@@ -486,7 +486,7 @@ class Slate(models.Model):
             rb.save()
 
     def balance_rb_exposures(self):
-        rbs = SlatePlayerProjection.objects.filter(slate_player__slate=self, slate_player__site_pos='RB', in_play=True)
+        rbs = BuildPlayerProjection.objects.filter(slate_player__slate=self, slate_player__site_pos='RB', in_play=True)
         for rb in rbs:
             median_value = max(statistics.median([round(float(p.adjusted_opportunity), 2) for p in rbs.filter(rb_group=rb.rb_group)]), 2.0)
             rb.balanced_projection = median_value
