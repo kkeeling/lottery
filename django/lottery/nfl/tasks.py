@@ -11,6 +11,7 @@ from celery.contrib.abortable import AbortableTask
 from celery.utils.log import get_task_logger
 from contextlib import contextmanager
 
+from django.contrib.auth.models import User
 from django.db.models.aggregates import Count, Sum
 from django.urls import reverse_lazy
 
@@ -115,6 +116,14 @@ def prepare_construction_for_build(build_id, task_id):
 
 
 @shared_task
+def execute_build(build_id, user_id):
+    build = models.SlateBuild.objects.get(pk=build_id)
+    user = User.objects.get(pk=user_id)
+
+    build.execute_build(user)
+
+
+@shared_task
 def build_lineups_for_stack(stack_id, lineup_number, num_qb_stacks):
     stack = models.SlateBuildStack.objects.get(id=stack_id)
     stack.build_lineups_for_stack(lineup_number, num_qb_stacks)
@@ -195,10 +204,11 @@ def prepare_construction(build_id):
 
 
 @shared_task
-def run_backtest(backtest_id):
+def run_backtest(backtest_id, user_id):
     try:
         backtest = models.Backtest.objects.get(id=backtest_id)
-        backtest.execute()
+        user = User.objects.get(pk=user_id)
+        backtest.execute(user)
     except Exception as exc:
         traceback.print_exc()
 
@@ -234,10 +244,11 @@ def speed_test(build_id):
 
 
 @shared_task
-def run_slate_for_backtest(backtest_slate_id):
+def run_slate_for_backtest(backtest_slate_id, user_id):
     try:
         slate = models.BacktestSlate.objects.get(id=backtest_slate_id)
-        slate.execute()
+        user = User.objects.get(pk=user_id)
+        slate.execute(user)
     except Exception as exc:
         traceback.print_exc()
         if slate is not None:
@@ -245,15 +256,41 @@ def run_slate_for_backtest(backtest_slate_id):
 
 
 @shared_task
-def monitor_backtest(backtest_id):
-    start = datetime.datetime.now()
-    backtest = models.Backtest.objects.get(id=backtest_id)
-    while backtest.status != 'complete':
-        backtest.update_status()
-        time.sleep(1)
+def monitor_backtest(backtest_id, task_id):
+    task = None
 
-    backtest.elapsed_time = (datetime.datetime.now() - start)
-    backtest.save()
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        start = datetime.datetime.now()
+        backtest = models.Backtest.objects.get(id=backtest_id)
+        while backtest.status != 'complete':
+            backtest.update_status(task.user)
+            time.sleep(1)
+
+        backtest.elapsed_time = (datetime.datetime.now() - start)
+        backtest.save()
+
+        task.status = 'success'
+        task.content = '{} complete.'.format(str(backtest))
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem running your build: {e}'
+            task.save()
+
+        if backtest is not None:
+            backtest.status = 'error'
+            backtest.error_message = str(e)
+            backtest.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task

@@ -21,6 +21,8 @@ from django.dispatch import receiver
 from django.utils.html import format_html
 from django.urls import reverse_lazy
 
+from configuration.models import BackgroundTask
+
 from . import optimize
 from . import new_optimize
 from . import tasks
@@ -1867,6 +1869,36 @@ class SlateBuild(models.Model):
             10
         )
 
+    def execute_build(self, user):
+        self.total_lineups = SlateBuildStack.objects.filter(build=self).aggregate(total=Sum('count')).get('total')
+        self.stacks.all().update(lineups_created=False)
+        
+        self.status = 'running'
+        self.error_message = None
+        self.pct_complete = 0.0
+        self.save()
+
+        task = BackgroundTask()
+        task.name = 'Build Lineups'
+        task.user = user
+        task.save()
+
+        tasks.monitor_build.delay(self.id, task.id)
+
+        last_qb = None
+        stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
+        for stack in stacks:
+            qb = stack.qb.id
+            num_qb_stacks = self.stacks.filter(qb__id=qb).count()
+            if last_qb is None or qb != last_qb:
+                lineup_number = 1
+            else:
+                lineup_number += 1
+
+            tasks.build_lineups_for_stack.delay(stack.id, lineup_number, num_qb_stacks)
+
+            last_qb = qb
+
     def analyze_lineups(self):
         lineups = self.lineups.all()
         lineups = lineups.annotate(
@@ -2685,7 +2717,7 @@ class Backtest(models.Model):
     optimal_build_rate = models.DecimalField(max_digits=4, decimal_places=3, default=0.0)
     median_great_build_diff = models.DecimalField(max_digits=6, decimal_places=2, default=0.0)
 
-    def __str___(self):
+    def __str__(self):
         return '{}'.format(self.name)
 
     class Meta:
@@ -2734,7 +2766,7 @@ class Backtest(models.Model):
         for slate in self.slates.all():
             slate.prepare_construction()
 
-    def execute(self):
+    def execute(self, user):
         self.status = 'running'
         self.error_message = None
         self.completed_lineups = 0
@@ -2745,26 +2777,33 @@ class Backtest(models.Model):
         
         self.total_lineups = self.slates.all().aggregate(total=Sum('build__total_lineups')).get('total')
         self.save()
-        print('execute backtest')
+
+        SlateBuild.objects.filter(backtest__backtest=self).update(status='not_started')
+        SlateBuildStack.objects.filter(build__backtest__backtest=self).update(lineups_created=False)
+
+        task = BackgroundTask()
+        task.name = 'Execute Backtest'
+        task.user = user
+        task.save()
 
         # if self.ready:
         # start monitoring
-        tasks.monitor_backtest.delay(self.id)
+        tasks.monitor_backtest.delay(self.id, task.id)
 
         # execute the builds
-        self.execute_next_slate()
+        # self.execute_next_slate(user)
 
         return True
         # return False
 
-    def execute_next_slate(self):
+    def execute_next_slate(self, user):
         incomplete_slates = self.slates.exclude(build__status='complete').order_by('slate__week')
         if incomplete_slates.count() > 0:
             slate = incomplete_slates[0]
             print('next slate = {}'.format(slate))
             slate.status = 'running'
             slate.save()
-            tasks.run_slate_for_backtest.delay(slate.id)
+            tasks.run_slate_for_backtest.delay(slate.id, user.id)
 
     def analyze(self):
         avg_total_lineups = self.slates.filter(build__status='complete').aggregate(avg_total_lineups=Avg('build__total_lineups')).get('avg_total_lineups')
@@ -2811,7 +2850,7 @@ class Backtest(models.Model):
     #     self.optimals_pct_complete = complete_builds.count()/self.slates.all().count() + ((1/self.slates.all().count()) * build.optimals_pct_complete)
     #     self.save()
 
-    def update_status(self):
+    def update_status(self, user):
         all_stacks = SlateBuildStack.objects.filter(build__backtest__in=self.slates.all(), count__gt=0)
         remaining_stacks = all_stacks.filter(lineups_created=False)
         completed_lineups = SlateBuild.objects.filter(backtest__in=self.slates.all()).aggregate(total_lineups=Count('lineups')).get('total_lineups')
@@ -2827,7 +2866,7 @@ class Backtest(models.Model):
             # only one build running at once
             running_builds = self.slates.filter(build__status='running')
             if running_builds.count() == 0:
-                self.execute_next_slate()
+                self.execute_next_slate(user)
             
         self.save()
 
@@ -3003,9 +3042,9 @@ class BacktestSlate(models.Model):
 
         tasks.prepare_construction.delay(self.build.id)
     
-    def execute(self):
+    def execute(self, user):
         # make lineups
-        self.build.execute_build()
+        self.build.execute_build(user)
     
     def build_optimals(self):
         # make lineups

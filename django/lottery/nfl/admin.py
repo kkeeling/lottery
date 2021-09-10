@@ -1753,35 +1753,8 @@ class SlateBuildAdmin(admin.ModelAdmin):
            # Anything else you want in the context...
         )
 
-        task = BackgroundTask()
-        task.name = 'Build Lineups'
-        task.user = request.user
-        task.save()
-
         build = models.SlateBuild.objects.get(pk=pk)
-        build.total_lineups = models.SlateBuildStack.objects.filter(build=build).aggregate(total=Sum('count')).get('total')
-        build.stacks.all().update(lineups_created=False)
-
-        build.status = 'running'
-        build.error_message = None
-        build.pct_complete = 0.0
-        build.save()
-
-        tasks.monitor_build.delay(build.id, task.id)
-
-        last_qb = None
-        stacks = build.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
-        for stack in stacks:
-            qb = stack.qb.id
-            num_qb_stacks = build.stacks.filter(qb__id=qb).count()
-            if last_qb is None or qb != last_qb:
-                lineup_number = 1
-            else:
-                lineup_number += 1
-
-            tasks.build_lineups_for_stack.delay(stack.id, lineup_number, num_qb_stacks)
-
-            last_qb = qb
+        tasks.execute_build(build.id, request.user.id)
 
         messages.add_message(
             request,
@@ -2713,7 +2686,7 @@ class BacktestAdmin(admin.ModelAdmin):
         for backtest in queryset:
             # if backtest.ready:
             if True:
-                tasks.run_backtest.delay(backtest.id)
+                tasks.run_backtest.delay(backtest.id, request.user.id)
                 messages.success(request, 'Executing {}. Refresh page to check progress'.format(backtest.name))
             else:
                 messages.error(request, 'Cannot execute {}. Backtest isn\'t ready yet.'.format(backtest.name))
@@ -2770,7 +2743,7 @@ class BacktestAdmin(admin.ModelAdmin):
         )
 
         backtest = get_object_or_404(models.Backtest, pk=pk)
-        tasks.run_backtest.delay(backtest.id)
+        tasks.run_backtest.delay(backtest.id, request.user.id)
         messages.success(request, 'Executing {}. Refresh page to check progress'.format(backtest.name))
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
