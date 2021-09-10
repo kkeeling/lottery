@@ -805,9 +805,9 @@ def process_projection_sheet(sheet_id, task_id):
                 site=sheet.slate.site
             )
 
-            if sheet.projection_site == 'rts':
-                headers.column_player_name = csv_reader.fieldnames[0]
-                headers.save()
+            # if sheet.projection_site == 'rts':
+            #     headers.column_player_name = csv_reader.fieldnames[0]
+            #     headers.save()
 
             for row in csv_reader:
                 player_name = row[headers.column_player_name]
