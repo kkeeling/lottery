@@ -2222,7 +2222,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
             rb.set_rb_group_value()
         queryset[0].slate_player.group_rbs()
         queryset[0].slate_player.balance_rb_exposures()
-    balance_rbs.short_description = 'Set rb group values for selected players'
+    balance_rbs.short_description = 'Balance selected RBs'
 
     # def group_rbs(self, request, queryset):
     #     rb = queryset[0]
