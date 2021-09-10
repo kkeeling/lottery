@@ -2054,13 +2054,13 @@ class SlateBuild(models.Model):
     speed_test_button.short_description = ''
     
     def prepare_projections_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Prep Proj</a>',
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #a41515; font-weight: bold; padding: 10px 15px;">Prep Proj</a>',
             reverse_lazy("admin:admin_slatebuild_prepare_projections", args=[self.pk])
         )
     prepare_projections_button.short_description = ''
     
     def prepare_construction_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #bf3030; font-weight: bold; padding: 10px 15px;">Prep Const</a>',
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #f5dd5d; font-weight: bold; padding: 10px 15px;">Prep Const</a>',
             reverse_lazy("admin:admin_slatebuild_prepare_construction", args=[self.pk])
         )
     prepare_construction_button.short_description = ''
@@ -2072,7 +2072,7 @@ class SlateBuild(models.Model):
     build_button.short_description = ''
     
     def export_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Export</a>',
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #5b80b2; font-weight: bold; padding: 10px 15px;">Export</a>',
             reverse_lazy("admin:admin_slatebuild_export", args=[self.pk])
         )
     export_button.short_description = ''
