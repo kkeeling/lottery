@@ -726,7 +726,7 @@ def process_slate_players(slate_id, task_id):
                         slate_player = models.SlatePlayer.objects.get(
                             player_id=player_id,
                             slate=slate,
-                            name=alias.fd_name,
+                            name=alias.get_alias(slate.site),
                             team=team
                         )
                     except models.SlatePlayer.DoesNotExist:
@@ -734,7 +734,7 @@ def process_slate_players(slate_id, task_id):
                             player_id=player_id,
                             slate=slate,
                             team=team,
-                            name=player_name
+                            name=alias.get_alias(slate.site)
                         )
 
                     slate_player.salary = salary
@@ -812,7 +812,7 @@ def process_projection_sheet(sheet_id, task_id):
                     try:
                         slate_player = models.SlatePlayer.objects.get(
                             slate=sheet.slate,
-                            name=alias.get_alias(sheet.projection_site),
+                            name=alias.get_alias(sheet.slate.site),
                             team=team
                         )
 
@@ -907,7 +907,7 @@ def process_ownership_sheet(sheet_id, task_id):
                     try:
                         slate_player = models.SlatePlayer.objects.get(
                             slate=sheet.slate,
-                            name=alias.get_alias(sheet.projection_site),
+                            name=alias.get_alias(sheet.slate.site),
                             team=team
                         )
 
@@ -927,7 +927,7 @@ def process_ownership_sheet(sheet_id, task_id):
                             success_count += 1
 
                     except models.SlatePlayer.DoesNotExist:
-                        print('{} is not on slate.'.format(player_name))
+                        pass
                 else:
                     missing_players.append(player_name)
 
