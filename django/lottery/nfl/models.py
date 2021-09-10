@@ -2116,7 +2116,7 @@ class BuildPlayerProjection(models.Model):
         ordering = ['-projection']
 
     def __str__(self):
-        return '{} -- Proj: {} -- Rtg: {:.2f}'.format(str(self.slate_player), self.projection, self.rating)
+        return '{} -- Proj: {} -- GT: {:.2f}'.format(str(self.slate_player), self.projection, self.game_total)
 
     @property
     def name(self):

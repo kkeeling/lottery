@@ -1080,6 +1080,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         return response
     export.short_description = 'Export selected player projections'
 
+
 @admin.register(models.SlatePlayerRawProjection, site=lottery_admin_site)
 class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
     list_display = (
