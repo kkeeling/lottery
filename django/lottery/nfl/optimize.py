@@ -35,6 +35,9 @@ def optimize(site, projections, num_lineups=1):
             first = player_projection.name
             last = ''
 
+        if player_projection.slate_player.slate_game is None:
+            continue
+        
         slate_game = player_projection.slate_player.slate_game.game
         game_info = GameInfo(
             home_team=slate_game.home_team, 
