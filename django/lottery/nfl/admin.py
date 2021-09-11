@@ -1,6 +1,6 @@
 import csv
 import datetime
-from time import sleep
+from time import sleep, time
 import traceback
 import requests
 import statistics
@@ -660,6 +660,8 @@ class SlateAdmin(admin.ModelAdmin):
     
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
+
+        time.sleep(0.2)
 
         slate = form.instance
 

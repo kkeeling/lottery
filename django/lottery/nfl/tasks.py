@@ -747,6 +747,7 @@ def process_slate_players(slate_id, task_id):
                     slate_player.salary = salary
                     slate_player.site_pos = site_pos
                     slate_player.game = game
+                    slate_player.slate_game = slate_player.get_slate_game()
                     slate_player.save()
 
                     success_count += 1
@@ -933,7 +934,7 @@ def process_ownership_sheet(sheet_id, task_id):
                                 slate_player=slate_player,
                             )
 
-                            ownership_projection = float(ownership_projection) / 1
+                            ownership_projection = float(ownership_projection) / 100.0
 
                             projection.ownership_projection = ownership_projection
                             projection.save()
