@@ -2256,7 +2256,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     get_rating.admin_order_field = 'rating'
 
     def get_ownership_projection(self, obj):
-        return '{:.1f}%'.format(round(float(obj.ownership_projection) * 100.0, 2))
+        return '{:.2f}%'.format(float(obj.ownership_projection) * 100.0)
     get_ownership_projection.short_description = 'OP'
     get_ownership_projection.admin_order_field = 'ownership_orjection'
 

@@ -933,10 +933,7 @@ def process_ownership_sheet(sheet_id, task_id):
                                 slate_player=slate_player,
                             )
 
-                            # must convert ownership projection if it's greater than 1
-                            ownership_projection = float(ownership_projection)
-                            if ownership_projection > 1.0:
-                                ownership_projection = ownership_projection / 100
+                            ownership_projection = float(ownership_projection) / 1
 
                             projection.ownership_projection = ownership_projection
                             projection.save()
