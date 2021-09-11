@@ -1233,11 +1233,12 @@ class PlayerSelectionCriteria(models.Model):
 
     def meets_threshold(self, build_projection):
         # variables used in threshold equations
+
         locals = {
             'projection': float(build_projection.projection),
-            'team_total': float(build_projection.team_total),
-            'game_total': float(build_projection.game_total),
-            'spread': float(build_projection.spread),
+            'team_total': float(build_projection.team_total) if build_projection.team_total is not None else 0.0,
+            'game_total': float(build_projection.game_total) if build_projection.game_total is not None else 0.0,
+            'spread': float(build_projection.spread) if build_projection.spread is not None else 0.0,
             'adjusted_opportunity': float(build_projection.adjusted_opportunity),
             'position_rank': build_projection.position_rank
         }
