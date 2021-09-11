@@ -661,8 +661,6 @@ class SlateAdmin(admin.ModelAdmin):
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
 
-        time.sleep(0.2)
-
         slate = form.instance
 
         for projection_sheet in slate.projections.all():
