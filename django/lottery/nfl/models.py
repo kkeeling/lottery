@@ -626,12 +626,42 @@ class SlatePlayer(models.Model):
     team = models.CharField(max_length=4)
     fantasy_points = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
     game = models.CharField(max_length=10)
+    slate_game = models.ForeignKey(SlateGame, on_delete=models.SET_NULL, blank=True, null=True)
     ownership = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
+
+    # TODO: LEFT OFF HERE -- add properties to get current game total, team total, and spread...then use those values everywhere
 
     def __str__(self):
         if self.fantasy_points is None:
             return '{} {} ${} (vs. {})'.format(self.team, self.name, self.salary, self.get_opponent())
         return '{} {} ${} (vs. {}) -- {}'.format(self.team, self.name, self.salary, self.get_opponent(), self.fantasy_points)
+
+    @property
+    def team_total(self):
+        game = self.get_slate_game()
+
+        if game == None:
+            return None
+        
+        return game.game.home_implied if self.team == game.game.home_team else game.game.away_implied
+
+    @property
+    def game_total(self):
+        game = self.get_slate_game()
+
+        if game == None:
+            return None
+        
+        return game.game.game_total
+
+    @property
+    def spread(self):
+        game = self.get_slate_game()
+
+        if game == None:
+            return None
+        
+        return game.game.home_spread if self.team == game.game.home_team else game.game.away_spread
 
     def get_team_color(self):
         return settings.TEAM_COLORS[self.team]
@@ -669,9 +699,6 @@ class SlatePlayerProjection(models.Model):
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     rb_group = models.PositiveIntegerField('RBG', null=True, blank=True)
     balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
-    team_total = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True, verbose_name='tt')
-    game_total = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True, verbose_name='gt')
-    spread = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True)
     in_play = models.BooleanField(default=True)
     stack_only = models.BooleanField(default=False, verbose_name='SO', help_text='Player is only in pool when stacked with QB or opposing QB')
     qb_stack_only = models.BooleanField(default=False, verbose_name='SwQB', help_text='Generate QB stacks with this player')
@@ -713,35 +740,23 @@ class SlatePlayerProjection(models.Model):
             projection__gt=self.projection).aggregate(ranking=Count('projection'))
         return aggregate.get('ranking') + 1
 
+    @property
+    def team_total(self):
+        return self.slate_player.team_total
+
+    @property
+    def game_total(self):
+        return self.slate_player.game_total
+
+    @property
+    def spread(self):
+        return self.slate_player.spread
+
     def get_team_color(self):
         return self.slate_player.get_team_color()
 
     def get_game(self):
         return self.slate_player.game
-
-    def get_game_total(self):
-        game = self.slate_player.get_slate_game()
-
-        if game == None:
-            return None
-        
-        return game.game.game_total
-
-    def get_team_total(self):
-        game = self.slate_player.get_slate_game()
-
-        if game == None:
-            return None
-        
-        return game.game.home_implied if self.slate_player.team == game.game.home_team else game.game.away_implied
-
-    def get_spread(self):
-        game = self.slate_player.get_slate_game()
-
-        if game == None:
-            return None
-        
-        return game.game.home_spread if self.slate_player.team == game.game.home_team else game.game.away_spread
 
     def get_opponent(self):
         return self.get_game().replace(self.slate_player.team, '').replace('_', '')
@@ -2098,9 +2113,6 @@ class BuildPlayerProjection(models.Model):
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, null=True, blank=True)
     rb_group = models.PositiveIntegerField('RBG', default=0, null=True, blank=True)
     balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
-    team_total = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True, verbose_name='tt')
-    game_total = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True, verbose_name='gt')
-    spread = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True)
     in_play = models.BooleanField(default=True)
     stack_only = models.BooleanField(default=False, verbose_name='SO', help_text='Player is only in pool when stacked with QB or opposing QB')
     qb_stack_only = models.BooleanField(default=False, verbose_name='SwQB', help_text='Generate QB stacks with this player')
@@ -2164,35 +2176,23 @@ class BuildPlayerProjection(models.Model):
     def available_projections(self):
         return self.slate_player.raw_projections.all()
 
+    @property
+    def team_total(self):
+        return self.slate_player.team_total
+
+    @property
+    def game_total(self):
+        return self.slate_player.game_total
+
+    @property
+    def spread(self):
+        return self.slate_player.spread
+
     def get_team_color(self):
         return self.slate_player.get_team_color()
 
     def get_game(self):
         return self.slate_player.game
-
-    def get_game_total(self):
-        game = self.slate_player.get_slate_game()
-
-        if game == None:
-            return None
-        
-        return game.game.game_total
-
-    def get_team_total(self):
-        game = self.slate_player.get_slate_game()
-
-        if game == None:
-            return None
-        
-        return game.game.home_implied if self.slate_player.team == game.game.home_team else game.game.away_implied
-
-    def get_spread(self):
-        game = self.slate_player.get_slate_game()
-
-        if game == None:
-            return None
-        
-        return game.game.home_spread if self.slate_player.team == game.game.home_team else game.game.away_spread
 
     def get_opponent(self):
         return self.get_game().replace(self.slate_player.team, '').replace('_', '')

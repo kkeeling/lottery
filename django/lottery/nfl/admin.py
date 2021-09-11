@@ -825,10 +825,7 @@ class SlatePlayerAdmin(admin.ModelAdmin):
         'site_pos',
         'salary',
         'fantasy_points',
-        'game',
-    )
-    list_editable = (
-        'fantasy_points',
+        'slate_game',
     )
     search_fields = ('name',)
     list_filter = (
@@ -916,8 +913,8 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'balanced_projection',
         'get_balanced_player_value',
         'rb_group',
-        'game_total',
-        'team_total',
+        'get_game_total',
+        'get_team_total',
         'get_spread',
         'get_actual_score'
     )
@@ -937,7 +934,8 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         qs = qs.annotate(
             slate=F('slate_player__slate'), 
             site_pos=F('slate_player__site_pos'), 
-            player_salary=F('slate_player__salary')            
+            player_salary=F('slate_player__salary'),
+            game=F('slate_player__slate_game')
         )
 
         return qs
@@ -975,12 +973,24 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_player_opponent.short_description = 'Opp'
 
     def get_player_game(self, obj):
-        game = obj.slate_player.get_slate_game()
+        game = obj.slate_player.slate_game
         if game == None:
             return None
         return mark_safe('<a href="/admin/nfl/game/{}/">{}@{}</a>'.format(game.game.id, game.game.away_team, game.game.home_team))
     get_player_game.short_description = 'Game'
-    get_player_game.admin_order_field = 'slate_player__game'
+    get_player_game.admin_order_field = 'slate_player__slate_game'
+
+    def get_game_total(self, obj):
+        return obj.game_total
+    get_game_total.short_description = 'GT'
+
+    def get_team_total(self, obj):
+        return obj.team_total
+    get_team_total.short_description = 'TT'
+
+    def get_spread(self, obj):
+        return obj.spread
+    get_spread.short_description = 'SP'
 
     def get_proj_percentile(self, obj):
         return '{:.2f}'.format(obj.proj_percentile * 100)
@@ -1006,15 +1016,6 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         return '{:.1f}'.format(round(float(obj.ownership_projection) * 100.0, 2))
     get_ownership_projection.short_description = 'OP'
     get_ownership_projection.admin_order_field = 'ownership_orjection'
-
-    def get_spread(self, obj):
-        game = obj.slate_player.get_slate_game()
-
-        if game == None:
-            return None
-        
-        return game.game.home_spread if obj.slate_player.team == game.game.home_team else game.game.away_spread
-    get_spread.short_description = 'Spread'
 
     def get_player_value(self, obj):
         return '{:.2f}'.format(float(obj.value))
@@ -2077,8 +2078,8 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'balanced_projection',
         'get_balanced_player_value',
         'rb_group',
-        'game_total',
-        'team_total',
+        'get_game_total',
+        'get_team_total',
         'get_spread',
         'get_num_pass_catchers',
         'in_play',
@@ -2180,12 +2181,24 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     get_player_opponent.short_description = 'Opp'
 
     def get_player_game(self, obj):
-        game = obj.slate_player.get_slate_game()
+        game = obj.slate_player.slate_game
         if game == None:
             return None
         return mark_safe('<a href="/admin/nfl/game/{}/">{}@{}</a>'.format(game.game.id, game.game.away_team, game.game.home_team))
     get_player_game.short_description = 'Game'
-    get_player_game.admin_order_field = 'slate_player__game'
+    get_player_game.admin_order_field = 'slate_player__slate_game'
+
+    def get_game_total(self, obj):
+        return obj.game_total
+    get_game_total.short_description = 'GT'
+
+    def get_team_total(self, obj):
+        return obj.team_total
+    get_team_total.short_description = 'TT'
+
+    def get_spread(self, obj):
+        return obj.spread
+    get_spread.short_description = 'SP'
 
     def get_4for4_proj(self, obj):
         projs = obj.available_projections.filter(projection_site='4for4')
@@ -2246,15 +2259,6 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         return '{:.1f}%'.format(round(float(obj.ownership_projection) * 100.0, 2))
     get_ownership_projection.short_description = 'OP'
     get_ownership_projection.admin_order_field = 'ownership_orjection'
-
-    def get_spread(self, obj):
-        game = obj.slate_player.get_slate_game()
-
-        if game == None:
-            return None
-        
-        return game.game.home_spread if obj.slate_player.team == game.game.home_team else game.game.away_spread
-    get_spread.short_description = 'Spread'
 
     def get_player_value(self, obj):
         return round(float(obj.projection)/(self.get_player_salary(obj)/1000.0), 2)
