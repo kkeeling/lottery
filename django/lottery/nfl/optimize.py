@@ -35,7 +35,7 @@ def optimize(site, projections, num_lineups=1):
             first = player_projection.name
             last = ''
 
-        slate_game = player_projection.slate_player.get_slate_game().game
+        slate_game = player_projection.slate_player.slate_game
         game_info = GameInfo(
             home_team=slate_game.home_team, 
             away_team=slate_game.away_team,
@@ -91,7 +91,7 @@ def simulate_contest(contest, projections):
             first = player_projection.name
             last = ''
 
-        slate_game = player_projection.slate_player.get_slate_game().game
+        slate_game = player_projection.slate_player.slate_game
         game_info = GameInfo(
             home_team=slate_game.home_team, 
             away_team=slate_game.away_team,
@@ -296,7 +296,7 @@ def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75,
                         first = player_projection.name
                         last = ''
 
-                    slate_game = player_projection.slate_player.get_slate_game().game
+                    slate_game = player_projection.slate_player.slate_game
                     game_info = GameInfo(
                         home_team=slate_game.home_team, 
                         away_team=slate_game.away_team,
