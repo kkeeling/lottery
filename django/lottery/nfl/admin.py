@@ -1,9 +1,6 @@
 import csv
 import datetime
-from time import sleep, time
-import traceback
-import requests
-import statistics
+import numpy
 import os
 
 from django.conf import settings
@@ -658,35 +655,28 @@ class SlateAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         self.process_slate(request, obj)
     
-    def save_related(self, request, form, formsets, change):
-        super().save_related(request, form, formsets, change)
+    # def save_related(self, request, form, formsets, change):
+    #     super().save_related(request, form, formsets, change)
 
-        slate = form.instance
+    #     slate = form.instance
 
-        for projection_sheet in slate.projections.all():
-            task_proj = BackgroundTask()
-            task_proj.name = 'Processing Projections'
-            task_proj.user = request.user
-            task_proj.save()
+    #     for projection_sheet in slate.projections.all():
+    #         task_proj = BackgroundTask()
+    #         task_proj.name = 'Processing Projections'
+    #         task_proj.user = request.user
+    #         task_proj.save()
 
-            tasks.process_projection_sheet.delay(projection_sheet.id, task_proj.id)
+    #         tasks.process_projection_sheet.delay(projection_sheet.id, task_proj.id)
         
-        if hasattr(slate, 'ownership_projections_sheets'):
-            task_own_proj = BackgroundTask()
-            task_own_proj.name = 'Processing Ownership Projections'
-            task_own_proj.user = request.user
-            task_own_proj.save()
+    #     if hasattr(slate, 'ownership_projections_sheets'):
+    #         task_own_proj = BackgroundTask()
+    #         task_own_proj.name = 'Processing Ownership Projections'
+    #         task_own_proj.user = request.user
+    #         task_own_proj.save()
 
-            tasks.process_ownership_sheet.delay(slate.ownership_projections_sheets.id, task_own_proj.id)
+    #         tasks.process_ownership_sheet.delay(slate.ownership_projections_sheets.id, task_own_proj.id)
 
     def process_slate(self, request, slate):
-        task = BackgroundTask()
-        task.name = 'Process Slate Players'
-        task.user = request.user
-        task.save()
-
-        tasks.process_slate_players.delay(slate.id, task.id)
-
         task_2 = BackgroundTask()
         task_2.name = 'Finding Slate Games'
         task_2.user = request.user
@@ -916,7 +906,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'get_game_total',
         'get_team_total',
         'get_spread',
-        'get_actual_score'
+        'get_actual_score',
     )
     search_fields = ('slate_player__name',)
     list_filter = (
@@ -1298,6 +1288,9 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'salary',
         'projection',
         'rating',
+        # 'get_median_score',
+        # 'get_75th_percentile_score',
+        # 'get_ceiling_percentile_score',
         'get_actual',
     )
 
@@ -1379,6 +1372,66 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         return obj.actual
     get_actual.short_description = 'Actual'
     get_actual.admin_order_field = 'actual_coalesced'
+
+    def get_median_score(self, obj):
+        score_matrix = numpy.array([
+            obj.qb.slate_player.projection.sim_scores,
+            obj.rb1.slate_player.projection.sim_scores,
+            obj.rb2.slate_player.projection.sim_scores,
+            obj.wr1.slate_player.projection.sim_scores,
+            obj.wr2.slate_player.projection.sim_scores,
+            obj.wr3.slate_player.projection.sim_scores,
+            obj.te.slate_player.projection.sim_scores,
+            obj.flex.slate_player.projection.sim_scores,
+            obj.dst.slate_player.projection.sim_scores,
+        ])
+
+        try:
+            scores = score_matrix.sum(axis=0)
+        except:
+            return None
+        return numpy.median(scores)
+    get_median_score.short_description = 'mu'
+
+    def get_75th_percentile_score(self, obj):
+        try:
+            score_matrix = numpy.array([
+                [float(n) for n in obj.qb.slate_player.projection.sim_scores],
+                [float(n) for n in obj.rb1.slate_player.projection.sim_scores],
+                [float(n) for n in obj.rb2.slate_player.projection.sim_scores],
+                [float(n) for n in obj.wr1.slate_player.projection.sim_scores],
+                [float(n) for n in obj.wr2.slate_player.projection.sim_scores],
+                [float(n) for n in obj.wr3.slate_player.projection.sim_scores],
+                [float(n) for n in obj.te.slate_player.projection.sim_scores],
+                [float(n) for n in obj.flex.slate_player.projection.sim_scores],
+                [float(n) for n in obj.dst.slate_player.projection.sim_scores]
+            ])
+
+            scores = score_matrix.sum(axis=0)
+        except:
+            return None
+        return numpy.percentile(scores, 75)
+    get_75th_percentile_score.short_description = '75'
+
+    def get_ceiling_percentile_score(self, obj):
+        score_matrix = numpy.array([
+            obj.qb.slate_player.projection.sim_scores,
+            obj.rb1.slate_player.projection.sim_scores,
+            obj.rb2.slate_player.projection.sim_scores,
+            obj.wr1.slate_player.projection.sim_scores,
+            obj.wr2.slate_player.projection.sim_scores,
+            obj.wr3.slate_player.projection.sim_scores,
+            obj.te.slate_player.projection.sim_scores,
+            obj.flex.slate_player.projection.sim_scores,
+            obj.dst.slate_player.projection.sim_scores,
+        ])
+
+        try:
+            scores = score_matrix.sum(axis=0)
+        except:
+            return None
+        return numpy.amax(scores)
+    get_ceiling_percentile_score.short_description = 'ceil'
 
 
 @admin.register(models.SlateBuildActualsLineup, site=lottery_admin_site)

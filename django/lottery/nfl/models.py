@@ -2,6 +2,7 @@ import csv
 import datetime
 import difflib
 import math
+from django.db.models.fields import DecimalField
 import numpy
 import requests
 import statistics
@@ -10,6 +11,7 @@ import uuid
 
 from collections import namedtuple
 from django.conf import settings
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.db.models import Q, Aggregate, FloatField, Case, When, Window, F
 from django.db.models.aggregates import Avg, Count, Sum, Max
@@ -699,6 +701,7 @@ class SlatePlayerProjection(models.Model):
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     rb_group = models.PositiveIntegerField('RBG', null=True, blank=True)
     balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
+    sim_scores = ArrayField(models.DecimalField(max_digits=4, decimal_places=2), null=True, blank=True)
     in_play = models.BooleanField(default=True)
     stack_only = models.BooleanField(default=False, verbose_name='SO', help_text='Player is only in pool when stacked with QB or opposing QB')
     qb_stack_only = models.BooleanField(default=False, verbose_name='SwQB', help_text='Generate QB stacks with this player')
@@ -1634,6 +1637,7 @@ class SlateBuild(models.Model):
                     projection.ownership_projection = player.projection.ownership_projection
                     projection.balanced_projection = player.projection.balanced_projection
                     projection.adjusted_opportunity = player.projection.adjusted_opportunity
+                    projection.rb_group = 0
                     projection.save()
             else:
                 # player projection does not exist so remove build projection if it exists

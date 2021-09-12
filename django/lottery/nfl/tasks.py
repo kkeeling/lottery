@@ -759,7 +759,23 @@ def process_slate_players(slate_id, task_id):
         task.content = '{} players have been successfully added to {}.'.format(success_count, str(slate)) if len(missing_players) == 0 else '{} players have been successfully added to {}. {} players could not be identified.'.format(success_count, str(slate), len(missing_players))
         task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
         task.save()
+
+        for projection_sheet in slate.projections.all():
+            task_proj = BackgroundTask()
+            task_proj.name = 'Processing Projections'
+            task_proj.user = task.user
+            task_proj.save()
+
+            process_projection_sheet.delay(projection_sheet.id, task_proj.id)
         
+        if hasattr(slate, 'ownership_projections_sheets'):
+            task_own_proj = BackgroundTask()
+            task_own_proj.name = 'Processing Ownership Projections'
+            task_own_proj.user = task.user
+            task_own_proj.save()
+
+            process_ownership_sheet.delay(slate.ownership_projections_sheets.id, task_own_proj.id)
+
     except Exception as e:
         if task is not None:
             task.status = 'error'
@@ -869,6 +885,7 @@ def process_projection_sheet(sheet_id, task_id):
                                 projection.floor = flr
                                 projection.ceiling = ceil
                                 projection.stdev = stdev
+                                # projection.sim_scores = [i/10 for i in numpy.random.gamma(mu, stdev, 10000)]
                                 projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)
 
                                 projection.save()                 
@@ -977,7 +994,14 @@ def find_slate_games(slate_id, task_id):
         task.status = 'success'
         task.content = '{} games found for {}'.format(slate.num_games(), str(slate))
         task.save()
-        
+
+        task2 = BackgroundTask()
+        task2.name = 'Process Slate Players'
+        task2.user = task.user
+        task2.save()
+
+        process_slate_players.delay(slate_id, task2.id)
+
     except Exception as e:
         if task is not None:
             task.status = 'error'
