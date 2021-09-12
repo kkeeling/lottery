@@ -2088,16 +2088,41 @@ class SlateBuildAdmin(admin.ModelAdmin):
         for build in queryset:
             new_build = models.SlateBuild.objects.create(
                 slate=build.slate,
+                backtest=None,
                 configuration=build.configuration,
+                in_play_criteria=build.in_play_criteria,
+                lineup_construction=build.lineup_construction,
+                stack_construction=build.stack_construction,
+                stack_cutoff=build.stack_cutoff,
                 lineup_start_number=build.lineup_start_number,
                 total_lineups=build.total_lineups,
-                notes=build.notes
+                notes=build.notes,
+                target_score=build.target_score
             )
+
+            for proj in build.projections.all():
+                proj.id = None
+                proj.build = new_build
+                proj.save()
 
             for stack in build.stacks.all():
                 stack.id = None
                 stack.build = new_build
                 stack.save()
+
+            for group in build.groups.all():
+                old_group_id = group.id
+
+                group.id = None
+                group.build = new_build
+                group.save()
+
+                for p in models.SlateBuildGroupPlayer.objects.filter(group__id=old_group_id):
+                    models.SlateBuildGroupPlayer.objects.create(
+                        group=group,
+                        slate_player=p.slate_player
+                    )
+
     duplicate_builds.short_description = 'Duplicate selected builds'
 
     def find_optimal_lineups(self, request, queryset):
