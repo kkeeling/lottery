@@ -978,6 +978,71 @@ def process_ownership_sheet(sheet_id, task_id):
 
 
 @shared_task
+def process_actuals_sheet(slate_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
+        
+        with open(slate.fc_actuals_sheet.path, mode='r') as f:
+            csv_reader = csv.DictReader(f)
+            success_count = 0
+            missing_players = []
+
+            headers = models.SheetColumnHeaders.objects.get(
+                projection_site='fc',
+                site=slate.site
+            )
+
+            for row in csv_reader:
+                player_name = row[headers.column_player_name].strip()
+                team = 'JAC' if row[headers.column_team] == 'JAX' else row[headers.column_team].strip()
+                actual_ownership = row[headers.column_ownership] if headers.column_ownership is not None and row[headers.column_ownership] != '' else 0.0
+                actual_score = row[headers.column_score] if headers.column_score is not None and row[headers.column_score] != '' else 0.0
+
+                alias = models.Alias.find_alias(player_name, 'fc')
+                
+                if alias is not None:
+                    try:
+                        slate_player = models.SlatePlayer.objects.get(
+                            slate=slate,
+                            name=alias.get_alias(slate.site),
+                            team=team
+                        )
+                        slate_player.fantasy_points = actual_score
+                        slate_player.ownership = actual_ownership
+                        slate_player.save()
+
+                        success_count += 1
+                    except models.SlatePlayer.DoesNotExist:
+                        pass
+                else:
+                    missing_players.append(player_name)
+
+
+        task.status = 'success'
+        task.content = '{} player scores have been updated for {}.'.format(success_count, str(slate)) if len(missing_players) == 0 else '{} player scores have been updated for {}. {} players could not be identified.'.format(success_count, str(slate), len(missing_players))
+        task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem processing actuals: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def find_slate_games(slate_id, task_id):
     task = None
 

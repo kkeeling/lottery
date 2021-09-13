@@ -592,6 +592,8 @@ class SheetColumnHeadersAdmin(admin.ModelAdmin):
         'column_rush_att_projection',
         'column_rec_projection',
         'column_own_projection',
+        'column_ownership',
+        'column_score',
     )
 
 
@@ -602,23 +604,15 @@ class SlateAdmin(admin.ModelAdmin):
         'name',
         'week',
         'is_main_slate',
+        'is_complete',
         'site',
         'get_num_games',
+        'get_players_link',
         'get_contest_link',
-        'num_slate_players',
-        'num_projected_players',
-        'num_qbs',
-        'num_rbs',
-        'num_top_rbs',
-        'median_rb_projection',
-        'median_rb_ao',
-        'num_in_play',
-        'num_stack_only',
     )
     list_editable = (
-        'name',
-        'week',
         'is_main_slate',
+        'is_complete',
     )
     list_filter = (
         'site',
@@ -635,59 +629,40 @@ class SlateAdmin(admin.ModelAdmin):
         'site',
         'salaries_sheet_type',
         'salaries',
-        'num_games',
-        'num_slate_players',
-        'num_projected_players',
-        'num_qbs',
-        'num_in_play',
-        'num_stack_only',
-    )
-    readonly_fields = (
-        'num_games',
-        'num_slate_players',
-        'num_projected_players',
-        'num_qbs',
-        'num_in_play',
-        'num_stack_only',
+        'is_complete',
+        'fc_actuals_sheet',        
     )
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         self.process_slate(request, obj)
-    
-    # def save_related(self, request, form, formsets, change):
-    #     super().save_related(request, form, formsets, change)
-
-    #     slate = form.instance
-
-    #     for projection_sheet in slate.projections.all():
-    #         task_proj = BackgroundTask()
-    #         task_proj.name = 'Processing Projections'
-    #         task_proj.user = request.user
-    #         task_proj.save()
-
-    #         tasks.process_projection_sheet.delay(projection_sheet.id, task_proj.id)
-        
-    #     if hasattr(slate, 'ownership_projections_sheets'):
-    #         task_own_proj = BackgroundTask()
-    #         task_own_proj.name = 'Processing Ownership Projections'
-    #         task_own_proj.user = request.user
-    #         task_own_proj.save()
-
-    #         tasks.process_ownership_sheet.delay(slate.ownership_projections_sheets.id, task_own_proj.id)
 
     def process_slate(self, request, slate):
-        task_2 = BackgroundTask()
-        task_2.name = 'Finding Slate Games'
-        task_2.user = request.user
-        task_2.save()
+        if slate.is_complete:
+            if slate.fc_actuals_sheet:
+                task = BackgroundTask()
+                task.name = 'Process Actuals'
+                task.user = request.user
+                task.save()
 
-        tasks.find_slate_games.delay(slate.id, task_2.id)
+                tasks.process_actuals_sheet.delay(slate.id, task.id)
 
-        messages.add_message(
-            request,
-            messages.WARNING,
-            'Your slate is being processed. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the slate is ready.')
+                messages.add_message(
+                    request,
+                    messages.WARNING,
+                    'Processing actuals for {}.'.format(str(slate)))
+        else:
+            task = BackgroundTask()
+            task.name = 'Finding Slate Games'
+            task.user = request.user
+            task.save()
+
+            tasks.find_slate_games.delay(slate.id, task.id)
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Your slate is being processed. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the slate is ready.')
 
     def get_urls(self):
         urls = super().get_urls()
@@ -706,6 +681,12 @@ class SlateAdmin(admin.ModelAdmin):
             return None
         return mark_safe('<a href="/admin/nfl/contest/?id__exact={}">{}</a>'.format(obj.contests.all()[0].id, obj.contests.all()[0].name))
     get_contest_link.short_description = 'Contest'
+
+    def get_players_link(self, obj):
+        if obj.players.all().count() == 0:
+            return None
+        return mark_safe('<a href="/admin/nfl/slateplayer/?slate__id__exact={}">Players</a>'.format(obj.id))
+    get_players_link.short_description = 'Players'
 
     def process_slates(self, request, queryset):
         for slate in queryset:

@@ -352,9 +352,11 @@ class Slate(models.Model):
     week = models.ForeignKey(Week, related_name='slates', verbose_name='Week', on_delete=models.SET_NULL, null=True, blank=True)
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
     is_main_slate = models.BooleanField(default=False)
+    is_complete = models.BooleanField(default=False)
 
     salaries_sheet_type = models.CharField(max_length=255, choices=SHEET_TYPES, default='site')
     salaries = models.FileField(upload_to='uploads/salaries', blank=True, null=True)
+    fc_actuals_sheet = models.FileField(verbose_name='FC Actuals CSV', upload_to='uploads/actuals', blank=True, null=True)
 
     class Meta:
         ordering = ['-name']
@@ -1351,6 +1353,8 @@ class SheetColumnHeaders(models.Model):
     column_rush_att_projection = models.CharField(max_length=50, blank=True, null=True)
     column_rec_projection = models.CharField(max_length=50, blank=True, null=True)
     column_own_projection = models.CharField(max_length=50, blank=True, null=True)
+    column_ownership = models.CharField(max_length=50, blank=True, null=True)
+    column_score = models.CharField(max_length=50, blank=True, null=True)
 
     class Meta:
         verbose_name = 'Column Headers'
