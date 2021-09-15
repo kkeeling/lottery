@@ -619,7 +619,7 @@ class SlateAdmin(admin.ModelAdmin):
         'is_main_slate',
         
     )
-    actions = ['process_slates', 'find_games', 'update_vegas', 'clear_slate_players', 'analyze_projections']
+    actions = ['process_slates', 'analyze_projections']
     inlines = (SlateProjectionSheetInline, SlatePlayerOwnershipProjectionSheetInline, SlateGameInline, )
     fields = (
         'datetime',
@@ -692,16 +692,6 @@ class SlateAdmin(admin.ModelAdmin):
         for slate in queryset:
             self.process_slate(request, slate)
     process_slates.short_description = '(Re)Process selected slates'
-
-    def update_vegas(self, request, queryset):
-        for slate in queryset:
-            slate.week.update_vegas()
-
-        if queryset.count() == 1:
-            messages.success(request, 'Odds and totals updated for {}.'.format(str(queryset[0])))
-        else:
-            messages.success(request, 'Odds and totals updated for {} slates.'.format(queryset.count()))
-    update_vegas.short_description = 'Refresh odds and totals for selected slates'
 
     def find_games(self, request, queryset):
         for slate in queryset:
@@ -888,6 +878,10 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'get_team_total',
         'get_spread',
         'get_actual_score',
+        # 'sim_scores',
+        'get_median_sim_score',
+        'get_floor_sim_score',
+        'get_ceiling_sim_score',
     )
     search_fields = ('slate_player__name',)
     list_filter = (
@@ -1011,6 +1005,21 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         return obj.slate_player.fantasy_points
     get_actual_score.short_description = 'Actual'
     get_actual_score.admin_order_field = 'slate_player__fantasy_points'
+
+    def get_median_sim_score(self, obj):
+        if obj.sim_scores and len(obj.sim_scores) > 0:
+            return numpy.median(obj.sim_scores)
+        return None
+
+    def get_floor_sim_score(self, obj):
+        if obj.sim_scores and len(obj.sim_scores) > 0:
+            return numpy.min(obj.sim_scores)
+        return None
+
+    def get_ceiling_sim_score(self, obj):
+        if obj.sim_scores and len(obj.sim_scores) > 0:
+            return numpy.max(obj.sim_scores)
+        return None
 
     def export(self, request, queryset):
         response = HttpResponse(content_type='text/csv')
@@ -1268,7 +1277,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'contains_top_projected_pass_catcher',
         'salary',
         'projection',
-        'rating',
+        # 'rating',
         # 'get_median_score',
         # 'get_75th_percentile_score',
         # 'get_ceiling_percentile_score',
@@ -2150,7 +2159,6 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     )
     list_editable = (
         'in_play',
-        'projection',
         'balanced_projection',
         'rb_group',
         'stack_only',
@@ -2583,12 +2591,17 @@ class WeekAdmin(admin.ModelAdmin):
 
     def update_vegas(self, request, queryset):
         for week in queryset:
-            week.update_vegas()
+            task = BackgroundTask()
+            task.name = 'Update Vegas'
+            task.user = request.user
+            task.save()
 
-        if queryset.count() == 1:
-            messages.success(request, 'Odds and totals updated for {}.'.format(str(queryset[0])))
-        else:
-            messages.success(request, 'Odds and totals updated for {} weeks.'.format(queryset.count()))
+            tasks.update_vegas_for_week.delay(week.id, task.id)
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Updating odds for {} games. A new message will appear here once complete.'.format(str(week)))
     
     def get_num_games(self, obj):
         return mark_safe('<a href="/admin/nfl/game/?week__id__exact={}">{}</a>'.format(obj.id, obj.games.all().count()))

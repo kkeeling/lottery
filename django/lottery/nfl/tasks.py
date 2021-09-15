@@ -2,6 +2,7 @@ import csv
 import datetime
 import logging
 from django.contrib.messages.api import success
+import math
 import numpy
 import sys
 import time
@@ -11,6 +12,7 @@ from celery import shared_task
 from celery.contrib.abortable import AbortableTask
 from celery.utils.log import get_task_logger
 from contextlib import contextmanager
+from scipy.stats import betaprime
 
 from django.contrib.auth.models import User
 from django.db.models.aggregates import Count, Sum
@@ -38,6 +40,36 @@ def lock_task(key, timeout=None):
     finally:
         if has_lock:
             lock.release()
+
+
+@shared_task
+def update_vegas_for_week(week_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+
+        week = models.Week.objects.get(id=week_id)
+        week.update_vegas()
+
+        task.status = 'success'
+        task.content = 'Odds updated for {}.'.format(str(week))
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem updating vegas odds: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task
@@ -885,7 +917,9 @@ def process_projection_sheet(sheet_id, task_id):
                                 projection.floor = flr
                                 projection.ceiling = ceil
                                 projection.stdev = stdev
-                                # projection.sim_scores = [i/10 for i in numpy.random.gamma(mu, stdev, 10000)]
+                                # projection.sim_scores = [i for i in numpy.random.gamma(pow(mu, 2)/pow(stdev, 2), pow(stdev, 2)/mu, 10000)]
+                                # projection.sim_scores = [math.log(i) for i in numpy.random.lognormal(mu, stdev, 10000)]
+                                # projection.sim_scores = [min((i * 0.85) * mu, ceil*1.25) for i in numpy.random.weibull(1.8, 10000)]
                                 projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)
 
                                 projection.save()                 

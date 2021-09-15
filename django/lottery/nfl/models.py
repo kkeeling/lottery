@@ -309,21 +309,6 @@ class Week(models.Model):
                         home_implied=float(properties.get('HomeVegasRuns')),
                         away_implied=float(properties.get('VisitorVegasRuns'))
                     )
-                
-                home_projections = SlatePlayerProjection.objects.filter(
-                    slate_player__slate__week=self,
-                    slate_player__team=game.home_team)
-                home_projections.update(
-                    team_total=game.home_implied,
-                    game_total=game.game_total
-                )
-                away_projections = SlatePlayerProjection.objects.filter(
-                    slate_player__slate__week=self,
-                    slate_player__team=game.away_team)
-                away_projections.update(
-                    team_total=game.away_implied,
-                    game_total=game.game_total
-                )
 
                 print(game)
 
@@ -632,8 +617,6 @@ class SlatePlayer(models.Model):
     game = models.CharField(max_length=10)
     slate_game = models.ForeignKey(SlateGame, on_delete=models.SET_NULL, blank=True, null=True)
     ownership = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
-
-    # TODO: LEFT OFF HERE -- add properties to get current game total, team total, and spread...then use those values everywhere
 
     def __str__(self):
         if self.fantasy_points is None:
