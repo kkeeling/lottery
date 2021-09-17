@@ -1012,16 +1012,19 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         if obj.sim_scores and len(obj.sim_scores) > 0:
             return numpy.median(obj.sim_scores)
         return None
+    get_median_sim_score.short_description = 'sMU'
 
     def get_floor_sim_score(self, obj):
         if obj.sim_scores and len(obj.sim_scores) > 0:
             return numpy.min(obj.sim_scores)
         return None
+    get_floor_sim_score.short_description = 'sFLR'
 
     def get_ceiling_sim_score(self, obj):
         if obj.sim_scores and len(obj.sim_scores) > 0:
             return numpy.max(obj.sim_scores)
         return None
+    get_ceiling_sim_score.short_description = 'sCEIL'
 
     def export(self, request, queryset):
         response = HttpResponse(content_type='text/csv')
