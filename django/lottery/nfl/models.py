@@ -1,5 +1,6 @@
 import csv
 import datetime
+import decimal
 import difflib
 import math
 from django.db.models.fields import DecimalField
@@ -1801,7 +1802,8 @@ class SlateBuild(models.Model):
                             player_1=player,
                             opp_player=opp_player,
                             salary=sum(p.slate_player.salary for p in [qb, player, opp_player]),
-                            projection=sum(p.balanced_projection for p in [qb, player, opp_player])
+                            projection=sum(p.projection for p in [qb, player, opp_player]),
+                            sim_scores=[(i * 1.05) * sum(p.projection for p in [qb, player, player2, opp_player]) for i in numpy.random.weibull(2.9, 10000)]
                         )
 
             elif self.configuration.game_stack_size == 4:
@@ -1826,9 +1828,9 @@ class SlateBuild(models.Model):
                                             player_2=player2,
                                             opp_player=opp_player,
                                             salary=sum(p.slate_player.salary for p in [qb, player, player2, opp_player]),
-                                            projection=sum(p.balanced_projection for p in [qb, player, player2, opp_player])
+                                            projection=sum(p.projection for p in [qb, player, player2, opp_player]),
+                                            sim_scores=[(float(i) * 1.05) * float(sum(p.projection for p in [qb, player, player2, opp_player])) for i in numpy.random.weibull(2.9, 10000)]
                                         )
-                                        print(stack)
 
                                         if self.stack_construction is not None:
                                             stack.contains_top_pc = stack.contains_top_projected_pass_catcher(self.stack_construction.top_pc_margin)
@@ -2177,6 +2179,10 @@ class BuildPlayerProjection(models.Model):
     def spread(self):
         return self.slate_player.spread
 
+    @property
+    def sim_scores(self):
+        return self.slate_player.projection.sim_scores
+
     def get_team_color(self):
         return self.slate_player.get_team_color()
 
@@ -2231,6 +2237,7 @@ class SlateBuildStack(models.Model):
     lineups_created = models.BooleanField(default=False)
     optimals_created = models.BooleanField(default=False)
     error_message = models.TextField(blank=True, null=True)
+    sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
     actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
 
     class Meta:
@@ -2413,6 +2420,15 @@ class SlateBuildStack(models.Model):
                 count += 1
         return count
 
+    def get_median_sim_score(self):
+        return numpy.median(self.sim_scores)
+
+    def get_percentile_sim_score(self, percentile):
+        return numpy.percentile(self.sim_scores, percentile)
+
+    def get_ceiling_sim_score(self):
+        return numpy.amax(self.sim_scores)
+
 
 class SlateBuildLineup(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='lineups', on_delete=models.CASCADE)
@@ -2454,6 +2470,28 @@ class SlateBuildLineup(models.Model):
             self.flex,
             self.dst
         ]
+
+    @property
+    def non_stack_sim_scores(self):
+        matrix = [
+            self.rb1.sim_scores,
+            self.rb2.sim_scores,
+        ]
+
+        if not self.stack.contains_slate_player(self.wr1.slate_player):
+            matrix.append(self.wr1.sim_scores)    
+        if not self.stack.contains_slate_player(self.wr2.slate_player):
+            matrix.append(self.wr2.sim_scores)    
+        if not self.stack.contains_slate_player(self.wr3.slate_player):
+            matrix.append(self.wr3.sim_scores)    
+        if not self.stack.contains_slate_player(self.te.slate_player):
+            matrix.append(self.te.sim_scores)    
+        if not self.stack.contains_slate_player(self.flex.slate_player):
+            matrix.append(self.flex.sim_scores) 
+        
+        matrix.append(self.dst.sim_scores)
+
+        return matrix  
 
     def contains_top_projected_pass_catcher(self):
         pass_catchers = BuildPlayerProjection.objects.filter(
@@ -2564,8 +2602,8 @@ class SlateBuildActualsLineup(models.Model):
             self.dst
         ]
 
-    def contains_top_projected_pass_catcher(self):
-        pass_catchers = SlatePlayerProjection.objects.filter(
+    def contains_top_projected_pass_catcher(self, margin=2.0):
+        pass_catchers = BuildPlayerProjection.objects.filter(
             Q(Q(slate_player__site_pos='WR') | Q(slate_player__site_pos='TE')),
             slate_player__slate=self.build.slate,
             slate_player__team=self.qb.slate_player.team
@@ -2573,7 +2611,7 @@ class SlateBuildActualsLineup(models.Model):
 
         if pass_catchers.count() > 0:
             top_projection = pass_catchers[0].projection
-            top_projected_players = [p for p in pass_catchers if top_projection - p.projection <= 2.0]
+            top_projected_players = [p for p in pass_catchers if top_projection - p.projection <= margin]
 
             return self.wr1 in top_projected_players or self.wr2 in top_projected_players or self.wr3 in top_projected_players or self.te in top_projected_players or self.flex in top_projected_players
         return False
@@ -2581,7 +2619,7 @@ class SlateBuildActualsLineup(models.Model):
     contains_top_projected_pass_catcher.boolean = True
 
     def contains_opp_top_projected_pass_catcher(self):
-        pass_catchers = SlatePlayerProjection.objects.filter(
+        pass_catchers = BuildPlayerProjection.objects.filter(
             Q(Q(slate_player__site_pos='WR') | Q(slate_player__site_pos='TE')),
             slate_player__slate=self.build.slate,
             slate_player__team=self.qb.slate_player.get_opponent()
@@ -2634,6 +2672,61 @@ class SlateBuildActualsLineup(models.Model):
         
         tes.sort(key=lambda  p: p.slate_player.salary, reverse=True)
         return tes
+
+    @property
+    def non_stack_sim_scores(self):
+        matrix = [
+            self.rb1.sim_scores,
+            self.rb2.sim_scores,
+        ]
+
+        if not self.stack.contains_slate_player(self.wr1.slate_player):
+            matrix.append(self.wr1.sim_scores)    
+        if not self.stack.contains_slate_player(self.wr2.slate_player):
+            matrix.append(self.wr2.sim_scores)    
+        if not self.stack.contains_slate_player(self.wr3.slate_player):
+            matrix.append(self.wr3.sim_scores)    
+        if not self.stack.contains_slate_player(self.te.slate_player):
+            matrix.append(self.te.sim_scores)    
+        if not self.stack.contains_slate_player(self.flex.slate_player):
+            matrix.append(self.flex.sim_scores) 
+        
+        matrix.append(self.dst.sim_scores)
+
+        return matrix  
+
+    def get_median_sim_score(self):
+        matrix = [self.stack.sim_scores] + self.non_stack_sim_scores
+        score_matrix = numpy.array(matrix)
+
+        try:
+            scores = score_matrix.sum(axis=0)
+        except:
+            traceback.print_exc()
+            return None
+        return numpy.median(scores)
+
+    def get_ceiling_sim_score(self):
+        matrix = [self.stack.sim_scores] + self.non_stack_sim_scores
+        score_matrix = numpy.array(matrix)
+
+        try:
+            scores = score_matrix.sum(axis=0)
+        except:
+            traceback.print_exc()
+            return None
+        return numpy.amax(scores)
+
+    def get_percentile_sim_score(self, percentile):
+        matrix = [self.stack.sim_scores] + self.non_stack_sim_scores
+        score_matrix = numpy.array(matrix)
+
+        try:
+            scores = score_matrix.sum(axis=0)
+        except:
+            traceback.print_exc()
+            return None
+        return numpy.percentile(scores, decimal.Decimal(percentile))
 
 
 class SlatePlayerBuildExposure(SlatePlayer):

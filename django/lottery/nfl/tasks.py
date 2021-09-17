@@ -605,7 +605,12 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
                 'dst_team_total',
                 'dst_spread',
                 'top_pass_catcher_for_qb',
-                'top_opp_pass_catchers_for_qb'
+                'top_opp_pass_catchers_for_qb',
+                'stack_mu',
+                'stack_ceil',
+                'mu', 
+                'p75',
+                'ceil'
             ])
 
             for lineup in lineups:
@@ -679,27 +684,82 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
                     lineup.te.position_rank,
                     lineup.flex.position_rank,
                     lineup.dst.position_rank,
-                    lineup.qb.get_game_total(),
-                    lineup.qb.get_team_total(),
-                    lineup.rb1.get_game_total(),
-                    lineup.rb1.get_team_total(),
-                    lineup.rb2.get_game_total(),
-                    lineup.rb2.get_team_total(),
-                    lineup.wr1.get_game_total(),
-                    lineup.wr1.get_team_total(),
-                    lineup.wr2.get_game_total(),
-                    lineup.wr2.get_team_total(),
-                    lineup.wr3.get_game_total(),
-                    lineup.wr3.get_team_total(),
-                    lineup.te.get_game_total(),
-                    lineup.te.get_team_total(),
-                    lineup.flex.get_game_total(),
-                    lineup.flex.get_team_total(),
-                    lineup.dst.get_game_total(),
-                    lineup.dst.get_team_total(),
-                    lineup.dst.get_spread(),
+                    lineup.qb.game_total,
+                    lineup.qb.team_total,
+                    lineup.rb1.game_total,
+                    lineup.rb1.team_total,
+                    lineup.rb2.game_total,
+                    lineup.rb2.team_total,
+                    lineup.wr1.game_total,
+                    lineup.wr1.team_total,
+                    lineup.wr2.game_total,
+                    lineup.wr2.team_total,
+                    lineup.wr3.game_total,
+                    lineup.wr3.team_total,
+                    lineup.te.game_total,
+                    lineup.te.team_total,
+                    lineup.flex.game_total,
+                    lineup.flex.team_total,
+                    lineup.dst.game_total,
+                    lineup.dst.team_total,
+                    lineup.dst.spread,
                     lineup.contains_top_projected_pass_catcher(),
-                    lineup.contains_opp_top_projected_pass_catcher()
+                    lineup.contains_opp_top_projected_pass_catcher(),
+                    lineup.stack.get_median_sim_score(),
+                    lineup.stack.get_ceiling_sim_score(),
+                    lineup.get_median_sim_score(),
+                    lineup.get_percentile_sim_score(75),
+                    lineup.get_ceiling_sim_score()
+                ])
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def export_stacks(stack_ids, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids)
+
+        with open(result_path, 'w') as temp_csv:
+            lineup_writer = csv.writer(temp_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            lineup_writer.writerow([
+                'slate',
+                'qb', 
+                'p1',
+                'p2', 
+                'opp_p1', 
+                'sal', 
+                'proj', 
+                'actual'
+            ])
+
+            for stack in stacks:
+                lineup_writer.writerow([
+                    stack.build.slate.id,
+                    stack.qb.name,
+                    stack.player_1.name,
+                    stack.player_2.name,
+                    stack.opp_player.name,
+                    stack.salary,
+                    stack.projection,
+                    stack.actual
                 ])
 
         task.status = 'download'
@@ -919,7 +979,7 @@ def process_projection_sheet(sheet_id, task_id):
                                 projection.stdev = stdev
                                 # projection.sim_scores = [i for i in numpy.random.gamma(pow(mu, 2)/pow(stdev, 2), pow(stdev, 2)/mu, 10000)]
                                 # projection.sim_scores = [math.log(i) for i in numpy.random.lognormal(mu, stdev, 10000)]
-                                # projection.sim_scores = [min((i * 0.85) * mu, ceil*1.25) for i in numpy.random.weibull(1.8, 10000)]
+                                projection.sim_scores = [min((i * 0.85) * mu, ceil*1.25) for i in numpy.random.weibull(1.8, 10000)]
                                 projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)
 
                                 projection.save()                 

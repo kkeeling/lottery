@@ -1,5 +1,7 @@
 import csv
 import datetime
+import decimal
+import traceback
 import numpy
 import os
 
@@ -1261,6 +1263,7 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
 
 @admin.register(models.SlateBuildLineup, site=lottery_admin_site)
 class SlateBuildLineupAdmin(admin.ModelAdmin):
+    list_per_page = 50
     list_display = (
         'stack',
         'get_stack_rank',
@@ -1278,9 +1281,9 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'salary',
         'projection',
         # 'rating',
-        # 'get_median_score',
-        # 'get_75th_percentile_score',
-        # 'get_ceiling_percentile_score',
+        'get_median_score',
+        'get_75th_percentile_score',
+        'get_ceiling_percentile_score',
         'get_actual',
     )
 
@@ -1364,61 +1367,37 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
     get_actual.admin_order_field = 'actual_coalesced'
 
     def get_median_score(self, obj):
-        score_matrix = numpy.array([
-            obj.qb.slate_player.projection.sim_scores,
-            obj.rb1.slate_player.projection.sim_scores,
-            obj.rb2.slate_player.projection.sim_scores,
-            obj.wr1.slate_player.projection.sim_scores,
-            obj.wr2.slate_player.projection.sim_scores,
-            obj.wr3.slate_player.projection.sim_scores,
-            obj.te.slate_player.projection.sim_scores,
-            obj.flex.slate_player.projection.sim_scores,
-            obj.dst.slate_player.projection.sim_scores,
-        ])
+        matrix = [obj.stack.sim_scores] + obj.non_stack_sim_scores
+        score_matrix = numpy.array(matrix)
 
         try:
             scores = score_matrix.sum(axis=0)
         except:
+            traceback.print_exc()
             return None
         return numpy.median(scores)
     get_median_score.short_description = 'mu'
 
     def get_75th_percentile_score(self, obj):
-        try:
-            score_matrix = numpy.array([
-                [float(n) for n in obj.qb.slate_player.projection.sim_scores],
-                [float(n) for n in obj.rb1.slate_player.projection.sim_scores],
-                [float(n) for n in obj.rb2.slate_player.projection.sim_scores],
-                [float(n) for n in obj.wr1.slate_player.projection.sim_scores],
-                [float(n) for n in obj.wr2.slate_player.projection.sim_scores],
-                [float(n) for n in obj.wr3.slate_player.projection.sim_scores],
-                [float(n) for n in obj.te.slate_player.projection.sim_scores],
-                [float(n) for n in obj.flex.slate_player.projection.sim_scores],
-                [float(n) for n in obj.dst.slate_player.projection.sim_scores]
-            ])
+        matrix = [obj.stack.sim_scores] + obj.non_stack_sim_scores
+        score_matrix = numpy.array(matrix)
 
+        try:
             scores = score_matrix.sum(axis=0)
         except:
+            traceback.print_exc()
             return None
-        return numpy.percentile(scores, 75)
+        return numpy.percentile(scores, decimal.Decimal(75.0))
     get_75th_percentile_score.short_description = '75'
 
     def get_ceiling_percentile_score(self, obj):
-        score_matrix = numpy.array([
-            obj.qb.slate_player.projection.sim_scores,
-            obj.rb1.slate_player.projection.sim_scores,
-            obj.rb2.slate_player.projection.sim_scores,
-            obj.wr1.slate_player.projection.sim_scores,
-            obj.wr2.slate_player.projection.sim_scores,
-            obj.wr3.slate_player.projection.sim_scores,
-            obj.te.slate_player.projection.sim_scores,
-            obj.flex.slate_player.projection.sim_scores,
-            obj.dst.slate_player.projection.sim_scores,
-        ])
+        matrix = [obj.stack.sim_scores] + obj.non_stack_sim_scores
+        score_matrix = numpy.array(matrix)
 
         try:
             scores = score_matrix.sum(axis=0)
         except:
+            traceback.print_exc()
             return None
         return numpy.amax(scores)
     get_ceiling_percentile_score.short_description = 'ceil'
@@ -1442,6 +1421,9 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         'contains_top_projected_pass_catcher',
         'contains_opp_top_projected_pass_catcher',
         'salary',
+        'get_median_score',
+        'get_75th_percentile_score',
+        'get_ceiling_percentile_score',
         'actual',
     )
 
@@ -1509,6 +1491,19 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.dst.get_team_color(), obj.dst))
     get_dst.short_description = 'DST'
 
+    def get_median_score(self, obj):
+        return obj.get_median_sim_score()
+    get_median_score.short_description = 'mu'
+
+    def get_75th_percentile_score(self, obj):
+        return obj.get_percentile_sim_score(75)
+    get_75th_percentile_score.short_description = '75'
+
+    def get_ceiling_percentile_score(self, obj):
+        return obj.get_ceiling_sim_score()
+    get_ceiling_percentile_score.short_description = 'ceil'
+
+
     def export(self, request, queryset):
         task = BackgroundTask()
         task.name = 'Export Optimals'
@@ -1550,7 +1545,10 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
         'lineups_created',
         'actual',
         'get_lineups_link',
-        'error_message'
+        'error_message',
+        'get_median_score',
+        # 'get_75th_percentile_score',
+        'get_ceiling_percentile_score',
     )
 
     list_editable = (
@@ -1559,7 +1557,8 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
 
     actions = [
         'build', 
-        'get_actual_scores'
+        'get_actual_scores',
+        'export'
     ]
 
     def get_stack_name(self, obj):
@@ -1606,6 +1605,41 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
         for stack in queryset:
             stack.calc_actual_score()
     get_actual_scores.short_description = 'Get actual scores for selected stacks'
+
+    def get_median_score(self, obj):
+        return obj.get_median_sim_score()
+    get_median_score.short_description = 'mu'
+
+    def get_75th_percentile_score(self, obj):
+        return obj.get_percentile_sim_score(75)
+    get_75th_percentile_score.short_description = 'p75'
+
+    def get_ceiling_percentile_score(self, obj):
+        return obj.get_ceiling_sim_score()
+    get_ceiling_percentile_score.short_description = 'ceil'
+
+    def export(self, request, queryset):
+        task = BackgroundTask()
+        task.name = 'Export Stacks'
+        task.user = request.user
+        task.save()
+
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file = 'Stacks Export {}.csv'.format(timestamp)
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+        tasks.export_stacks.delay(list(queryset.values_list('id', flat=True)), result_path, result_url, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
+
+    export.short_description = 'Export selected stacks'
 
 
 @admin.register(models.SlateBuild, site=lottery_admin_site)
@@ -2779,7 +2813,13 @@ class BacktestAdmin(admin.ModelAdmin):
 
     def get_links(self, obj):
         html = ''
+        all_stacks = models.SlateBuildStack.objects.filter(build__backtest__in=obj.slates.all(), count__gt=0)
+
+        if all_stacks.count() > 0:
+            html += '<a href="/admin/nfl/slatebuildstack/?build__id__in={}">Stacks</a>'.format(','.join([str(x.build.id) for x in obj.slates.all()]))
         if obj.completed_lineups > 0:
+            if html != '':
+                html += '<br />'
             html += '<a href="/admin/nfl/slatebuildlineup/?build__id__in={}">Lineups</a>'.format(','.join([str(x.build.id) for x in obj.slates.all()]))
         if obj.total_optimals > 0:
             if html != '':
