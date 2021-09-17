@@ -2421,13 +2421,19 @@ class SlateBuildStack(models.Model):
         return count
 
     def get_median_sim_score(self):
-        return numpy.median(self.sim_scores)
+        if self.sim_scores:
+            return numpy.median(self.sim_scores)
+        return None
 
     def get_percentile_sim_score(self, percentile):
-        return numpy.percentile(self.sim_scores, percentile)
+        if self.sim_scores:
+            return numpy.percentile(self.sim_scores, percentile)
+        return None
 
     def get_ceiling_sim_score(self):
-        return numpy.amax(self.sim_scores)
+        if self.sim_scores:
+            return numpy.amax(self.sim_scores)
+        return None
 
 
 class SlateBuildLineup(models.Model):
