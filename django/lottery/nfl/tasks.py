@@ -969,6 +969,19 @@ def process_projection_sheet(sheet_id, task_id):
 
                             # if this sheet is primary (4for4, likely) then duplicate the projection data to SlatePlayerProjection model instance
                             if sheet.is_primary:
+                                if slate_player.site_pos == 'QB':
+                                    sim_scores = [(i * 1.1) * mu for i in numpy.random.weibull(4.2, 10000)]
+                                elif slate_player.site_pos == 'RB':
+                                    sim_scores = [i * mu for i in numpy.random.weibull(2.5, 10000)]
+                                elif slate_player.site_pos == 'WR':
+                                    sim_scores = [min((i * 0.85) * mu, ceil*1.5) for i in numpy.random.weibull(1.8, 10000)]
+                                elif slate_player.site_pos == 'TE':
+                                    sim_scores = [min((i * 0.85) * mu, ceil*2.0) for i in numpy.random.weibull(1.5, 10000)]
+                                elif slate_player.site_pos == 'D' or slate_player.site_pos == 'DST':
+                                    sim_scores = [min((i * 0.85) * mu, ceil*1.25) for i in numpy.random.weibull(1.8, 10000)]
+                                else:
+                                    sim_scores = None
+
                                 (projection, _) = models.SlatePlayerProjection.objects.get_or_create(
                                     slate_player=slate_player
                                 )
@@ -979,7 +992,7 @@ def process_projection_sheet(sheet_id, task_id):
                                 projection.stdev = stdev
                                 # projection.sim_scores = [i for i in numpy.random.gamma(pow(mu, 2)/pow(stdev, 2), pow(stdev, 2)/mu, 10000)]
                                 # projection.sim_scores = [math.log(i) for i in numpy.random.lognormal(mu, stdev, 10000)]
-                                projection.sim_scores = [min((i * 0.85) * mu, ceil*1.25) for i in numpy.random.weibull(1.8, 10000)]
+                                projection.sim_scores = sim_scores
                                 projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)
 
                                 projection.save()                 
