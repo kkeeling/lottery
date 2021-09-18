@@ -2196,6 +2196,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     )
     list_editable = (
         'in_play',
+        'projection',
         'balanced_projection',
         'rb_group',
         'stack_only',
