@@ -299,7 +299,7 @@ def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75,
                         first = player_projection.name
                         last = ''
 
-                    slate_game = player_projection.slate_player.get_slate_game.game
+                    slate_game = player_projection.slate_player.get_slate_game().game
                     game_info = GameInfo(
                         home_team=slate_game.home_team, 
                         away_team=slate_game.away_team,
