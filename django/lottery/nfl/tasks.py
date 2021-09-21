@@ -981,15 +981,15 @@ def process_projection_sheet(sheet_id, task_id):
                             # if this sheet is primary (4for4, likely) then duplicate the projection data to SlatePlayerProjection model instance
                             if sheet.is_primary:
                                 if slate_player.site_pos == 'QB':
-                                    sim_scores = [i * mu for i in scipy.stats.foldnorm.rvs(2.286320653446043, loc=0.009521750045927459, scale=0.43647078822917096, size=10000)]
+                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.foldnorm.rvs(2.286320653446043, loc=0.009521750045927459, scale=0.43647078822917096, size=10000)]
                                 elif slate_player.site_pos == 'RB':
-                                    sim_scores = [i * mu for i in scipy.stats.gengamma.rvs(0.8569512382187675, 1.7296589884149502, loc=0.1696436245041962, scale=1.0034840685805952, size=10000)]
+                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.gengamma.rvs(0.8569512382187675, 1.7296589884149502, loc=0.1696436245041962, scale=1.0034840685805952, size=10000)]
                                 elif slate_player.site_pos == 'WR':
                                     sim_scores = [min(i * mu, 99.99) for i in scipy.stats.geninvgauss.rvs(1.5027595619420469, 1.08441508981995, loc=0.1396719464795535, scale=0.30497399320969815, size=10000)]
                                 elif slate_player.site_pos == 'TE':
                                     sim_scores = [min(i * mu, 99.99) for i in scipy.stats.beta.rvs(1.3211694111775993, 8.619168174695513, loc=0.05324597661516427, scale=7.141266442024949, size=10000)]
                                 elif slate_player.site_pos == 'D' or slate_player.site_pos == 'DST':
-                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.burr12beta.rvs(35.758034183278085, 0.4498053645571314, loc=-11.318659107435849, scale=11.704623152048967, size=10000)]
+                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.burr12.rvs(35.758034183278085, 0.4498053645571314, loc=-11.318659107435849, scale=11.704623152048967, size=10000)]
                                 else:
                                     sim_scores = None
 

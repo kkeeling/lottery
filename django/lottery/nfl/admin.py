@@ -883,6 +883,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         # 'sim_scores',
         'get_median_sim_score',
         'get_floor_sim_score',
+        'get_75th_percentile_sim_score',
         'get_ceiling_sim_score',
     )
     search_fields = ('slate_player__name',)
@@ -1016,13 +1017,19 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
 
     def get_floor_sim_score(self, obj):
         if obj.sim_scores and len(obj.sim_scores) > 0:
-            return numpy.min(obj.sim_scores)
+            return '{:.2f}'.format(obj.get_percentile_sim_score(10))
         return None
     get_floor_sim_score.short_description = 'sFLR'
 
+    def get_75th_percentile_sim_score(self, obj):
+        if obj.sim_scores and len(obj.sim_scores) > 0:
+            return '{:.2f}'.format(obj.get_percentile_sim_score(75))
+        return None
+    get_75th_percentile_sim_score.short_description = 's75'
+
     def get_ceiling_sim_score(self, obj):
         if obj.sim_scores and len(obj.sim_scores) > 0:
-            return numpy.max(obj.sim_scores)
+            return '{:.2f}'.format(obj.get_percentile_sim_score(90))
         return None
     get_ceiling_sim_score.short_description = 'sCEIL'
 
@@ -1496,15 +1503,15 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
 
     def get_median_score(self, obj):
         return obj.get_median_sim_score()
-    get_median_score.short_description = 'mu'
+    get_median_score.short_description = 'sMU'
 
     def get_75th_percentile_score(self, obj):
         return obj.get_percentile_sim_score(75)
-    get_75th_percentile_score.short_description = '75'
+    get_75th_percentile_score.short_description = 's75'
 
     def get_ceiling_percentile_score(self, obj):
-        return obj.get_ceiling_sim_score()
-    get_ceiling_percentile_score.short_description = 'ceil'
+        return obj.get_percentile_sim_score(90)
+    get_ceiling_percentile_score.short_description = 'sCEIL'
 
 
     def export(self, request, queryset):

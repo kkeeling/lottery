@@ -748,6 +748,9 @@ class SlatePlayerProjection(models.Model):
     def get_game(self):
         return self.slate_player.game
 
+    def get_percentile_sim_score(self, percentile):
+        return numpy.percentile(self.sim_scores, decimal.Decimal(percentile))
+
     def get_opponent(self):
         return self.get_game().replace(self.slate_player.team, '').replace('_', '')
 
