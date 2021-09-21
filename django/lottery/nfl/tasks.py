@@ -980,19 +980,6 @@ def process_projection_sheet(sheet_id, task_id):
 
                             # if this sheet is primary (4for4, likely) then duplicate the projection data to SlatePlayerProjection model instance
                             if sheet.is_primary:
-                                if slate_player.site_pos == 'QB':
-                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.foldnorm.rvs(2.286320653446043, loc=0.009521750045927459, scale=0.43647078822917096, size=10000)]
-                                elif slate_player.site_pos == 'RB':
-                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.gengamma.rvs(0.8569512382187675, 1.7296589884149502, loc=0.1696436245041962, scale=1.0034840685805952, size=10000)]
-                                elif slate_player.site_pos == 'WR':
-                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.geninvgauss.rvs(1.5027595619420469, 1.08441508981995, loc=0.1396719464795535, scale=0.30497399320969815, size=10000)]
-                                elif slate_player.site_pos == 'TE':
-                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.beta.rvs(1.3211694111775993, 8.619168174695513, loc=0.05324597661516427, scale=7.141266442024949, size=10000)]
-                                elif slate_player.site_pos == 'D' or slate_player.site_pos == 'DST':
-                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.burr12.rvs(35.758034183278085, 0.4498053645571314, loc=-11.318659107435849, scale=11.704623152048967, size=10000)]
-                                else:
-                                    sim_scores = None
-
                                 (projection, _) = models.SlatePlayerProjection.objects.get_or_create(
                                     slate_player=slate_player
                                 )
@@ -1001,7 +988,6 @@ def process_projection_sheet(sheet_id, task_id):
                                 projection.floor = flr
                                 projection.ceiling = ceil
                                 projection.stdev = stdev
-                                projection.sim_scores = sim_scores
                                 projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)
 
                                 projection.save()                 
@@ -1231,3 +1217,85 @@ def assign_actual_scores_to_stacks(stack_ids, task_id):
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
+
+@shared_task
+def sim_outcomes_for_stacks(stack_ids, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids)
+        limit = 20
+        pages = math.ceil(stacks.count()/limit)
+
+        offset = 0
+
+        count = 0
+        for page in range(0, pages):
+            offset = page * limit
+
+            for stack in stacks[offset:offset+limit]:
+                try:
+                    stack.calc_sim_scores()
+                    count += 1
+                except:
+                    traceback.print_exc()
+        
+        task.status = 'success'
+        task.content = 'Calculated simulated outcomes for {} out of {} stacks.'.format(count, len(stack_ids))
+        task.save()        
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem simulating outcomes: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def sim_outcomes_for_players(proj_ids, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        projections = models.SlatePlayerProjection.objects.filter(id__in=proj_ids)
+        limit = 100
+        pages = math.ceil(projections.count()/limit)
+
+        offset = 0
+        count = 0
+        for page in range(0, pages):
+            offset = page * limit
+
+            for proj in projections[offset:offset+limit]:
+                try:
+                    proj.calc_sim_scores()
+                    count += 1
+                except:
+                    pass
+        
+        task.status = 'success'
+        task.content = 'Calculated simulated outcomes for {} out of {} players.'.format(count, len(proj_ids))
+        task.save()        
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem simulating outcomes: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))

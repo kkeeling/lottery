@@ -611,6 +611,7 @@ class SlateAdmin(admin.ModelAdmin):
         'get_num_games',
         'get_players_link',
         'get_contest_link',
+        'sim_button',
     )
     list_editable = (
         'is_main_slate',
@@ -718,10 +719,19 @@ class SlateAdmin(admin.ModelAdmin):
            # Anything else you want in the context...
         )
 
-        # Get the scenario to activate
         slate = get_object_or_404(models.Slate, pk=pk)
-        tasks.simulate_slate.delay(slate.id)
-        self.message_user(request, 'Simulating '.format(str(slate)), level=messages.INFO)
+
+        task = BackgroundTask()
+        task.name = 'Simulating Player Outcomes'
+        task.user = request.user
+        task.save()
+
+        tasks.sim_outcomes_for_players.delay(list(models.SlatePlayerProjection.objects.filter(slate_player__slate=slate).values_list('id', flat=True)), task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Simulating player outcomes for {}'.format(str(slate)))
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
@@ -1670,6 +1680,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'prepare_projections_button',
         'prepare_construction_button',
         'build_button',
+        'simulate_stacks_button',
         'export_button',
         'slate',
         'used_in_contests',
@@ -1737,6 +1748,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
             path('slatebuild-balance-rbs/<int:pk>/', self.balance_rbs, name="admin_slatebuild_balance_rbs"),
             path('slatebuild-prepare-projections/<int:pk>/', self.prepare_projections, name="admin_slatebuild_prepare_projections"),
             path('slatebuild-prepare-construction/<int:pk>/', self.prepare_construction, name="admin_slatebuild_prepare_construction"),
+            path('slatebuild-sim_stacks/<int:pk>/', self.simulate_stack_outcomes, name="admin_slatebuild_sim_stacks"),
         ]
         return my_urls + urls
     
@@ -1911,6 +1923,29 @@ class SlateBuildAdmin(admin.ModelAdmin):
             request,
             messages.WARNING,
             'Preparing stacks and groups for {}. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once they are ready.'.format(str(build)))
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def simulate_stack_outcomes(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        task = BackgroundTask()
+        task.name = 'Simulate Stack Outcomes'
+        task.user = request.user
+        task.save()
+
+        build = models.SlateBuild.objects.get(pk=pk)
+        tasks.sim_outcomes_for_stacks.delay(list(build.stacks.all().values_list('id', flat=True)), task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Simulating outcomes for {} stacks.'.format(build.stacks.all().count()))
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)

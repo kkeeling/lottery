@@ -218,3 +218,6 @@ TEAM_COLORS = {
     'WAS': '#773141',
     
 }
+
+# Simulations
+SIMULATION_SIZE = 10000

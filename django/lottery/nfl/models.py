@@ -517,19 +517,6 @@ class Slate(models.Model):
                 slate=self,
                 game=game
             )
-    
-    def simulate(self):
-        sim_scores = {}
-        for proj in SlatePlayerProjection.objects.filter(slate_player__slate=self):
-            if proj.projection >= 3:
-                sim_scores[proj.id] = numpy.random.gamma(proj.projection, proj.stdev, 10000)
-
-        if self.site == 'fanduel':
-            self.simulate_fanduel_contests()
-
-    def simulate_fanduel_contests(self):
-        for contest in self.contests.all():
-            tasks.simulate_contest.delay(contest.id)
 
     def sim_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Sim</a>',
@@ -747,6 +734,24 @@ class SlatePlayerProjection(models.Model):
 
     def get_game(self):
         return self.slate_player.game
+
+    def calc_sim_scores(self):
+        mu = float(self.projection)
+        if self.slate_player.site_pos == 'QB':
+            sim_scores = [min(i * mu, 99.99) for i in scipy.stats.foldnorm.rvs(2.286320653446043, loc=0.009521750045927459, scale=0.43647078822917096, size=settings.SIMULATION_SIZE)]
+        elif self.slate_player.site_pos == 'RB':
+            sim_scores = [min(i * mu, 99.99) for i in scipy.stats.gengamma.rvs(0.8569512382187675, 1.7296589884149502, loc=0.1696436245041962, scale=1.0034840685805952, size=settings.SIMULATION_SIZE)]
+        elif self.slate_player.site_pos == 'WR':
+            sim_scores = [min(i * mu, 99.99) for i in scipy.stats.geninvgauss.rvs(1.5027595619420469, 1.08441508981995, loc=0.1396719464795535, scale=0.30497399320969815, size=settings.SIMULATION_SIZE)]
+        elif self.slate_player.site_pos == 'TE':
+            sim_scores = [min(i * mu, 99.99) for i in scipy.stats.beta.rvs(1.3211694111775993, 8.619168174695513, loc=0.05324597661516427, scale=7.141266442024949, size=settings.SIMULATION_SIZE)]
+        elif self.slate_player.site_pos == 'D' or self.slate_player.site_pos == 'DST':
+            sim_scores = [min(i * mu, 99.99) for i in scipy.stats.burr12.rvs(35.758034183278085, 0.4498053645571314, loc=-11.318659107435849, scale=11.704623152048967, size=settings.SIMULATION_SIZE)]
+        else:
+            sim_scores = None
+        
+        self.sim_scores = sim_scores
+        self.save()
 
     def get_percentile_sim_score(self, percentile):
         return numpy.percentile(self.sim_scores, decimal.Decimal(percentile))
@@ -1806,8 +1811,7 @@ class SlateBuild(models.Model):
                             player_1=player,
                             opp_player=opp_player,
                             salary=sum(p.slate_player.salary for p in [qb, player, opp_player]),
-                            projection=sum(p.projection for p in [qb, player, opp_player]),
-                            sim_scores=[(i * 1.05) * sum(p.projection for p in [qb, player, player2, opp_player]) for i in numpy.random.weibull(2.9, 10000)]
+                            projection=sum(p.projection for p in [qb, player, opp_player])
                         )
 
             elif self.configuration.game_stack_size == 4:
@@ -1833,8 +1837,7 @@ class SlateBuild(models.Model):
                                             player_2=player2,
                                             opp_player=opp_player,
                                             salary=sum(p.slate_player.salary for p in [qb, player, player2, opp_player]),
-                                            projection=sum(p.projection for p in [qb, player, player2, opp_player]),
-                                            sim_scores = [min(i * mu, 999.99) for i in scipy.stats.exponweib.rvs(3.2212819188775237, 1.8784436736213124, loc=-0.08318691129888284, scale=0.782305472516587, size=10000)]
+                                            projection=sum(p.projection for p in [qb, player, player2, opp_player])
                                         )
 
                                         if self.stack_construction is not None:
@@ -2076,6 +2079,12 @@ class SlateBuild(models.Model):
         )
     prepare_construction_button.short_description = ''
     
+    def simulate_stacks_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #f5dd5d; font-weight: bold; padding: 10px 15px;">Sim Stacks</a>',
+            reverse_lazy("admin:admin_slatebuild_sim_stacks", args=[self.pk])
+        )
+    simulate_stacks_button.short_description = ''
+
     def build_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Build</a>',
             reverse_lazy("admin:admin_slatebuild_build", args=[self.pk])
@@ -2312,6 +2321,12 @@ class SlateBuildStack(models.Model):
         self.save()
 
         return score                
+
+    def calc_sim_scores(self):
+        mu = float(sum(p.projection for p in [self.qb, self.player_1, self.player_2, self.opp_player]))
+        sim_scores = [min(i * mu, 999.99) for i in scipy.stats.exponweib.rvs(3.2212819188775237, 1.8784436736213124, loc=-0.08318691129888284, scale=0.782305472516587, size=settings.SIMULATION_SIZE)]
+        self.sim_scores = sim_scores
+        self.save()
 
     def has_possible_optimals(self):
         '''
