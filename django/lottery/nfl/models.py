@@ -2443,17 +2443,17 @@ class SlateBuildStack(models.Model):
     def get_median_sim_score(self):
         if self.sim_scores:
             return numpy.median(self.sim_scores)
-        return None
+        return 0
 
     def get_percentile_sim_score(self, percentile):
         if self.sim_scores:
             return numpy.percentile([float(i) for i in self.sim_scores], percentile)
-        return None
+        return 0
 
     def get_ceiling_sim_score(self):
         if self.sim_scores:
             return numpy.amax(self.sim_scores)
-        return None
+        return 0
 
 
 class SlateBuildLineup(models.Model):
