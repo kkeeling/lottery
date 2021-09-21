@@ -1575,6 +1575,7 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
 
     actions = [
         'build', 
+        'simulate_stack_outcomes',
         'get_actual_scores',
         'export'
     ]
@@ -1633,6 +1634,20 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
             'Assigning actual scores to stacks. A message will appear here when complete.'
         )
     get_actual_scores.short_description = 'Get actual scores for selected stacks'
+
+    def simulate_stack_outcomes(self, request, queryset):
+        task = BackgroundTask()
+        task.name = 'Simulate Stack Outcomes'
+        task.user = request.user
+        task.save()
+
+        tasks.sim_outcomes_for_stacks.delay(list(queryset.values_list('id', flat=True)), task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Simulating outcomes for {} stacks.'.format(queryset.count()))
+    simulate_stack_outcomes.short_description = 'Simulate outcomes for selected stacks'
 
     def get_median_score(self, obj):
         return '{:.2f}'.format(obj.get_median_sim_score())
