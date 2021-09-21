@@ -1550,7 +1550,7 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
         'get_lineups_link',
         'error_message',
         'get_median_score',
-        # 'get_75th_percentile_score',
+        'get_75th_percentile_score',
         'get_ceiling_percentile_score',
     )
 
@@ -1605,20 +1605,30 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
     build.short_description = 'Generate lineups for selected stacks'
 
     def get_actual_scores(self, request, queryset):
-        for stack in queryset:
-            stack.calc_actual_score()
+        task = BackgroundTask()
+        task.name = 'Assign Stack Actuals'
+        task.user = request.user
+        task.save()
+        
+        tasks.assign_actual_scores_to_stacks.delay(list(queryset.values_list('id', flat=True)), task_id=task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Assigning actual scores to stacks. A message will appear here when complete.'
+        )
     get_actual_scores.short_description = 'Get actual scores for selected stacks'
 
     def get_median_score(self, obj):
-        return obj.get_median_sim_score()
+        return '{:.2f}'.format(obj.get_median_sim_score())
     get_median_score.short_description = 'mu'
 
     def get_75th_percentile_score(self, obj):
-        return obj.get_percentile_sim_score(75)
+        return '{:.2f}'.format(obj.get_percentile_sim_score(75))
     get_75th_percentile_score.short_description = 'p75'
 
     def get_ceiling_percentile_score(self, obj):
-        return obj.get_ceiling_sim_score()
+        return '{:.2f}'.format(obj.get_percentile_sim_score(90))
     get_ceiling_percentile_score.short_description = 'ceil'
 
     def export(self, request, queryset):

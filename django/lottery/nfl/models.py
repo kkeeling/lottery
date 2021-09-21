@@ -6,6 +6,7 @@ import math
 from django.db.models.fields import DecimalField
 import numpy
 import requests
+import scipy
 import statistics
 import traceback
 import uuid
@@ -1820,6 +1821,7 @@ class SlateBuild(models.Model):
                                         continue  # You can't have stacks with 2 same team bobos
                                     else:
                                         count += 1
+                                        mu = float(sum(p.projection for p in [qb, player, player2, opp_player]))
                                         stack = SlateBuildStack(
                                             build=self,
                                             build_order=count,
@@ -1829,7 +1831,7 @@ class SlateBuild(models.Model):
                                             opp_player=opp_player,
                                             salary=sum(p.slate_player.salary for p in [qb, player, player2, opp_player]),
                                             projection=sum(p.projection for p in [qb, player, player2, opp_player]),
-                                            sim_scores=[(float(i) * 1.05) * float(sum(p.projection for p in [qb, player, player2, opp_player])) for i in numpy.random.weibull(2.9, 10000)]
+                                            sim_scores = [min(i * mu, 999.99) for i in scipy.stats.exponweib.rvs(3.2212819188775237, 1.8784436736213124, loc=-0.08318691129888284, scale=0.782305472516587, size=10000)]
                                         )
 
                                         if self.stack_construction is not None:
@@ -2427,7 +2429,7 @@ class SlateBuildStack(models.Model):
 
     def get_percentile_sim_score(self, percentile):
         if self.sim_scores:
-            return numpy.percentile(self.sim_scores, percentile)
+            return numpy.percentile([float(i) for i in self.sim_scores], percentile)
         return None
 
     def get_ceiling_sim_score(self):

@@ -1,0 +1,25 @@
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from fitter import Fitter, get_common_distributions, get_distributions
+
+from nfl import models
+
+
+def run():
+    dataset = pd.read_csv("/opt/lottery/data/stacks_actuals.csv")
+    dataset.head()
+    dataset.info()
+    
+    diffs = dataset["diff"].values
+    f = Fitter(
+        diffs,
+        # distributions=[
+        #     'gamma',
+        #     'lognorm',
+        #     "skewnorm",
+        # ]
+    )
+    f.fit()
+    f.summary()   
+    print(f.get_best(method = 'sumsquare_error'))

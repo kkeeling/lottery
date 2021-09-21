@@ -15,6 +15,7 @@ django-grappelli==2.13.4
 django-tagulous==1.0.0
 djangorestframework==3.12.4
 docutils==0.16
+fitter==1.4.0
 flower==1.0.0
 idna==2.6
 isort==4.3.21
@@ -22,6 +23,7 @@ joblib==0.16.0
 lazy-object-proxy==1.4.3
 mccabe==0.6.1
 numpy==1.19.1
+pandas==1.3.3
 psycopg2-binary==2.7.4
 PuLP==2.2
 pydfs-lineup-optimizer==3.3.0
@@ -33,6 +35,7 @@ redis==3.2.1
 requests==2.18.4
 scikit-learn==0.23.2
 scipy==1.5.2
+seaborn==0.11.2
 six==1.15.0
 sqlparse==0.3.1
 threadpoolctl==2.1.0

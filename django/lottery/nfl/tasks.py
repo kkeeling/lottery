@@ -4,6 +4,7 @@ import logging
 from django.contrib.messages.api import success
 import math
 import numpy
+import scipy
 import sys
 import time
 import traceback
@@ -740,7 +741,7 @@ def export_stacks(stack_ids, result_path, result_url, task_id):
         with open(result_path, 'w') as temp_csv:
             lineup_writer = csv.writer(temp_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             lineup_writer.writerow([
-                'slate',
+                'id',
                 'qb', 
                 'p1',
                 'p2', 
@@ -750,17 +751,27 @@ def export_stacks(stack_ids, result_path, result_url, task_id):
                 'actual'
             ])
 
-            for stack in stacks:
-                lineup_writer.writerow([
-                    stack.build.slate.id,
-                    stack.qb.name,
-                    stack.player_1.name,
-                    stack.player_2.name,
-                    stack.opp_player.name,
-                    stack.salary,
-                    stack.projection,
-                    stack.actual
-                ])
+            limit = 100
+            pages = math.ceil(stacks.count()/limit)
+
+            offset = 0
+
+            count = 0
+            for page in range(0, pages):
+                offset = page * limit
+
+                for stack in stacks[offset:offset+limit]:
+                    count += 1
+                    lineup_writer.writerow([
+                        stack.id,
+                        stack.qb.name,
+                        stack.player_1.name,
+                        stack.player_2.name,
+                        stack.opp_player.name,
+                        stack.salary,
+                        stack.projection,
+                        stack.actual
+                    ])
 
         task.status = 'download'
         task.content = result_url
@@ -970,15 +981,15 @@ def process_projection_sheet(sheet_id, task_id):
                             # if this sheet is primary (4for4, likely) then duplicate the projection data to SlatePlayerProjection model instance
                             if sheet.is_primary:
                                 if slate_player.site_pos == 'QB':
-                                    sim_scores = [(i * 1.1) * mu for i in numpy.random.weibull(4.2, 10000)]
+                                    sim_scores = [i * mu for i in scipy.stats.foldnorm.rvs(2.286320653446043, loc=0.009521750045927459, scale=0.43647078822917096, size=10000)]
                                 elif slate_player.site_pos == 'RB':
-                                    sim_scores = [i * mu for i in numpy.random.weibull(2.5, 10000)]
+                                    sim_scores = [i * mu for i in scipy.stats.gengamma.rvs(0.8569512382187675, 1.7296589884149502, loc=0.1696436245041962, scale=1.0034840685805952, size=10000)]
                                 elif slate_player.site_pos == 'WR':
-                                    sim_scores = [min((i * 0.85) * mu, ceil*1.5) for i in numpy.random.weibull(1.8, 10000)]
+                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.geninvgauss.rvs(1.5027595619420469, 1.08441508981995, loc=0.1396719464795535, scale=0.30497399320969815, size=10000)]
                                 elif slate_player.site_pos == 'TE':
-                                    sim_scores = [min((i * 0.85) * mu, ceil*2.0) for i in numpy.random.weibull(1.5, 10000)]
+                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.beta.rvs(1.3211694111775993, 8.619168174695513, loc=0.05324597661516427, scale=7.141266442024949, size=10000)]
                                 elif slate_player.site_pos == 'D' or slate_player.site_pos == 'DST':
-                                    sim_scores = [min((i * 0.85) * mu, ceil*1.25) for i in numpy.random.weibull(1.8, 10000)]
+                                    sim_scores = [min(i * mu, 99.99) for i in scipy.stats.burr12beta.rvs(35.758034183278085, 0.4498053645571314, loc=-11.318659107435849, scale=11.704623152048967, size=10000)]
                                 else:
                                     sim_scores = None
 
@@ -990,8 +1001,6 @@ def process_projection_sheet(sheet_id, task_id):
                                 projection.floor = flr
                                 projection.ceiling = ceil
                                 projection.stdev = stdev
-                                # projection.sim_scores = [i for i in numpy.random.gamma(pow(mu, 2)/pow(stdev, 2), pow(stdev, 2)/mu, 10000)]
-                                # projection.sim_scores = [math.log(i) for i in numpy.random.lognormal(mu, stdev, 10000)]
                                 projection.sim_scores = sim_scores
                                 projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)
 
@@ -1183,4 +1192,42 @@ def find_slate_games(slate_id, task_id):
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
+
+@shared_task
+def assign_actual_scores_to_stacks(stack_ids, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids)
+        limit = 100
+        pages = math.ceil(stacks.count()/limit)
+
+        offset = 0
+
+        count = 0
+        for page in range(0, pages):
+            offset = page * limit
+
+            for stack in stacks[offset:offset+limit]:
+                count += 1
+                stack.calc_actual_score()
+        
+        task.status = 'success'
+        task.content = 'Actuals assigned for stacks.'
+        task.save()        
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem assigning actual scores to stacks: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
