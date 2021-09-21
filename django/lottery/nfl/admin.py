@@ -1510,9 +1510,8 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
     get_75th_percentile_score.short_description = 's75'
 
     def get_ceiling_percentile_score(self, obj):
-        return obj.get_percentile_sim_score(90)
+        return obj.get_percentile_sim_score(100)
     get_ceiling_percentile_score.short_description = 'sCEIL'
-
 
     def export(self, request, queryset):
         task = BackgroundTask()
@@ -1534,7 +1533,6 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
             request,
             messages.WARNING,
             'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
-
     export.short_description = 'Export selected lineups'
 
 
