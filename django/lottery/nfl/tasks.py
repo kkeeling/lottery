@@ -829,23 +829,26 @@ def export_projections(proj_ids, result_path, result_url, task_id):
 
                 for proj in projections[offset:offset+limit]:
                     count += 1
-                    build_writer.writerow([
-                        proj.name, 
-                        proj.slate_player.slate, 
-                        proj.salary, 
-                        proj.position, 
-                        proj.team, 
-                        proj.projection, 
-                        proj.adjusted_opportunity,
-                        proj.value, 
-                        proj.game_total, 
-                        proj.team_total, 
-                        proj.spread,
-                        numpy.median(proj.sim_scores),
-                        proj.get_percentile_sim_score(75),
-                        proj.get_percentile_sim_score(90),
-                        proj.slate_player.fantasy_points
-                    ])
+                    try:
+                        build_writer.writerow([
+                            proj.name, 
+                            proj.slate_player.slate, 
+                            proj.salary, 
+                            proj.position, 
+                            proj.team, 
+                            proj.projection, 
+                            proj.adjusted_opportunity,
+                            proj.value, 
+                            proj.game_total, 
+                            proj.team_total, 
+                            proj.spread,
+                            numpy.median(proj.sim_scores),
+                            proj.get_percentile_sim_score(75),
+                            proj.get_percentile_sim_score(90),
+                            proj.slate_player.fantasy_points
+                        ])
+                    except:
+                        pass
 
         task.status = 'download'
         task.content = result_url
