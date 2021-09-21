@@ -1044,43 +1044,25 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_ceiling_sim_score.short_description = 'sCEIL'
 
     def export(self, request, queryset):
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename=projections.csv'
+        task = BackgroundTask()
+        task.name = 'Export Projections'
+        task.user = request.user
+        task.save()
 
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file = 'Projections Export {}.csv'.format(timestamp)
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
-        build_writer = csv.writer(response, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        build_writer.writerow([
-            'player', 
-            'slate', 
-            'salary', 
-            'position', 
-            'team', 
-            'projection', 
-            'adjusted_opportunity',
-            'value', 
-            'game_total', 
-            'team_total', 
-            'spread', 
-            'actual'
-        ])
+        tasks.export_projections.delay(list(queryset.values_list('id', flat=True)), result_path, result_url, task.id)
 
-        for projection in queryset:
-            build_writer.writerow([
-                self.get_player_name(projection), 
-                self.get_slate(projection), 
-                self.get_player_salary(projection), 
-                self.get_player_position(projection), 
-                self.get_player_team(projection), 
-                projection.projection, 
-                projection.adjusted_opportunity,
-                self.get_player_value(projection), 
-                projection.game_total, 
-                projection.team_total, 
-                projection.spread, 
-                self.get_actual_score(projection)
-            ])
-        
-        return response
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
     export.short_description = 'Export selected player projections'
 
 

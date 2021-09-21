@@ -1,6 +1,7 @@
 import csv
 import datetime
 import logging
+from statistics import median
 from django.contrib.messages.api import success
 import math
 import numpy
@@ -771,6 +772,79 @@ def export_stacks(stack_ids, result_path, result_url, task_id):
                         stack.salary,
                         stack.projection,
                         stack.actual
+                    ])
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def export_projections(proj_ids, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        projections = models.SlatePlayerProjection.objects.filter(id__in=proj_ids)
+
+        with open(result_path, 'w') as temp_csv:
+            build_writer = csv.writer(temp_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            build_writer.writerow([
+                'player', 
+                'slate', 
+                'salary', 
+                'position', 
+                'team', 
+                'projection', 
+                'adjusted_opportunity',
+                'value', 
+                'game_total', 
+                'team_total', 
+                'spread',
+                'sim_median',
+                'sim_75',
+                'sim_ceil',
+                'actual'
+            ])
+
+            limit = 100
+            pages = math.ceil(projections.count()/limit)
+
+            offset = 0
+            count = 0
+            for page in range(0, pages):
+                offset = page * limit
+
+                for proj in projections[offset:offset+limit]:
+                    count += 1
+                    build_writer.writerow([
+                        proj.name, 
+                        proj.slate_player.slate, 
+                        proj.salary, 
+                        proj.position, 
+                        proj.team, 
+                        proj.projection, 
+                        proj.adjusted_opportunity,
+                        proj.value, 
+                        proj.game_total, 
+                        proj.team_total, 
+                        proj.spread,
+                        numpy.median(proj.sim_scores),
+                        proj.get_percentile_sim_score(75),
+                        proj.get_percentile_sim_score(90),
+                        proj.slate_player.fantasy_points
                     ])
 
         task.status = 'download'
