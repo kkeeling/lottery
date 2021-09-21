@@ -2766,7 +2766,8 @@ class BacktestAdmin(admin.ModelAdmin):
         'execute',
         'analyze',
         'duplicate',
-        'find_optimals'
+        'find_optimals',
+        'export_optimals'
     ]
 
     def get_urls(self):
@@ -3048,3 +3049,25 @@ class BacktestAdmin(admin.ModelAdmin):
             backtest.find_optimals()
             messages.success(request, 'Finding optimals for {}. Refresh page to check progress'.format(backtest.name))
     find_optimals.short_description = 'Find optimal lineups for all unique slates in selected backtests'
+
+    def export_optimals(self, request, queryset):
+        task = BackgroundTask()
+        task.name = 'Export Optimals'
+        task.user = request.user
+        task.save()
+
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file = 'Optimals Export {}.csv'.format(timestamp)
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+        optimals = models.SlateBuildActualsLineup.objects.filter(build__backtest__backtest__in=queryset)
+        tasks.export_optimal_lineups.delay(list(optimals.values_list('id', flat=True)), result_path, result_url, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
