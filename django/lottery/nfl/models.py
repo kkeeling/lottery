@@ -2452,7 +2452,7 @@ class SlateBuildStack(models.Model):
 
     def get_ceiling_sim_score(self):
         if self.sim_scores:
-            return numpy.amax(self.sim_scores)
+            return self.get_percentile_sim_score(90)
         return 0
 
 

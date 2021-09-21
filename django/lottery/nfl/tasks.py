@@ -615,7 +615,7 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
                 'ceil'
             ])
 
-            limit = 100
+            limit = 500
             pages = math.ceil(lineups.count()/limit)
 
             offset = 0
