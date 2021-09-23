@@ -1152,6 +1152,17 @@ def process_ownership_sheet(sheet_id, task_id):
                 else:
                     missing_players.append(player_name)
 
+        for game in sheet.slate.games.all():
+            game.calc_ownership()
+
+        own_totals = list(sheet.slate.games.all().values_list('ownership', flat=True))
+        game_own_zscores = scipy.stats.zscore(own_totals)
+        for (index, game) in enumerate(sheet.slate.games.all()):
+            game.ownership_zscore = game_own_zscores[index]
+            game.save()
+
+            game.calc_rating()
+
         task.status = 'success'
         task.content = '{} ownership projections have been successfully added to {} for {}.'.format(success_count, str(sheet.slate), sheet.projection_site) if len(missing_players) == 0 else '{} ownership projections have been successfully added to {} for {}. {} players could not be identified.'.format(success_count, str(sheet.slate), sheet.projection_site, len(missing_players))
         task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None

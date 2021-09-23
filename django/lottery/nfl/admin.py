@@ -230,10 +230,25 @@ class SlateGameInline(admin.TabularInline):
     extra = 0
     fields = (
         'game',
+        'get_game_total',
+        'zscore',
+        'ownership',
+        'ownership_zscore',
+        'rating',
     )
     raw_id_fields = (
         'game',
     )
+    readonly_fields = (
+        'zscore',
+        'get_game_total',
+        'ownership',
+        'ownership_zscore',
+        'rating',
+    )
+
+    def get_game_total(self, obj):
+        return obj.game_total()
 
 
 class GameInline(admin.TabularInline):

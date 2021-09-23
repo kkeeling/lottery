@@ -120,6 +120,29 @@ class Alias(models.Model):
                 alias = Alias.objects.get(rts_name=player_name)
             else:
                 raise Exception('{} is not a supported site yet.'.format(site))
+        except Alias.MultipleObjectsReturned:
+            if site == 'draftkings':
+                alias = Alias.objects.filter(dk_name=player_name)[0]
+            elif site == 'fanduel':
+                alias = Alias.objects.filter(fd_name=player_name)[0]
+            elif site == '4for4':
+                alias = Alias.objects.filter(four4four_name=player_name)[0]
+            elif site == 'awesemo':
+                alias = Alias.objects.filter(awesemo_name=player_name)[0]
+            elif site == 'awesemo_own':
+                alias = Alias.objects.filter(awesemo_ownership_name=player_name)[0]
+            elif site == 'etr':
+                alias = Alias.objects.filter(etr_name=player_name)[0]
+            elif site == 'tda':
+                alias = Alias.objects.filter(tda_name=player_name)[0]
+            elif site == 'rg':
+                alias = Alias.objects.filter(rg_name=player_name)[0]
+            elif site == 'fc':
+                alias = Alias.objects.filter(fc_name=player_name)[0]
+            elif site == 'rts':
+                alias = Alias.objects.filter(rts_name=player_name)[0]
+            else:
+                raise Exception('{} is not a supported site yet.'.format(site))
         except Alias.DoesNotExist:
             scores = []
             normal_name = player_name.lower()
@@ -511,11 +534,14 @@ class Slate(models.Model):
             game_date__gte=self.datetime,
             game_date__lt=self.datetime + datetime.timedelta(hours=5)
         )
+        game_totals = list(games.values_list('game_total', flat=True))
+        zscores = scipy.stats.zscore(game_totals)
 
-        for game in games:
+        for (index, game) in enumerate(games):
             SlateGame.objects.create(
                 slate=self,
-                game=game
+                game=game,
+                zscore=zscores[index]
             )
 
     def sim_button(self):
@@ -528,6 +554,11 @@ class Slate(models.Model):
 class SlateGame(models.Model):
     slate = models.ForeignKey(Slate, related_name='games', on_delete=models.CASCADE)
     game = models.ForeignKey(Game, related_name='slates', on_delete=models.CASCADE)
+    zscore = models.DecimalField('Z-Score', max_digits=6, decimal_places=4, default=0.0000)
+    ownership = models.DecimalField('Ownership', max_digits=6, decimal_places=4, default=0.0000)
+    ownership_zscore = models.DecimalField('Own Z-Score', max_digits=6, decimal_places=4, default=0.0000)
+    avg_stack_ceiling = models.DecimalField('Avg Stack Ceiling', max_digits=5, decimal_places=2, default=0.00)
+    rating = models.DecimalField('Rating', max_digits=6, decimal_places=4, default=0.0000)
 
     class Meta:
         verbose_name = 'Game'
@@ -535,6 +566,17 @@ class SlateGame(models.Model):
 
     def __str__(self):
         return '{}: {}'.format(str(self.slate), str(self.game))
+
+    def calc_ownership(self):
+        self.ownership = self.players.all().aggregate(total=Sum('projection__ownership_projection')).get('total')
+        self.save()
+
+    def calc_rating(self):
+        self.rating = self.zscore / self.ownership_zscore
+        self.save()
+
+    def game_total(self):
+        return self.game.game_total
 
 
 class Contest(models.Model):
@@ -604,7 +646,7 @@ class SlatePlayer(models.Model):
     team = models.CharField(max_length=4)
     fantasy_points = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
     game = models.CharField(max_length=10)
-    slate_game = models.ForeignKey(SlateGame, on_delete=models.SET_NULL, blank=True, null=True)
+    slate_game = models.ForeignKey(SlateGame, related_name='players', on_delete=models.SET_NULL, blank=True, null=True)
     ownership = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
 
     def __str__(self):
@@ -726,14 +768,15 @@ class SlatePlayerProjection(models.Model):
         return self.slate_player.game_total
 
     @property
+    def game(self):
+        return self.slate_player.slate_game
+
+    @property
     def spread(self):
         return self.slate_player.spread
 
     def get_team_color(self):
         return self.slate_player.get_team_color()
-
-    def get_game(self):
-        return self.slate_player.game
 
     def calc_sim_scores(self):
         mu = float(self.projection)
@@ -757,7 +800,7 @@ class SlatePlayerProjection(models.Model):
         return numpy.percentile(self.sim_scores, decimal.Decimal(percentile))
 
     def get_opponent(self):
-        return self.get_game().replace(self.slate_player.team, '').replace('_', '')
+        return self.slate_player.get_opponent()
 
     def set_rb_group_value(self):
         self.rb_group_value = float(self.projection) * 6 + float(self.adjusted_opportunity) * 4
@@ -1068,6 +1111,10 @@ class SlatePlayerRawProjection(models.Model):
         return self.slate_player.team
 
     @property
+    def game(self):
+        return self.slate_player.slate_game
+
+    @property
     def position(self):
         return self.slate_player.site_pos
 
@@ -1081,9 +1128,6 @@ class SlatePlayerRawProjection(models.Model):
 
     def get_team_color(self):
         return self.slate_player.get_team_color()
-
-    def get_game(self):
-        return self.slate_player.game
 
     def get_game_total(self):
         game = self.slate_player.get_slate_game()
@@ -1110,7 +1154,7 @@ class SlatePlayerRawProjection(models.Model):
         return game.game.home_spread if self.slate_player.team == game.game.home_team else game.game.away_spread
 
     def get_opponent(self):
-        return self.get_game().replace(self.slate_player.team, '').replace('_', '')
+        return self.slate_player.get_opponent()
 
 
 # Rules & Configuration
@@ -1775,11 +1819,11 @@ class SlateBuild(models.Model):
 
         # get all qbs in play
         qbs = self.projections.filter(slate_player__site_pos='QB', in_play=True)
-        total_qb_projection = qbs.aggregate(total_projection=Sum('balanced_projection')).get('total_projection')
+        total_qb_projection = qbs.aggregate(total_projection=Sum('projection')).get('total_projection')
         
         # for each qb, create all possible stacking configurations
         for qb in qbs:
-            qb_lineup_count = round(qb.balanced_projection/total_qb_projection * self.total_lineups)
+            qb_lineup_count = round(qb.projection/total_qb_projection * self.total_lineups)
 
             print('Making stacks for {} {} lineups...'.format(qb_lineup_count, qb.name))
             stack_players = self.projections.filter(
@@ -1789,9 +1833,9 @@ class SlateBuild(models.Model):
             )
 
             # team_players includes all in-play players on same team as qb, including stack-only players
-            team_players = stack_players.filter(slate_player__team=qb.team, slate_player__site_pos__in=self.configuration.qb_stack_positions).order_by('-balanced_projection')
+            team_players = stack_players.filter(slate_player__team=qb.team, slate_player__site_pos__in=self.configuration.qb_stack_positions).order_by('-projection')
             # opp_players includes all in-play players on opposing team, including stack-only players that are allowed in opponent stack
-            opp_players = stack_players.filter(slate_player__game=qb.get_game(), slate_player__site_pos__in=self.configuration.opp_qb_stack_positions).exclude(slate_player__team=qb.team).order_by('-balanced_projection')
+            opp_players = stack_players.filter(slate_player__slate_game=qb.game, slate_player__site_pos__in=self.configuration.opp_qb_stack_positions).exclude(slate_player__team=qb.team).order_by('-projection')
 
             am1_players = team_players.filter(
                 Q(Q(stack_only=True) | Q(at_most_one_in_stack=True))
@@ -1806,6 +1850,7 @@ class SlateBuild(models.Model):
                         count += 1
                         stack = SlateBuildStack.objects.create(
                             build=self,
+                            game=qb.game,
                             build_order=count,
                             qb=qb,
                             player_1=player,
@@ -1831,6 +1876,7 @@ class SlateBuild(models.Model):
                                         mu = float(sum(p.projection for p in [qb, player, player2, opp_player]))
                                         stack = SlateBuildStack(
                                             build=self,
+                                            game=qb.game,
                                             build_order=count,
                                             qb=qb,
                                             player_1=player,
@@ -2194,17 +2240,18 @@ class BuildPlayerProjection(models.Model):
         return self.slate_player.spread
 
     @property
+    def game(self):
+        return self.slate_player.slate_game
+
+    @property
     def sim_scores(self):
         return self.slate_player.projection.sim_scores
 
     def get_team_color(self):
         return self.slate_player.get_team_color()
 
-    def get_game(self):
-        return self.slate_player.game
-
     def get_opponent(self):
-        return self.get_game().replace(self.slate_player.team, '').replace('_', '')
+        return self.slate_player.get_opponent()
 
     def set_rb_group_value(self):
         if self.slate_player.site_pos == 'RB':
@@ -2237,6 +2284,7 @@ class BuildPlayerProjection(models.Model):
 
 class SlateBuildStack(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='stacks', on_delete=models.CASCADE)
+    game = models.ForeignKey(SlateGame, related_name='stacks', on_delete=models.SET_NULL, blank=True, null=True)
     build_order = models.PositiveIntegerField(default=1)
     rank = models.PositiveIntegerField(null=True, blank=True)
     qb = models.ForeignKey(BuildPlayerProjection, related_name='qb_stacks', on_delete=models.CASCADE)
