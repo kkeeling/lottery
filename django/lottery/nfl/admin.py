@@ -891,6 +891,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_team',
         'get_player_opponent',
         'get_player_game',
+        'get_player_game_z',
         'projection',
         'ceiling',
         'floor',
@@ -906,7 +907,6 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'get_team_total',
         'get_spread',
         'get_actual_score',
-        # 'sim_scores',
         'get_median_sim_score',
         'get_floor_sim_score',
         'get_75th_percentile_sim_score',
@@ -968,11 +968,19 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
 
     def get_player_game(self, obj):
         game = obj.slate_player.slate_game
-        if game == None:
+        if game is None:
             return None
         return mark_safe('<a href="/admin/nfl/game/{}/">{}@{}</a>'.format(game.game.id, game.game.away_team, game.game.home_team))
     get_player_game.short_description = 'Game'
     get_player_game.admin_order_field = 'slate_player__slate_game'
+
+    def get_player_game_z(self, obj):
+        game = obj.slate_player.slate_game
+        if game is None or game.zscore is None:
+            return None
+        return '{:.2f}'.format(game.zscore)
+    get_player_game_z.short_description = 'Game-z'
+    get_player_game_z.admin_order_field = 'slate_player__slate_game__zscore'
 
     def get_game_total(self, obj):
         return obj.game_total
@@ -1159,7 +1167,7 @@ class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
 
     def get_player_game(self, obj):
         game = obj.slate_player.get_slate_game()
-        if game == None:
+        if game is None:
             return None
         return mark_safe('<a href="/admin/nfl/game/{}/">{}@{}</a>'.format(game.game.id, game.game.away_team, game.game.home_team))
     get_player_game.short_description = 'Game'
@@ -1193,7 +1201,7 @@ class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
     def get_spread(self, obj):
         game = obj.slate_player.get_slate_game()
 
-        if game == None:
+        if game is None:
             return None
         
         return game.game.home_spread if obj.slate_player.team == game.game.home_team else game.game.away_spread
@@ -2232,12 +2240,12 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_team',
         'get_player_opponent',
         'get_player_game',
+        'get_player_game_z',
         'projection',
         'get_4for4_proj',
         'get_awesemo_proj',
         'get_etr_proj',
         'get_tda_proj',
-        'get_rts_proj',
         'get_exposure',
         'get_ownership_projection',
         'get_rating',
@@ -2350,11 +2358,19 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
 
     def get_player_game(self, obj):
         game = obj.slate_player.slate_game
-        if game == None:
+        if game is None:
             return None
         return mark_safe('<a href="/admin/nfl/game/{}/">{}@{}</a>'.format(game.game.id, game.game.away_team, game.game.home_team))
     get_player_game.short_description = 'Game'
     get_player_game.admin_order_field = 'slate_player__slate_game'
+
+    def get_player_game_z(self, obj):
+        game = obj.slate_player.slate_game
+        if game is None or game.zscore is None:
+            return None
+        return '{:.2f}'.format(game.zscore)
+    get_player_game_z.short_description = 'Game-z'
+    get_player_game_z.admin_order_field = 'slate_player__slate_game__zscore'
 
     def get_game_total(self, obj):
         return obj.game_total
