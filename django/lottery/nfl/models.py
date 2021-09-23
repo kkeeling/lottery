@@ -2343,6 +2343,22 @@ class SlateBuildStack(models.Model):
     contains_top_projected_pass_catcher.short_description = '#1 PC?'
     contains_top_projected_pass_catcher.boolean = True
 
+    def contains_opp_top_projected_pass_catcher(self):
+        pass_catchers = BuildPlayerProjection.objects.filter(
+            Q(Q(slate_player__site_pos='WR') | Q(slate_player__site_pos='TE')),
+            slate_player__slate=self.build.slate,
+            slate_player__team=self.qb.slate_player.get_opponent()
+        ).order_by('-projection')
+
+        if pass_catchers.count() > 0:
+            top_projection = pass_catchers[0].projection
+            top_projected_players = [p for p in pass_catchers if top_projection - p.projection <= 2.0]
+
+            return self.opp_player in top_projected_players
+        return False
+    contains_opp_top_projected_pass_catcher.short_description = '#1 OPP PC?'
+    contains_opp_top_projected_pass_catcher.boolean = True
+
     def contains_slate_player(self, slate_player):
         return self.qb.slate_player == slate_player or self.player_1.slate_player == slate_player or (self.player_2 is not None and self.player_2.slate_player == slate_player) or self.opp_player.slate_player == slate_player
 
@@ -2583,6 +2599,22 @@ class SlateBuildLineup(models.Model):
         return False
     contains_top_projected_pass_catcher.short_description = '#1 PC?'
     contains_top_projected_pass_catcher.boolean = True
+
+    def contains_opp_top_projected_pass_catcher(self):
+        pass_catchers = BuildPlayerProjection.objects.filter(
+            Q(Q(slate_player__site_pos='WR') | Q(slate_player__site_pos='TE')),
+            slate_player__slate=self.build.slate,
+            slate_player__team=self.qb.slate_player.get_opponent()
+        ).order_by('-projection')
+
+        if pass_catchers.count() > 0:
+            top_projection = pass_catchers[0].projection
+            top_projected_players = [p for p in pass_catchers if top_projection - p.projection <= 2.0]
+
+            return self.wr1 in top_projected_players or self.wr2 in top_projected_players or self.wr3 in top_projected_players or self.te in top_projected_players or self.flex in top_projected_players
+        return False
+    contains_opp_top_projected_pass_catcher.short_description = '#1 OPP PC?'
+    contains_opp_top_projected_pass_catcher.boolean = True
 
     def get_num_rbs(self):
         if self.flex.slate_player.site_pos == 'RB':

@@ -1304,6 +1304,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'get_flex',
         'get_dst',
         'contains_top_projected_pass_catcher',
+        'contains_opp_top_projected_pass_catcher',
         'salary',
         'projection',
         # 'rating',
@@ -1563,7 +1564,9 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
         'get_opp_player',
         'salary',
         'projection',
+        'get_game_z',
         'contains_top_projected_pass_catcher',
+        'contains_opp_top_projected_pass_catcher',
         'count',
         'times_used',
         'lineups_created',
@@ -1577,6 +1580,13 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
 
     list_editable = (
         'count',
+    )
+
+    raw_id_fields = (
+        'qb',
+        'player_1',
+        'player_2',
+        'opp_player',
     )
 
     actions = [
@@ -1607,6 +1617,14 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
     def get_opp_player(self, obj):
         return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.opp_player.get_team_color(), obj.opp_player))
     get_opp_player.short_description = 'Opposing Player'
+
+    def get_game_z(self, obj):
+        game = obj.qb.slate_player.slate_game
+        if game is None or game.zscore is None:
+            return None
+        return '{:.2f}'.format(game.zscore)
+    get_game_z.short_description = 'Game-z'
+    get_game_z.admin_order_field = 'qb__slate_player__slate_game__zscore'
 
     def get_lineups_link(self, obj):
         if obj.times_used > 0:
