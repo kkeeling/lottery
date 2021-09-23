@@ -249,6 +249,7 @@ class SlateGameInline(admin.TabularInline):
 
     def get_game_total(self, obj):
         return obj.game_total()
+    get_game_total.short_description = 'Total'
 
 
 class GameInline(admin.TabularInline):
