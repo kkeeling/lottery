@@ -1359,9 +1359,13 @@ class GroupCreationRule(models.Model):
     def meets_threshold(self, build_projection):
         locals = {
             'projection': float(build_projection.projection),
-            'team_total': float(build_projection.team_total),
-            'game_total': float(build_projection.game_total),
-            'adjusted_opportunity': float(build_projection.adjusted_opportunity)
+            'team_total': float(build_projection.team_total) if build_projection.team_total is not None else 0.0,
+            'game_total': float(build_projection.game_total) if build_projection.game_total is not None else 0.0,
+            'game_zscore': float(build_projection.game.zscore) if build_projection.game is not None and build_projection.game.zscore is not None else 0.0,
+            'spread': float(build_projection.spread) if build_projection.spread is not None else 0.0,
+            'adjusted_opportunity': float(build_projection.adjusted_opportunity),
+            'position_rank': build_projection.position_rank,
+            'zscore': float(build_projection.zscore) if build_projection.zscore else 0.0
         }
 
         if build_projection.slate_player.site_pos in self.allowed_positions:
