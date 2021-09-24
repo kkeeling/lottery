@@ -569,6 +569,15 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
                 'te_projection', 
                 'flex_projection', 
                 'dst_projection', 
+                'qb_z', 
+                'rb_z', 
+                'rb_z', 
+                'wr_z', 
+                'wr_z',
+                'wr_z', 
+                'te_z', 
+                'flex_z', 
+                'dst_z', 
                 'qb_actual', 
                 'rb_actual', 
                 'rb_actual', 
@@ -679,6 +688,15 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
                         lineup.te.projection,
                         lineup.flex.projection,
                         lineup.dst.projection,
+                        lineup.qb.zscore,
+                        lineup.rb1.zscore,
+                        lineup.rb2.zscore,
+                        lineup.wr1.zscore,
+                        lineup.wr2.zscore,
+                        lineup.wr3.zscore,
+                        lineup.te.zscore,
+                        lineup.flex.zscore,
+                        lineup.dst.zscore,
                         lineup.qb.slate_player.fantasy_points,
                         lineup.rb1.slate_player.fantasy_points,
                         lineup.rb2.slate_player.fantasy_points,
@@ -1079,7 +1097,7 @@ def process_projection_sheet(sheet_id, task_id):
                                 projection.stdev = stdev
                                 projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)
 
-                                projection.save()                 
+                                projection.save()
                     except models.SlatePlayer.DoesNotExist:
                         pass
                 else:
@@ -1089,6 +1107,14 @@ def process_projection_sheet(sheet_id, task_id):
         task.content = '{} projections have been successfully added to {} for {}.'.format(success_count, str(sheet.slate), sheet.projection_site) if len(missing_players) == 0 else '{} players have been successfully added to {} for {}. {} players could not be identified.'.format(success_count, str(sheet.slate), sheet.projection_site, len(missing_players))
         task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
         task.save()        
+
+        if sheet.is_primary:
+            task2 = BackgroundTask()
+            task2.name = 'Find Z-Scores for Players'
+            task2.user = task.user
+            task2.save()
+
+            assign_zscores_to_players.delay(sheet.slate.id, task2.id)
     except Exception as e:
         if task is not None:
             task.status = 'error'
@@ -1273,6 +1299,41 @@ def find_slate_games(slate_id, task_id):
         if task is not None:
             task.status = 'error'
             task.content = f'There was a problem finding games for this slate: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def assign_zscores_to_players(slate_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        slate = models.Slate.objects.get(id=slate_id)
+        slate.calc_player_zscores('QB')
+        slate.calc_player_zscores('RB')
+        slate.calc_player_zscores('WR')
+        slate.calc_player_zscores('TE')
+        if slate.site == 'fanduel':
+            slate.calc_player_zscores('D')
+        else:
+            slate.calc_player_zscores('DST')
+
+        task.status = 'success'
+        task.content = 'Z-Scores calculated.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem assigning z-scores to players for this slate: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))

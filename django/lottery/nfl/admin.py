@@ -893,6 +893,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_game',
         'get_player_game_z',
         'projection',
+        'zscore',
         'ceiling',
         'floor',
         'stdev',
@@ -929,7 +930,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
             slate=F('slate_player__slate'), 
             site_pos=F('slate_player__site_pos'), 
             player_salary=F('slate_player__salary'),
-            game=F('slate_player__slate_game')
+            player_game=F('slate_player__slate_game')
         )
 
         return qs
@@ -2260,6 +2261,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_game',
         'get_player_game_z',
         'projection',
+        'get_player_zscore',
         'get_4for4_proj',
         'get_awesemo_proj',
         'get_etr_proj',
@@ -2381,6 +2383,14 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         return mark_safe('<a href="/admin/nfl/game/{}/">{}@{}</a>'.format(game.game.id, game.game.away_team, game.game.home_team))
     get_player_game.short_description = 'Game'
     get_player_game.admin_order_field = 'slate_player__slate_game'
+
+    def get_player_zscore(self, obj):
+        proj = obj.slate_player.projection
+        if proj is None or proj.zscore is None:
+            return None
+        return '{:.2f}'.format(proj.zscore)
+    get_player_zscore.short_description = 'z'
+    get_player_zscore.admin_order_field = 'slate_player__projection__zscore'
 
     def get_player_game_z(self, obj):
         game = obj.slate_player.slate_game

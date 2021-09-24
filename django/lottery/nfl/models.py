@@ -544,6 +544,15 @@ class Slate(models.Model):
                 zscore=zscores[index]
             )
 
+    def calc_player_zscores(self, position):
+        projections = list(self.get_projections().filter(slate_player__site_pos=position).values_list('projection', flat=True))
+        zscores = scipy.stats.zscore(projections)
+
+        for (index, projection) in enumerate(self.get_projections().filter(slate_player__site_pos=position)):
+            projection.zscore = zscores[index]
+            projection.save()
+        
+
     def sim_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Sim</a>',
             reverse_lazy("admin:admin_slate_simulate", args=[self.pk])
@@ -704,6 +713,7 @@ class SlatePlayerProjection(models.Model):
     slate_player = models.OneToOneField(SlatePlayer, related_name='projection', on_delete=models.CASCADE)
     projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Proj')
     floor = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Flr')
+    zscore = models.DecimalField('Z-Score', max_digits=6, decimal_places=4, default=0.0000)
     ceiling = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Ceil')
     stdev = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Stdev')
     ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
@@ -1280,6 +1290,7 @@ class PlayerSelectionCriteria(models.Model):
             'projection': float(build_projection.projection),
             'team_total': float(build_projection.team_total) if build_projection.team_total is not None else 0.0,
             'game_total': float(build_projection.game_total) if build_projection.game_total is not None else 0.0,
+            'game_zscore': float(build_projection.game.zscore) if build_projection.game is not None and build_projection.game.zscore is not None else 0.0,
             'spread': float(build_projection.spread) if build_projection.spread is not None else 0.0,
             'adjusted_opportunity': float(build_projection.adjusted_opportunity),
             'position_rank': build_projection.position_rank
@@ -2242,6 +2253,12 @@ class BuildPlayerProjection(models.Model):
     @property
     def game(self):
         return self.slate_player.slate_game
+
+    @property
+    def zscore(self):
+        if self.slate_player.projection and self.slate_player.projection.zscore:
+            return self.slate_player.projection.zscore
+        return None
 
     @property
     def sim_scores(self):
