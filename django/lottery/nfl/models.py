@@ -1293,7 +1293,8 @@ class PlayerSelectionCriteria(models.Model):
             'game_zscore': float(build_projection.game.zscore) if build_projection.game is not None and build_projection.game.zscore is not None else 0.0,
             'spread': float(build_projection.spread) if build_projection.spread is not None else 0.0,
             'adjusted_opportunity': float(build_projection.adjusted_opportunity),
-            'position_rank': build_projection.position_rank
+            'position_rank': build_projection.position_rank,
+            'zscore': float(build_projection.zscore) if build_projection.zscore else 0.0
         }
 
         if build_projection.slate_player.site_pos == 'QB' and self.qb_threshold is not None and self.qb_threshold != '':
