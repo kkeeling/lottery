@@ -178,7 +178,7 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
         for_optimals=for_optimals
     )
     optimizer.load_players(players_list)
-    # print('  Loaded {} players.'.format(len(players_list)))
+    print('  Loaded {} players.'.format(len(players_list)))
 
     lineups = []
 
@@ -261,6 +261,7 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
             lineups.append(lineup)
             count += 1
     except exceptions.LineupOptimizerException:
+        traceback.print_exc()
         print('Cannot generate more lineups for: {}'.format(stack.qb.name))
 
     print('created {} lineups'.format(len(lineups)))
