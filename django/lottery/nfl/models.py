@@ -546,12 +546,14 @@ class Slate(models.Model):
 
     def calc_player_zscores(self, position):
         projections = list(self.get_projections().filter(slate_player__site_pos=position).values_list('projection', flat=True))
+        ao_projections = list(self.get_projections().filter(slate_player__site_pos=position).values_list('adjusted_opportunity', flat=True)) if position == 'RB' else None
         zscores = scipy.stats.zscore(projections)
+        ao_zscores = scipy.stats.zscore(ao_projections) if ao_projections is not None else None
 
         for (index, projection) in enumerate(self.get_projections().filter(slate_player__site_pos=position)):
             projection.zscore = zscores[index]
-            projection.save()
-        
+            projection.ao_zscore = ao_zscores[index] if ao_zscores is not None else 0.0
+            projection.save()        
 
     def sim_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Sim</a>',
@@ -718,6 +720,7 @@ class SlatePlayerProjection(models.Model):
     stdev = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Stdev')
     ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
     adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')
+    ao_zscore = models.DecimalField('Z-Score', max_digits=6, decimal_places=4, default=0.0000)
     value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
@@ -2263,6 +2266,12 @@ class BuildPlayerProjection(models.Model):
     def zscore(self):
         if self.slate_player.projection and self.slate_player.projection.zscore:
             return self.slate_player.projection.zscore
+        return None
+
+    @property
+    def ao_zscore(self):
+        if self.slate_player.projection and self.slate_player.projection.ao_zscore:
+            return self.slate_player.projection.ao_zscore
         return None
 
     @property
