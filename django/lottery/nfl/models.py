@@ -1865,18 +1865,46 @@ class SlateBuild(models.Model):
                 # For each player, loop over opposing player to make a group for each possible stack combination
                 count = 0
                 for (index, player) in enumerate(team_players):
-                    for opp_player in opp_players:
-                        count += 1
-                        stack = SlateBuildStack.objects.create(
-                            build=self,
-                            game=qb.game,
-                            build_order=count,
-                            qb=qb,
-                            player_1=player,
-                            opp_player=opp_player,
-                            salary=sum(p.slate_player.salary for p in [qb, player, opp_player]),
-                            projection=sum(p.projection for p in [qb, player, opp_player])
-                        )
+                    if len(self.configuration.opp_qb_stack_positions) > 0:
+                        for opp_player in opp_players:
+                            count += 1
+                            stack = SlateBuildStack(
+                                build=self,
+                                game=qb.game,
+                                build_order=count,
+                                qb=qb,
+                                player_1=player,
+                                opp_player=opp_player,
+                                salary=sum(p.slate_player.salary for p in [qb, player, opp_player]),
+                                projection=sum(p.projection for p in [qb, player, opp_player])
+                            )
+
+                            if self.stack_construction is not None:
+                                stack.contains_top_pc = stack.contains_top_projected_pass_catcher(self.stack_construction.top_pc_margin)
+
+                            # check stack construction rules; if not all are satisfied, do not save this stack
+                            if self.stack_construction is None or self.stack_construction.passes_rule(stack):
+                                stack.save()
+                    else:
+                        for player2 in team_players[index+1:]:
+                            count += 1
+                            stack = SlateBuildStack(
+                                build=self,
+                                game=qb.game,
+                                build_order=count,
+                                qb=qb,
+                                player_1=player,
+                                player_2=player2,
+                                salary=sum(p.slate_player.salary for p in [qb, player, player2]),
+                                projection=sum(p.projection for p in [qb, player, player2])
+                            )
+
+                            if self.stack_construction is not None:
+                                stack.contains_top_pc = stack.contains_top_projected_pass_catcher(self.stack_construction.top_pc_margin)
+
+                            # check stack construction rules; if not all are satisfied, do not save this stack
+                            if self.stack_construction is None or self.stack_construction.passes_rule(stack):
+                                stack.save()
 
             elif self.configuration.game_stack_size == 4:
                 count = 0
@@ -2321,7 +2349,7 @@ class SlateBuildStack(models.Model):
     qb = models.ForeignKey(BuildPlayerProjection, related_name='qb_stacks', on_delete=models.CASCADE)
     player_1 = models.ForeignKey(BuildPlayerProjection, related_name='p1_stacks', on_delete=models.CASCADE)
     player_2 = models.ForeignKey(BuildPlayerProjection, related_name='p2_stacks', on_delete=models.CASCADE, blank=True, null=True)
-    opp_player = models.ForeignKey(BuildPlayerProjection, related_name='opp_stacks', on_delete=models.CASCADE)
+    opp_player = models.ForeignKey(BuildPlayerProjection, related_name='opp_stacks', on_delete=models.CASCADE, blank=True, null=True)
     contains_top_pc = models.BooleanField(default=False)
     salary = models.PositiveIntegerField()
     projection = models.DecimalField(max_digits=5, decimal_places=2)
@@ -2343,19 +2371,16 @@ class SlateBuildStack(models.Model):
 
     @property
     def players(self):
-        if self.player_2 is None:
-            return [
-                self.qb, 
-                self.player_1,
-                self.opp_player
-            ]
-        else:
-            return [
-                self.qb, 
-                self.player_1,
-                self.player_2,
-                self.opp_player
-            ]
+        p = [
+            self.qb,
+            self.player_1
+        ]
+        if self.player_2:
+            p.append(self.player_2)
+        if self.opp_player:
+            p.append(self.opp_player)
+        
+        return p
 
     def contains_top_projected_pass_catcher(self, margin=2.0):
         pass_catchers = BuildPlayerProjection.objects.filter(
@@ -2368,8 +2393,8 @@ class SlateBuildStack(models.Model):
         if pass_catchers.count() > 0:
             top_projection = pass_catchers[0].projection
             top_projected_players = [p for p in pass_catchers if top_projection - p.projection <= margin]
-
-            return self.player_1 in top_projected_players or self.player_2 in top_projected_players
+            
+            return self.player_1 in top_projected_players or (self.player_2 is not None and self.player_2 in top_projected_players)
         return False
     contains_top_projected_pass_catcher.short_description = '#1 PC?'
     contains_top_projected_pass_catcher.boolean = True
@@ -2391,7 +2416,7 @@ class SlateBuildStack(models.Model):
     contains_opp_top_projected_pass_catcher.boolean = True
 
     def contains_slate_player(self, slate_player):
-        return self.qb.slate_player == slate_player or self.player_1.slate_player == slate_player or (self.player_2 is not None and self.player_2.slate_player == slate_player) or self.opp_player.slate_player == slate_player
+        return self.qb.slate_player == slate_player or self.player_1.slate_player == slate_player or (self.player_2 is not None and self.player_2.slate_player == slate_player) or (self.opp_player is not None and self.opp_player.slate_player == slate_player)
 
     def calc_salary(self):
         slate_player_ids = [p.slate_player.id for p in self.players]

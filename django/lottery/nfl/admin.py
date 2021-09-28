@@ -1600,23 +1600,27 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
     def get_stack_name(self, obj):
         return '{} Stack {}'.format(obj.qb.name, obj.build_order)
     get_stack_name.short_description = 'Stack'
+    get_stack_name.admin_order_field = 'qb__name'
 
     def get_qb(self, obj):
         return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.qb.get_team_color(), obj.qb))
     get_qb.short_description = 'QB'
+    get_qb.admin_order_field = 'qb__name'
 
     def get_player_1(self, obj):
         return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.player_1.get_team_color(), obj.player_1))
     get_player_1.short_description = 'Player 1'
 
     def get_player_2(self, obj):
-        if obj.player_2 is None:
-            return 'None'
-        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.player_2.get_team_color(), obj.player_2))
+        if obj.player_2:
+            return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.player_2.get_team_color(), obj.player_2))
+        return None
     get_player_2.short_description = 'Player 2'
 
     def get_opp_player(self, obj):
-        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.opp_player.get_team_color(), obj.opp_player))
+        if obj.opp_player:
+            return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.opp_player.get_team_color(), obj.opp_player))
+        return None
     get_opp_player.short_description = 'Opposing Player'
 
     def get_game_z(self, obj):
