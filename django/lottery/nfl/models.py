@@ -1664,7 +1664,7 @@ class SlateBuild(models.Model):
         # clean stacks
         self.clean_stacks()
 
-        self.total_lineups = self.stacks.all().aggregate(total=Sum('count')).get('total')
+        self.total_lineups = self.stacks.all().aggregate(total=Sum('count')).get('total') 
         self.save()
 
         self.calc_construction_ready()
