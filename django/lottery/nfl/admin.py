@@ -1563,6 +1563,8 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
         'get_player_1',
         'get_player_2',
         'get_opp_player',
+        'get_mini_player_1',
+        'get_mini_player_2',
         'salary',
         'projection',
         'get_game_z',
@@ -1622,6 +1624,18 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
             return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.opp_player.get_team_color(), obj.opp_player))
         return None
     get_opp_player.short_description = 'Opposing Player'
+
+    def get_mini_player_1(self, obj):
+        if obj.mini_player_1:
+            return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.mini_player_1.get_team_color(), obj.mini_player_1))
+        return None
+    get_mini_player_1.short_description = 'Mini Player 1'
+
+    def get_mini_player_2(self, obj):
+        if obj.mini_player_2:
+            return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.mini_player_2.get_team_color(), obj.mini_player_2))
+        return None
+    get_mini_player_2.short_description = 'Mini Player 2'
 
     def get_game_z(self, obj):
         game = obj.qb.slate_player.slate_game
@@ -2630,6 +2644,7 @@ class ConfigAdmin(admin.ModelAdmin):
         'name',
         'site',
         'game_stack_size',
+        'use_super_stacks',
         'num_players_vs_dst',
         'max_dst_exposure',
         'allow_rbs_from_same_game',

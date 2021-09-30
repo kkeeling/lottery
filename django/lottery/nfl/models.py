@@ -1177,6 +1177,7 @@ class SlateBuildConfig(models.Model):
     name = models.CharField(max_length=255)
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
     game_stack_size = models.IntegerField(default=4)
+    use_super_stacks = models.BooleanField(default=False)
     num_players_vs_dst = models.IntegerField(default=0)
     max_dst_exposure = models.DecimalField(decimal_places=2, max_digits=2, default=0.15)
     allow_rbs_from_same_game = models.BooleanField(default=False)
@@ -1833,6 +1834,7 @@ class SlateBuild(models.Model):
         return num_stacks         
 
     def create_stacks(self):
+        d_label = 'D' if self.slate.site == 'fanduel' else 'DST'
         # Delete existing stacks for this build
         SlateBuildStack.objects.filter(build=self).delete()
 
@@ -1842,109 +1844,7 @@ class SlateBuild(models.Model):
         
         # for each qb, create all possible stacking configurations
         for qb in qbs:
-            qb_lineup_count = round(qb.projection/total_qb_projection * self.total_lineups)
-
-            print('Making stacks for {} {} lineups...'.format(qb_lineup_count, qb.name))
-            stack_players = self.projections.filter(
-                Q(Q(slate_player__site_pos__in=self.configuration.qb_stack_positions) | Q(slate_player__site_pos__in=self.configuration.opp_qb_stack_positions))
-            ).filter(
-                Q(Q(qb_stack_only=True, slate_player__team=qb.team) | Q(opp_qb_stack_only=True, slate_player__team=qb.get_opponent()))
-            )
-
-            # team_players includes all in-play players on same team as qb, including stack-only players
-            team_players = stack_players.filter(slate_player__team=qb.team, slate_player__site_pos__in=self.configuration.qb_stack_positions).order_by('-projection')
-            # opp_players includes all in-play players on opposing team, including stack-only players that are allowed in opponent stack
-            opp_players = stack_players.filter(slate_player__slate_game=qb.game, slate_player__site_pos__in=self.configuration.opp_qb_stack_positions).exclude(slate_player__team=qb.team).order_by('-projection')
-
-            am1_players = team_players.filter(
-                Q(Q(stack_only=True) | Q(at_most_one_in_stack=True))
-            )
-            team_has_all_stack_only = (am1_players.count() == team_players.count())
-
-            if self.configuration.game_stack_size == 3:
-                # For each player, loop over opposing player to make a group for each possible stack combination
-                count = 0
-                for (index, player) in enumerate(team_players):
-                    if len(self.configuration.opp_qb_stack_positions) > 0:
-                        for opp_player in opp_players:
-                            count += 1
-                            stack = SlateBuildStack(
-                                build=self,
-                                game=qb.game,
-                                build_order=count,
-                                qb=qb,
-                                player_1=player,
-                                opp_player=opp_player,
-                                salary=sum(p.slate_player.salary for p in [qb, player, opp_player]),
-                                projection=sum(p.projection for p in [qb, player, opp_player])
-                            )
-
-                            if self.stack_construction is not None:
-                                stack.contains_top_pc = stack.contains_top_projected_pass_catcher(self.stack_construction.top_pc_margin)
-
-                            # check stack construction rules; if not all are satisfied, do not save this stack
-                            if self.stack_construction is None or self.stack_construction.passes_rule(stack):
-                                stack.save()
-                    else:
-                        for player2 in team_players[index+1:]:
-                            count += 1
-                            stack = SlateBuildStack(
-                                build=self,
-                                game=qb.game,
-                                build_order=count,
-                                qb=qb,
-                                player_1=player,
-                                player_2=player2,
-                                salary=sum(p.slate_player.salary for p in [qb, player, player2]),
-                                projection=sum(p.projection for p in [qb, player, player2])
-                            )
-
-                            if self.stack_construction is not None:
-                                stack.contains_top_pc = stack.contains_top_projected_pass_catcher(self.stack_construction.top_pc_margin)
-
-                            # check stack construction rules; if not all are satisfied, do not save this stack
-                            if self.stack_construction is None or self.stack_construction.passes_rule(stack):
-                                stack.save()
-
-            elif self.configuration.game_stack_size == 4:
-                count = 0
-                # For each player, loop over opposing player to make a group for each possible stack combination
-                for (index, player) in enumerate(team_players):
-                    if team_has_all_stack_only or not player.stack_only:
-                        for (index2, player2) in enumerate(team_players[index+1:]):
-                            if player2 != player:  # don't include the pivot player
-                                for opp_player in opp_players:
-                                    if player.slate_player.site_pos == 'TE' and player2.slate_player.site_pos == 'TE' and opp_player.slate_player.site_pos == 'TE':  # You can't have stacks with 3 TEs
-                                        continue
-                                    elif player.at_most_one_in_stack and player2.at_most_one_in_stack:
-                                        continue  # You can't have stacks with 2 same team bobos
-                                    else:
-                                        count += 1
-                                        mu = float(sum(p.projection for p in [qb, player, player2, opp_player]))
-                                        stack = SlateBuildStack(
-                                            build=self,
-                                            game=qb.game,
-                                            build_order=count,
-                                            qb=qb,
-                                            player_1=player,
-                                            player_2=player2,
-                                            opp_player=opp_player,
-                                            salary=sum(p.slate_player.salary for p in [qb, player, player2, opp_player]),
-                                            projection=sum(p.projection for p in [qb, player, player2, opp_player])
-                                        )
-
-                                        if self.stack_construction is not None:
-                                            stack.contains_top_pc = stack.contains_top_projected_pass_catcher(self.stack_construction.top_pc_margin)
-
-                                        # check stack construction rules; if not all are satisfied, do not save this stack
-                                        if self.stack_construction is None or self.stack_construction.passes_rule(stack):
-                                            stack.save()
-                                        
-            total_stack_projection = SlateBuildStack.objects.filter(build=self, qb=qb).aggregate(total_projection=Sum('projection')).get('total_projection')
-            for stack in SlateBuildStack.objects.filter(build=self, qb=qb):
-                print(stack, stack.projection/total_stack_projection, round(stack.projection/total_stack_projection * qb_lineup_count, 0))
-                stack.count = round(stack.projection/total_stack_projection * qb_lineup_count, 0)
-                stack.save()
+            tasks.create_stacks_for_qb(self.id, qb.id, total_qb_projection)
 
         self.rank_stacks()
 
@@ -2350,6 +2250,8 @@ class SlateBuildStack(models.Model):
     player_1 = models.ForeignKey(BuildPlayerProjection, related_name='p1_stacks', on_delete=models.CASCADE)
     player_2 = models.ForeignKey(BuildPlayerProjection, related_name='p2_stacks', on_delete=models.CASCADE, blank=True, null=True)
     opp_player = models.ForeignKey(BuildPlayerProjection, related_name='opp_stacks', on_delete=models.CASCADE, blank=True, null=True)
+    mini_player_1 = models.ForeignKey(BuildPlayerProjection, related_name='mini_1_stacks', on_delete=models.CASCADE, blank=True, null=True)
+    mini_player_2 = models.ForeignKey(BuildPlayerProjection, related_name='mini_2_stacks', on_delete=models.CASCADE, blank=True, null=True)
     contains_top_pc = models.BooleanField(default=False)
     salary = models.PositiveIntegerField()
     projection = models.DecimalField(max_digits=5, decimal_places=2)
@@ -2379,6 +2281,10 @@ class SlateBuildStack(models.Model):
             p.append(self.player_2)
         if self.opp_player:
             p.append(self.opp_player)
+        if self.mini_player_1:
+            p.append(self.mini_player_1)
+        if self.mini_player_2:
+            p.append(self.mini_player_2)
         
         return p
 
