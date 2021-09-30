@@ -298,8 +298,8 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                             if team == qb.slate_player.team:
                                 continue
                         
-                            for (idx, mini_player_1) in enumerate(build.projections.filter(slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')):
-                                for mini_player_2 in build.projections.filter(slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')[idx+1:]:
+                            for (idx, mini_player_1) in enumerate(build.projections.filter(slate_player__slate_game__zscore__gte=0.0, slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')):
+                                for mini_player_2 in build.projections.filter(slate_player__slate_game__zscore__gte=0.0, slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')[idx+1:]:
                                     stack = models.SlateBuildStack(
                                         build=build,
                                         game=qb.game,
