@@ -30,7 +30,7 @@ PuLP==2.4
 pylint==2.5.3
 pyparsing==2.4.7
 python-dateutil==2.7.3
-pytz==2020.1
+pytz==2020.5
 redis==3.2.1
 requests==2.18.4
 scikit-learn==0.23.2
