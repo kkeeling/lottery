@@ -303,6 +303,7 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                                     stack = models.SlateBuildStack(
                                         build=build,
                                         game=qb.game,
+                                        mini_game=mini_player_1.game,
                                         build_order=count,
                                         qb=qb,
                                         player_1=player,

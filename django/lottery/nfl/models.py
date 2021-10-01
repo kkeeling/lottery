@@ -1298,7 +1298,8 @@ class PlayerSelectionCriteria(models.Model):
             'spread': float(build_projection.spread) if build_projection.spread is not None else 0.0,
             'adjusted_opportunity': float(build_projection.adjusted_opportunity),
             'position_rank': build_projection.position_rank,
-            'zscore': float(build_projection.zscore) if build_projection.zscore else 0.0
+            'zscore': float(build_projection.zscore) if build_projection.zscore else 0.0,
+            'ao_zscore': float(build_projection.ao_zscore) if build_projection.ao_zscore else 0.0
         }
 
         if build_projection.slate_player.site_pos == 'QB' and self.qb_threshold is not None and self.qb_threshold != '':
@@ -1369,7 +1370,8 @@ class GroupCreationRule(models.Model):
             'spread': float(build_projection.spread) if build_projection.spread is not None else 0.0,
             'adjusted_opportunity': float(build_projection.adjusted_opportunity),
             'position_rank': build_projection.position_rank,
-            'zscore': float(build_projection.zscore) if build_projection.zscore else 0.0
+            'zscore': float(build_projection.zscore) if build_projection.zscore else 0.0,
+            'ao_zscore': float(build_projection.ao_zscore) if build_projection.ao_zscore else 0.0
         }
 
         if build_projection.slate_player.site_pos in self.allowed_positions:
@@ -2244,6 +2246,7 @@ class BuildPlayerProjection(models.Model):
 class SlateBuildStack(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='stacks', on_delete=models.CASCADE)
     game = models.ForeignKey(SlateGame, related_name='stacks', on_delete=models.SET_NULL, blank=True, null=True)
+    mini_game = models.ForeignKey(SlateGame, related_name='mini_stacks', on_delete=models.SET_NULL, blank=True, null=True)
     build_order = models.PositiveIntegerField(default=1)
     rank = models.PositiveIntegerField(null=True, blank=True)
     qb = models.ForeignKey(BuildPlayerProjection, related_name='qb_stacks', on_delete=models.CASCADE)
