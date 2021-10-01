@@ -271,23 +271,53 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
             if len(build.configuration.opp_qb_stack_positions) > 0:
                 for opp_player in opp_players:
                     count += 1
-                    stack = models.SlateBuildStack(
-                        build=build,
-                        game=qb.game,
-                        build_order=count,
-                        qb=qb,
-                        player_1=player,
-                        opp_player=opp_player,
-                        salary=sum(p.slate_player.salary for p in [qb, player, opp_player]),
-                        projection=sum(p.projection for p in [qb, player, opp_player])
-                    )
 
-                    if build.stack_construction is not None:
-                        stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                    # add mini stacks if configured
+                    if build.configuration.use_super_stacks:
+                        for team in build.slate.teams:
+                            if team == qb.slate_player.team or team == qb.slate_player.get_opponent():
+                                continue
+                        
+                            for (idx, mini_player_1) in enumerate(build.projections.filter(slate_player__slate_game__zscore__gte=0.0, slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')):
+                                for mini_player_2 in build.projections.filter(slate_player__slate_game__zscore__gte=0.0, slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')[idx+1:]:
+                                    stack = models.SlateBuildStack(
+                                        build=build,
+                                        game=qb.game,
+                                        mini_game=mini_player_1.game,
+                                        build_order=count,
+                                        qb=qb,
+                                        player_1=player,
+                                        opp_player=opp_player,
+                                        mini_player_1=mini_player_1,
+                                        mini_player_2=mini_player_2,
+                                        salary=sum(p.slate_player.salary for p in [qb, player, opp_player, mini_player_1, mini_player_2]),
+                                        projection=sum(p.projection for p in [qb, player, opp_player, mini_player_1, mini_player_2])
+                                    )
 
-                    # check stack construction rules; if not all are satisfied, do not save this stack
-                    if build.stack_construction is None or build.stack_construction.passes_rule(stack):
-                        stack.save()
+                                    if build.stack_construction is not None:
+                                        stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+
+                                    # check stack construction rules; if not all are satisfied, do not save this stack
+                                    if build.stack_construction is None or build.stack_construction.passes_rule(stack):
+                                        stack.save()
+                    else:
+                        stack = models.SlateBuildStack(
+                            build=build,
+                            game=qb.game,
+                            build_order=count,
+                            qb=qb,
+                            player_1=player,
+                            opp_player=opp_player,
+                            salary=sum(p.slate_player.salary for p in [qb, player, opp_player]),
+                            projection=sum(p.projection for p in [qb, player, opp_player])
+                        )
+
+                        if build.stack_construction is not None:
+                            stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+
+                        # check stack construction rules; if not all are satisfied, do not save this stack
+                        if build.stack_construction is None or build.stack_construction.passes_rule(stack):
+                            stack.save()
             else:
                 for player2 in team_players[index+1:]:
                     count += 1
@@ -376,7 +406,7 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
     total_stack_projection = models.SlateBuildStack.objects.filter(build=build, qb=qb).aggregate(total_projection=Sum('projection')).get('total_projection')
     for stack in models.SlateBuildStack.objects.filter(build=build, qb=qb):
         print(stack, stack.projection/total_stack_projection, round(stack.projection/total_stack_projection * qb_lineup_count, 0))
-        stack.count = round(stack.projection/total_stack_projection * qb_lineup_count, 0)
+        stack.count = round(max(stack.projection/total_stack_projection * qb_lineup_count, 1), 0)
         stack.save()
 
         
@@ -674,7 +704,6 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
                 'score',
                 'salary',
                 'flex_pos',
-                'stack_rank',
                 'qb_game', 
                 'rb_game', 
                 'rb_game', 
@@ -684,6 +713,15 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
                 'te_game', 
                 'flex_game', 
                 'dst_game', 
+                'qb_game_zscore', 
+                'rb_game_zscore', 
+                'rb_game_zscore', 
+                'wr_game_zscore', 
+                'wr_game_zscore',
+                'wr_game_zscore', 
+                'te_game_zscore', 
+                'flex_game_zscore', 
+                'dst_game_zscore', 
                 'qb_team', 
                 'rb_team', 
                 'rb_team', 
@@ -771,12 +809,13 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
                 'dst_spread',
                 'top_pass_catcher_for_qb',
                 'top_opp_pass_catchers_for_qb',
-                'stack_game_z',
-                'stack_mu',
-                'stack_ceil',
-                'mu', 
-                'p75',
-                'ceil'
+                'main_stack',
+                'main_stack_game',
+                'main_stack_game_zscore',
+                'main_stack_projection_rank',
+                'main_stack_projection_zscore',
+                'mini_stack_game',
+                'mini_stack_game_zscore',
             ])
 
             limit = 500
@@ -805,7 +844,6 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
                         lineup.actual,
                         lineup.salary,
                         lineup.flex.slate_player.site_pos,
-                        lineup.stack.rank,
                         lineup.qb.game,
                         lineup.rb1.game,
                         lineup.rb2.game,
@@ -815,6 +853,15 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
                         lineup.te.game,
                         lineup.flex.game,
                         lineup.dst.game,
+                        lineup.qb.game.zscore,
+                        lineup.rb1.game.zscore,
+                        lineup.rb2.game.zscore,
+                        lineup.wr1.game.zscore,
+                        lineup.wr2.game.zscore,
+                        lineup.wr3.game.zscore,
+                        lineup.te.game.zscore,
+                        lineup.flex.game.zscore,
+                        lineup.dst.game.zscore,
                         lineup.qb.team,
                         lineup.rb1.team,
                         lineup.rb2.team,
@@ -902,12 +949,13 @@ def export_optimal_lineups(lineup_ids, result_path, result_url, task_id):
                         lineup.dst.spread,
                         lineup.contains_top_projected_pass_catcher(),
                         lineup.contains_opp_top_projected_pass_catcher(),
-                        lineup.qb.game.zscore,
-                        lineup.stack.get_median_sim_score(),
-                        lineup.stack.get_ceiling_sim_score(),
-                        lineup.get_median_sim_score(),
-                        lineup.get_percentile_sim_score(75),
-                        lineup.get_ceiling_sim_score()
+                        str(lineup.stack),
+                        lineup.stack.game.game if lineup.stack.game is not None else None,
+                        lineup.stack.game.zscore if lineup.stack.game is not None else None,
+                        lineup.stack.rank,
+                        lineup.stack.projection_zscore,
+                        lineup.stack.mini_game.game if lineup.stack.mini_game is not None else None,
+                        lineup.stack.mini_game.zscore if lineup.stack.mini_game is not None else None,
                     ])
 
         task.status = 'download'

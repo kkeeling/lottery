@@ -1836,7 +1836,6 @@ class SlateBuild(models.Model):
         return num_stacks         
 
     def create_stacks(self):
-        d_label = 'D' if self.slate.site == 'fanduel' else 'DST'
         # Delete existing stacks for this build
         SlateBuildStack.objects.filter(build=self).delete()
 
@@ -1848,6 +1847,7 @@ class SlateBuild(models.Model):
         for qb in qbs:
             tasks.create_stacks_for_qb(self.id, qb.id, total_qb_projection)
 
+        self.calc_zscores_for_stacks()
         self.rank_stacks()
 
     def rank_stacks(self):
@@ -1870,6 +1870,14 @@ class SlateBuild(models.Model):
             for stack in ordered_stacks:
                 stack.count += math.ceil(num_lineups_to_distribute/self.stack_cutoff)
                 stack.save()
+
+    def calc_zscores_for_stacks(self):
+        projections = list(self.stacks.all().order_by('-projection').values_list('projection', flat=True))
+        zscores = scipy.stats.zscore(projections)
+
+        for (index, stack) in enumerate(self.stacks.all().order_by('-projection')):
+            stack.projection_zscore = zscores[index]
+            stack.save()
 
     def speed_test(self):
         _ = optimize.optimize(
@@ -2258,6 +2266,7 @@ class SlateBuildStack(models.Model):
     contains_top_pc = models.BooleanField(default=False)
     salary = models.PositiveIntegerField()
     projection = models.DecimalField(max_digits=5, decimal_places=2)
+    projection_zscore = models.DecimalField('Z-Score', max_digits=6, decimal_places=4, default=0.0000)
     count = models.PositiveIntegerField(default=0, help_text='# of lineups in which this stack should appear')
     times_used = models.PositiveIntegerField(default=0)
     lineups_created = models.BooleanField(default=False)
