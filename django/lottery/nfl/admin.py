@@ -2239,7 +2239,17 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
     def get_actual_scores(self, request, queryset):
         for build in queryset:
-            build.get_actual_scores()
+            task = BackgroundTask()
+            task.name = 'Calculate Actual Scores'
+            task.user = request.user
+            task.save()
+
+            tasks.calculate_actuals_for_build.delay(build.id, task.id)
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Calculating actual scores.')
     get_actual_scores.short_description = 'Get actual scores for selected builds'
 
     def duplicate_builds(self, request, queryset):

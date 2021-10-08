@@ -164,6 +164,72 @@ def build_lineups_for_stack(stack_id, lineup_number, num_qb_stacks):
 
 
 @shared_task
+def calculate_actuals_for_build(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+
+        build = models.SlateBuild.objects.get(id=build_id)
+        contest = build.slate.contests.get(outcomes_sheet__isnull=False)
+
+        top_score = 0
+        total_cashes = 0
+        total_one_pct = 0
+        total_half_pct = 0
+        binked = False
+        great_build = False
+
+        for stack in build.stacks.all():
+            stack.calc_actual_score()
+
+        for lineup in build.lineups.all():
+            score = lineup.calc_actual_score()
+            top_score = max(top_score, score)
+            if score >= contest.mincash_score:
+                total_cashes += 1
+            if score >= contest.one_pct_score:
+                total_one_pct += 1
+            if score >= contest.half_pct_score:
+                total_half_pct += 1
+            if score >= contest.winning_score:
+                binked = True
+            if score >= contest.great_score:
+                great_build = True
+
+        build.top_score = top_score
+        build.total_cashes = total_cashes
+        build.total_one_pct = total_one_pct
+        build.total_half_pct = total_half_pct
+        build.great_build = great_build
+        build.binked = binked
+        build.save()
+
+        task.status = 'success'
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem calculating actuals: {e}'
+            task.save()
+
+        if build is not None:
+            build.status = 'error'
+            build.error_message = str(e)
+            build.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def initialize_backtest(backtest_id):
     try:
         backtest = models.Backtest.objects.get(id=backtest_id)
