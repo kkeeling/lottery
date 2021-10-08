@@ -1932,32 +1932,41 @@ class SlateBuild(models.Model):
             last_qb = qb
 
     def analyze_lineups(self):
-        # Task implementation goes here
         if self.slate.contests.count() > 0:
-            contest = self.slate.contests.all()[0]
+            contest = self.slate.contests.get(outcomes_sheet__isnull=False)
+            build_lineups = self.lineups.all().order_by('id')
+            build_lineups.update(ev=0)
 
-            # converting column data to list
-            all_outcomes = []
-            for i in range (0, 10000):
-                all_outcomes.append([])
+            lineup_limit = 75
+            lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
 
-            # reading CSV file
-            count = 0
-            df = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2')
-            for lineup in self.lineups.all():  # for each lineup
-                profits = []
+            for lineup_page in range(0, lineup_pages):
+                lineup_min = lineup_page * lineup_limit
+                lineup_max = lineup_min + lineup_limit
+                lineups = build_lineups[lineup_min:lineup_max]
 
-                for index in range(3, 10003):  # for each contest outcome
-                    series = df['X{}'.format(index)]
-                    for i in range(0, 10000):  # for each lineup outcome
-                        lineup_score = sum([p.sim_scores[i] for p in lineup.players])
-                        prize_range = series[series > lineup_score]
-                        rank = prize_range.tail(1).keys()[0]
+                limit = 50
+                pages = math.ceil(10000/limit)
+                
+                task_results = []
+                all_tasks_complete = False
 
-                        # find contest prize
-                        profits.append(float(contest.get_payout(rank)) - float(contest.cost))
-                lineup.ev = numpy.sum(profits)
-                lineup.save()
+                for col_count in range(0, pages):
+                    col_min = col_count * limit + 3
+                    col_max = col_min + limit
+
+                    task_results.append(tasks.analyze_lineups_page.delay(self.id, contest.id, list(lineups.values_list('id', flat=True)), col_min, col_max, limit, False))
+
+                while not all_tasks_complete:
+                    all_tasks_complete = True
+                    for result in task_results:
+                        if not result.ready():
+                            all_tasks_complete = False
+                        else:
+                            for index, lineup in enumerate(lineups):
+                                if len(result.result) > index:
+                                    lineup.ev = float(lineup.ev) + result.result[index]
+                                    lineup.save()
 
     def clean_lineups(self):
         if self.configuration.lineup_removal_pct > 0.0:
