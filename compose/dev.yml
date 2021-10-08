@@ -54,12 +54,9 @@ services:
     depends_on:
       - redis
       - celery
-    command: celery --broker=redis://redis:6379 flower --port=8888 --logging=DEBUG --max-tasks-per-child=1
-    # environment:
-    #   - CELERY_BROKER_URL=redis://redis:6379/0 
-    #   - FLOWER_PORT=8888
+    command: celery --broker=redis://redis:6379 flower --port=3333 --logging=DEBUG --max-tasks-per-child=1
     ports:  
-      - 8888:8888
+      - 3333:3333
     volumes:
       - ../django/lottery:/opt/lottery
       - lottery_static:/opt/static

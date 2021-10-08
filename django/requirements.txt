@@ -24,6 +24,7 @@ lazy-object-proxy==1.4.3
 mccabe==0.6.1
 numpy==1.19.1
 pandas==1.3.3
+pandasql==0.7.3
 psycopg2-binary==2.7.4
 PuLP==2.4
 -e git+https://github.com/kkeeling/pydfs-lineup-optimizer#egg=pydfs-lineup-optimizer

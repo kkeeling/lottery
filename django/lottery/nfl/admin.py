@@ -648,6 +648,7 @@ class SlateAdmin(admin.ModelAdmin):
         'site',
         'salaries_sheet_type',
         'salaries',
+        'player_outcomes',
         'is_complete',
         'fc_actuals_sheet',        
     )
@@ -1452,6 +1453,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         'get_median_score',
         'get_75th_percentile_score',
         'get_ceiling_percentile_score',
+        'ev',
         'actual',
     )
 
@@ -1790,6 +1792,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         # 'prepare_projections',
         # 'prepare_construction',
         'analyze_lineups',
+        'analyze_optimals',
         'export_lineups', 
         'get_actual_scores', 
         'find_optimal_lineups',
@@ -2211,8 +2214,33 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
     def analyze_lineups(self, request, queryset):
         for build in queryset:
-            build.analyze_lineups()
+            task = BackgroundTask()
+            task.name = 'Analyze Lineups'
+            task.user = request.user
+            task.save()
+
+            tasks.analyze_lineups.delay(build.id, task.id)
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Analyzing lineups. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
     analyze_lineups.short_description = 'Analyze lineups for selected builds'
+
+    def analyze_optimals(self, request, queryset):
+        for build in queryset:
+            task = BackgroundTask()
+            task.name = 'Analyze Optimals'
+            task.user = request.user
+            task.save()
+
+            tasks.analyze_optimals.delay(build.id, task.id)
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Analyzing optimals. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
+    analyze_optimals.short_description = 'Analyze optimals for selected builds'
 
     def get_actual_scores(self, request, queryset):
         for build in queryset:
@@ -2636,6 +2664,23 @@ class ContestAdmin(admin.ModelAdmin):
     inlines = [
         ContestPrizeInline
     ]
+
+    # def save_model(self, request, obj, form, change):
+    #     super().save_model(request, obj, form, change)
+    #     self.process_contest(request, obj)
+
+    # def process_contest(self, request, contest):
+    #     task = BackgroundTask()
+    #     task.name = 'Process Contest Outcomes'
+    #     task.user = request.user
+    #     task.save()
+
+    #     tasks.process_contest_sim_datasheet.delay(contest.id, task.id)
+
+    #     messages.add_message(
+    #         request,
+    #         messages.WARNING,
+    #         'Loading contest simulations. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the contest is ready.')
 
 
 @admin.register(models.SlateBuildConfig, site=lottery_admin_site)

@@ -1,13 +1,16 @@
+import bisect
 import csv
 import datetime
 import decimal
 import difflib
 import math
-from django.db.models.fields import DecimalField
 import numpy
+import pandas
+import pandasql
 import requests
 import scipy
 import statistics
+import time
 import traceback
 import uuid
 
@@ -366,6 +369,9 @@ class Slate(models.Model):
 
     salaries_sheet_type = models.CharField(max_length=255, choices=SHEET_TYPES, default='site')
     salaries = models.FileField(upload_to='uploads/salaries', blank=True, null=True)
+
+    player_outcomes = models.FileField(upload_to='uploads/sims', blank=True, null=True)
+
     fc_actuals_sheet = models.FileField(verbose_name='FC Actuals CSV', upload_to='uploads/actuals', blank=True, null=True)
 
     class Meta:
@@ -592,6 +598,8 @@ class SlateGame(models.Model):
 
 class Contest(models.Model):
     slate = models.ForeignKey(Slate, related_name='contests', on_delete=models.CASCADE, null=True, blank=True)
+    outcomes_sheet = models.FileField(upload_to='uploads/sims', blank=True, null=True)
+    outcomes = ArrayField(ArrayField(models.DecimalField(max_digits=5, decimal_places=2)), null=True, blank=True)
     cost = models.DecimalField(decimal_places=2, max_digits=10)
     num_games = models.IntegerField(null=True, blank=True)
     max_entrants = models.IntegerField()
@@ -618,6 +626,13 @@ class Contest(models.Model):
 
     class Meta:
         ordering = ['slate', '-prize_pool']
+
+    def get_payout(self, rank):
+        try:
+            prize = self.prizes.get(min_rank__lte=rank, max_rank__gte=rank)
+            return prize.prize
+        except ContestPrize.DoesNotExist:
+            return 0.0
 
     def simulate(self):
         # lineups = optimize.simulate_contest(self, self.slate.get_projections())
@@ -1917,23 +1932,32 @@ class SlateBuild(models.Model):
             last_qb = qb
 
     def analyze_lineups(self):
-        lineups = self.lineups.all()
-        lineups = lineups.annotate(
-            proj_percentile=Window(
-                expression=PercentRank(),
-                order_by=F('projection').asc()
-            ),
-            own_proj_percentile=Window(
-                expression=PercentRank(),
-                order_by=F('ownership_projection').desc()
-            ),
-        )
+        # Task implementation goes here
+        if self.slate.contests.count() > 0:
+            contest = self.slate.contests.all()[0]
 
-        for lineup in lineups:
-            lineup.projection_percentile = lineup.proj_percentile
-            lineup.ownership_projection_percentile = lineup.own_proj_percentile
-            lineup.rating = lineup.proj_percentile + lineup.proj_percentile + lineup.own_proj_percentile
-            lineup.save()
+            # converting column data to list
+            all_outcomes = []
+            for i in range (0, 10000):
+                all_outcomes.append([])
+
+            # reading CSV file
+            count = 0
+            df = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2')
+            for lineup in self.lineups.all():  # for each lineup
+                profits = []
+
+                for index in range(3, 10003):  # for each contest outcome
+                    series = df['X{}'.format(index)]
+                    for i in range(0, 10000):  # for each lineup outcome
+                        lineup_score = sum([p.sim_scores[i] for p in lineup.players])
+                        prize_range = series[series > lineup_score]
+                        rank = prize_range.tail(1).keys()[0]
+
+                        # find contest prize
+                        profits.append(float(contest.get_payout(rank)) - float(contest.cost))
+                lineup.ev = numpy.sum(profits)
+                lineup.save()
 
     def clean_lineups(self):
         if self.configuration.lineup_removal_pct > 0.0:
@@ -2053,6 +2077,90 @@ class SlateBuild(models.Model):
 
         for stack in self.stacks.filter(count__gt=0):
             tasks.build_optimals_for_stack.delay(stack.id)
+
+    def analyze_optimals(self):
+        # Task implementation goes here
+        if self.slate.contests.count() > 0:
+            contest = self.slate.contests.all()[0]
+            prizes = contest.prizes.all().order_by('prize')
+            optimals = self.actuals.all()
+            optimals.update(ev=0)
+
+            limit = 50
+            pages = math.ceil(10000/limit)
+
+            for col_count in range(0, pages):
+                col_min = col_count * limit + 3
+                col_max = col_min + limit
+                sim_scores = pandas.read_csv(self.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
+                sim_scores['X1'] = sim_scores.index
+                contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min, col_max)])
+                contest_scores['X1'] = contest_scores.index
+                sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
+
+                lineups = pandas.DataFrame(list(optimals.values_list(
+                    'qb__slate_player__name',
+                    'rb1__slate_player__name',
+                    'rb2__slate_player__name',
+                    'wr1__slate_player__name',
+                    'wr2__slate_player__name',
+                    'wr3__slate_player__name',
+                    'te__slate_player__name',
+                    'flex__slate_player__name',
+                    'dst__slate_player__name')), 
+                    columns=[
+                        'p1',
+                        'p2',
+                        'p3',
+                        'p4',
+                        'p5',
+                        'p6',
+                        'p7',
+                        'p8',
+                        'p9',
+                    ]
+                )
+
+                num_outcomes = limit
+                sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -contest.cost)
+                for prize in prizes:
+                    sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, prize.prize-contest.cost)
+                sql += ' END as payout_{}'.format(0)
+
+                for i in range(1, num_outcomes):
+                    sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prizes[0].max_rank + 1, -contest.cost)
+                    for prize in prizes:
+                        sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prize.min_rank, prize.prize-contest.cost)
+                    sql += ' END as payout_{}'.format(i)
+
+                sql += ' FROM lineups A'
+                sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
+                sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
+                sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
+                sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
+                sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
+                sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
+                sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
+                sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
+                sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
+                
+                for prize in prizes:
+                    sql += ' LEFT JOIN sim_scores T{0} ON T{0}.X1 = \'{0}\''.format(prize.max_rank + 1)
+                sql += ' LEFT JOIN sim_scores T1 ON T1.X1 = \'1\''
+
+                sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
+                
+                for i in range(0, num_outcomes):
+                    for prize in prizes:
+                        sql += ', T{0}.x{1}'.format(prize.max_rank + 1, i+col_min)
+                
+                    sql += ', T1.x{}'.format(i+col_min)
+
+                result = pandasql.sqldf(sql, locals()).sum(axis=1)
+
+                for index, lineup in enumerate(optimals):
+                    lineup.ev = float(lineup.ev) + result[index]
+                    lineup.save()
 
     def top_optimal_score(self):
         return self.actuals.all().aggregate(top_score=Max('actual')).get('top_score')
@@ -2455,7 +2563,7 @@ class SlateBuildStack(models.Model):
 
         for lineup in lineups:
             if lineup.fantasy_points_projection >= self.build.slate.get_great_score():
-                SlateBuildActualsLineup.objects.create(
+                db_lineup = SlateBuildActualsLineup.objects.create(
                     build=self.build,
                     stack=self,
                     qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
@@ -2470,6 +2578,7 @@ class SlateBuildStack(models.Model):
                     salary=lineup.salary_costs,
                     actual=lineup.fantasy_points_projection
                 )
+                db_lineup.simulate()
 
     def num_tes(self):
         count = 0
@@ -2514,7 +2623,9 @@ class SlateBuildLineup(models.Model):
     ownership_projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     rating = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    ev = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
 
     class Meta:
         verbose_name = 'Lineup'
@@ -2646,6 +2757,9 @@ class SlateBuildLineup(models.Model):
 
         return score        
 
+    def simulate(self):
+        self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, 10000)]
+        self.save()
 
 class SlateBuildActualsLineup(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='actuals', on_delete=models.CASCADE)
@@ -2661,6 +2775,8 @@ class SlateBuildActualsLineup(models.Model):
     flex = models.ForeignKey(BuildPlayerProjection, related_name='actuals_flex', on_delete=models.CASCADE)
     dst = models.ForeignKey(BuildPlayerProjection, related_name='actuals_dst', on_delete=models.CASCADE)
     salary = models.PositiveIntegerField()
+    sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
+    ev = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
 
     class Meta:
@@ -2807,6 +2923,10 @@ class SlateBuildActualsLineup(models.Model):
             traceback.print_exc()
             return None
         return numpy.percentile(scores, decimal.Decimal(percentile))
+
+    def simulate(self):
+        self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, 10000)]
+        self.save()
 
 
 class SlatePlayerBuildExposure(SlatePlayer):

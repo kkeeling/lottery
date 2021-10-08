@@ -5,16 +5,14 @@ from statistics import median
 from django.contrib.messages.api import success
 import math
 import numpy
+import pandas
 import scipy
 import sys
 import time
 import traceback
 
 from celery import shared_task
-from celery.contrib.abortable import AbortableTask
-from celery.utils.log import get_task_logger
 from contextlib import contextmanager
-from scipy.stats import betaprime
 
 from django.contrib.auth.models import User
 from django.db.models.aggregates import Count, Sum
@@ -518,7 +516,7 @@ def monitor_build(build_id, task_id):
             build.update_build_progress()
             time.sleep(1)
 
-        build.analyze_lineups()
+        # build.analyze_lineups()
         build.elapsed_time = (datetime.datetime.now() - start)
         build.save()
 
@@ -536,6 +534,136 @@ def monitor_build(build_id, task_id):
             build.status = 'error'
             build.error_message = str(e)
             build.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def analyze_lineups(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.analyze_lineups()
+
+        task.status = 'success'
+        task.content = 'Lineups analyzed.'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem analyzing lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def analyze_lineup(lineup_id, contest_id, is_optimal=False):
+    if is_optimal:
+        lineup = models.SlateBuildActualsLineup.objects.get(id=lineup_id)
+    else:
+        lineup = models.SlateBuildLineup.objects.get(id=lineup_id)
+
+    contest = models.Contest.objects.get(id=contest_id)
+    df = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X{}'.format(i) for i in range(2, 10003)])
+    df_t = df.transpose()
+
+    prizes = contest.prizes.all().order_by('min_rank')
+    for count, sim_score in enumerate(lineup.sim_scores):
+        l = [
+            float(sim_score), 
+            float(sim_score),
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score), 
+            float(sim_score)
+        ]
+        # finish_ranges = df_t.le(l)
+        finish_ranges = numpy.where(df_t <= l, True, False)
+        print(finish_ranges)
+        
+        if count >= 10:
+            break
+        # for prize in prizes:
+        #     l = [sim]
+        #     finish_ranges = numpy.where(df_t[prize.min_rank] <= lineup.sim_scores, float(prize.prize), 0)
+        #     print(finish_ranges.shape)
+    # for i in range(0, 10):  # for each lineup outcome
+    #     lineup_score = sum([p.sim_scores[i] for p in lineup.players])
+    #     prize_range = df.le(lineup_score)
+        # print(lineup_score, prize_range)
+
+    # profits = []
+    # for index in range(3, 13):  # for each contest outcome
+    #     series = df['X{}'.format(index)]
+    #     for i in range(0, 10):  # for each lineup outcome
+    #         lineup_score = sum([p.sim_scores[i] for p in lineup.players])
+    #         prize_range = series[series > lineup_score]
+
+    #         if prize_range.size > 0:
+    #             print('{} -- [{}] {}'.format(lineup_score, i, prize_range.tail(1)))
+    #             rank = prize_range.tail(1).keys()[0]
+    #         else:
+    #             rank = 1
+
+    #         # find contest prize
+    #         profits.append(float(contest.get_payout(rank)) - float(contest.cost))
+    # lineup.ev = numpy.sum(profits)
+    # lineup.save()
+
+
+@shared_task
+def analyze_optimals(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.analyze_optimals()
+
+        task.status = 'success'
+        task.content = 'Optimals analyzed.'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem analyzing lineups: {e}'
+            task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
@@ -1333,6 +1461,13 @@ def process_projection_sheet(sheet_id, task_id):
             task2.save()
 
             assign_zscores_to_players.delay(sheet.slate.id, task2.id)
+
+            task3 = BackgroundTask()
+            task3.name = 'Process Sim Data Sheets'
+            task3.user = task.user
+            task3.save()
+
+            process_sim_datasheets.delay(sheet.slate.id, task3.id)
     except Exception as e:
         if task is not None:
             task.status = 'error'
@@ -1482,6 +1617,65 @@ def process_actuals_sheet(slate_id, task_id):
         if task is not None:
             task.status = 'error'
             task.content = f'There was a problem processing actuals: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def process_sim_datasheets(slate_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
+        
+        with open(slate.player_outcomes.path, mode='r') as f:
+            csv_reader = csv.DictReader(f)
+            success_count = 0
+            missing_players = []
+
+            for row in csv_reader:
+                player_name = row['X1'].strip()
+                player_salary = int(row['X2'])
+                outcomes = [float(row['X{}'.format(i)]) for i in range(3, 10003)]
+
+                alias = models.Alias.find_alias(player_name, slate.site)
+                
+                if alias is not None:
+                    try:
+                        projection = models.SlatePlayerProjection.objects.get(
+                            slate_player__slate=slate,
+                            slate_player__name=alias.get_alias(slate.site),
+                            slate_player__salary=player_salary
+                        )
+
+                        projection.sim_scores = outcomes
+                        projection.save()
+
+                        success_count += 1
+                    except models.SlatePlayerProjection.DoesNotExist:
+                        pass
+                else:
+                    missing_players.append(player_name)
+
+
+        task.status = 'success'
+        task.content = '{} player simulated outcomes have been updated for {}.'.format(success_count, str(slate)) if len(missing_players) == 0 else '{} player simulated outcomes have been updated for {}. {} players could not be identified.'.format(success_count, str(slate), len(missing_players))
+        task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem processing sim datasheets: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
