@@ -2093,7 +2093,7 @@ class SlateBuild(models.Model):
                 lineups = optimals[lineup_min:lineup_max]
 
                 limit = 50
-                pages = math.ceil(100/limit)
+                pages = math.ceil(10000/limit)
                 
                 task_results = []
                 all_tasks_complete = False
