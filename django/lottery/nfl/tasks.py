@@ -596,15 +596,15 @@ def analyze_optimals(build_id, task_id):
 
 
 @shared_task
-def analyze_lineups_page(build_id, contest_id, col_min, col_max, num_outcomes, use_optimals=False):
+def analyze_lineups_page(build_id, contest_id, lineup_ids, col_min, col_max, num_outcomes, use_optimals=False):
     build = models.SlateBuild.objects.get(id=build_id)
     contest = models.Contest.objects.get(id=contest_id)
     prizes = contest.prizes.all().order_by('prize')
     
     if use_optimals:
-        lineups = build.actuals.all().order_by('id')[:75]
+        lineups = build.actuals.filter(id__in=lineup_ids)
     else:
-        lineups = build.lineups.all().order_by('id')
+        lineups = build.lineups.filter(id__in=lineup_ids)
 
     sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
     sim_scores['X1'] = sim_scores.index
@@ -635,7 +635,6 @@ def analyze_lineups_page(build_id, contest_id, col_min, col_max, num_outcomes, u
         ]
     )
 
-    print(lineup_values.shape)
     sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -contest.cost)
     for prize in prizes:
         sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, prize.prize-contest.cost)
