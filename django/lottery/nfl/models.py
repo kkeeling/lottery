@@ -2083,86 +2083,102 @@ class SlateBuild(models.Model):
         if self.slate.contests.count() > 0:
             contest = self.slate.contests.get(outcomes_sheet__isnull=False)
             prizes = contest.prizes.all().order_by('prize')
-            optimals = self.actuals.all()
+            optimals = self.actuals.all().order_by('id')
             optimals.update(ev=0)
 
             limit = 50
-            pages = math.ceil(10000/limit)
+            pages = math.ceil(100/limit)
+            
+            task_results = []
+            all_tasks_complete = False
 
             for col_count in range(0, pages):
                 col_min = col_count * limit + 3
                 col_max = col_min + limit
-                sim_scores = pandas.read_csv(self.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
-                sim_scores['X1'] = sim_scores.index
-                contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min, col_max)])
-                contest_scores['X1'] = contest_scores.index
-                sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
 
-                lineups = pandas.DataFrame(list(optimals.values_list(
-                    'qb__slate_player__name',
-                    'rb1__slate_player__name',
-                    'rb2__slate_player__name',
-                    'wr1__slate_player__name',
-                    'wr2__slate_player__name',
-                    'wr3__slate_player__name',
-                    'te__slate_player__name',
-                    'flex__slate_player__name',
-                    'dst__slate_player__name')), 
-                    columns=[
-                        'p1',
-                        'p2',
-                        'p3',
-                        'p4',
-                        'p5',
-                        'p6',
-                        'p7',
-                        'p8',
-                        'p9',
-                    ]
-                )
-                print(lineups.shape)
+                task_results.append(tasks.analyze_lineups_page.delay(self.id, contest.id, col_min, col_max, limit, True))
 
-                num_outcomes = limit
-                sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -contest.cost)
-                for prize in prizes:
-                    sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, prize.prize-contest.cost)
-                sql += ' END as payout_{}'.format(0)
+            while not all_tasks_complete:
+                all_tasks_complete = True
+                for result in task_results:
+                    if not result.ready():
+                        all_tasks_complete = False
+                    else:
+                        for index, lineup in enumerate(optimals):
+                            lineup.ev = float(lineup.ev) + result.result[index]
+                            lineup.save()
+            
 
-                for i in range(1, num_outcomes):
-                    sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prizes[0].max_rank + 1, -contest.cost)
-                    for prize in prizes:
-                        sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prize.min_rank, prize.prize-contest.cost)
-                    sql += ' END as payout_{}'.format(i)
 
-                sql += ' FROM lineups A'
-                sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
-                sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
-                sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
-                sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
-                sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
-                sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
-                sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
-                sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
-                sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
+                # sim_scores = pandas.read_csv(self.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
+                # sim_scores['X1'] = sim_scores.index
+                # contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min, col_max)])
+                # contest_scores['X1'] = contest_scores.index
+                # sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
+
+                # lineups = pandas.DataFrame(list(optimals.values_list(
+                #     'qb__slate_player__name',
+                #     'rb1__slate_player__name',
+                #     'rb2__slate_player__name',
+                #     'wr1__slate_player__name',
+                #     'wr2__slate_player__name',
+                #     'wr3__slate_player__name',
+                #     'te__slate_player__name',
+                #     'flex__slate_player__name',
+                #     'dst__slate_player__name')), 
+                #     columns=[
+                #         'p1',
+                #         'p2',
+                #         'p3',
+                #         'p4',
+                #         'p5',
+                #         'p6',
+                #         'p7',
+                #         'p8',
+                #         'p9',
+                #     ]
+                # )
+
+                # num_outcomes = limit
+                # sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -contest.cost)
+                # for prize in prizes:
+                #     sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, prize.prize-contest.cost)
+                # sql += ' END as payout_{}'.format(0)
+
+                # for i in range(1, num_outcomes):
+                #     sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prizes[0].max_rank + 1, -contest.cost)
+                #     for prize in prizes:
+                #         sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prize.min_rank, prize.prize-contest.cost)
+                #     sql += ' END as payout_{}'.format(i)
+
+                # sql += ' FROM lineups A'
+                # sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
+                # sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
+                # sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
+                # sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
+                # sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
+                # sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
+                # sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
+                # sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
+                # sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
                 
-                for prize in prizes:
-                    sql += ' LEFT JOIN sim_scores T{0} ON T{0}.X1 = \'{0}\''.format(prize.max_rank + 1)
-                sql += ' LEFT JOIN sim_scores T1 ON T1.X1 = \'1\''
+                # for prize in prizes:
+                #     sql += ' LEFT JOIN sim_scores T{0} ON T{0}.X1 = \'{0}\''.format(prize.max_rank + 1)
+                # sql += ' LEFT JOIN sim_scores T1 ON T1.X1 = \'1\''
 
-                sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
+                # sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
                 
-                for i in range(0, num_outcomes):
-                    for prize in prizes:
-                        sql += ', T{0}.x{1}'.format(prize.max_rank + 1, i+col_min)
+                # for i in range(0, num_outcomes):
+                #     for prize in prizes:
+                #         sql += ', T{0}.x{1}'.format(prize.max_rank + 1, i+col_min)
                 
-                    sql += ', T1.x{}'.format(i+col_min)
+                #     sql += ', T1.x{}'.format(i+col_min)
 
-                result = pandasql.sqldf(sql, globals()).sum(axis=1)
-                print(result)
+                # result = pandasql.sqldf(sql, locals()).sum(axis=1)
 
-                for index, lineup in enumerate(optimals):
-                    lineup.ev = float(lineup.ev) + result[index]
-                    lineup.save()
+                # for index, lineup in enumerate(optimals):
+                #     lineup.ev = float(lineup.ev) + result[index]
+                #     lineup.save()
 
     def top_optimal_score(self):
         return self.actuals.all().aggregate(top_score=Max('actual')).get('top_score')

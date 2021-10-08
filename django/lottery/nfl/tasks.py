@@ -1,11 +1,10 @@
 import csv
 import datetime
 import logging
-from statistics import median
-from django.contrib.messages.api import success
 import math
 import numpy
 import pandas
+import pandasql
 import scipy
 import sys
 import time
@@ -15,6 +14,7 @@ from celery import shared_task
 from contextlib import contextmanager
 
 from django.contrib.auth.models import User
+from django.contrib.messages.api import success
 from django.db.models.aggregates import Count, Sum
 from django.db.models import Q
 from django.urls import reverse_lazy
@@ -568,80 +568,6 @@ def analyze_lineups(build_id, task_id):
 
 
 @shared_task
-def analyze_lineup(lineup_id, contest_id, is_optimal=False):
-    if is_optimal:
-        lineup = models.SlateBuildActualsLineup.objects.get(id=lineup_id)
-    else:
-        lineup = models.SlateBuildLineup.objects.get(id=lineup_id)
-
-    contest = models.Contest.objects.get(id=contest_id)
-    df = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X{}'.format(i) for i in range(2, 10003)])
-    df_t = df.transpose()
-
-    prizes = contest.prizes.all().order_by('min_rank')
-    for count, sim_score in enumerate(lineup.sim_scores):
-        l = [
-            float(sim_score), 
-            float(sim_score),
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score), 
-            float(sim_score)
-        ]
-        # finish_ranges = df_t.le(l)
-        finish_ranges = numpy.where(df_t <= l, True, False)
-        print(finish_ranges)
-        
-        if count >= 10:
-            break
-        # for prize in prizes:
-        #     l = [sim]
-        #     finish_ranges = numpy.where(df_t[prize.min_rank] <= lineup.sim_scores, float(prize.prize), 0)
-        #     print(finish_ranges.shape)
-    # for i in range(0, 10):  # for each lineup outcome
-    #     lineup_score = sum([p.sim_scores[i] for p in lineup.players])
-    #     prize_range = df.le(lineup_score)
-        # print(lineup_score, prize_range)
-
-    # profits = []
-    # for index in range(3, 13):  # for each contest outcome
-    #     series = df['X{}'.format(index)]
-    #     for i in range(0, 10):  # for each lineup outcome
-    #         lineup_score = sum([p.sim_scores[i] for p in lineup.players])
-    #         prize_range = series[series > lineup_score]
-
-    #         if prize_range.size > 0:
-    #             print('{} -- [{}] {}'.format(lineup_score, i, prize_range.tail(1)))
-    #             rank = prize_range.tail(1).keys()[0]
-    #         else:
-    #             rank = 1
-
-    #         # find contest prize
-    #         profits.append(float(contest.get_payout(rank)) - float(contest.cost))
-    # lineup.ev = numpy.sum(profits)
-    # lineup.save()
-
-
-@shared_task
 def analyze_optimals(build_id, task_id):
     task = None
 
@@ -667,6 +593,84 @@ def analyze_optimals(build_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def analyze_lineups_page(build_id, contest_id, col_min, col_max, num_outcomes, use_optimals=False):
+    build = models.SlateBuild.objects.get(id=build_id)
+    contest = models.Contest.objects.get(id=contest_id)
+    prizes = contest.prizes.all().order_by('prize')
+    
+    if use_optimals:
+        lineups = build.actuals.all().order_by('id')
+    else:
+        lineups = build.lineups.all().order_by('id')
+
+    sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
+    sim_scores['X1'] = sim_scores.index
+    contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min, col_max)])
+    contest_scores['X1'] = contest_scores.index
+    sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
+
+    lineup_values = pandas.DataFrame(list(lineups.values_list(
+        'qb__slate_player__name',
+        'rb1__slate_player__name',
+        'rb2__slate_player__name',
+        'wr1__slate_player__name',
+        'wr2__slate_player__name',
+        'wr3__slate_player__name',
+        'te__slate_player__name',
+        'flex__slate_player__name',
+        'dst__slate_player__name')), 
+        columns=[
+            'p1',
+            'p2',
+            'p3',
+            'p4',
+            'p5',
+            'p6',
+            'p7',
+            'p8',
+            'p9',
+        ]
+    )
+
+    sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -contest.cost)
+    for prize in prizes:
+        sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, prize.prize-contest.cost)
+    sql += ' END as payout_{}'.format(0)
+
+    for i in range(1, num_outcomes):
+        sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prizes[0].max_rank + 1, -contest.cost)
+        for prize in prizes:
+            sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prize.min_rank, prize.prize-contest.cost)
+        sql += ' END as payout_{}'.format(i)
+
+    sql += ' FROM lineup_values A'
+    sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
+    sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
+    sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
+    sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
+    sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
+    sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
+    sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
+    sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
+    sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
+    
+    for prize in prizes:
+        sql += ' LEFT JOIN sim_scores T{0} ON T{0}.X1 = \'{0}\''.format(prize.max_rank + 1)
+    sql += ' LEFT JOIN sim_scores T1 ON T1.X1 = \'1\''
+
+    sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
+    
+    for i in range(0, num_outcomes):
+        for prize in prizes:
+            sql += ', T{0}.x{1}'.format(prize.max_rank + 1, i+col_min)
+    
+        sql += ', T1.x{}'.format(i+col_min)
+
+    result = pandasql.sqldf(sql, locals()).sum(axis=1)
+    return result.tolist()
 
 
 @shared_task

@@ -1451,9 +1451,6 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         'contains_top_projected_pass_catcher',
         'contains_opp_top_projected_pass_catcher',
         'salary',
-        'get_median_score',
-        'get_75th_percentile_score',
-        'get_ceiling_percentile_score',
         'ev',
         'actual',
     )

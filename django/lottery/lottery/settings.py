@@ -156,6 +156,7 @@ REST_FRAMEWORK = {
 }
 
 CELERY_BROKER_URL = 'redis://redis:6379/0'
+CELERY_BACKEND = 'redis://redis:6379/0'
 USE_CELERY = True
 
 # Logging

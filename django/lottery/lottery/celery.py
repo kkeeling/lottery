@@ -2,7 +2,7 @@ from __future__ import absolute_import, unicode_literals
 import os
 from celery import Celery
 
-app = Celery('lottery')
+app = Celery('lottery', backend='redis://redis:6379')
 
 # Using a string here means the worker doesn't have to serialize
 # the configuration object to child processes.
