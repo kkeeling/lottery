@@ -2098,7 +2098,6 @@ class SlateBuild(models.Model):
                 contest_scores['X1'] = contest_scores.index
                 sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
 
-                print(sim_scores.shape)
                 lineups = pandas.DataFrame(list(optimals.values_list(
                     'qb__slate_player__name',
                     'rb1__slate_player__name',
@@ -2121,6 +2120,7 @@ class SlateBuild(models.Model):
                         'p9',
                     ]
                 )
+                print(lineups.shape)
 
                 num_outcomes = limit
                 sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -contest.cost)
