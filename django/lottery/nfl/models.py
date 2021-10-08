@@ -2157,7 +2157,7 @@ class SlateBuild(models.Model):
                 
                     sql += ', T1.x{}'.format(i+col_min)
 
-                result = pandasql.sqldf(sql, locals()).sum(axis=1)
+                result = pandasql.sqldf(sql, globals()).sum(axis=1)
                 print(result)
 
                 for index, lineup in enumerate(optimals):
