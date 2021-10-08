@@ -2104,7 +2104,7 @@ class SlateBuild(models.Model):
                     if not result.ready():
                         all_tasks_complete = False
                     else:
-                        print('{} - {}'.format(optimals.count(), len(result.result))
+                        print('{} - {}'.format(optimals.count(), len(result.result)))
                         for index, lineup in enumerate(optimals):
                             lineup.ev = float(lineup.ev) + result.result[index]
                             lineup.save()
