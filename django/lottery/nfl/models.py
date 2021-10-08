@@ -2111,8 +2111,9 @@ class SlateBuild(models.Model):
                             all_tasks_complete = False
                         else:
                             for index, lineup in enumerate(lineups):
-                                lineup.ev = float(lineup.ev) + result.result[index]
-                                lineup.save()
+                                if len(result.result) > index:
+                                    lineup.ev = float(lineup.ev) + result.result[index]
+                                    lineup.save()
 
     def top_optimal_score(self):
         return self.actuals.all().aggregate(top_score=Max('actual')).get('top_score')

@@ -635,7 +635,6 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, col_min, col_max, num
         ]
     )
 
-    print(lineup_values.shape)
     sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -contest.cost)
     for prize in prizes:
         sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, prize.prize-contest.cost)
@@ -671,7 +670,6 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, col_min, col_max, num
         sql += ', T1.x{}'.format(i+col_min)
 
     result = pandasql.sqldf(sql, locals()).sum(axis=1)
-    print(result.shape)
     return result.tolist()
 
 
