@@ -671,6 +671,7 @@ def analyze_lineups_page(build_id, contest_id, col_min, col_max, num_outcomes, u
         sql += ', T1.x{}'.format(i+col_min)
 
     result = pandasql.sqldf(sql, locals()).sum(axis=1)
+    print(result.shape)
     return result.tolist()
 
 
