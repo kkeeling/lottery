@@ -2081,7 +2081,7 @@ class SlateBuild(models.Model):
     def analyze_optimals(self):
         # Task implementation goes here
         if self.slate.contests.count() > 0:
-            contest = self.slate.contests.all()[0]
+            contest = self.slate.contests.get(outcomes__sheet__isnull=False)
             prizes = contest.prizes.all().order_by('prize')
             optimals = self.actuals.all()
             optimals.update(ev=0)
