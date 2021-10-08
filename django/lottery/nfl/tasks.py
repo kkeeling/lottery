@@ -611,6 +611,7 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, col_min, col_max, num
     contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min, col_max)])
     contest_scores['X1'] = contest_scores.index
     sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
+    print(sim_scores.loc('Matt Ryan'))
 
     lineup_values = pandas.DataFrame(list(lineups.values_list(
         'qb__slate_player__name',
