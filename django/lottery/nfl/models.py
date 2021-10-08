@@ -2098,6 +2098,7 @@ class SlateBuild(models.Model):
                 contest_scores['X1'] = contest_scores.index
                 sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
 
+                print(sim_scores.shape)
                 lineups = pandas.DataFrame(list(optimals.values_list(
                     'qb__slate_player__name',
                     'rb1__slate_player__name',
