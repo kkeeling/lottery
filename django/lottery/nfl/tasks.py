@@ -1710,40 +1710,45 @@ def process_sim_datasheets(slate_id, task_id):
         # Task implementation goes here
         slate = models.Slate.objects.get(id=slate_id)
         
-        with open(slate.player_outcomes.path, mode='r') as f:
-            csv_reader = csv.DictReader(f)
-            success_count = 0
-            missing_players = []
+        if slate.player_outcomes is not None:
+            with open(slate.player_outcomes.path, mode='r') as f:
+                csv_reader = csv.DictReader(f)
+                success_count = 0
+                missing_players = []
 
-            for row in csv_reader:
-                player_name = row['X1'].strip()
-                player_salary = int(row['X2'])
-                outcomes = [float(row['X{}'.format(i)]) for i in range(3, 10003)]
+                for row in csv_reader:
+                    player_name = row['X1'].strip()
+                    player_salary = int(row['X2'])
+                    outcomes = [float(row['X{}'.format(i)]) for i in range(3, 10003)]
 
-                alias = models.Alias.find_alias(player_name, slate.site)
-                
-                if alias is not None:
-                    try:
-                        projection = models.SlatePlayerProjection.objects.get(
-                            slate_player__slate=slate,
-                            slate_player__name=alias.get_alias(slate.site),
-                            slate_player__salary=player_salary
-                        )
+                    alias = models.Alias.find_alias(player_name, slate.site)
+                    
+                    if alias is not None:
+                        try:
+                            projection = models.SlatePlayerProjection.objects.get(
+                                slate_player__slate=slate,
+                                slate_player__name=alias.get_alias(slate.site),
+                                slate_player__salary=player_salary
+                            )
 
-                        projection.sim_scores = outcomes
-                        projection.save()
+                            projection.sim_scores = outcomes
+                            projection.save()
 
-                        success_count += 1
-                    except models.SlatePlayerProjection.DoesNotExist:
-                        pass
-                else:
-                    missing_players.append(player_name)
+                            success_count += 1
+                        except models.SlatePlayerProjection.DoesNotExist:
+                            pass
+                    else:
+                        missing_players.append(player_name)
 
 
-        task.status = 'success'
-        task.content = '{} player simulated outcomes have been updated for {}.'.format(success_count, str(slate)) if len(missing_players) == 0 else '{} player simulated outcomes have been updated for {}. {} players could not be identified.'.format(success_count, str(slate), len(missing_players))
-        task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
-        task.save()
+            task.status = 'success'
+            task.content = '{} player simulated outcomes have been updated for {}.'.format(success_count, str(slate)) if len(missing_players) == 0 else '{} player simulated outcomes have been updated for {}. {} players could not be identified.'.format(success_count, str(slate), len(missing_players))
+            task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
+            task.save()
+        else:
+            task.status = 'error'
+            task.content = f'There is no sim datasheet for this slate: {e}'
+            task.save()
 
     except Exception as e:
         if task is not None:
