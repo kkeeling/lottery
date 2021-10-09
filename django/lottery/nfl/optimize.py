@@ -319,7 +319,8 @@ def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75,
                         game_info=game_info,
                         min_deviation=-float(randomness) if not for_optimals else None,
                         max_deviation=float(randomness) if not for_optimals else None,
-                        max_exposure=float(max_dst_exposure) if not for_optimals and (player_projection.position == 'DST' or player_projection.position == 'D') else None
+                        max_exposure=float(player_projection.max_exposure / 100) if not for_optimals else None,
+                        min_exposure=float(player_projection.min_exposure / 100) if not for_optimals else None,
                     )
 
                     player_list.append(player)

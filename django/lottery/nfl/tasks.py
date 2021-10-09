@@ -1511,9 +1511,12 @@ def process_projection_sheet(sheet_id, task_id):
                                 projection.floor = flr
                                 projection.ceiling = ceil
                                 projection.stdev = stdev
-                                projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)
-
                                 projection.save()
+
+                            if sheet.projection_site == '4for4':
+                                projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)
+                                projection.save()
+
                     except models.SlatePlayer.DoesNotExist:
                         pass
                 else:

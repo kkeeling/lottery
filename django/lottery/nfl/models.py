@@ -1716,6 +1716,10 @@ class SlateBuild(models.Model):
                     projection.balanced_projection = player.projection.balanced_projection
                     projection.adjusted_opportunity = player.projection.adjusted_opportunity
                     projection.rb_group = 0
+
+                    if projection.position == 'DST' or projection.position == 'D':
+                        projection.max_exposure = self.configuration.max_dst_exposure * 100
+
                     projection.save()
             else:
                 # player projection does not exist so remove build projection if it exists
@@ -2177,12 +2181,12 @@ class SlateBuild(models.Model):
 
 
 class BuildPlayerProjection(models.Model):
-    build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)
-    slate_player = models.ForeignKey(SlatePlayer, related_name='build_projections', on_delete=models.CASCADE)
-    projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Proj')
-    ownership_projection = models.DecimalField(max_digits=3, decimal_places=2, default=0.0, verbose_name='Own')
-    adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')
-    value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
+    build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)
+    slate_player = models.ForeignKey(SlatePlayer, db_index=True, related_name='build_projections', on_delete=models.CASCADE)
+    projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Proj')
+    ownership_projection = models.DecimalField(max_digits=3, decimal_places=2, db_index=True, default=0.0, verbose_name='Own')
+    adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='AO')
+    value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, db_index=True)
     projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     value_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
@@ -2191,13 +2195,15 @@ class BuildPlayerProjection(models.Model):
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, null=True, blank=True)
     rb_group = models.PositiveIntegerField('RBG', default=0, null=True, blank=True)
     balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
-    in_play = models.BooleanField(default=True)
+    in_play = models.BooleanField(default=True, db_index=True)
     stack_only = models.BooleanField(default=False, verbose_name='SO', help_text='Player is only in pool when stacked with QB or opposing QB')
     qb_stack_only = models.BooleanField(default=False, verbose_name='SwQB', help_text='Generate QB stacks with this player')
     opp_qb_stack_only = models.BooleanField(default=False, verbose_name='SwOQB', help_text='Generate Opp QB stacks with this player')
     at_most_one_in_stack = models.BooleanField(default=False, verbose_name='AM1', help_text='Generate stacks with only 1 of players with this designation')
     at_least_one_in_lineup = models.BooleanField(default=False, verbose_name='AL1', help_text='At least one player with this designation should appear in every lineup')
     at_least_two_in_lineup = models.BooleanField(default=False, verbose_name='AL2', help_text='At least two players with this designation should appear in every lineup')
+    min_exposure = models.IntegerField('Min', default=0)
+    max_exposure = models.IntegerField('Max', default=100)
     locked = models.BooleanField(default=False)
 
     class Meta:
@@ -2322,28 +2328,28 @@ class BuildPlayerProjection(models.Model):
 
 
 class SlateBuildStack(models.Model):
-    build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='stacks', on_delete=models.CASCADE)
-    game = models.ForeignKey(SlateGame, related_name='stacks', on_delete=models.SET_NULL, blank=True, null=True)
-    mini_game = models.ForeignKey(SlateGame, related_name='mini_stacks', on_delete=models.SET_NULL, blank=True, null=True)
-    build_order = models.PositiveIntegerField(default=1)
-    rank = models.PositiveIntegerField(null=True, blank=True)
-    qb = models.ForeignKey(BuildPlayerProjection, related_name='qb_stacks', on_delete=models.CASCADE)
-    player_1 = models.ForeignKey(BuildPlayerProjection, related_name='p1_stacks', on_delete=models.CASCADE)
-    player_2 = models.ForeignKey(BuildPlayerProjection, related_name='p2_stacks', on_delete=models.CASCADE, blank=True, null=True)
-    opp_player = models.ForeignKey(BuildPlayerProjection, related_name='opp_stacks', on_delete=models.CASCADE, blank=True, null=True)
-    mini_player_1 = models.ForeignKey(BuildPlayerProjection, related_name='mini_1_stacks', on_delete=models.CASCADE, blank=True, null=True)
-    mini_player_2 = models.ForeignKey(BuildPlayerProjection, related_name='mini_2_stacks', on_delete=models.CASCADE, blank=True, null=True)
-    contains_top_pc = models.BooleanField(default=False)
-    salary = models.PositiveIntegerField()
-    projection = models.DecimalField(max_digits=5, decimal_places=2)
-    projection_zscore = models.DecimalField('Z-Score', max_digits=6, decimal_places=4, default=0.0000)
-    count = models.PositiveIntegerField(default=0, help_text='# of lineups in which this stack should appear')
-    times_used = models.PositiveIntegerField(default=0)
+    build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='stacks', on_delete=models.CASCADE)
+    game = models.ForeignKey(SlateGame, db_index=True, related_name='stacks', on_delete=models.SET_NULL, blank=True, null=True)
+    mini_game = models.ForeignKey(SlateGame, db_index=True, related_name='mini_stacks', on_delete=models.SET_NULL, blank=True, null=True)
+    build_order = models.PositiveIntegerField(default=1, db_index=True)
+    rank = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    qb = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='qb_stacks', on_delete=models.CASCADE)
+    player_1 = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='p1_stacks', on_delete=models.CASCADE)
+    player_2 = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='p2_stacks', on_delete=models.CASCADE, blank=True, null=True)
+    opp_player = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='opp_stacks', on_delete=models.CASCADE, blank=True, null=True)
+    mini_player_1 = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='mini_1_stacks', on_delete=models.CASCADE, blank=True, null=True)
+    mini_player_2 = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='mini_2_stacks', on_delete=models.CASCADE, blank=True, null=True)
+    contains_top_pc = models.BooleanField(default=False, db_index=True)
+    salary = models.PositiveIntegerField(db_index=True)
+    projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True)
+    projection_zscore = models.DecimalField('Z-Score', db_index=True, max_digits=6, decimal_places=4, default=0.0000)
+    count = models.PositiveIntegerField(default=0, db_index=True, help_text='# of lineups in which this stack should appear')
+    times_used = models.PositiveIntegerField(default=0, db_index=True)
     lineups_created = models.BooleanField(default=False)
     optimals_created = models.BooleanField(default=False)
     error_message = models.TextField(blank=True, null=True)
     sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
-    actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True, db_index=True)
 
     class Meta:
         verbose_name = 'Stack'
@@ -2722,6 +2728,7 @@ class SlateBuildLineup(models.Model):
     def simulate(self):
         self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, 10000)]
         self.save()
+
 
 class SlateBuildActualsLineup(models.Model):
     build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='actuals', on_delete=models.CASCADE)

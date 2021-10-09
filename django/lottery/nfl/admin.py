@@ -2335,6 +2335,8 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'qb_stack_only',
         'opp_qb_stack_only',
         'locked',
+        'min_exposure',
+        'max_exposure',
         'get_actual_score'
     )
     list_editable = (
@@ -2345,6 +2347,8 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'stack_only',
         'qb_stack_only',
         'opp_qb_stack_only',
+        'min_exposure',
+        'max_exposure',
         'locked',
     )
     search_fields = ('slate_player__name',)
