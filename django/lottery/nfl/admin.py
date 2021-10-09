@@ -1781,6 +1781,14 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'used_in_contests',
         'great_build',
     )
+    raw_id_fields = [
+        'slate',
+        'backtest',
+        'configuration',
+        'in_play_criteria',
+        'lineup_construction',
+        'stack_construction',
+    ]
     search_fields = ('slate__name',)
     actions = [
         'reset',
