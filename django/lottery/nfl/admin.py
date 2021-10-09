@@ -206,6 +206,9 @@ class NumSlatesFilter(SimpleListFilter):
 class ProjectionListForm(forms.ModelForm):
 	projection = forms.DecimalField(widget=forms.TextInput(attrs={'style':'width:50px;'}))
 	balanced_projection = forms.DecimalField(widget=forms.TextInput(attrs={'style':'width:50px;'}))
+	balanced_value = forms.DecimalField(widget=forms.TextInput(attrs={'style':'width:50px;'}))
+	min_exposure = forms.IntegerField(widget=forms.TextInput(attrs={'style':'width:50px;'}))
+	max_exposure = forms.IntegerField(widget=forms.TextInput(attrs={'style':'width:50px;'}))
 	rb_group = forms.DecimalField(widget=forms.TextInput(attrs={'style':'width:35px;'}))
 
 
@@ -2330,9 +2333,9 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_rating',
         'adjusted_opportunity',
         'get_player_ao_zscore',
-        'get_player_value',
+        'value',
         'balanced_projection',
-        'get_balanced_player_value',
+        'balanced_value',
         'rb_group',
         'get_game_total',
         'get_team_total',
@@ -2351,6 +2354,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'in_play',
         'projection',
         'balanced_projection',
+        'balanced_value',
         'rb_group',
         'stack_only',
         'qb_stack_only',
@@ -2543,14 +2547,6 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         return '{:.2f}%'.format(float(obj.ownership_projection) * 100.0)
     get_ownership_projection.short_description = 'OP'
     get_ownership_projection.admin_order_field = 'ownership_orjection'
-
-    def get_player_value(self, obj):
-        return round(float(obj.projection)/(self.get_player_salary(obj)/1000.0), 2)
-    get_player_value.short_description = 'Value'
-
-    def get_balanced_player_value(self, obj):
-        return round(float(obj.balanced_projection)/(self.get_player_salary(obj)/1000.0), 2)
-    get_balanced_player_value.short_description = 'BV'
 
     def get_num_pass_catchers(self, obj):
         if obj.slate_player.site_pos == 'QB':

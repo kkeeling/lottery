@@ -25,6 +25,34 @@ header {
 
 {% block object-tools %}
 {% if build %}
+    <script type="text/javascript">
+    $(document).ready(function() {
+        $("input[name$='balanced_projection']" ).change(function() {
+            var elementName = $(this).attr('name');
+            var otherElementName = elementName.replace('balanced_projection', 'balanced_value');
+
+            var balancedProjection = $(this).val();
+            var salary = $(this).parent().parent().find(".field-get_player_salary").text();
+            var otherElement = $("input[name='" + otherElementName + "']" );
+
+            var value = (balancedProjection/(salary/1000)).toFixed(2);
+            otherElement.val(value);
+        });
+
+        $("input[name$='balanced_value']" ).change(function() {
+            var elementName = $(this).attr('name');
+            var otherElementName = elementName.replace('balanced_value', 'balanced_projection');
+
+            var balancedValue = $(this).val();
+            var salary = $(this).parent().parent().find(".field-get_player_salary").text();
+            var otherElement = $("input[name='" + otherElementName + "']" );
+
+            var projection = (balancedValue * (salary/1000)).toFixed(2);
+            otherElement.val(projection);
+        });
+    });
+    
+    </script>
     <header class="header">
         <h1>{{ build.slate.week }}</h1>
         <h2>Status: {{ build.status }}
@@ -33,7 +61,6 @@ header {
     <section class="dashboard-section">
         <div class="action">{{ build.prepare_projections_button }}</div>
         <div class="action">{{ build.prepare_construction_button }}</div>
-        <div class="action">{{ build.simulate_stacks_button }}</div>
         <div class="action">{{ build.build_button }}</div>
         <div class="action">{{ build.export_button }}</div>
         <div class="action"><a href="/admin/nfl/slatebuildstack/?build__id__exact={{ build.id }}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Stacks</a></div>

@@ -1712,8 +1712,10 @@ class SlateBuild(models.Model):
                 # only replace values if projection is new or replace == true
                 if replace or created:
                     projection.projection = player.projection.projection
+                    projection.value = round(float(player.projection.projection)/(player.salary/1000.0), 2)
                     projection.ownership_projection = player.projection.ownership_projection
                     projection.balanced_projection = player.projection.balanced_projection
+                    projection.balanced_value = round(float(player.projection.balanced_projection)/(player.salary/1000.0), 2)
                     projection.adjusted_opportunity = player.projection.adjusted_opportunity
                     projection.rb_group = 0
 
@@ -2186,7 +2188,7 @@ class BuildPlayerProjection(models.Model):
     projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Proj')
     ownership_projection = models.DecimalField(max_digits=3, decimal_places=2, db_index=True, default=0.0, verbose_name='Own')
     adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='AO')
-    value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, db_index=True)
+    value = models.DecimalField('V', max_digits=5, decimal_places=2, default=0.0, db_index=True)
     projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     value_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
@@ -2195,6 +2197,7 @@ class BuildPlayerProjection(models.Model):
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, null=True, blank=True)
     rb_group = models.PositiveIntegerField('RBG', default=0, null=True, blank=True)
     balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
+    balanced_value = models.DecimalField('BV', max_digits=5, decimal_places=2, default=0.0, db_index=True)
     in_play = models.BooleanField(default=True, db_index=True)
     stack_only = models.BooleanField(default=False, verbose_name='SO', help_text='Player is only in pool when stacked with QB or opposing QB')
     qb_stack_only = models.BooleanField(default=False, verbose_name='SwQB', help_text='Generate QB stacks with this player')
