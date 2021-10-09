@@ -1502,19 +1502,22 @@ def process_projection_sheet(sheet_id, task_id):
                             success_count += 1
 
                             # if this sheet is primary (4for4, likely) then duplicate the projection data to SlatePlayerProjection model instance
-                            if sheet.is_primary:
+                            if sheet.is_primary or sheet.projection_site == '4for4':
                                 (projection, _) = models.SlatePlayerProjection.objects.get_or_create(
                                     slate_player=slate_player
                                 )
-                                projection.projection = mu
-                                projection.balanced_projection = mu
-                                projection.floor = flr
-                                projection.ceiling = ceil
-                                projection.stdev = stdev
-                                projection.save()
 
-                            if sheet.projection_site == '4for4':
-                                projection.adjusted_opportunity = float(rec_projection) * 2.0 + float(rush_att_projection)
+                                if sheet.is_primary:
+                                    projection.projection = mu
+                                    projection.balanced_projection = mu
+                                    projection.floor = flr
+                                    projection.ceiling = ceil
+                                    projection.stdev = stdev
+                                
+                                # 4for4 is only site with adjusted opportunity components, so must use even if not primary
+                                if sheet.projection_site == '4for4':
+                                    projection.adjusted_opportunity=float(rec_projection) * 2.0 + float(rush_att_projection)
+
                                 projection.save()
 
                     except models.SlatePlayer.DoesNotExist:
