@@ -2553,9 +2553,12 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     get_rating.admin_order_field = 'rating'
 
     def get_ownership_projection(self, obj):
-        return '{:.2f}%'.format(float(obj.ownership_projection) * 100.0)
+        proj = obj.slate_player.projection
+        if proj is None or proj.ownership_projection is None:
+            return None
+        return '{:.2f}%'.format(float(proj.ownership_projection*100))
     get_ownership_projection.short_description = 'OP'
-    get_ownership_projection.admin_order_field = 'ownership_orjection'
+    get_ownership_projection.admin_order_field = 'slate_player__projection__ownership_projection'
 
     def get_num_pass_catchers(self, obj):
         if obj.slate_player.site_pos == 'QB':
