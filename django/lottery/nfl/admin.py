@@ -2332,7 +2332,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_exposure',
         'get_ownership_projection',
         'get_rating',
-        'adjusted_opportunity',
+        'get_player_ao',
         'get_player_ao_zscore',
         'value',
         'balanced_projection',
@@ -2460,6 +2460,14 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         return '{:.2f}'.format(proj.zscore)
     get_player_zscore.short_description = 'z'
     get_player_zscore.admin_order_field = 'slate_player__projection__zscore'
+
+    def get_player_ao(self, obj):
+        proj = obj.slate_player.projection
+        if proj is None or proj.ao_zscore is None:
+            return None
+        return '{:.2f}'.format(proj.adjusted_opportunity)
+    get_player_ao.short_description = 'ao'
+    get_player_ao.admin_order_field = 'slate_player__projection__adjusted_opportunity'
 
     def get_player_ao_zscore(self, obj):
         proj = obj.slate_player.projection
