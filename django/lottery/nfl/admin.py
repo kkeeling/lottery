@@ -1558,6 +1558,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
 class SlateBuildStackAdmin(admin.ModelAdmin):
     list_display = (
         'get_stack_name',
+        'build_order',
         'rank',
         'get_qb',
         'get_player_1',
@@ -1602,12 +1603,12 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
     def get_stack_name(self, obj):
         return '{} Stack {}'.format(obj.qb.name, obj.build_order)
     get_stack_name.short_description = 'Stack'
-    get_stack_name.admin_order_field = 'qb__name'
+    get_stack_name.admin_order_field = 'qb__slate_player__name'
 
     def get_qb(self, obj):
         return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.qb.get_team_color(), obj.qb))
     get_qb.short_description = 'QB'
-    get_qb.admin_order_field = 'qb__name'
+    get_qb.admin_order_field = 'qb__slate_player__name'
 
     def get_player_1(self, obj):
         return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.player_1.get_team_color(), obj.player_1))
