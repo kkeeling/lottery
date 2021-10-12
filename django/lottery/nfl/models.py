@@ -2549,7 +2549,7 @@ class SlateBuildStack(models.Model):
                     salary=lineup.salary_costs,
                     actual=lineup.fantasy_points_projection
                 )
-                db_lineup.simulate()
+                # db_lineup.simulate()
 
     def num_tes(self):
         count = 0

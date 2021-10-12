@@ -1657,7 +1657,7 @@ def process_ownership_sheet(sheet_id, task_id):
             game.ownership_zscore = game_own_zscores[index]
             game.save()
 
-            game.calc_rating()
+            # game.calc_rating()
 
         task.status = 'success'
         task.content = '{} ownership projections have been successfully added to {} for {}.'.format(success_count, str(sheet.slate), sheet.projection_site) if len(missing_players) == 0 else '{} ownership projections have been successfully added to {} for {}. {} players could not be identified.'.format(success_count, str(sheet.slate), sheet.projection_site, len(missing_players))
