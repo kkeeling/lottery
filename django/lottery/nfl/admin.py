@@ -1294,7 +1294,7 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
 
 @admin.register(models.SlateBuildLineup, site=lottery_admin_site)
 class SlateBuildLineupAdmin(admin.ModelAdmin):
-    list_per_page = 50
+    list_per_page = 10
     list_display = (
         'stack',
         'get_stack_rank',
@@ -1313,6 +1313,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'salary',
         'projection',
         'ev',
+        'std',
         'get_actual',
     )
 
@@ -1452,6 +1453,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         'contains_opp_top_projected_pass_catcher',
         'salary',
         'ev',
+        'std',
         'actual',
     )
 
@@ -1556,6 +1558,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
 
 @admin.register(models.SlateBuildStack, site=lottery_admin_site)
 class SlateBuildStackAdmin(admin.ModelAdmin):
+    list_per_page = 10
     list_display = (
         'get_stack_name',
         'build_order',
@@ -1577,9 +1580,6 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
         'actual',
         'get_lineups_link',
         'error_message',
-        'get_median_score',
-        'get_75th_percentile_score',
-        'get_ceiling_percentile_score',
     )
 
     list_editable = (

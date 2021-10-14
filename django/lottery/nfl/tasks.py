@@ -701,15 +701,15 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, col_min, col_max, num
         ]
     )
 
-    sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -contest.cost)
+    sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -float(contest.cost))
     for prize in prizes:
-        sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, prize.prize-contest.cost)
+        sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, (float(prize.prize)-float(contest.cost)))
     sql += ' END as payout_{}'.format(0)
 
     for i in range(1, num_outcomes):
-        sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prizes[0].max_rank + 1, -contest.cost)
+        sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prizes[0].max_rank + 1, -float(contest.cost))
         for prize in prizes:
-            sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prize.min_rank, prize.prize-contest.cost)
+            sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prize.min_rank, (float(prize.prize)-float(contest.cost)))
         sql += ' END as payout_{}'.format(i)
 
     sql += ' FROM lineup_values A'
@@ -735,47 +735,10 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, col_min, col_max, num
     
         sql += ', T1.x{}'.format(i+col_min)
 
-    print(sql)
-    result = pandasql.sqldf(sql, locals()).sum(axis=1)
+    result = (pandasql.sqldf(sql, locals()) * (1/10000)).sum(axis=1)
+    var_result = pandasql.sqldf(sql, locals()).var(axis=1)
 
-
-    # sql2 = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -contest.cost)
-    # for prize in prizes:
-    #     sql2 += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, prize.prize-contest.cost)
-    # sql2 += ' END as payout_{}'.format(0)
-
-    # for i in range(1, num_outcomes):
-    #     sql2 += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prizes[0].max_rank + 1, -contest.cost)
-    #     for prize in prizes:
-    #         sql2 += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prize.min_rank, prize.prize-contest.cost)
-    #     sql2 += ' END as payout_{}'.format(i)
-
-    # sql2 += ' FROM lineup_values A'
-    # sql2 += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
-    # sql2 += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
-    # sql2 += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
-    # sql2 += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
-    # sql2 += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
-    # sql2 += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
-    # sql2 += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
-    # sql2 += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
-    # sql2 += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
-    
-    # for prize in prizes:
-    #     sql2 += ' LEFT JOIN sim_scores T{0} ON T{0}.X1 = \'{0}\''.format(prize.max_rank + 1)
-    # sql2 += ' LEFT JOIN sim_scores T1 ON T1.X1 = \'1\''
-
-    # sql2 += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
-    
-    # for i in range(0, num_outcomes):
-    #     for prize in prizes:
-    #         sql2 += ', T{0}.x{1}'.format(prize.max_rank + 1, i+col_min)
-    
-    #     sql2 += ', T1.x{}'.format(i+col_min)
-
-    # result = pandasql.sqldf(sql2, locals()).sum(axis=1)
-
-    return result.tolist()
+    return (result.tolist(), var_result.tolist())
 
 
 @shared_task

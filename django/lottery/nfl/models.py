@@ -1969,10 +1969,17 @@ class SlateBuild(models.Model):
                         if not result.ready():
                             all_tasks_complete = False
                         else:
+                            ev_result = result.result[0]
+                            var_result = result.result[1]
                             for index, lineup in enumerate(lineups):
-                                if len(result.result) > index:
-                                    lineup.ev = float(lineup.ev) + result.result[index]
+                                if len(ev_result) > index:
+                                    lineup.ev = float(lineup.ev) + ev_result[index]
+                                    lineup.std = float(lineup.std) + var_result[index]
                                     lineup.save()
+
+                for lineup in lineups:
+                    lineup.std = math.sqrt(lineup.std / 10000)
+                    lineup.save()
 
     def clean_lineups(self):
         if self.configuration.lineup_removal_pct > 0.0:
@@ -2125,10 +2132,17 @@ class SlateBuild(models.Model):
                         if not result.ready():
                             all_tasks_complete = False
                         else:
+                            ev_result = result.result[0]
+                            var_result = result.result[1]
                             for index, lineup in enumerate(lineups):
-                                if len(result.result) > index:
-                                    lineup.ev = float(lineup.ev) + result.result[index]
+                                if len(ev_result) > index:
+                                    lineup.ev = float(lineup.ev) + ev_result[index]
+                                    lineup.std = float(lineup.std) + var_result[index]
                                     lineup.save()
+
+                for lineup in lineups:
+                    lineup.std = math.sqrt(lineup.std / 10000)
+                    lineup.save()
 
     def top_optimal_score(self):
         return self.actuals.all().aggregate(top_score=Max('actual')).get('top_score')
@@ -2595,6 +2609,7 @@ class SlateBuildLineup(models.Model):
     ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     rating = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     ev = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, db_index=True)
+    std = models.DecimalField(db_index=True, max_digits=100, decimal_places=2, default=0.0)
     actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
 
@@ -2749,6 +2764,7 @@ class SlateBuildActualsLineup(models.Model):
     salary = models.PositiveIntegerField(db_index=True)
     sim_scores = ArrayField(models.DecimalField(db_index=True, max_digits=5, decimal_places=2), null=True, blank=True)
     ev = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    std = models.DecimalField(db_index=True, max_digits=100, decimal_places=2, default=0.0)
     actual = models.DecimalField(db_index=True, max_digits=5, decimal_places=2, blank=True, null=True)
 
     class Meta:
