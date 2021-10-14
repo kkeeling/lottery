@@ -1943,7 +1943,7 @@ class SlateBuild(models.Model):
             build_lineups = self.lineups.all().order_by('id')
             build_lineups.update(ev=0)
 
-            lineup_limit = 1000
+            lineup_limit = 500
             lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
 
             for lineup_page in range(0, lineup_pages):
@@ -1980,7 +1980,8 @@ class SlateBuild(models.Model):
                                     lineup.save()
 
                 for lineup in lineups:
-                    lineup.std = math.sqrt(lineup.std / 10000)
+                    lineup.std = math.sqrt(lineup.std / pages)
+                    lineup.mean = lineup.mean / pages
                     lineup.save()
 
     def clean_lineups(self):
