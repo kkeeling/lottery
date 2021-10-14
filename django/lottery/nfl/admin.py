@@ -1464,7 +1464,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
     actions = ['export']
 
     def get_queryset(self, request):
-        qs = super.get_queryset(request)
+        qs = super(SlateBuildActualsLineupAdmin, self).get_queryset(request)
         print(qs.values('ev'))
         return qs.annotate(
             actual_coalesced=Coalesce('actual', 0)
