@@ -1453,7 +1453,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         'contains_opp_top_projected_pass_catcher',
         'salary',
         'ev',
-        'std',
+        'get_std',
         'actual',
     )
 
@@ -1465,8 +1465,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super(SlateBuildActualsLineupAdmin, self).get_queryset(request)
-        # print(list(qs.values_list('std', flat=True)))
-        print(qs.count())
+
         return qs.annotate(
             actual_coalesced=Coalesce('actual', 0)
         )
@@ -1523,6 +1522,10 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
     def get_dst(self, obj):
         return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.dst.get_team_color(), obj.dst))
     get_dst.short_description = 'DST'
+
+    def get_std(self, obj):
+        print(obj.std)
+        return obj.std
 
     def get_median_score(self, obj):
         return obj.get_median_sim_score()
