@@ -1453,7 +1453,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         'contains_opp_top_projected_pass_catcher',
         'salary',
         'ev',
-        # 'std',
+        'std',
         'actual',
     )
 
@@ -1464,7 +1464,9 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
     actions = ['export']
 
     def get_queryset(self, request):
-        return self.model.objects.all().annotate(
+        qs = super.get_queryset(request)
+        print(qs.values('ev'))
+        return qs.annotate(
             actual_coalesced=Coalesce('actual', 0)
         )
 
