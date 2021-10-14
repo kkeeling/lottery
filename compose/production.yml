@@ -4,6 +4,7 @@ services:
   db:
     container_name: lottery_production_db
     image: kartoza/postgis:12.1
+    shm_size: 1g
     expose:
       - 5432
     environment:
