@@ -1452,7 +1452,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         'contains_top_projected_pass_catcher',
         'contains_opp_top_projected_pass_catcher',
         'salary',
-        # 'ev',
+        'ev',
         # 'std',
         'actual',
     )
