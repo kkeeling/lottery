@@ -735,10 +735,12 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, col_min, col_max, num
     
         sql += ', T1.x{}'.format(i+col_min)
 
-    result = (pandasql.sqldf(sql, locals()) * (1/10000)).sum(axis=1)
-    var_result = pandasql.sqldf(sql, locals()).var(axis=1)
+    result = pandasql.sqldf(sql, locals())
+    ev_result = (result * (1/10000)).sum(axis=1)
+    var_result = result.var(axis=1)
+    mean_result = result.mean(axis=1)
 
-    return (result.tolist(), var_result.tolist())
+    return [ev_result.tolist(), var_result.tolist(), mean_result.tolist()]
 
 
 @shared_task

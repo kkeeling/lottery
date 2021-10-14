@@ -1943,7 +1943,7 @@ class SlateBuild(models.Model):
             build_lineups = self.lineups.all().order_by('id')
             build_lineups.update(ev=0)
 
-            lineup_limit = 75
+            lineup_limit = 1000
             lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
 
             for lineup_page in range(0, lineup_pages):
@@ -1971,9 +1971,11 @@ class SlateBuild(models.Model):
                         else:
                             ev_result = result.result[0]
                             var_result = result.result[1]
+                            mean_result = result.result[2]
                             for index, lineup in enumerate(lineups):
                                 if len(ev_result) > index:
                                     lineup.ev = float(lineup.ev) + ev_result[index]
+                                    lineup.mean = float(lineup.mean) + mean_result[index]
                                     lineup.std = float(lineup.std) + var_result[index]
                                     lineup.save()
 
@@ -2106,7 +2108,7 @@ class SlateBuild(models.Model):
             optimals = self.actuals.all().order_by('id')
             optimals.update(ev=0)
 
-            lineup_limit = 75
+            lineup_limit = 1000
             lineup_pages = math.ceil(optimals.count()/lineup_limit)
 
             for lineup_page in range(0, lineup_pages):
@@ -2134,9 +2136,11 @@ class SlateBuild(models.Model):
                         else:
                             ev_result = result.result[0]
                             var_result = result.result[1]
+                            mean_result = result.result[2]
                             for index, lineup in enumerate(lineups):
                                 if len(ev_result) > index:
                                     lineup.ev = float(lineup.ev) + ev_result[index]
+                                    lineup.mean = float(lineup.mean) + mean_result[index]
                                     lineup.std = float(lineup.std) + var_result[index]
                                     lineup.save()
 
@@ -2609,6 +2613,7 @@ class SlateBuildLineup(models.Model):
     ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     rating = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     ev = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, db_index=True)
+    mean = models.DecimalField(db_index=True, max_digits=100, decimal_places=2, default=0.0)
     std = models.DecimalField(db_index=True, max_digits=100, decimal_places=2, default=0.0)
     actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
@@ -2764,6 +2769,7 @@ class SlateBuildActualsLineup(models.Model):
     salary = models.PositiveIntegerField(db_index=True)
     sim_scores = ArrayField(models.DecimalField(db_index=True, max_digits=5, decimal_places=2), null=True, blank=True)
     ev = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    mean = models.DecimalField(db_index=True, max_digits=100, decimal_places=2, default=0.0)
     std = models.DecimalField(db_index=True, max_digits=100, decimal_places=2, default=0.0)
     actual = models.DecimalField(db_index=True, max_digits=5, decimal_places=2, blank=True, null=True)
 

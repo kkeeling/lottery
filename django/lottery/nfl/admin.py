@@ -1313,6 +1313,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'salary',
         'projection',
         'ev',
+        'mean',
         'std',
         'get_actual',
     )
@@ -1453,6 +1454,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         'contains_opp_top_projected_pass_catcher',
         'salary',
         'ev',
+        'mean',
         'get_std',
         'actual',
     )
@@ -1524,8 +1526,11 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
     get_dst.short_description = 'DST'
 
     def get_std(self, obj):
-        print(obj.std)
+        if obj.std == 'NaN':
+            return None
         return obj.std
+    get_std.short_description = 'std'
+    get_std.admin_order_field = 'std'
 
     def get_median_score(self, obj):
         return obj.get_median_sim_score()
