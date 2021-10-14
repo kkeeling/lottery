@@ -1558,7 +1558,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
 
 @admin.register(models.SlateBuildStack, site=lottery_admin_site)
 class SlateBuildStackAdmin(admin.ModelAdmin):
-    list_per_page = 50
+    list_per_page = 25
     list_display = (
         'get_stack_name',
         'build_order',
