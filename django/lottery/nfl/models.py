@@ -1941,48 +1941,9 @@ class SlateBuild(models.Model):
         if self.slate.contests.count() > 0:
             contest = self.slate.contests.get(outcomes_sheet__isnull=False)
             build_lineups = self.lineups.all().order_by('id')
-            build_lineups.update(ev=0)
+            build_lineups.update(ev=0, mean=0, std=0)
 
-            lineup_limit = 500
-            lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
-
-            for lineup_page in range(0, lineup_pages):
-                lineup_min = lineup_page * lineup_limit
-                lineup_max = lineup_min + lineup_limit
-                lineups = build_lineups[lineup_min:lineup_max]
-
-                limit = 50
-                pages = math.ceil(10000/limit)
-                
-                task_results = []
-                all_tasks_complete = False
-
-                for col_count in range(0, pages):
-                    col_min = col_count * limit + 3
-                    col_max = col_min + limit
-
-                    task_results.append(tasks.analyze_lineups_page.delay(self.id, contest.id, list(lineups.values_list('id', flat=True)), col_min, col_max, limit, False))
-
-                while not all_tasks_complete:
-                    all_tasks_complete = True
-                    for result in task_results:
-                        if not result.ready():
-                            all_tasks_complete = False
-                        else:
-                            ev_result = result.result[0]
-                            var_result = result.result[1]
-                            mean_result = result.result[2]
-                            for index, lineup in enumerate(lineups):
-                                if len(ev_result) > index:
-                                    lineup.ev = float(lineup.ev) + ev_result[index]
-                                    lineup.mean = float(lineup.mean) + mean_result[index]
-                                    lineup.std = float(lineup.std) + var_result[index]
-                                    lineup.save()
-
-                for lineup in lineups:
-                    lineup.std = math.sqrt(lineup.std / pages)
-                    lineup.mean = lineup.mean / pages
-                    lineup.save()
+            tasks.analyze_lineups_page(self.id, contest.id, list(build_lineups.values_list('id', flat=True)), False)
 
     def clean_lineups(self):
         if self.configuration.lineup_removal_pct > 0.0:
@@ -2107,47 +2068,9 @@ class SlateBuild(models.Model):
         if self.slate.contests.count() > 0:
             contest = self.slate.contests.get(outcomes_sheet__isnull=False)
             optimals = self.actuals.all().order_by('id')
-            optimals.update(ev=0)
+            optimals.update(ev=0, mean=0, std=0)
 
-            lineup_limit = 1000
-            lineup_pages = math.ceil(optimals.count()/lineup_limit)
-
-            for lineup_page in range(0, lineup_pages):
-                lineup_min = lineup_page * lineup_limit
-                lineup_max = lineup_min + lineup_limit
-                lineups = optimals[lineup_min:lineup_max]
-
-                limit = 50
-                pages = math.ceil(10000/limit)
-                
-                task_results = []
-                all_tasks_complete = False
-
-                for col_count in range(0, pages):
-                    col_min = col_count * limit + 3
-                    col_max = col_min + limit
-
-                    task_results.append(tasks.analyze_lineups_page.delay(self.id, contest.id, list(lineups.values_list('id', flat=True)), col_min, col_max, limit, True))
-
-                while not all_tasks_complete:
-                    all_tasks_complete = True
-                    for result in task_results:
-                        if not result.ready():
-                            all_tasks_complete = False
-                        else:
-                            ev_result = result.result[0]
-                            var_result = result.result[1]
-                            mean_result = result.result[2]
-                            for index, lineup in enumerate(lineups):
-                                if len(ev_result) > index:
-                                    lineup.ev = float(lineup.ev) + ev_result[index]
-                                    lineup.mean = float(lineup.mean) + mean_result[index]
-                                    lineup.std = float(lineup.std) + var_result[index]
-                                    lineup.save()
-
-                for lineup in lineups:
-                    lineup.std = math.sqrt(lineup.std / 10000)
-                    lineup.save()
+            tasks.analyze_lineups_page(self.id, contest.id, list(optimals.values_list('id', flat=True)), False)
 
     def top_optimal_score(self):
         return self.actuals.all().aggregate(top_score=Max('actual')).get('top_score')

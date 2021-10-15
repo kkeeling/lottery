@@ -1313,8 +1313,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'salary',
         'projection',
         'ev',
-        'mean',
-        'std',
+        'get_std',
         'get_actual',
     )
 
@@ -1392,6 +1391,13 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.dst.get_team_color(), obj.dst))
     get_dst.short_description = 'DST'
 
+    def get_std(self, obj):
+        if obj.std == 'NaN':
+            return None
+        return obj.std
+    get_std.short_description = 'std'
+    get_std.admin_order_field = 'std'
+
     def get_actual(self, obj):
         return obj.actual
     get_actual.short_description = 'Actual'
@@ -1454,7 +1460,6 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         'contains_opp_top_projected_pass_catcher',
         'salary',
         'ev',
-        'mean',
         'get_std',
         'actual',
     )
