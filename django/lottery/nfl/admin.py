@@ -1817,6 +1817,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'analyze_lineups',
         'analyze_optimals',
         'export_lineups', 
+        'export_optimals',
         'get_actual_scores', 
         'find_optimal_lineups',
         'duplicate_builds', 
@@ -2097,110 +2098,55 @@ class SlateBuildAdmin(admin.ModelAdmin):
         
         build = queryset[0]
 
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename={}-{}-lineups.csv'.format(build.slate.name, build.created)
+        task = BackgroundTask()
+        task.name = 'Export Lineups for Analysis'
+        task.user = request.user
+        task.save()
 
-        build_writer = csv.writer(response, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        for (index, lineup) in enumerate(build.lineups.all().order_by('order_number', '-qb__projection')):
-            rbs = lineup.get_rbs_by_salary()
-            wrs = lineup.get_wrs_by_salary()
-            tes = lineup.get_tes_by_salary()
-            
-            if lineup.get_num_rbs() > 2:
-                flex = rbs[2]
-            elif lineup.get_num_wrs() > 3:
-                flex = wrs[3]
-            else:
-                flex = tes[1]
-            
-            row = [
-                lineup.order_number,
-                str(build.slate),
-                lineup.projection,
-                lineup.actual,
-                lineup.qb.name,
-                rbs[0].name,
-                rbs[1].name,
-                wrs[0].name,
-                wrs[1].name,
-                wrs[2].name,
-                tes[0].name,
-                flex.name,
-                lineup.dst.name,
-                lineup.qb.team,
-                rbs[0].team,
-                rbs[1].team,
-                wrs[0].team,
-                wrs[1].team,
-                wrs[2].team,
-                tes[0].team,
-                flex.team,
-                lineup.dst.team,
-                lineup.qb.get_game(),
-                rbs[0].get_game(),
-                rbs[1].get_game(),
-                wrs[0].get_game(),
-                wrs[1].get_game(),
-                wrs[2].get_game(),
-                tes[0].get_game(),
-                flex.get_game(),
-                lineup.dst.get_game(),
-                lineup.qb.position,
-                rbs[0].position,
-                rbs[1].position,
-                wrs[0].position,
-                wrs[1].position,
-                wrs[2].position,
-                tes[0].position,
-                flex.position,
-                lineup.dst.position,
-                lineup.qb.salary,
-                rbs[0].salary,
-                rbs[1].salary,
-                wrs[0].salary,
-                wrs[1].salary,
-                wrs[2].salary,
-                tes[0].salary,
-                flex.salary,
-                lineup.dst.salary,
-                lineup.qb.projection,
-                rbs[0].projection,
-                rbs[1].projection,
-                wrs[0].projection,
-                wrs[1].projection,
-                wrs[2].projection,
-                tes[0].projection,
-                flex.projection,
-                lineup.dst.projection,
-                lineup.qb.get_opponent(),
-                rbs[0].get_opponent(),
-                rbs[1].get_opponent(),
-                wrs[0].get_opponent(),
-                wrs[1].get_opponent(),
-                wrs[2].get_opponent(),
-                tes[0].get_opponent(),
-                flex.get_opponent(),
-                lineup.dst.get_opponent(),
-                lineup.qb.stack_only,
-                rbs[0].stack_only,
-                rbs[1].stack_only,
-                wrs[0].stack_only,
-                wrs[1].stack_only,
-                wrs[2].stack_only,
-                tes[0].stack_only,
-                flex.stack_only,
-                lineup.dst.stack_only,
-                lineup.salary
-            ]
-            build_writer.writerow(row)
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file = 'Lineups Export {}.csv'.format(timestamp)
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
-            print('{} of {} lineups complete'.format(index+1, build.lineups.all().count()))
+        tasks.export_lineups_for_analysis.delay(list(build.lineups.all().values_list('id', flat=True)), result_path, result_url, task.id)
 
-        return response
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
     export_lineups.short_description = 'Export lineups for selected builds'            
 
+    def export_optimals(self, request, queryset):
+        if queryset.count() > 1:
+            return
+        
+        build = queryset[0]
+
+        task = BackgroundTask()
+        task.name = 'Export Optimals'
+        task.user = request.user
+        task.save()
+
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file = 'Optimals Export {}.csv'.format(timestamp)
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+        tasks.export_optimal_lineups.delay(list(build.actuals.all().values_list('id', flat=True)), result_path, result_url, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
+    export_lineups.short_description = 'Export lineups for selected builds'
+
     def export_for_upload(self, request, pk):
-        # TODO: Left off here...Make this use the work flow branden used on BT Studies to take pressure off http request
         context = dict(
            # Include common variables for rendering the admin template.
            self.admin_site.each_context(request),
