@@ -749,14 +749,15 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, use_optimals=False):
         else:
             result = pandas.concat([result, pandasql.sqldf(sql, locals())], axis=1)
 
-    ev_result = (result * (1/10000)).sum(axis=1)
-    std_result = result.std(axis=1)
+    print(result.shape)
+    # ev_result = (result * (1/10000)).sum(axis=1)
+    # std_result = result.std(axis=1)
 
-    with transaction.atomic():
-        for index, lineup in enumerate(lineups):
-            lineup.ev = ev_result[index]
-            lineup.std = std_result[index]
-            lineup.save()
+    # with transaction.atomic():
+    #     for index, lineup in enumerate(lineups):
+    #         lineup.ev = ev_result[index]
+    #         lineup.std = std_result[index]
+    #         lineup.save()
 
     # return [ev_result.tolist(), var_result.tolist(), mean_result.tolist()]
 
