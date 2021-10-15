@@ -673,7 +673,7 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, use_optimals=False):
     else:
         all_lineups = build.lineups.filter(id__in=lineup_ids)
 
-    lineup_limit = 14800
+    lineup_limit = 14000
     lineup_pages = math.ceil(all_lineups.count()/lineup_limit)
 
     for lineup_page in range(0, lineup_pages):
