@@ -2138,7 +2138,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         result_path = os.path.join(result_path, result_file)
         result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
-        tasks.export_optimal_lineups.delay(list(build.actuals.all().values_list('id', flat=True)), result_path, result_url, task.id)
+        tasks.export_optimals_for_sim_data.delay(list(build.actuals.all().values_list('id', flat=True)), result_path, result_url, task.id)
 
         messages.add_message(
             request,
