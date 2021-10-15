@@ -2070,7 +2070,7 @@ class SlateBuild(models.Model):
             optimals = self.actuals.all().order_by('id')
             optimals.update(ev=0, mean=0, std=0)
 
-            tasks.analyze_lineups_page(self.id, contest.id, list(optimals.values_list('id', flat=True)), False)
+            tasks.analyze_lineups_page(self.id, contest.id, list(optimals.values_list('id', flat=True)), True)
 
     def top_optimal_score(self):
         return self.actuals.all().aggregate(top_score=Max('actual')).get('top_score')
