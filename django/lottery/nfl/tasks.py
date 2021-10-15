@@ -669,97 +669,102 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, use_optimals=False):
     prizes = contest.prizes.all().order_by('prize')
     
     if use_optimals:
-        lineups = build.actuals.filter(id__in=lineup_ids)
+        all_lineups = build.actuals.filter(id__in=lineup_ids)
     else:
-        lineups = build.lineups.filter(id__in=lineup_ids)
+        all_lineups = build.lineups.filter(id__in=lineup_ids)
 
-    lineup_values = pandas.DataFrame(list(lineups.values_list(
-        'qb__slate_player__name',
-        'rb1__slate_player__name',
-        'rb2__slate_player__name',
-        'wr1__slate_player__name',
-        'wr2__slate_player__name',
-        'wr3__slate_player__name',
-        'te__slate_player__name',
-        'flex__slate_player__name',
-        'dst__slate_player__name')), 
-        columns=[
-            'p1',
-            'p2',
-            'p3',
-            'p4',
-            'p5',
-            'p6',
-            'p7',
-            'p8',
-            'p9',
-        ]
-    )
+    lineup_limit = 14800
+    lineup_pages = math.ceil(all_lineups.count()/lineup_limit)
 
-    limit = 50
-    pages = math.ceil(10000/limit)
-    result = None
+    for lineup_page in range(0, lineup_pages):
+        lineup_min = lineup_page * lineup_limit
+        lineup_max = lineup_min + lineup_limit
+        lineups = all_lineups[lineup_min:lineup_max]
 
-    for col_count in range(0, pages):
-        col_min = col_count * limit + 3
-        col_max = col_min + limit
+        lineup_values = pandas.DataFrame(list(lineups.values_list(
+            'qb__slate_player__name',
+            'rb1__slate_player__name',
+            'rb2__slate_player__name',
+            'wr1__slate_player__name',
+            'wr2__slate_player__name',
+            'wr3__slate_player__name',
+            'te__slate_player__name',
+            'flex__slate_player__name',
+            'dst__slate_player__name')), 
+            columns=[
+                'p1',
+                'p2',
+                'p3',
+                'p4',
+                'p5',
+                'p6',
+                'p7',
+                'p8',
+                'p9',
+            ]
+        )
 
-        sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
-        sim_scores['X1'] = sim_scores.index
-        contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min, col_max)])
-        contest_scores['X1'] = contest_scores.index
-        sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
+        limit = 50
+        pages = math.ceil(10000/limit)
+        result = None
 
-        sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -float(contest.cost))
-        for prize in prizes:
-            sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, (float(prize.prize)-float(contest.cost)))
-        sql += ' END as payout_{}'.format(0)
+        for col_count in range(0, pages):
+            col_min = col_count * limit + 3
+            col_max = col_min + limit
 
-        for i in range(1, limit):
-            sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prizes[0].max_rank + 1, -float(contest.cost))
+            sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
+            sim_scores['X1'] = sim_scores.index
+            contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min, col_max)])
+            contest_scores['X1'] = contest_scores.index
+            sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
+
+            sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -float(contest.cost))
             for prize in prizes:
-                sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prize.min_rank, (float(prize.prize)-float(contest.cost)))
-            sql += ' END as payout_{}'.format(i)
+                sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, (float(prize.prize)-float(contest.cost)))
+            sql += ' END as payout_{}'.format(0)
 
-        sql += ' FROM lineup_values A'
-        sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
-        sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
-        sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
-        sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
-        sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
-        sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
-        sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
-        sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
-        sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
-        
-        for prize in prizes:
-            sql += ' LEFT JOIN sim_scores T{0} ON T{0}.X1 = \'{0}\''.format(prize.max_rank + 1)
-        sql += ' LEFT JOIN sim_scores T1 ON T1.X1 = \'1\''
+            for i in range(1, limit):
+                sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prizes[0].max_rank + 1, -float(contest.cost))
+                for prize in prizes:
+                    sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prize.min_rank, (float(prize.prize)-float(contest.cost)))
+                sql += ' END as payout_{}'.format(i)
 
-        sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
-        
-        for i in range(0, limit):
+            sql += ' FROM lineup_values A'
+            sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
+            sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
+            sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
+            sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
+            sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
+            sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
+            sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
+            sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
+            sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
+            
             for prize in prizes:
-                sql += ', T{0}.x{1}'.format(prize.max_rank + 1, i+col_min)
-        
-            sql += ', T1.x{}'.format(i+col_min)
+                sql += ' LEFT JOIN sim_scores T{0} ON T{0}.X1 = \'{0}\''.format(prize.max_rank + 1)
+            sql += ' LEFT JOIN sim_scores T1 ON T1.X1 = \'1\''
 
-        if result is None:
-            result = pandasql.sqldf(sql, locals())
-        else:
-            result = pandas.concat([result, pandasql.sqldf(sql, locals())], axis=1)
+            sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
+            
+            for i in range(0, limit):
+                for prize in prizes:
+                    sql += ', T{0}.x{1}'.format(prize.max_rank + 1, i+col_min)
+            
+                sql += ', T1.x{}'.format(i+col_min)
 
-    print(result.shape)
-    # ev_result = (result * (1/10000)).sum(axis=1)
-    # std_result = result.std(axis=1)
+            if result is None:
+                result = pandasql.sqldf(sql, locals())
+            else:
+                result = pandas.concat([result, pandasql.sqldf(sql, locals())], axis=1)
 
-    # with transaction.atomic():
-    #     for index, lineup in enumerate(lineups):
-    #         lineup.ev = ev_result[index]
-    #         lineup.std = std_result[index]
-    #         lineup.save()
+        ev_result = (result * (1/10000)).sum(axis=1)
+        std_result = result.std(axis=1)
 
-    # return [ev_result.tolist(), var_result.tolist(), mean_result.tolist()]
+        with transaction.atomic():
+            for index, lineup in enumerate(lineups):
+                lineup.ev = ev_result[index]
+                lineup.std = std_result[index]
+                lineup.save()
 
 
 @shared_task
