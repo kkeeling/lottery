@@ -1302,7 +1302,7 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
 
 @admin.register(models.SlateBuildLineup, site=lottery_admin_site)
 class SlateBuildLineupAdmin(admin.ModelAdmin):
-    list_per_page = 10
+    list_per_page = 50
     paginator = NoCountPaginator
     list_display = (
         'stack',
