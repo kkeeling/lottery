@@ -1294,7 +1294,7 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
 
 @admin.register(models.SlateBuildLineup, site=lottery_admin_site)
 class SlateBuildLineupAdmin(admin.ModelAdmin):
-    list_per_page = 10
+    list_per_page = 100
     list_display = (
         'stack',
         'get_stack_rank',
@@ -1314,6 +1314,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'projection',
         'ev',
         'get_std',
+        'rating',
         'get_actual',
     )
 
@@ -1442,7 +1443,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
 
 @admin.register(models.SlateBuildActualsLineup, site=lottery_admin_site)
 class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
-    list_per_page = 10
+    list_per_page = 100
     list_display = (
         'build',
         'get_game_stack',

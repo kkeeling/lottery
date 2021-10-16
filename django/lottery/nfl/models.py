@@ -1216,6 +1216,7 @@ class SlateBuildConfig(models.Model):
     allow_rb_in_opp_qb_stack = models.BooleanField(default=True)
     allow_wr_in_opp_qb_stack = models.BooleanField(default=True)
     allow_te_in_opp_qb_stack = models.BooleanField(default=True)
+    use_simulation = models.BooleanField(default=False)
     lineup_removal_pct = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
 
     class Meta:
@@ -1946,12 +1947,8 @@ class SlateBuild(models.Model):
             tasks.analyze_lineups_page(self.id, contest.id, list(build_lineups.values_list('id', flat=True)), False)
 
     def clean_lineups(self):
-        if self.configuration.lineup_removal_pct > 0.0:
-            sorted = self.lineups.all().order_by('-projection')
-            projections = numpy.array([float(v) for v in sorted.values_list('projection', flat=True)])
-            target_score = numpy.percentile(projections, int(float(self.configuration.lineup_removal_pct) * 100))
-
-            sorted.filter(projection__lt=target_score).delete()
+        if self.configuration.use_simulation:
+            pass
 
     def update_build_progress(self):
         all_stacks = self.stacks.filter(count__gt=0)
@@ -2537,8 +2534,9 @@ class SlateBuildLineup(models.Model):
     ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     rating = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     ev = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, db_index=True)
-    mean = models.DecimalField(db_index=True, max_digits=100, decimal_places=2, default=0.0)
-    std = models.DecimalField(db_index=True, max_digits=100, decimal_places=2, default=0.0)
+    mean = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    std = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    sim_rating = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
     actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
 
@@ -2693,8 +2691,9 @@ class SlateBuildActualsLineup(models.Model):
     salary = models.PositiveIntegerField(db_index=True)
     sim_scores = ArrayField(models.DecimalField(db_index=True, max_digits=5, decimal_places=2), null=True, blank=True)
     ev = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
-    mean = models.DecimalField(db_index=True, max_digits=100, decimal_places=2, default=0.0)
-    std = models.DecimalField(db_index=True, max_digits=100, decimal_places=2, default=0.0)
+    mean = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    std = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    sim_rating = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
     actual = models.DecimalField(db_index=True, max_digits=5, decimal_places=2, blank=True, null=True)
 
     class Meta:
