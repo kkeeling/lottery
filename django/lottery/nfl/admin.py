@@ -8,7 +8,7 @@ import os
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
-from django.http import HttpResponse
+from django.core.paginator import Paginator
 from django.db.models import Count, Window, F, Case, When
 from django.db.models.aggregates import Sum
 from django.db.models.expressions import ExpressionWrapper
@@ -27,6 +27,14 @@ from configuration.models import BackgroundTask
 
 from . import models
 from . import tasks
+
+
+class NoCountPaginator(Paginator):
+    @property
+    def count(self):
+        return 999999999 # Some arbitrarily large number,
+                         # so we can still get our page tab.from django.http import HttpResponse
+
 
 # Filters
 
@@ -1294,7 +1302,8 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
 
 @admin.register(models.SlateBuildLineup, site=lottery_admin_site)
 class SlateBuildLineupAdmin(admin.ModelAdmin):
-    list_per_page = 100
+    list_per_page = 10
+    paginator = NoCountPaginator
     list_display = (
         'stack',
         'get_stack_rank',
