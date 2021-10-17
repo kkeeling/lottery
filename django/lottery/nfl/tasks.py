@@ -774,8 +774,11 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, use_optimals=False):
 
         with transaction.atomic():
             for index, lineup in enumerate(lineups):
-                lineup.rating = ev_zscores[index] - std_zscores[index] if ev_zscores[index] >= 0 else ev_zscores[index] + std_zscores[index]
-                lineup.save()        
+                try:
+                    lineup.rating = ev_zscores[index] - std_zscores[index] if ev_zscores[index] >= 0 else ev_zscores[index] + std_zscores[index]
+                    lineup.save()        
+                except:
+                    traceback.print_exc()
 
 @shared_task
 def build_optimals_for_stack(stack_id):
