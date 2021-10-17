@@ -804,6 +804,39 @@ def rate_lineups(build_id, task_id, use_optimals=False):
 
 
 @shared_task
+def clean_lineups(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        build = models.SlateBuild.objects.get(id=build_id)
+        stacks = build.stacks.filter(times_used__gt=0)
+
+        for stack in stacks:
+            stack_lineups = stack.lineups.all().order_by('-sim_rating')
+            for lineup in stack_lineups[stack.count:]:
+                lineup.delete()        
+
+        task.status = 'success'
+        task.content = 'Lineups cleaned.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem cleaning lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def build_optimals_for_stack(stack_id):
     try:
         max_optimals_per_stack = 50

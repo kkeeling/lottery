@@ -1826,7 +1826,9 @@ class SlateBuildAdmin(admin.ModelAdmin):
         # 'prepare_construction',
         'analyze_lineups',
         'rate_lineups',
+        'clean_lineups',
         'analyze_optimals',
+        'rate_optimals',
         'export_lineups', 
         'export_optimals',
         'get_actual_scores', 
@@ -2222,6 +2224,21 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 'Rating lineups. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
     rate_lineups.short_description = 'Rate lineups for selected builds'
 
+    def clean_lineups(self, request, queryset):
+        for build in queryset:
+            task = BackgroundTask()
+            task.name = 'Clean Lineups'
+            task.user = request.user
+            task.save()
+
+            tasks.clean_lineups.delay(build.id, task.id)
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Cleaning lineups. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
+    clean_lineups.short_description = 'Clean lineups for selected builds'
+
     def analyze_optimals(self, request, queryset):
         for build in queryset:
             task = BackgroundTask()
@@ -2236,6 +2253,21 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 messages.WARNING,
                 'Analyzing optimals. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
     analyze_optimals.short_description = 'Analyze optimals for selected builds'
+
+    def rate_optimals(self, request, queryset):
+        for build in queryset:
+            task = BackgroundTask()
+            task.name = 'Rate Optimals'
+            task.user = request.user
+            task.save()
+
+            tasks.rate_lineups.delay(build.id, task.id, True)
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Rating optimals. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
+    rate_optimals.short_description = 'Rate optimals for selected builds'
 
     def get_actual_scores(self, request, queryset):
         for build in queryset:
