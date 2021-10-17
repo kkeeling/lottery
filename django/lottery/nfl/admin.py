@@ -1323,7 +1323,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'projection',
         'ev',
         'get_std',
-        'rating',
+        'sim_rating',
         'get_actual',
     )
 
@@ -1825,6 +1825,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         # 'prepare_projections',
         # 'prepare_construction',
         'analyze_lineups',
+        'rate_lineups',
         'analyze_optimals',
         'export_lineups', 
         'export_optimals',
@@ -2205,6 +2206,21 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 messages.WARNING,
                 'Analyzing lineups. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
     analyze_lineups.short_description = 'Analyze lineups for selected builds'
+
+    def rate_lineups(self, request, queryset):
+        for build in queryset:
+            task = BackgroundTask()
+            task.name = 'Rate Lineups'
+            task.user = request.user
+            task.save()
+
+            tasks.rate_lineups.delay(build.id, task.id, False)
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Rating lineups. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
+    rate_lineups.short_description = 'Rate lineups for selected builds'
 
     def analyze_optimals(self, request, queryset):
         for build in queryset:

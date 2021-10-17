@@ -1944,7 +1944,15 @@ class SlateBuild(models.Model):
             build_lineups = self.lineups.all().order_by('id')
             build_lineups.update(ev=0, mean=0, std=0)
 
-            tasks.analyze_lineups_page(self.id, contest.id, list(build_lineups.values_list('id', flat=True)), False)
+            lineup_limit = 600
+            lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
+
+            for lineup_page in range(0, lineup_pages):
+                lineup_min = lineup_page * lineup_limit
+                lineup_max = lineup_min + lineup_limit
+                lineups = build_lineups[lineup_min:lineup_max]
+
+                tasks.analyze_lineups_page.delay(self.id, contest.id, list(lineups.values_list('id', flat=True)), False)
 
     def clean_lineups(self):
         if self.configuration.use_simulation:
