@@ -1282,9 +1282,8 @@ def export_lineups_for_analysis(lineup_ids, result_path, result_url, task_id):
             for page in range(0, pages):
                 offset = page * limit
 
-                for lineup in lineups[offset:offset+limit]:
-                    count += 1
-                    lineup_writer.writerow([
+                lg = (
+                    [
                         lineup.build.slate.name,
                         lineup.build.slate.week,
                         lineup.qb.name,
@@ -1303,7 +1302,11 @@ def export_lineups_for_analysis(lineup_ids, result_path, result_url, task_id):
                         str(lineup.stack),
                         lineup.ev,
                         lineup.std
-                    ])
+                    ] for lineup in lineups[offset:offset+limit]
+                )
+
+                for lineup in lg:
+                    lineup_writer.writerow(lineup)
 
         task.status = 'download'
         task.content = result_url
