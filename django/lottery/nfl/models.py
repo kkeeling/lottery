@@ -1548,6 +1548,9 @@ class SlateBuild(models.Model):
         self.calc_projections_ready()
         self.calc_construction_ready()
 
+    def simulate(self):
+        optimize.simulate(self.slate.site, self.slate.get_projections(), self.configuration, 10)
+
     def clear_analysis(self):
         self.top_score = None
         self.total_optimals = 0.0
@@ -2092,6 +2095,12 @@ class SlateBuild(models.Model):
             reverse_lazy("admin:admin_slatebuild_speed_test", args=[self.pk])
         )
     speed_test_button.short_description = ''
+
+    def sim_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Sim</a>',
+            reverse_lazy("admin:admin_slatebuild_simulate", args=[self.pk])
+        )
+    sim_button.short_description = ''
     
     def prepare_projections_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #a41515; font-weight: bold; padding: 10px 15px;">Prep Proj</a>',
@@ -2133,7 +2142,9 @@ class BuildPlayerProjection(models.Model):
     build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)
     slate_player = models.ForeignKey(SlatePlayer, db_index=True, related_name='build_projections', on_delete=models.CASCADE)
     projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Proj')
+    sim_projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Sim Proj')
     ownership_projection = models.DecimalField(max_digits=3, decimal_places=2, db_index=True, default=0.0, verbose_name='Own')
+    gto = models.DecimalField(max_digits=3, decimal_places=2, db_index=True, default=0.0, verbose_name='GTO')
     adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='AO')
     value = models.DecimalField('V', max_digits=5, decimal_places=2, default=0.0, db_index=True)
     projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)

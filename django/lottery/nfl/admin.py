@@ -1762,6 +1762,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'view_page_button',
+        'sim_button',
         'prepare_projections_button',
         'prepare_construction_button',
         'build_button',
@@ -1841,6 +1842,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         urls = super().get_urls()
         my_urls = [
             path('slatebuild-speed-test/<int:pk>/', self.speed_test, name="admin_slatebuild_speed_test"),
+            path('slatebuild-simulate/<int:pk>/', self.simulate, name="admin_slatebuild_simulate"),
             path('slatebuild-build/<int:pk>/', self.build, name="admin_slatebuild_build"),
             path('slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_slatebuild_export"),
             path('slatebuild-balance-rbs/<int:pk>/', self.balance_rbs, name="admin_slatebuild_balance_rbs"),
@@ -2071,6 +2073,30 @@ class SlateBuildAdmin(admin.ModelAdmin):
             tasks.get_target_score.delay(build.id)
             messages.success(request, 'Getting target score for {}. Refresh this page to check progress.'.format(build))
     get_target_score.short_description = 'Get target score for selected builds'
+
+    def simulate(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        build = get_object_or_404(models.SlateBuild, pk=pk)
+
+        task = BackgroundTask()
+        task.name = 'Simulating Build Outcomes'
+        task.user = request.user
+        task.save()
+
+        tasks.simulate_build.delay(build.id, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Simulating build outcomes for {}'.format(str(build)))
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
 
     def speed_test(self, request, pk):
         context = dict(

@@ -706,9 +706,13 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, use_optimals=False):
 
         sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
         sim_scores['X1'] = sim_scores.index
-        contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min, col_max)])
+        contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min+1, col_max+1)])
         contest_scores['X1'] = contest_scores.index
         sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
+
+        contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2', 'X3'])
+        contest_payouts['X1'] = contest_payouts.index
+        contest_payouts = contest_payouts[::-1].tolist()
 
         sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -float(contest.cost))
         for prize in prizes:
@@ -892,6 +896,34 @@ def monitor_backtest_optimals(backtest_id):
 def simulate_slate(slate_id):
     slate = models.Slate.objects.get(pk=slate_id)
     slate.simulate()
+
+
+@shared_task
+def simulate_build(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.simulate()
+
+        task.status = 'success'
+        task.content = 'Build simulation complete.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a simulating build: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task

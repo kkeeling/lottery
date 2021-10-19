@@ -2,14 +2,18 @@ import csv
 import datetime
 import decimal
 import math
+import pandas
 import random
 import string
 import traceback
 
 from collections import namedtuple
 from django.core.management.base import BaseCommand
-from pydfs_lineup_optimizer import Site, Sport, Player, PlayersGroup, get_optimizer, \
-    exceptions, Stack, LineupOptimizer
+from pydfs_lineup_optimizer import Site, Sport, Player, get_optimizer, \
+    exceptions, LineupOptimizer
+from pydfs_lineup_optimizer.stacks import PlayersGroup, Stack, GameStack
+from pydfs_lineup_optimizer.player_pool import PlayerFilter
+from pydfs_lineup_optimizer.solvers.mip_solver import MIPSolver
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import CountVectorizer
 
@@ -75,8 +79,11 @@ def optimize(site, projections, num_lineups=1):
     return lineups
 
 
-def simulate_contest(contest, projections):
-    site = contest.slate.site
+def simulate(site, projections, config, max_lineups=10):
+    # For each iteration of player outcomes...
+        # For each contest simulation...
+            # Make all lineups greater that score enough to be top 3 (or 100 lineups, whichever is smaller)
+            # Each lineup should be stored in a pandas dataframe
 
     if site == 'fanduel':
         optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
@@ -85,67 +92,121 @@ def simulate_contest(contest, projections):
     else:
         raise Exception('{} is not a supported dfs site.'.format(site))
 
-    player_list = []
-
-    for player_projection in projections:
-        if ' ' in player_projection.name:
-            first, last = player_projection.name.split(' ', 1)
-        else:
-            first = player_projection.name
-            last = ''
-
-        slate_game = player_projection.slate_player.slate_game.game
-        game_info = GameInfo(
-            home_team=slate_game.home_team, 
-            away_team=slate_game.away_team,
-            starts_at=slate_game.game_date,
-            game_started=False
-        )
-
-        player = Player(
-            player_projection.slate_player.player_id,
-            first,
-            'DST' if player_projection.position == 'DST' else last,
-            ['D' if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel' else player_projection.position],
-            player_projection.team,
-            player_projection.salary,
-            float(player_projection.projection),
-            game_info=game_info,
-            min_deviation=-0.4,
-            max_deviation=0.4,
-            # max_exposure=float(player_projection.ownership_projection) + (float(player_projection.ownership_projection) * 0.5),
-            min_exposure=float(player_projection.ownership_projection) - (float(player_projection.ownership_projection) * 0.5)
-        )
-
-        player_list.append(player)
-    
-    optimizer.load_players(player_list)
-
-    ### SETTINGS ###
-    dst_label = 'D' if site == 'fanduel' else 'DST'
-
-    # Salary
-    optimizer.set_min_salary_cap(49300 if site == 'fanduel' else 59300)
-    
-    # Uniques 
-    optimizer.set_max_repeating_players(8) # 1 unique
-
-    ### STACKING RULES ###
-
-    # Players vs DST
-    optimizer.restrict_positions_for_opposing_team([dst_label], ['QB', 'RB', 'WR', 'TE'], max_allowed=1)
-
     lineups = []
-    try:
+    for player_sim_index in range(0, 2):
+        player_list = []
+
+        for player_projection in projections:
+            if ' ' in player_projection.name:
+                first, last = player_projection.name.split(' ', 1)
+            else:
+                first = player_projection.name
+                last = ''
+
+            slate_game = player_projection.slate_player.slate_game.game
+            game_info = GameInfo(
+                home_team=slate_game.home_team, 
+                away_team=slate_game.away_team,
+                starts_at=slate_game.game_date,
+                game_started=False
+            )
+
+            if player_projection.sim_scores is not None and len(player_projection.sim_scores) > 0:
+                player = Player(
+                    player_projection.slate_player.player_id,
+                    first,
+                    'DST' if player_projection.position == 'DST' else last,
+                    ['D' if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel' else player_projection.position],
+                    player_projection.team,
+                    player_projection.salary,
+                    float(player_projection.sim_scores[player_sim_index]),
+                    game_info=game_info
+                )
+
+                player_list.append(player)
+        
+        optimizer.player_pool.load_players(player_list)
+
+        ### SETTINGS ###
+        dst_label = 'D' if site == 'fanduel' else 'DST'
+
+        # Salary
+        if config.min_salary > 0:
+            optimizer.set_min_salary_cap(config.min_salary)
+
+        ### STACKING RULES ###
+
+        # Players vs DST
+        optimizer.restrict_positions_for_opposing_team([dst_label], ['QB', 'RB', 'WR', 'TE'], max_allowed=config.num_players_vs_dst)
+
+        # RBs from same team (always disallowed)
+        same_team_stack_tuple = (('RB', 'RB'),)
+
+        # RB/DST Stack
+        if not config.allow_dst_rb_stack:
+            same_team_stack_tuple += ((dst_label, 'RB'),)
+
+        # QB/DST Stack
+        if not config.allow_qb_dst_from_same_team:
+            same_team_stack_tuple += (('QB', dst_label),)
+
+        # QB/RB Stack
+        if not config.allow_rb_qb_from_same_team:
+            same_team_stack_tuple += (('QB', 'RB'),)
+
+        optimizer.restrict_positions_for_same_team(*same_team_stack_tuple)
+
+        # RBs from Same Game
+        if not config.allow_rbs_from_same_game and not config.allow_rb_qb_from_opp_team:
+            optimizer.restrict_positions_for_opposing_team(['RB'], ['QB', 'RB'])
+        elif not config.allow_rbs_from_same_game:
+            optimizer.restrict_positions_for_opposing_team(['RB'], ['RB'])
+        elif not config.allow_rb_qb_from_opp_team:
+            optimizer.restrict_positions_for_opposing_team(['RB'], ['QB'])
+
+        # Game Stacks
+        optimizer.set_total_teams(min_teams=3)
+        optimizer.add_stack(GameStack(size=3, min_from_team=1))
+        
+        # For each QB, create a stack with his pass in-play pass catchers and the opposing pass catchers
+        for qb in projections.filter(slate_player__site_pos='QB'):
+            stack_players = []
+            for pos in config.qb_stack_positions:
+                stack_players += optimizer.player_pool.get_players(PlayerFilter(
+                        positions=[pos],
+                        teams=[qb.team]
+                    ))
+            qb_team_stack = PlayersGroup(
+                stack_players,
+                max_from_group=config.game_stack_size - 1 if len(config.opp_qb_stack_positions) == 0 else config.game_stack_size - 2,
+                depends_on=optimizer.player_pool.get_player_by_id(qb.slate_player.player_id),
+                strict_depend=False
+            )
+            optimizer.add_players_group(qb_team_stack)
+
+            if len(config.opp_qb_stack_positions) > 0:
+                stack_players = []
+                for pos in config.opp_qb_stack_positions:
+                    stack_players += optimizer.player_pool.get_players(PlayerFilter(
+                            positions=[pos],
+                            teams=[qb.get_opponent()]
+                        ))
+                qb_opp_team_stack = PlayersGroup(
+                    stack_players,
+                    max_from_group=1,
+                    depends_on=optimizer.player_pool.get_player_by_id(qb.slate_player.player_id),
+                    strict_depend=False
+                )
+                optimizer.add_players_group(qb_opp_team_stack)
+
         optimized_lineups = optimizer.optimize(
-            n=contest.max_entrants 
+            n=max_lineups 
         )
 
         for lineup in optimized_lineups:
-            lineups.append(lineup)
-    except exceptions.LineupOptimizerException:
-        traceback.print_exc()
+            lineups.append([p.id for p in lineup.players] + [lineup.salary_costs])
 
+    print(lineups)
     return lineups
 
 
