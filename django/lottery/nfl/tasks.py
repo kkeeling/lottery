@@ -908,7 +908,7 @@ def simulate_player_outcomes_for_build(build_id, players_outcome_index, contest_
         build.slate.get_projections().filter(slate_player__site_pos='QB').iterator(), 
         build.configuration, 
         players_outcome_index,
-        10
+        100
     ))
 
 
