@@ -899,6 +899,20 @@ def simulate_slate(slate_id):
 
 
 @shared_task
+def simulate_player_outcomes_for_build(build_id, players_outcome_index, contest_outcome_index):
+    build = models.SlateBuild.objects.get(id=build_id)
+
+    return (players_outcome_index, contest_outcome_index, optimize.simulate(
+        build.slate.site, 
+        build.slate.get_projections().iterator(), 
+        build.slate.get_projections().filter(slate_player__site_pos='QB').iterator(), 
+        build.configuration, 
+        players_outcome_index,
+        10
+    ))
+
+
+@shared_task
 def simulate_build(build_id, task_id):
     task = None
 
@@ -910,7 +924,29 @@ def simulate_build(build_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         build = models.SlateBuild.objects.get(id=build_id)
-        build.simulate()
+        contests = build.slate.contests.filter(outcomes_sheet__isnull=False)
+
+        for contest in contests.iterator():
+            task_results = []
+            for contest_outcome_index in range(0, 2):
+                for players_outcome_index in range (0, 2):
+                    task_results.append(simulate_player_outcomes_for_build.delay(build_id, players_outcome_index, contest_outcome_index))
+
+        all_tasks_complete = False
+        while not all_tasks_complete:
+            all_tasks_complete = True
+            incomplete_tasks = (incomplete_task for incomplete_task in task_results if not incomplete_task.ready())
+            for celery_task in incomplete_tasks:
+                if not celery_task.ready():
+                    all_tasks_complete = False
+                else:
+                    if celery_task.status == 'SUCCESS':
+                        players_outcome_index = celery_task.result[0]
+                        contest_outcome_index = celery_task.result[1]
+                        lineups = celery_task.result[2]
+                        print(f'iteration ({contest_outcome_index}, {players_outcome_index}) complete with {len(lineups)} lineups.')
+                    else:
+                        print(f'{celery_task.result}')
 
         task.status = 'success'
         task.content = 'Build simulation complete.'
@@ -924,12 +960,6 @@ def simulate_build(build_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-@shared_task
-def simulate_contest(contest_id):
-    contest = models.Contest.objects.get(pk=contest_id)
-    contest.simulate()
 
 
 @shared_task

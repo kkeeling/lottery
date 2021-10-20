@@ -1548,9 +1548,6 @@ class SlateBuild(models.Model):
         self.calc_projections_ready()
         self.calc_construction_ready()
 
-    def simulate(self):
-        optimize.simulate(self.slate.site, self.slate.get_projections(), self.configuration, 10)
-
     def clear_analysis(self):
         self.top_score = None
         self.total_optimals = 0.0
