@@ -10,7 +10,7 @@ import sys
 import time
 import traceback
 
-from celery import shared_task
+from celery import shared_task, chord
 from contextlib import contextmanager
 
 from django.contrib.auth.models import User
@@ -908,8 +908,13 @@ def simulate_player_outcomes_for_build(build_id, players_outcome_index, contest_
         build.slate.get_projections().filter(slate_player__site_pos='QB').iterator(), 
         build.configuration, 
         players_outcome_index,
-        100
+        10
     ))
+
+
+@shared_task
+def combine_build_sim_results(results):
+    print(results)
 
 
 @shared_task
@@ -923,31 +928,75 @@ def simulate_build(build_id, task_id):
             time.sleep(0.2)
             task = BackgroundTask.objects.get(id=task_id)
 
-        build = models.SlateBuild.objects.get(id=build_id)
-        contests = build.slate.contests.filter(outcomes_sheet__isnull=False)
+        # build = models.SlateBuild.objects.get(id=build_id)
+        player_outcome_simulations = 5
+        per_worker = 1
+        n = int(player_outcome_simulations/per_worker)
 
-        for contest in contests.iterator():
-            task_results = []
-            for contest_outcome_index in range(0, 2):
-                for players_outcome_index in range (0, 2):
-                    task_results.append(simulate_player_outcomes_for_build.delay(build_id, players_outcome_index, contest_outcome_index))
+        chord([simulate_player_outcomes_for_build.s(
+            build_id, 
+            players_outcome_index,
+            0
+        ) for players_outcome_index in range(0, n)], combine_build_sim_results.s())()
 
-        all_tasks_complete = False
-        while not all_tasks_complete:
-            all_tasks_complete = True
-            incomplete_tasks = (incomplete_task for incomplete_task in task_results if not incomplete_task.ready())
-            for celery_task in incomplete_tasks:
-                if not celery_task.ready():
-                    all_tasks_complete = False
-                else:
-                    if celery_task.status == 'SUCCESS':
-                        players_outcome_index = celery_task.result[0]
-                        contest_outcome_index = celery_task.result[1]
-                        lineups = celery_task.result[2]
-                        print(f'iteration ({contest_outcome_index}, {players_outcome_index}) complete with {len(lineups)} lineups.')
-                    else:
-                        print(f'{celery_task.result}')
 
+
+        # contests = build.slate.contests.filter(outcomes_sheet__isnull=False)
+        # if contests.count() > 0:
+        #     contest = contests[0]
+        #     grouped_tasks = []
+        #     for contest_outcome_index in range(0, 1):
+        #         for players_outcome_index in range (0, 5):
+        #             grouped_tasks.append(simulate_player_outcomes_for_build.s(build_id, players_outcome_index, contest_outcome_index))
+
+        #     job = group(grouped_tasks)
+        #     result = job.apply_async()
+
+        #     while not result.ready():
+        #         continue
+
+        #     handle_sim_build_results.delay(result)
+
+
+        # all_tasks_complete = False
+        # all_lineups = []
+        # while not all_tasks_complete:
+        #     all_tasks_complete = True
+        #     incomplete_tasks = (incomplete_task for incomplete_task in task_results if not incomplete_task.ready())
+        #     for celery_task in incomplete_tasks:
+        #         if not celery_task.ready():  # if any task is not done, update flag to false and skip success handling
+        #             all_tasks_complete = False
+        #             continue
+
+        #         if celery_task.status == 'SUCCESS':
+        #             players_outcome_index = celery_task.result[0]
+        #             contest_outcome_index = celery_task.result[1]
+        #             lineups = celery_task.result[2]
+        #             print(len(lineups))
+
+        #             all_lineups = all_lineups + lineups
+        #             print(len(all_lineups))
+        #             # print(f'iteration ({contest_outcome_index}, {players_outcome_index}) complete with {len(lineups)} lineups.')
+        #         else:
+        #             print(f'{celery_task.result}')
+
+        # df = pandas.DataFrame(
+        #     all_lineups, 
+        #     columns=[
+        #         'qb',
+        #         'rb',
+        #         'rb',
+        #         'wr',
+        #         'wr',
+        #         'wr',
+        #         'te',
+        #         'flex',
+        #         'dst',
+        #         'salary'
+        #     ]
+        # )
+
+        # print(df)
         task.status = 'success'
         task.content = 'Build simulation complete.'
         task.save()

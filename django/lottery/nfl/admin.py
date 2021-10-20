@@ -5,6 +5,8 @@ import traceback
 import numpy
 import os
 
+from celery import chord
+
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
@@ -2083,12 +2085,22 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
         build = get_object_or_404(models.SlateBuild, pk=pk)
 
-        task = BackgroundTask()
-        task.name = 'Simulating Build Outcomes'
-        task.user = request.user
-        task.save()
+        # task = BackgroundTask()
+        # task.name = 'Simulating Build Outcomes'
+        # task.user = request.user
+        # task.save()
 
-        tasks.simulate_build.delay(build.id, task.id)
+        # tasks.simulate_build.delay(build.id, task.id)
+
+        player_outcome_simulations = 5
+        per_worker = 1
+        n = int(player_outcome_simulations/per_worker)
+
+        chord([tasks.simulate_player_outcomes_for_build.s(
+            build.id, 
+            players_outcome_index,
+            0
+        ) for players_outcome_index in range(0, n)], tasks.combine_build_sim_results.s())()
 
         messages.add_message(
             request,
