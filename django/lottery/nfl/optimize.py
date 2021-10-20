@@ -204,7 +204,9 @@ def simulate(site, projections, qbs, config, player_sim_index=0, optimals_per_si
     )
 
     for lineup in (optimized_lineups):
-        lineups.append([p.id for p in lineup.players] + [lineup.salary_costs])
+        qb = qbs.get(slate_player__player_id = lineup.players[0].id)
+        stack = ','.join([p.id for p in lineup.players if p.team == qb.team or p.team == qb.get_opponent()])
+        lineups.append([p.id for p in lineup.players] + [lineup.salary_costs] + [stack])
 
     return lineups
 

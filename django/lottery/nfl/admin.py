@@ -2092,15 +2092,14 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
         # tasks.simulate_build.delay(build.id, task.id)
 
-        player_outcome_simulations = 5
-        per_worker = 1
-        n = int(player_outcome_simulations/per_worker)
+        # player_outcome_simulations = 12
+        # per_worker = 3
+        # n = int(player_outcome_simulations/per_worker)
 
         chord([tasks.simulate_player_outcomes_for_build.s(
             build.id, 
-            players_outcome_index,
-            0
-        ) for players_outcome_index in range(0, n)], tasks.combine_build_sim_results.s())()
+            players_outcome_index
+        ) for players_outcome_index in range(0, 12)], tasks.combine_build_sim_results.s())()
 
         messages.add_message(
             request,

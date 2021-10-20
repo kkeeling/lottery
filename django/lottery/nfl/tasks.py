@@ -899,25 +899,44 @@ def simulate_slate(slate_id):
 
 
 @shared_task
-def simulate_player_outcomes_for_build(build_id, players_outcome_index, contest_outcome_index):
+def simulate_player_outcomes_for_build(build_id, players_outcome_index):
     build = models.SlateBuild.objects.get(id=build_id)
 
-    return (players_outcome_index, contest_outcome_index, optimize.simulate(
+    return optimize.simulate(
         build.slate.site, 
         build.slate.get_projections().iterator(), 
-        build.slate.get_projections().filter(slate_player__site_pos='QB').iterator(), 
+        build.slate.get_projections().filter(slate_player__site_pos='QB'), 
         build.configuration, 
         players_outcome_index,
-        10
-    ))
+        5
+    )
 
 
 @shared_task
 def combine_build_sim_results(results):
-    print(results)
+    flat_list = [item for sublist in results for item in sublist]
+    print(flat_list)
+    df = pandas.DataFrame(
+        flat_list, 
+        columns=[
+            'qb',
+            'rb',
+            'rb',
+            'wr',
+            'wr',
+            'wr',
+            'te',
+            'flex',
+            'dst',
+            'salary',
+            'stack'
+        ]
+    )
+
+    print(df['stack'].value_counts())
 
 
-@shared_task
+# @shared_task
 def simulate_build(build_id, task_id):
     task = None
 
@@ -929,74 +948,15 @@ def simulate_build(build_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         # build = models.SlateBuild.objects.get(id=build_id)
-        player_outcome_simulations = 5
+        player_outcome_simulations = 10
         per_worker = 1
         n = int(player_outcome_simulations/per_worker)
 
         chord([simulate_player_outcomes_for_build.s(
             build_id, 
-            players_outcome_index,
-            0
+            players_outcome_index
         ) for players_outcome_index in range(0, n)], combine_build_sim_results.s())()
 
-
-
-        # contests = build.slate.contests.filter(outcomes_sheet__isnull=False)
-        # if contests.count() > 0:
-        #     contest = contests[0]
-        #     grouped_tasks = []
-        #     for contest_outcome_index in range(0, 1):
-        #         for players_outcome_index in range (0, 5):
-        #             grouped_tasks.append(simulate_player_outcomes_for_build.s(build_id, players_outcome_index, contest_outcome_index))
-
-        #     job = group(grouped_tasks)
-        #     result = job.apply_async()
-
-        #     while not result.ready():
-        #         continue
-
-        #     handle_sim_build_results.delay(result)
-
-
-        # all_tasks_complete = False
-        # all_lineups = []
-        # while not all_tasks_complete:
-        #     all_tasks_complete = True
-        #     incomplete_tasks = (incomplete_task for incomplete_task in task_results if not incomplete_task.ready())
-        #     for celery_task in incomplete_tasks:
-        #         if not celery_task.ready():  # if any task is not done, update flag to false and skip success handling
-        #             all_tasks_complete = False
-        #             continue
-
-        #         if celery_task.status == 'SUCCESS':
-        #             players_outcome_index = celery_task.result[0]
-        #             contest_outcome_index = celery_task.result[1]
-        #             lineups = celery_task.result[2]
-        #             print(len(lineups))
-
-        #             all_lineups = all_lineups + lineups
-        #             print(len(all_lineups))
-        #             # print(f'iteration ({contest_outcome_index}, {players_outcome_index}) complete with {len(lineups)} lineups.')
-        #         else:
-        #             print(f'{celery_task.result}')
-
-        # df = pandas.DataFrame(
-        #     all_lineups, 
-        #     columns=[
-        #         'qb',
-        #         'rb',
-        #         'rb',
-        #         'wr',
-        #         'wr',
-        #         'wr',
-        #         'te',
-        #         'flex',
-        #         'dst',
-        #         'salary'
-        #     ]
-        # )
-
-        # print(df)
         task.status = 'success'
         task.content = 'Build simulation complete.'
         task.save()
