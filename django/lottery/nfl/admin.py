@@ -2167,26 +2167,20 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
         build = get_object_or_404(models.SlateBuild, pk=pk)
 
-        # task = BackgroundTask()
-        # task.name = 'Simulating Build Outcomes'
-        # task.user = request.user
-        # task.save()
-
-        # tasks.simulate_build.delay(build.id, task.id)
-
-        # player_outcome_simulations = 12
-        # per_worker = 3
-        # n = int(player_outcome_simulations/per_worker)
+        task = BackgroundTask()
+        task.name = 'Find top stacks'
+        task.user = request.user
+        task.save()
 
         chord([tasks.simulate_player_outcomes_for_build.s(
             build.id, 
             players_outcome_index
-        ) for players_outcome_index in range(0, 100)], tasks.combine_build_sim_results.s(build.id))()
+        ) for players_outcome_index in range(0, 10)], tasks.combine_build_sim_results.s(build.id, task.id))()
 
         messages.add_message(
             request,
             messages.WARNING,
-            'Simulating build outcomes for {}'.format(str(build)))
+            'Finding top stacks for {}'.format(str(build)))
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
@@ -2214,7 +2208,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         )
 
         build = models.SlateBuild.objects.get(pk=pk)
-        tasks.execute_build(build.id, request.user.id)
+        tasks.execute_build.delay(build.id, request.user.id)
 
         messages.add_message(
             request,

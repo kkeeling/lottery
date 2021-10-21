@@ -997,12 +997,6 @@ def monitor_backtest_optimals(backtest_id):
 
 
 @shared_task
-def simulate_slate(slate_id):
-    slate = models.Slate.objects.get(pk=slate_id)
-    slate.simulate()
-
-
-@shared_task
 def simulate_player_outcomes_for_build(build_id, players_outcome_index):
     build = models.SlateBuild.objects.get(id=build_id)
 
@@ -1017,56 +1011,7 @@ def simulate_player_outcomes_for_build(build_id, players_outcome_index):
 
 
 @shared_task
-def combine_build_sim_results(results, build_id):
-    flat_list = [item for sublist in results for item in sublist]
-    df = pandas.DataFrame(
-        flat_list, 
-        columns=[
-            'qb',
-            'rb',
-            'rb',
-            'wr',
-            'wr',
-            'wr',
-            'te',
-            'flex',
-            'dst',
-            'salary',
-            'stack'
-        ]
-    )
-
-    top_stack_df = df['stack'].value_counts()
-
-    build = models.SlateBuild.objects.get(id=build_id)
-    build.top_stacks.all().delete()
-
-    for index, row in top_stack_df.iteritems():
-        player_ids = index.split(',')
-        players = models.BuildPlayerProjection.objects.filter(
-            build=build,
-            slate_player__player_id__in=player_ids
-        )
-        
-        qb = players.get(slate_player__site_pos='QB')
-        team_players = players.exclude(id=qb.id).filter(slate_player__team=qb.team)
-        opp_players = players.filter(slate_player__team=qb.get_opponent())
-        top_stack, created = models.SlateBuildTopStack.objects.get_or_create(
-            build=build,
-            game=players[0].game,
-            qb=qb,
-            player_1=team_players[0],
-            player_2=team_players[1] if team_players.count() > 1 else None,
-            opp_player=opp_players[0] if opp_players.count() > 0 else None,
-            salary=sum(p.salary for p in models.SlatePlayer.objects.filter(player_id__in=player_ids)),
-            projection=sum(p.projection for p in players)
-        )
-        top_stack.times_used += row
-        top_stack.save()
-
-
-# @shared_task
-def simulate_build(build_id, task_id):
+def combine_build_sim_results(results, build_id, task_id):
     task = None
 
     try:
@@ -1076,24 +1021,59 @@ def simulate_build(build_id, task_id):
             time.sleep(0.2)
             task = BackgroundTask.objects.get(id=task_id)
 
-        # build = models.SlateBuild.objects.get(id=build_id)
-        player_outcome_simulations = 10
-        per_worker = 1
-        n = int(player_outcome_simulations/per_worker)
+        flat_list = [item for sublist in results for item in sublist]
+        df = pandas.DataFrame(
+            flat_list, 
+            columns=[
+                'qb',
+                'rb',
+                'rb',
+                'wr',
+                'wr',
+                'wr',
+                'te',
+                'flex',
+                'dst',
+                'salary',
+                'stack'
+            ]
+        )
 
-        chord([simulate_player_outcomes_for_build.s(
-            build_id, 
-            players_outcome_index
-        ) for players_outcome_index in range(0, n)], combine_build_sim_results.s())()
+        top_stack_df = df['stack'].value_counts()
+
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.top_stacks.all().delete()
+
+        for index, row in top_stack_df.iteritems():
+            player_ids = index.split(',')
+            players = models.BuildPlayerProjection.objects.filter(
+                build=build,
+                slate_player__player_id__in=player_ids
+            )
+            
+            qb = players.get(slate_player__site_pos='QB')
+            team_players = players.exclude(id=qb.id).filter(slate_player__team=qb.team)
+            opp_players = players.filter(slate_player__team=qb.get_opponent())
+            top_stack, created = models.SlateBuildTopStack.objects.get_or_create(
+                build=build,
+                game=players[0].game,
+                qb=qb,
+                player_1=team_players[0],
+                player_2=team_players[1] if team_players.count() > 1 else None,
+                opp_player=opp_players[0] if opp_players.count() > 0 else None,
+                salary=sum(p.salary for p in models.SlatePlayer.objects.filter(player_id__in=player_ids)),
+                projection=sum(p.projection for p in players)
+            )
+            top_stack.times_used += row
+            top_stack.save()
 
         task.status = 'success'
-        task.content = 'Build simulation complete.'
+        task.content = f'{models.SlateBuildTopStack.objects.filter(build=build).count()} top stacks identified.'
         task.save()
-
     except Exception as e:
         if task is not None:
             task.status = 'error'
-            task.content = f'There was a simulating build: {e}'
+            task.content = f'There was an error identifying the top stacks: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
