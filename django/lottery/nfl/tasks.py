@@ -667,7 +667,6 @@ def analyze_optimals(build_id, task_id):
 def analyze_lineups_page(build_id, contest_id, lineup_ids, use_optimals=False):
     build = models.SlateBuild.objects.get(id=build_id)
     contest = models.Contest.objects.get(id=contest_id)
-    prizes = contest.prizes.all().order_by('prize')
     
     if use_optimals:
         all_lineups = build.actuals.filter(id__in=lineup_ids)
@@ -698,7 +697,7 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, use_optimals=False):
     )
 
     limit = 50
-    pages = math.ceil(10000/limit)
+    pages = math.ceil(100/limit)
     result = None
 
     for col_count in range(0, pages):
@@ -709,21 +708,25 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, use_optimals=False):
         sim_scores['X1'] = sim_scores.index
         contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min+1, col_max+1)])
         contest_scores['X1'] = contest_scores.index
+        contest_scores.columns = ['X{}'.format(i) for i in range(col_min, col_max)] + ['X1']
         sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
 
-        contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2', 'X3'])
-        contest_payouts['X1'] = contest_payouts.index
-        contest_payouts = contest_payouts[::-1].tolist()
+        contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, usecols=['X2', 'X3']).sort_index(ascending=False)
 
-        sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prizes[0].max_rank + 1, -float(contest.cost))
-        for prize in prizes:
-            sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(col_min, prize.min_rank, (float(prize.prize)-float(contest.cost)))
+        no_cash_rank = contest_payouts.iloc[0]['X2']
+        sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, no_cash_rank, -float(contest.cost))
+        for payout in contest_payouts.itertuples():
+            if payout.X2 == no_cash_rank:
+                continue
+            sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)-float(contest.cost)))
         sql += ' END as payout_{}'.format(0)
-
+        
         for i in range(1, limit):
-            sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prizes[0].max_rank + 1, -float(contest.cost))
-            for prize in prizes:
-                sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, prize.min_rank, (float(prize.prize)-float(contest.cost)))
+            sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, no_cash_rank, -float(contest.cost))
+            for payout in contest_payouts.itertuples():
+                if payout.X2 == no_cash_rank:
+                    continue
+                sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)-float(contest.cost)))
             sql += ' END as payout_{}'.format(i)
 
         sql += ' FROM lineup_values A'
@@ -737,32 +740,30 @@ def analyze_lineups_page(build_id, contest_id, lineup_ids, use_optimals=False):
         sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
         sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
         
-        for prize in prizes:
-            sql += ' LEFT JOIN sim_scores T{0} ON T{0}.X1 = \'{0}\''.format(prize.max_rank + 1)
-        sql += ' LEFT JOIN sim_scores T1 ON T1.X1 = \'1\''
+        for payout in contest_payouts.itertuples():
+            sql += f' LEFT JOIN sim_scores T{payout.X2} ON T{payout.X2}.X1 = \'{payout.X2}\''
 
         sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
         
         for i in range(0, limit):
-            for prize in prizes:
-                sql += ', T{0}.x{1}'.format(prize.max_rank + 1, i+col_min)
-        
-            sql += ', T1.x{}'.format(i+col_min)
+            for payout in contest_payouts.itertuples():
+                sql += f', T{payout.X2}.x{i+col_min}'
 
         if result is None:
             result = pandasql.sqldf(sql, locals())
         else:
             result = pandas.concat([result, pandasql.sqldf(sql, locals())], axis=1)
 
-    ev_result = (result * (1/10000)).sum(axis=1)
-    std_result = result.std(axis=1)
+    print(result)
+    # ev_result = (result * (1/10000)).sum(axis=1)
+    # std_result = result.std(axis=1)
 
-    with transaction.atomic():
-        for index, lineup in enumerate(all_lineups):
-            if index < all_lineups.count():
-                lineup.ev = ev_result[index] if index < ev_result.count() else 0.0
-                lineup.std = std_result[index] if index < std_result.count() else 0.0
-                lineup.save()
+    # with transaction.atomic():
+    #     for index, lineup in enumerate(all_lineups):
+    #         if index < all_lineups.count():
+    #             lineup.ev = ev_result[index] if index < ev_result.count() else 0.0
+    #             lineup.std = std_result[index] if index < std_result.count() else 0.0
+    #             lineup.save()
 
 
 @shared_task
