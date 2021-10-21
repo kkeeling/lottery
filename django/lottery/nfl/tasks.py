@@ -5,6 +5,7 @@ import math
 import numpy
 import pandas
 import pandasql
+from pydfs_lineup_optimizer import player
 import scipy
 import sys
 import time
@@ -913,7 +914,7 @@ def simulate_player_outcomes_for_build(build_id, players_outcome_index):
 
 
 @shared_task
-def combine_build_sim_results(results):
+def combine_build_sim_results(results, build_id):
     flat_list = [item for sublist in results for item in sublist]
     print(flat_list)
     df = pandas.DataFrame(
@@ -933,7 +934,33 @@ def combine_build_sim_results(results):
         ]
     )
 
-    print(df['stack'].value_counts())
+    top_stack_df = df['stack'].value_counts()
+
+    build = models.SlateBuild.objects.get(id=build_id)
+    build.top_stacks.all().delete()
+
+    for index, row in top_stack_df.iteritems():
+        player_ids = index.split(',')
+        players = models.BuildPlayerProjection.objects.filter(
+            build=build,
+            slate_player__player_id__in=player_ids
+        )
+        
+        qb = players.get(slate_player__site_pos='QB')
+        team_players = players.exclude(id=qb.id).filter(slate_player__team=qb.team)
+        opp_players = players.filter(slate_player__team=qb.get_opponent())
+        top_stack, created = models.SlateBuildTopStack.objects.get_or_create(
+            build=build,
+            game=players[0].game,
+            qb=qb,
+            player_1=team_players[0],
+            player_2=team_players[1] if team_players.count() > 1 else None,
+            opp_player=opp_players[0] if opp_players.count() > 0 else None,
+            salary=sum(p.salary for p in models.SlatePlayer.objects.filter(player_id__in=player_ids)),
+            projection=sum(p.projection for p in players)
+        )
+        top_stack.times_used += row
+        top_stack.save()
 
 
 # @shared_task

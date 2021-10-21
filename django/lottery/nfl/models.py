@@ -2529,6 +2529,108 @@ class SlateBuildStack(models.Model):
         return 0
 
 
+class SlateBuildTopStack(models.Model):
+    build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='top_stacks', on_delete=models.CASCADE)
+    game = models.ForeignKey(SlateGame, db_index=True, related_name='top_stacks', on_delete=models.SET_NULL, blank=True, null=True)
+    qb = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='qb_top_stacks', on_delete=models.CASCADE)
+    player_1 = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='p1_top_stacks', on_delete=models.CASCADE)
+    player_2 = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='p2_top_stacks', on_delete=models.CASCADE, blank=True, null=True)
+    opp_player = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='opp_top_stacks', on_delete=models.CASCADE, blank=True, null=True)
+    contains_top_pc = models.BooleanField(default=False, db_index=True)
+    salary = models.PositiveIntegerField(db_index=True)
+    projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True)
+    times_used = models.PositiveIntegerField(default=0, db_index=True)
+
+    class Meta:
+        verbose_name = 'Top Stack'
+        verbose_name_plural = 'Top Stacks'
+        ordering = ['-times_used', '-projection']
+        
+    def __str__(self):
+        if self.player_2 is not None:
+            if self.opp_player is not None:
+                return f'{self.qb.name}, {self.player_1.name}, {self.player_2.name}, {self.opp_player.name}'
+            return f'{self.qb.name}, {self.player_1.name}, {self.player_2.name}'
+        return f'{self.qb.name}, {self.player_1.name}, {self.opp_player.name}'
+
+    @property
+    def players(self):
+        p = [
+            self.qb,
+            self.player_1
+        ]
+        if self.player_2:
+            p.append(self.player_2)
+        if self.opp_player:
+            p.append(self.opp_player)
+        if self.mini_player_1:
+            p.append(self.mini_player_1)
+        if self.mini_player_2:
+            p.append(self.mini_player_2)
+        
+        return p
+
+    def contains_top_projected_pass_catcher(self, margin=2.0):
+        pass_catchers = BuildPlayerProjection.objects.filter(
+            Q(Q(slate_player__site_pos='WR') | Q(slate_player__site_pos='TE')),
+            build=self.build,
+            slate_player__slate=self.build.slate,
+            slate_player__team=self.qb.slate_player.team
+        ).order_by('-projection')
+
+        if pass_catchers.count() > 0:
+            top_projection = pass_catchers[0].projection
+            top_projected_players = [p for p in pass_catchers if top_projection - p.projection <= margin]
+            
+            return self.player_1 in top_projected_players or (self.player_2 is not None and self.player_2 in top_projected_players)
+        return False
+    contains_top_projected_pass_catcher.short_description = '#1 PC?'
+    contains_top_projected_pass_catcher.boolean = True
+
+    def contains_opp_top_projected_pass_catcher(self):
+        pass_catchers = BuildPlayerProjection.objects.filter(
+            Q(Q(slate_player__site_pos='WR') | Q(slate_player__site_pos='TE')),
+            slate_player__slate=self.build.slate,
+            slate_player__team=self.qb.slate_player.get_opponent()
+        ).order_by('-projection')
+
+        if pass_catchers.count() > 0:
+            top_projection = pass_catchers[0].projection
+            top_projected_players = [p for p in pass_catchers if top_projection - p.projection <= 2.0]
+
+            return self.opp_player in top_projected_players
+        return False
+    contains_opp_top_projected_pass_catcher.short_description = '#1 OPP PC?'
+    contains_opp_top_projected_pass_catcher.boolean = True
+
+    def contains_slate_player(self, slate_player):
+        return self.qb.slate_player == slate_player or self.player_1.slate_player == slate_player or (self.player_2 is not None and self.player_2.slate_player == slate_player) or (self.opp_player is not None and self.opp_player.slate_player == slate_player)
+
+    def calc_salary(self):
+        slate_player_ids = [p.slate_player.id for p in self.players]
+        salary = sum(p.salary for p in SlatePlayer.objects.filter(id__in=slate_player_ids))
+        self.salary = salary
+        self.save()
+
+        return salary        
+
+    def calc_projection(self):
+        slate_player_ids = [p.slate_player.id for p in self.players]
+        projection = sum(p.projection for p in SlatePlayerProjection.objects.filter(slate_player__id__in=slate_player_ids))
+        self.actual = projection
+        self.save()
+
+        return projection        
+
+    def calc_actual_score(self):
+        slate_player_ids = [p.slate_player.id for p in self.players]
+        score = sum(p.fantasy_points for p in SlatePlayer.objects.filter(id__in=slate_player_ids))
+        self.actual = score
+        self.save()
+
+        return score                
+
+
 class SlateBuildLineup(models.Model):
     build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='lineups', on_delete=models.CASCADE)
     stack = models.ForeignKey(SlateBuildStack, db_index=True, verbose_name='Stack', related_name='lineups', on_delete=models.CASCADE, null=True, blank=True)

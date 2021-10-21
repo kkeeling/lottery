@@ -1757,6 +1757,86 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
     export.short_description = 'Export selected stacks'
 
 
+@admin.register(models.SlateBuildTopStack, site=lottery_admin_site)
+class SlateBuildTopStackAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_qb',
+        'get_player_1',
+        'get_player_2',
+        'get_opp_player',
+        'salary',
+        'projection',
+        'get_game_z',
+        'contains_top_projected_pass_catcher',
+        'contains_opp_top_projected_pass_catcher',
+        'times_used',
+    )
+
+    raw_id_fields = (
+        'qb',
+        'player_1',
+        'player_2',
+        'opp_player',
+    )
+
+    actions = [
+        'export'
+    ]
+
+    def get_qb(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.qb.get_team_color(), obj.qb))
+    get_qb.short_description = 'QB'
+    get_qb.admin_order_field = 'qb__slate_player__name'
+
+    def get_player_1(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.player_1.get_team_color(), obj.player_1))
+    get_player_1.short_description = 'Player 1'
+
+    def get_player_2(self, obj):
+        if obj.player_2:
+            return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.player_2.get_team_color(), obj.player_2))
+        return None
+    get_player_2.short_description = 'Player 2'
+
+    def get_opp_player(self, obj):
+        if obj.opp_player:
+            return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.opp_player.get_team_color(), obj.opp_player))
+        return None
+    get_opp_player.short_description = 'Opposing Player'
+
+    def get_game_z(self, obj):
+        game = obj.qb.slate_player.slate_game
+        if game is None or game.zscore is None:
+            return None
+        return '{:.2f}'.format(game.zscore)
+    get_game_z.short_description = 'Game-z'
+    get_game_z.admin_order_field = 'qb__slate_player__slate_game__zscore'
+
+    def export(self, request, queryset):
+        pass
+        # task = BackgroundTask()
+        # task.name = 'Export Stacks'
+        # task.user = request.user
+        # task.save()
+
+        # now = datetime.datetime.now()
+        # timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        # result_file = 'Stacks Export {}.csv'.format(timestamp)
+        # result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        # os.makedirs(result_path, exist_ok=True)
+        # result_path = os.path.join(result_path, result_file)
+        # result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+        # tasks.export_stacks.delay(list(queryset.values_list('id', flat=True)), result_path, result_url, task.id)
+
+        # messages.add_message(
+        #     request,
+        #     messages.WARNING,
+        #     'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
+
+    export.short_description = 'Export selected stacks'
+
+
 @admin.register(models.SlateBuild, site=lottery_admin_site)
 class SlateBuildAdmin(admin.ModelAdmin):
     date_hierarchy = 'slate__datetime'
@@ -2099,7 +2179,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         chord([tasks.simulate_player_outcomes_for_build.s(
             build.id, 
             players_outcome_index
-        ) for players_outcome_index in range(0, 1000)], tasks.combine_build_sim_results.s())()
+        ) for players_outcome_index in range(0, 2)], tasks.combine_build_sim_results.s(build.id))()
 
         messages.add_message(
             request,

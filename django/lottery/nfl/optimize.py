@@ -2,6 +2,7 @@ import csv
 import datetime
 import decimal
 import math
+from numpy.core.fromnumeric import trace
 import pandas
 import random
 import string
@@ -199,16 +200,21 @@ def simulate(site, projections, qbs, config, player_sim_index=0, optimals_per_si
             )
             optimizer.add_players_group(qb_opp_team_stack)
 
-    optimized_lineups = optimizer.optimize(
-        n=optimals_per_sim_outcome 
-    )
+    try:
+        optimized_lineups = optimizer.optimize(
+            n=optimals_per_sim_outcome 
+        )
 
-    for lineup in (optimized_lineups):
-        qb = qbs.get(slate_player__player_id = lineup.players[0].id)
-        stack = ','.join([p.id for p in lineup.players if p.team == qb.team or p.team == qb.get_opponent()])
-        lineups.append([p.id for p in lineup.players] + [lineup.salary_costs] + [stack])
+        for lineup in (optimized_lineups):
+            qb = qbs.get(slate_player__player_id = lineup.players[0].id)
+            stack = ','.join([p.id for p in lineup.players if p.team == qb.team or p.team == qb.get_opponent()])
+            lineups.append([p.id for p in lineup.players] + [lineup.salary_costs] + [stack])
 
-    return lineups
+        return lineups
+    except exceptions.GenerateLineupException:
+        traceback.print_exc()
+
+        return []
 
 
 def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineups, groups=[], for_optimals=False):
