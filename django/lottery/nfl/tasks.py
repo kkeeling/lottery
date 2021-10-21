@@ -916,7 +916,6 @@ def simulate_player_outcomes_for_build(build_id, players_outcome_index):
 @shared_task
 def combine_build_sim_results(results, build_id):
     flat_list = [item for sublist in results for item in sublist]
-    print(flat_list)
     df = pandas.DataFrame(
         flat_list, 
         columns=[

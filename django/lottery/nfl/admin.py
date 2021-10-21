@@ -1759,6 +1759,7 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
 
 @admin.register(models.SlateBuildTopStack, site=lottery_admin_site)
 class SlateBuildTopStackAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = (
         'get_qb',
         'get_player_1',
