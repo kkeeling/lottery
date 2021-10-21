@@ -2330,7 +2330,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
             lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
 
             limit = 50  # sim columns per call
-            pages = math.ceil(100/limit)  # number of calls to make
+            pages = math.ceil(10000/limit)  # number of calls to make
 
             for lineup_page in range(0, lineup_pages):
                 lineup_min = lineup_page * lineup_limit
