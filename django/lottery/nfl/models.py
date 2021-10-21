@@ -14,6 +14,7 @@ import time
 import traceback
 import uuid
 
+from celery import group
 from collections import namedtuple
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
@@ -1926,6 +1927,7 @@ class SlateBuild(models.Model):
 
         last_qb = None
         stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
+        jobs = []
         for stack in stacks:
             qb = stack.qb.id
             num_qb_stacks = self.stacks.filter(qb__id=qb).count()
@@ -1934,9 +1936,11 @@ class SlateBuild(models.Model):
             else:
                 lineup_number += 1
 
-            tasks.build_lineups_for_stack.delay(stack.id, lineup_number, num_qb_stacks)
+            jobs.append(tasks.build_lineups_for_stack.s(stack.id, lineup_number, num_qb_stacks))
 
             last_qb = qb
+
+        group(jobs)()
 
     def analyze_lineups(self):
         if self.slate.contests.count() > 0:

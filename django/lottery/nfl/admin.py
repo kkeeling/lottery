@@ -2172,10 +2172,15 @@ class SlateBuildAdmin(admin.ModelAdmin):
         task.user = request.user
         task.save()
 
+        if settings.DEBUG:
+            num_outcomes = 10
+        else:
+            num_outcomes = 10000
+            
         chord([tasks.simulate_player_outcomes_for_build.s(
             build.id, 
             players_outcome_index
-        ) for players_outcome_index in range(0, 10)], tasks.combine_build_sim_results.s(build.id, task.id))()
+        ) for players_outcome_index in range(0, num_outcomes)], tasks.combine_build_sim_results.s(build.id, task.id))()
 
         messages.add_message(
             request,
@@ -2208,7 +2213,8 @@ class SlateBuildAdmin(admin.ModelAdmin):
         )
 
         build = models.SlateBuild.objects.get(pk=pk)
-        tasks.execute_build.delay(build.id, request.user.id)
+        build.execute_build(request.user)
+        # tasks.execute_build.delay(build.id, request.user.id)
 
         messages.add_message(
             request,
