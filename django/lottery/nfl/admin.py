@@ -1768,8 +1768,8 @@ class SlateBuildTopStackAdmin(admin.ModelAdmin):
         'salary',
         'projection',
         'get_game_z',
-        'contains_top_projected_pass_catcher',
-        'contains_opp_top_projected_pass_catcher',
+        # 'contains_top_projected_pass_catcher',
+        # 'contains_opp_top_projected_pass_catcher',
         'times_used',
     )
 
