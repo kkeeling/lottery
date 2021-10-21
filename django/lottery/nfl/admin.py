@@ -2099,7 +2099,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         chord([tasks.simulate_player_outcomes_for_build.s(
             build.id, 
             players_outcome_index
-        ) for players_outcome_index in range(0, 12)], tasks.combine_build_sim_results.s())()
+        ) for players_outcome_index in range(0, 1000)], tasks.combine_build_sim_results.s())()
 
         messages.add_message(
             request,
