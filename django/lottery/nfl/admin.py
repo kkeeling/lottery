@@ -2,10 +2,11 @@ import csv
 import datetime
 import decimal
 import traceback
+import math
 import numpy
 import os
 
-from celery import chord
+from celery import chord, group
 
 from django.conf import settings
 from django.contrib import admin, messages
@@ -2314,17 +2315,36 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
     def analyze_lineups(self, request, queryset):
         for build in queryset:
-            task = BackgroundTask()
-            task.name = 'Analyze Lineups'
-            task.user = request.user
-            task.save()
+            # task = BackgroundTask()
+            # task.name = 'Analyze Lineups'
+            # task.user = request.user
+            # task.save()
 
-            tasks.analyze_lineups.delay(build.id, task.id)
+            # tasks.analyze_lineups.delay(build.id, task.id)
 
-            # chord([tasks.simulate_player_outcomes_for_build.s(
-            #     build.id, 
-            #     players_outcome_index
-            # ) for players_outcome_index in range(0, 100)], tasks.combine_build_sim_results.s(build.id))()
+            build_lineups = build.lineups.all().order_by('id')
+            build_lineups.update(ev=0, mean=0, std=0, sim_rating=0)
+            contest = build.slate.contests.get(outcomes_sheet__isnull=False)
+
+            lineup_limit = 100
+            lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
+
+            limit = 50  # sim columns per call
+            pages = math.ceil(100/limit)  # number of calls to make
+
+            for lineup_page in range(0, lineup_pages):
+                lineup_min = lineup_page * lineup_limit
+                lineup_max = lineup_min + lineup_limit
+                lineups = build_lineups[lineup_min:lineup_max]
+
+                chord([tasks.analyze_lineup_outcomes.s(
+                    build.id,
+                    contest.id,
+                    list(lineups.values_list('id', flat=True)),
+                    col_count * limit + 3,  # index min
+                    (col_count * limit + 3) + limit,  # index max
+                    False
+                ) for col_count in range(0, pages)], tasks.combine_lineup_outcomes.s(build.id, list(lineups.values_list('id', flat=True)), False))()
 
             messages.add_message(
                 request,
