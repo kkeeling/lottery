@@ -1218,6 +1218,7 @@ class SlateBuildConfig(models.Model):
     allow_wr_in_opp_qb_stack = models.BooleanField(default=True)
     allow_te_in_opp_qb_stack = models.BooleanField(default=True)
     use_simulation = models.BooleanField(default=False)
+    optimize_with_ceilings = models.BooleanField(default=False)
     lineup_removal_pct = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
 
     class Meta:
@@ -1713,11 +1714,11 @@ class SlateBuild(models.Model):
                 
                 # only replace values if projection is new or replace == true
                 if replace or created:
-                    projection.projection = player.projection.projection
-                    projection.value = round(float(player.projection.projection)/(player.salary/1000.0), 2)
+                    projection.projection = player.projection.ceiling if self.configuration.optimize_with_ceilings else player.projection.projection
+                    projection.value = round(float(projection.projection)/(player.salary/1000.0), 2)
                     projection.ownership_projection = player.projection.ownership_projection
-                    projection.balanced_projection = player.projection.balanced_projection
-                    projection.balanced_value = round(float(player.projection.balanced_projection)/(player.salary/1000.0), 2)
+                    projection.balanced_projection = projection.projection if self.configuration.optimize_with_ceilings else player.projection.balanced_projection
+                    projection.balanced_value = round(float(projection.balanced_projection)/(player.salary/1000.0), 2)
                     projection.adjusted_opportunity = player.projection.adjusted_opportunity
                     projection.rb_group = 0
 
