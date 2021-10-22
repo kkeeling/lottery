@@ -2175,7 +2175,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         if settings.DEBUG:
             num_outcomes = 2
         else:
-            num_outcomes = 100
+            num_outcomes = 10000
             
         chord([tasks.simulate_player_outcomes_for_build.s(
             build.id, 
