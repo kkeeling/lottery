@@ -2173,7 +2173,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         task.save()
 
         if settings.DEBUG:
-            num_outcomes = 10
+            num_outcomes = 2
         else:
             num_outcomes = 1000
             

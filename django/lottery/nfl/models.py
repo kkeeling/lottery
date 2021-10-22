@@ -1218,6 +1218,7 @@ class SlateBuildConfig(models.Model):
     allow_wr_in_opp_qb_stack = models.BooleanField(default=True)
     allow_te_in_opp_qb_stack = models.BooleanField(default=True)
     use_simulation = models.BooleanField(default=False)
+    use_top_stacks = models.BooleanField(default=False)
     optimize_with_ceilings = models.BooleanField(default=False)
     lineup_removal_pct = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
 
@@ -1863,13 +1864,60 @@ class SlateBuild(models.Model):
         # Delete existing stacks for this build
         SlateBuildStack.objects.filter(build=self).delete()
 
-        # get all qbs in play
-        qbs = self.projections.filter(slate_player__site_pos='QB', in_play=True)
-        total_qb_projection = qbs.aggregate(total_projection=Sum('projection')).get('total_projection')
-        
-        # for each qb, create all possible stacking configurations
-        for qb in qbs:
-            tasks.create_stacks_for_qb(self.id, qb.id, total_qb_projection)
+        if self.configuration.use_top_stacks:
+            total_stack_usage_count = self.top_stacks.all().aggregate(total_usage=Sum('times_used')).get('total_usage')
+            for index, top_stack in enumerate(self.top_stacks.all().order_by('-times_used')):
+                stack = SlateBuildStack.objects.create(
+                    build=self,
+                    game=top_stack.game,
+                    build_order=index,
+                    qb=top_stack.qb,
+                    player_1=top_stack.player_1,
+                    player_2=top_stack.player_2,
+                    opp_player=top_stack.opp_player,
+                    salary=top_stack.salary,
+                    projection=top_stack.projection,
+                    count=round(max(top_stack.times_used/total_stack_usage_count * self.total_lineups, 1), 0)
+                )
+
+                if self.stack_construction is not None:
+                    stack.contains_top_pc = stack.contains_top_projected_pass_catcher(self.stack_construction.top_pc_margin)
+                    stack.save()
+
+                # Make sure all players in stack are in play
+                if not stack.qb.in_play:
+                    stack.qb.in_play = True
+                    stack.qb.save()
+
+                if not stack.player_1.in_play:
+                    stack.player_1.in_play = True
+                    stack.player_1.stack_only = True
+                    stack.player_1.qb_stack_only = True
+                    stack.player_1.opp_qb_stack_only = True
+                    stack.player_1.save()
+
+                if stack.player_2 is not None and not stack.player_2.in_play:
+                    stack.player_2.in_play = True
+                    stack.player_2.stack_only = True
+                    stack.player_2.qb_stack_only = True
+                    stack.player_2.opp_qb_stack_only = True
+                    stack.player_2.save()
+
+                if stack.opp_player is not None and not stack.opp_player.in_play:
+                    stack.opp_player.in_play = True
+                    stack.opp_player.stack_only = True
+                    stack.opp_player.qb_stack_only = True
+                    stack.opp_player.opp_qb_stack_only = True
+                    stack.opp_player.save()
+
+        else:
+            # get all qbs in play
+            qbs = self.projections.filter(slate_player__site_pos='QB', in_play=True)
+            total_qb_projection = qbs.aggregate(total_projection=Sum('projection')).get('total_projection')
+            
+            # for each qb, create all possible stacking configurations
+            for qb in qbs:
+                tasks.create_stacks_for_qb(self.id, qb.id, total_qb_projection)
 
         self.calc_zscores_for_stacks()
         self.rank_stacks()
