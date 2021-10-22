@@ -869,7 +869,6 @@ def monitor_backtest_optimals(backtest_id):
 def simulate_player_outcomes_for_build(build_id, players_outcome_index):
     build = models.SlateBuild.objects.get(id=build_id)
 
-    print(f'Outcome index = {players_outcome_index}')
     return optimize.simulate(
         build.slate.site, 
         build.slate.get_projections().iterator(), 
@@ -924,16 +923,19 @@ def combine_build_sim_results(results, build_id, task_id):
             qb = players.get(slate_player__site_pos='QB')
             team_players = players.exclude(id=qb.id).filter(slate_player__team=qb.team)
             opp_players = players.filter(slate_player__team=qb.get_opponent())
-            top_stack, created = models.SlateBuildTopStack.objects.get_or_create(
+            total_salary = players.aggregate(total_salary=Sum('slate_player__salary')).get('total_salary')
+            total_projection = players.aggregate(total_projection=Sum('projection')).get('total_projection')
+            top_stack, _ = models.SlateBuildTopStack.objects.get_or_create(
                 build=build,
                 game=players[0].game,
                 qb=qb,
                 player_1=team_players[0],
                 player_2=team_players[1] if team_players.count() > 1 else None,
-                opp_player=opp_players[0] if opp_players.count() > 0 else None,
-                salary=sum(p.salary for p in models.SlatePlayer.objects.filter(player_id__in=player_ids)),
-                projection=sum(p.projection for p in players)
+                opp_player=opp_players[0] if opp_players.count() > 0 else None
             )
+
+            top_stack.salary = total_salary
+            top_stack.projection = total_projection
             top_stack.times_used += row
             top_stack.save()
 

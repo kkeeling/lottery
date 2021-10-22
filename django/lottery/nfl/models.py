@@ -2592,8 +2592,8 @@ class SlateBuildTopStack(models.Model):
     player_2 = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='p2_top_stacks', on_delete=models.CASCADE, blank=True, null=True)
     opp_player = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='opp_top_stacks', on_delete=models.CASCADE, blank=True, null=True)
     contains_top_pc = models.BooleanField(default=False, db_index=True)
-    salary = models.PositiveIntegerField(db_index=True)
-    projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True)
+    salary = models.PositiveIntegerField(db_index=True, default=0)
+    projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0)
     times_used = models.PositiveIntegerField(default=0, db_index=True)
 
     class Meta:
