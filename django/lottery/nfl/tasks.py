@@ -968,7 +968,7 @@ def export_build_for_upload(build_id, result_path, result_url, task_id):
             build_writer = csv.writer(temp_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             build_writer.writerow(['QB', 'RB', 'RB', 'WR', 'WR', 'WR', 'TE', 'FLEX', 'DEF'])
 
-            if build.config.use_simulation:
+            if build.configuration.use_simulation:
                 lineups = build.lineups.all().order_by('-rating')
             else:
                 lineups = build.lineups.all().order_by('order_number', '-qb__projection')
