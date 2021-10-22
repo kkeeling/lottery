@@ -1865,8 +1865,8 @@ class SlateBuild(models.Model):
         SlateBuildStack.objects.filter(build=self).delete()
 
         if self.configuration.use_top_stacks:
-            total_stack_usage_count = self.top_stacks.filter(times_used__gte=100).aggregate(total_usage=Sum('times_used')).get('total_usage')
-            for index, top_stack in enumerate(self.top_stacks.filter(times_used__gte=100).order_by('-times_used')):
+            total_stack_usage_count = self.top_stacks.filter(times_used__gte=500).aggregate(total_usage=Sum('times_used')).get('total_usage')
+            for index, top_stack in enumerate(self.top_stacks.filter(times_used__gte=500).order_by('-times_used')):
                 stack = SlateBuildStack.objects.create(
                     build=self,
                     game=top_stack.game,
