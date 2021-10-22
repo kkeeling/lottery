@@ -306,6 +306,41 @@ def prepare_construction(build_id):
 
 
 @shared_task
+def flatten_exposure(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.flatten_exposure()
+
+        task.status = 'success'
+        task.content = 'Exposures flattened'
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem flattening exposure: {e}'
+            task.save()
+
+        if build is not None:
+            build.status = 'error'
+            build.error_message = str(e)
+            build.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
     build = models.SlateBuild.objects.get(pk=build_id)
     qb = models.BuildPlayerProjection.objects.get(pk=qb_id)

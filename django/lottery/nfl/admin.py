@@ -1933,6 +1933,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
             path('slatebuild-prepare-projections/<int:pk>/', self.prepare_projections, name="admin_slatebuild_prepare_projections"),
             path('slatebuild-prepare-construction/<int:pk>/', self.prepare_construction, name="admin_slatebuild_prepare_construction"),
             path('slatebuild-sim_stacks/<int:pk>/', self.simulate_stack_outcomes, name="admin_slatebuild_sim_stacks"),
+            path('slatebuild-flatten_exposures/<int:pk>/', self.flatten_exposures, name="admin_slatebuild_flatten_exposure"),
         ]
         return my_urls + urls
     
@@ -2107,6 +2108,29 @@ class SlateBuildAdmin(admin.ModelAdmin):
             request,
             messages.WARNING,
             'Preparing stacks and groups for {}. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once they are ready.'.format(str(build)))
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def flatten_exposures(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        task = BackgroundTask()
+        task.name = 'Flatten Exposures'
+        task.user = request.user
+        task.save()
+
+        build = models.SlateBuild.objects.get(pk=pk)
+        tasks.flatten_exposure.delay(build.id, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Flattening exposure for {}. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once they are ready.'.format(str(build)))
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
@@ -2874,6 +2898,18 @@ class ContestAdmin(admin.ModelAdmin):
     #         request,
     #         messages.WARNING,
     #         'Loading contest simulations. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the contest is ready.')
+
+
+@admin.register(models.CeilingProjectionRangeMapping, site=lottery_admin_site)
+class CeilingProjectionRangeMappingAdmin(admin.ModelAdmin):
+    list_display = (
+        'min_projection',
+        'max_projection',
+        'value_to_assign',
+    )
+    list_editable = (
+        'value_to_assign',
+    )
 
 
 @admin.register(models.SlateBuildConfig, site=lottery_admin_site)

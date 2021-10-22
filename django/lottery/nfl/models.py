@@ -1417,6 +1417,16 @@ class StackConstructionRule(models.Model):
         return not self.lock_top_pc or (self.lock_top_pc and stack.contains_top_projected_pass_catcher(self.top_pc_margin))
 
 
+class CeilingProjectionRangeMapping(models.Model):
+    min_projection = models.DecimalField(max_digits=4, decimal_places=2)
+    max_projection = models.DecimalField(max_digits=4, decimal_places=2)
+    value_to_assign = models.DecimalField(max_digits=4, decimal_places=2)
+
+    class Model:
+        verbose_name = 'Ceiling Projection Range Mapping'
+        verbose_name_plural = 'Ceiling Projection Range Mappings'
+
+
 # Importing
 
 
@@ -1653,6 +1663,7 @@ class SlateBuild(models.Model):
 
         self.get_target_score()
 
+
     def prepare_construction(self):
         self.construction_ready = False
         self.save()
@@ -1737,6 +1748,17 @@ class SlateBuild(models.Model):
                     projection.delete()
                 except BuildPlayerProjection.DoesNotExist:
                     pass
+
+    def flatten_exposure(self):
+        for projection in self.projections.filter(projection__gte=5):
+            print(projection.projection)
+            mapping = CeilingProjectionRangeMapping.objects.get(
+                min_projection__lte=projection.projection,
+                max_projection__gte=projection.projection
+            )
+            projection.balanced_projection = projection.salary / 1000 * float(mapping.value_to_assign)
+            projection.balanced_value = mapping.value_to_assign
+            projection.save()
 
     def find_stack_only(self):
         for game in self.slate.games.all():
@@ -1865,8 +1887,15 @@ class SlateBuild(models.Model):
         SlateBuildStack.objects.filter(build=self).delete()
 
         if self.configuration.use_top_stacks:
-            total_stack_usage_count = self.top_stacks.filter(times_used__gte=500).aggregate(total_usage=Sum('times_used')).get('total_usage')
-            for index, top_stack in enumerate(self.top_stacks.filter(times_used__gte=500).order_by('-times_used')):
+            top_stacks = self.top_stacks.filter(
+                Q(Q(player_2__isnull=True)|Q(player_2__in_play=True)),
+                Q(Q(opp_player__isnull=True)|Q(opp_player__in_play=True)),
+                times_used__gte=500,
+                player_1__in_play=True,
+            )
+
+            total_stack_usage_count = top_stacks.aggregate(total_usage=Sum('times_used')).get('total_usage')
+            for index, top_stack in enumerate(top_stacks.order_by('-times_used')):
                 stack = SlateBuildStack.objects.create(
                     build=self,
                     game=top_stack.game,
@@ -2159,6 +2188,12 @@ class SlateBuild(models.Model):
             reverse_lazy("admin:admin_slatebuild_prepare_projections", args=[self.pk])
         )
     prepare_projections_button.short_description = ''
+    
+    def flatten_exposure_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #a41515; font-weight: bold; padding: 10px 15px;">Flat</a>',
+            reverse_lazy("admin:admin_slatebuild_flatten_exposure", args=[self.pk])
+        )
+    flatten_exposure_button.short_description = ''
     
     def prepare_construction_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #f5dd5d; font-weight: bold; padding: 10px 15px;">Prep Const</a>',
