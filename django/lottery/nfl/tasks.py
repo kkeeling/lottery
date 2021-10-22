@@ -608,34 +608,6 @@ def monitor_build(build_id, task_id):
 
 
 @shared_task
-def analyze_lineups(build_id, task_id):
-    task = None
-
-    try:
-        try:
-            task = BackgroundTask.objects.get(id=task_id)
-        except BackgroundTask.DoesNotExist:
-            time.sleep(0.2)
-            task = BackgroundTask.objects.get(id=task_id)
-
-        # Task implementation goes here
-        build = models.SlateBuild.objects.get(id=build_id)
-        build.analyze_lineups()
-
-        task.status = 'success'
-        task.content = 'Lineups analyzed.'
-        task.save()
-    except Exception as e:
-        if task is not None:
-            task.status = 'error'
-            task.content = f'There was a problem analyzing lineups: {e}'
-            task.save()
-
-        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-@shared_task
 def analyze_optimals(build_id, task_id):
     task = None
 
@@ -763,109 +735,6 @@ def combine_lineup_outcomes(partial_outcomes, build_id, lineup_ids, use_optimals
                 lineup.ev = ev_result[index] if index < len(ev_result) else 0.0
                 lineup.std = std_result[index] if index < len(std_result) else 0.0
                 lineup.save()
-
-
-@shared_task
-def analyze_lineups_page(build_id, contest_id, lineup_ids, use_optimals=False):
-    build = models.SlateBuild.objects.get(id=build_id)
-    contest = models.Contest.objects.get(id=contest_id)
-    
-    if use_optimals:
-        all_lineups = build.actuals.filter(id__in=lineup_ids)
-    else:
-        all_lineups = build.lineups.filter(id__in=lineup_ids)
-
-    lineup_values = pandas.DataFrame(list(all_lineups.values_list(
-        'qb__slate_player__name',
-        'rb1__slate_player__name',
-        'rb2__slate_player__name',
-        'wr1__slate_player__name',
-        'wr2__slate_player__name',
-        'wr3__slate_player__name',
-        'te__slate_player__name',
-        'flex__slate_player__name',
-        'dst__slate_player__name')), 
-        columns=[
-            'p1',
-            'p2',
-            'p3',
-            'p4',
-            'p5',
-            'p6',
-            'p7',
-            'p8',
-            'p9',
-        ]
-    )
-
-    limit = 50
-    pages = math.ceil(100/limit)
-    result = None
-
-    for col_count in range(0, pages):
-        col_min = col_count * limit + 3
-        col_max = col_min + limit
-
-        sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
-        sim_scores['X1'] = sim_scores.index
-        contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min+1, col_max+1)])
-        contest_scores['X1'] = contest_scores.index
-        contest_scores.columns = ['X{}'.format(i) for i in range(col_min, col_max)] + ['X1']
-        sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
-
-        contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, usecols=['X2', 'X3']).sort_index(ascending=False)
-
-        no_cash_rank = contest_payouts.iloc[0]['X2']
-        sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, no_cash_rank, -float(contest.cost))
-        for payout in contest_payouts.itertuples():
-            if payout.X2 == no_cash_rank:
-                continue
-            sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)-float(contest.cost)))
-        sql += ' END as payout_{}'.format(0)
-        
-        for i in range(1, limit):
-            sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, no_cash_rank, -float(contest.cost))
-            for payout in contest_payouts.itertuples():
-                if payout.X2 == no_cash_rank:
-                    continue
-                sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)-float(contest.cost)))
-            sql += ' END as payout_{}'.format(i)
-
-        sql += ' FROM lineup_values A'
-        sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
-        sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
-        sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
-        sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
-        sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
-        sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
-        sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
-        sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
-        sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
-        
-        for payout in contest_payouts.itertuples():
-            sql += f' LEFT JOIN sim_scores T{payout.X2} ON T{payout.X2}.X1 = \'{payout.X2}\''
-
-        sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
-        
-        for i in range(0, limit):
-            for payout in contest_payouts.itertuples():
-                sql += f', T{payout.X2}.x{i+col_min}'
-
-        if result is None:
-            result = pandasql.sqldf(sql, locals())
-        else:
-            result = pandas.concat([result, pandasql.sqldf(sql, locals())], axis=1)
-
-    print(result)
-    # ev_result = (result * (1/10000)).sum(axis=1)
-    # std_result = result.std(axis=1)
-
-    # with transaction.atomic():
-    #     for index, lineup in enumerate(all_lineups):
-    #         if index < all_lineups.count():
-    #             lineup.ev = ev_result[index] if index < ev_result.count() else 0.0
-    #             lineup.std = std_result[index] if index < std_result.count() else 0.0
-    #             lineup.save()
 
 
 @shared_task
@@ -1000,6 +869,7 @@ def monitor_backtest_optimals(backtest_id):
 def simulate_player_outcomes_for_build(build_id, players_outcome_index):
     build = models.SlateBuild.objects.get(id=build_id)
 
+    print(f'Outcome index = {players_outcome_index}')
     return optimize.simulate(
         build.slate.site, 
         build.slate.get_projections().iterator(), 

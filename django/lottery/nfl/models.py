@@ -1944,20 +1944,21 @@ class SlateBuild(models.Model):
         group(jobs)()
 
     def analyze_lineups(self):
-        if self.slate.contests.count() > 0:
-            contest = self.slate.contests.get(outcomes_sheet__isnull=False)
-            build_lineups = self.lineups.all().order_by('id')
-            build_lineups.update(ev=0, mean=0, std=0)
+        pass
+        # if self.slate.contests.count() > 0:
+        #     contest = self.slate.contests.get(outcomes_sheet__isnull=False)
+        #     build_lineups = self.lineups.all().order_by('id')
+        #     build_lineups.update(ev=0, mean=0, std=0)
 
-            lineup_limit = 600
-            lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
+        #     lineup_limit = 600
+        #     lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
 
-            for lineup_page in range(0, lineup_pages):
-                lineup_min = lineup_page * lineup_limit
-                lineup_max = lineup_min + lineup_limit
-                lineups = build_lineups[lineup_min:lineup_max]
+        #     for lineup_page in range(0, lineup_pages):
+        #         lineup_min = lineup_page * lineup_limit
+        #         lineup_max = lineup_min + lineup_limit
+        #         lineups = build_lineups[lineup_min:lineup_max]
 
-                tasks.analyze_lineups_page.delay(self.id, contest.id, list(lineups.values_list('id', flat=True)), False)
+        #         tasks.analyze_lineups_page.delay(self.id, contest.id, list(lineups.values_list('id', flat=True)), False)
 
     def clean_lineups(self):
         if self.configuration.use_simulation:
@@ -2075,12 +2076,13 @@ class SlateBuild(models.Model):
             tasks.build_optimals_for_stack.delay(stack.id)
 
     def analyze_optimals(self):
-        if self.slate.contests.count() > 0:
-            contest = self.slate.contests.get(outcomes_sheet__isnull=False)
-            optimals = self.actuals.all().order_by('id')
-            optimals.update(ev=0, mean=0, std=0)
+        pass
+        # if self.slate.contests.count() > 0:
+        #     contest = self.slate.contests.get(outcomes_sheet__isnull=False)
+        #     optimals = self.actuals.all().order_by('id')
+        #     optimals.update(ev=0, mean=0, std=0)
 
-            tasks.analyze_lineups_page(self.id, contest.id, list(optimals.values_list('id', flat=True)), True)
+        #     tasks.analyze_lineups_page(self.id, contest.id, list(optimals.values_list('id', flat=True)), True)
 
     def top_optimal_score(self):
         return self.actuals.all().aggregate(top_score=Max('actual')).get('top_score')

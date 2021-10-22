@@ -2175,7 +2175,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         if settings.DEBUG:
             num_outcomes = 10
         else:
-            num_outcomes = 10000
+            num_outcomes = 1000
             
         chord([tasks.simulate_player_outcomes_for_build.s(
             build.id, 
@@ -2326,11 +2326,16 @@ class SlateBuildAdmin(admin.ModelAdmin):
             build_lineups.update(ev=0, mean=0, std=0, sim_rating=0)
             contest = build.slate.contests.get(outcomes_sheet__isnull=False)
 
+            if settings.DEBUG:
+                num_outcomes = 100
+            else:
+                num_outcomes = 10000
+
             lineup_limit = 100
             lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
 
             limit = 50  # sim columns per call
-            pages = math.ceil(10000/limit)  # number of calls to make
+            pages = math.ceil(num_outcomes/limit)  # number of calls to make
 
             for lineup_page in range(0, lineup_pages):
                 lineup_min = lineup_page * lineup_limit
