@@ -18,7 +18,7 @@ from celery import group
 from collections import namedtuple
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q, Aggregate, FloatField, Case, When, Window, F
 from django.db.models.aggregates import Avg, Count, Sum, Max
 from django.db.models.expressions import ExpressionWrapper
@@ -2039,7 +2039,13 @@ class SlateBuild(models.Model):
 
     def clean_lineups(self):
         if self.configuration.use_simulation:
-            pass
+            self.lineups.filter(ev__lt=0).delete()
+            with transaction.atomic():
+                for index, lineup in enumerate(self.lineups.all().order_by('-ev')):
+                    lineup.order_number = index + 1
+                    lineup.expected_lineup_order = index + 1
+                    lineup.save()
+
 
     def update_build_progress(self):
         all_stacks = self.stacks.filter(count__gt=0)
