@@ -2656,11 +2656,11 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
 
     def get_ceiling(self, obj):
         proj = obj.slate_player.projection
-        if proj is None or proj.ceil is None:
+        if proj is None or proj.ceiling is None:
             return None
-        return '{:.2f}'.format(proj.ceil)
-    get_ceiling.short_description = 'ceil'
-    get_ceiling.admin_order_field = 'slate_player__projection__ceil'
+        return '{:.2f}'.format(proj.ceiling)
+    get_ceiling.short_description = 'ceiling'
+    get_ceiling.admin_order_field = 'slate_player__projection__ceiling'
 
     def get_player_ao(self, obj):
         proj = obj.slate_player.projection
