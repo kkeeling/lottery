@@ -1946,9 +1946,10 @@ def process_ownership_sheet(sheet_id, task_id):
                         )
 
                         if ownership_projection is not None and ownership_projection != '':
-                            (projection, _) = models.SlatePlayerProjection.objects.get_or_create(
+                            (projection, created) = models.SlatePlayerProjection.objects.get_or_create(
                                 slate_player=slate_player,
                             )
+                            print(f'{slate_playuer}, {created}')
 
                             ownership_projection = float(ownership_projection) / 100.0
 
