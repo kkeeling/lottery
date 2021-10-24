@@ -1949,12 +1949,14 @@ def process_ownership_sheet(sheet_id, task_id):
                             (projection, created) = models.SlatePlayerProjection.objects.get_or_create(
                                 slate_player=slate_player,
                             )
-                            print(f'{slate_player}, {created}')
 
                             ownership_projection = float(ownership_projection) / 100.0
 
                             projection.ownership_projection = ownership_projection
-                            projection.save()
+                            try:
+                                projection.save()
+                            except:
+                                traceback.print_exc()
 
                             success_count += 1
 
