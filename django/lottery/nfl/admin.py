@@ -2654,13 +2654,13 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     get_player_zscore.short_description = 'z'
     get_player_zscore.admin_order_field = 'slate_player__projection__zscore'
 
-    def get_ceil(self, obj):
+    def get_ceiling(self, obj):
         proj = obj.slate_player.projection
         if proj is None or proj.ceil is None:
             return None
         return '{:.2f}'.format(proj.ceil)
-    get_ceil.short_description = 'ceil'
-    get_ceil.admin_order_field = 'slate_player__projection__ceil'
+    get_ceiling.short_description = 'ceil'
+    get_ceiling.admin_order_field = 'slate_player__projection__ceil'
 
     def get_player_ao(self, obj):
         proj = obj.slate_player.projection
