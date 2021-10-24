@@ -2516,6 +2516,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_game',
         'get_player_game_z',
         'projection',
+        'get_ceiling',
         'get_player_zscore',
         'get_4for4_proj',
         'get_awesemo_proj',
@@ -2652,6 +2653,14 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         return '{:.2f}'.format(proj.zscore)
     get_player_zscore.short_description = 'z'
     get_player_zscore.admin_order_field = 'slate_player__projection__zscore'
+
+    def get_ceil(self, obj):
+        proj = obj.slate_player.projection
+        if proj is None or proj.ceil is None:
+            return None
+        return '{:.2f}'.format(proj.ceil)
+    get_ceil.short_description = 'ceil'
+    get_ceil.admin_order_field = 'slate_player__projection__ceil'
 
     def get_player_ao(self, obj):
         proj = obj.slate_player.projection
