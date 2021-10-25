@@ -2415,12 +2415,41 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
     def analyze_optimals(self, request, queryset):
         for build in queryset:
-            task = BackgroundTask()
-            task.name = 'Analyze Optimals'
-            task.user = request.user
-            task.save()
+            # task = BackgroundTask()
+            # task.name = 'Analyze Optimals'
+            # task.user = request.user
+            # task.save()
 
-            tasks.analyze_optimals.delay(build.id, task.id)
+            # tasks.analyze_optimals.delay(build.id, task.id)
+
+            optimal_lineups = build.actuals.all().order_by('id')
+            optimal_lineups.update(ev=0, mean=0, std=0, sim_rating=0)
+            contest = build.slate.contests.get(outcomes_sheet__isnull=False)
+
+            if settings.DEBUG:
+                num_outcomes = 100
+            else:
+                num_outcomes = 10000
+
+            lineup_limit = 100
+            lineup_pages = math.ceil(optimal_lineups.count()/lineup_limit)
+
+            limit = 50  # sim columns per call
+            pages = math.ceil(num_outcomes/limit)  # number of calls to make
+
+            for lineup_page in range(0, lineup_pages):
+                lineup_min = lineup_page * lineup_limit
+                lineup_max = lineup_min + lineup_limit
+                lineups = optimal_lineups[lineup_min:lineup_max]
+
+                chord([tasks.analyze_lineup_outcomes.s(
+                    build.id,
+                    contest.id,
+                    list(lineups.values_list('id', flat=True)),
+                    col_count * limit + 3,  # index min
+                    (col_count * limit + 3) + limit,  # index max
+                    True
+                ) for col_count in range(0, pages)], tasks.combine_lineup_outcomes.s(build.id, list(lineups.values_list('id', flat=True)), True))()
 
             messages.add_message(
                 request,
