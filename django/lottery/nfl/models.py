@@ -1515,7 +1515,7 @@ class SlateBuild(models.Model):
 
     # Build analysis
     top_score = models.DecimalField(verbose_name='top', decimal_places=2, max_digits=5, blank=True, null=True)
-    total_optimals = models.PositiveIntegerField(default=0, blank=True, null=True)
+    total_optimals = models.PositiveIntegerField('#opt', default=0, blank=True, null=True)
     total_cashes = models.PositiveIntegerField(verbose_name='cashes', blank=True, null=True)
     total_one_pct = models.PositiveIntegerField(verbose_name='1%', blank=True, null=True)
     total_half_pct = models.PositiveIntegerField(verbose_name='0.5%', blank=True, null=True)

@@ -1849,6 +1849,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'sim_button',
         'prepare_projections_button',
         'prepare_construction_button',
+        'flatten_exposure_button',
         'build_button',
         'simulate_stacks_button',
         'export_button',
@@ -1867,7 +1868,6 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'get_elapsed_time',
         'get_pct_complete',
         'get_optimal_pct_complete',
-        'error_message',
         'total_lineups',
         'num_lineups_created',
         'total_cashes',
@@ -1879,10 +1879,12 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'great_build',
         'get_bink_score',
         'binked', 
+        'total_optimals',
         'top_optimal_score',
         'get_links',
         'get_exposures_links',
-        'get_backtest'
+        'get_backtest',
+        'error_message',
     )
     list_editable = (
         'used_in_contests',
