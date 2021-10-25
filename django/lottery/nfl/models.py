@@ -1219,6 +1219,9 @@ class SlateBuildConfig(models.Model):
     allow_te_in_opp_qb_stack = models.BooleanField(default=True)
     use_simulation = models.BooleanField(default=False)
     use_top_stacks = models.BooleanField(default=False)
+    ev_cutoff = models.DecimalField(max_digits=9, decimal_places=2, default=0.0)
+    std_cutoff = models.DecimalField(max_digits=9, decimal_places=2, default=0.0)
+    lineup_multiplier = models.SmallIntegerField(default=5)
     optimize_with_ceilings = models.BooleanField(default=False)
     lineup_removal_pct = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
 
@@ -2039,7 +2042,9 @@ class SlateBuild(models.Model):
 
     def clean_lineups(self):
         if self.configuration.use_simulation:
-            self.lineups.filter(ev__lt=0).delete()
+            self.lineups.filter(ev__lt=self.configuration.ev_cutoff).delete()
+            self.lineups.filter(std__gt=self.configuration.std_cutoff).delete()
+            
             with transaction.atomic():
                 for index, lineup in enumerate(self.lineups.all().order_by('-ev')):
                     lineup.order_number = index + 1

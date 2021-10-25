@@ -321,7 +321,7 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
 
     try:
         optimized_lineups = optimizer.optimize(
-            n=num_lineups * 10 if config.use_simulation and not for_optimals else num_lineups,
+            n=num_lineups * config.lineup_multiplier if config.use_simulation and not for_optimals else num_lineups,
             randomness=not for_optimals, 
         )
         count = 0
