@@ -2044,13 +2044,12 @@ class SlateBuild(models.Model):
         if self.configuration.use_simulation:
             self.lineups.filter(ev__lt=self.configuration.ev_cutoff).delete()
             self.lineups.filter(std__gt=self.configuration.std_cutoff).delete()
-            
+
             with transaction.atomic():
                 for index, lineup in enumerate(self.lineups.all().order_by('-ev')):
                     lineup.order_number = index + 1
                     lineup.expected_lineup_order = index + 1
                     lineup.save()
-
 
     def update_build_progress(self):
         all_stacks = self.stacks.filter(count__gt=0)

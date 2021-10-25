@@ -2302,7 +2302,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
             request,
             messages.WARNING,
             'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
-    export_lineups.short_description = 'Export lineups for selected builds'
+    export_optimals.short_description = 'Export optimals for selected builds'
 
     def export_for_upload(self, request, pk):
         context = dict(

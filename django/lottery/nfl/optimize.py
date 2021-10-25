@@ -112,12 +112,20 @@ def simulate(site, projections, qbs, config, player_sim_index=0, optimals_per_si
             game_started=False
         )
 
+        player_position = player_projection.position
+        if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel':
+            player_position = ['D']
+        elif '/' in player_projection.position:
+            player_position = player_projection.position.split('/')
+        else:
+            player_position = [player_projection.position]
+
         if player_projection.sim_scores is not None and len(player_projection.sim_scores) > 0:
             player = Player(
                 player_projection.slate_player.player_id,
                 first,
                 'DST' if player_projection.position == 'DST' else last,
-                ['D' if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel' else player_projection.position],
+                player_position,
                 player_projection.team,
                 player_projection.salary,
                 float(player_projection.sim_scores[player_sim_index]),
@@ -376,11 +384,19 @@ def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75,
                         game_started=False
                     )
 
+                    player_position = player_projection.position
+                    if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel':
+                        player_position = ['D']
+                    elif '/' in player_projection.position:
+                        player_position = player_projection.position.split('/')
+                    else:
+                        player_position = [player_projection.position]
+
                     player = Player(
                         player_projection.slate_player.player_id,
                         first,
                         'DST' if player_projection.position == 'DST' else last,
-                        ['D' if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel' else player_projection.position],
+                        player_position,
                         player_projection.team,
                         player_projection.salary,
                         float(player_projection.balanced_projection) if not for_optimals else float(player_projection.slate_player.fantasy_points),
