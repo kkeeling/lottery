@@ -553,13 +553,16 @@ class Slate(models.Model):
 
     def calc_player_zscores(self, position):
         projections = list(self.get_projections().filter(slate_player__site_pos=position).values_list('projection', flat=True))
+        ceiling_projections = list(self.get_projections().filter(slate_player__site_pos=position).values_list('ceiling', flat=True))
         ao_projections = list(self.get_projections().filter(slate_player__site_pos=position).values_list('adjusted_opportunity', flat=True)) if position == 'RB' else None
         zscores = scipy.stats.zscore(projections)
         ao_zscores = scipy.stats.zscore(ao_projections) if ao_projections is not None else None
+        ceiling_zscores = scipy.stats.zscore(ceiling_projections) if ceiling_projections is not None else None
 
         for (index, projection) in enumerate(self.get_projections().filter(slate_player__site_pos=position)):
             projection.zscore = zscores[index]
             projection.ao_zscore = ao_zscores[index] if ao_zscores is not None else 0.0
+            projection.ceiling_zscore = ceiling_zscores[index] if ceiling_zscores is not None else 0.0
             projection.save()        
 
     def sim_button(self):
@@ -734,6 +737,7 @@ class SlatePlayerProjection(models.Model):
     floor = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Flr')
     zscore = models.DecimalField('Z-Score', max_digits=6, decimal_places=4, default=0.0000)
     ceiling = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Ceil')
+    ceiling_zscore = models.DecimalField('Ceiling Z-Score', max_digits=6, decimal_places=4, default=0.0000)
     stdev = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Stdev')
     ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
     adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')

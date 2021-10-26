@@ -6,7 +6,7 @@ import math
 import numpy
 import os
 
-from celery import chord, group
+from celery import chord, chain, group
 
 from django.conf import settings
 from django.contrib import admin, messages
@@ -215,7 +215,6 @@ class NumSlatesFilter(SimpleListFilter):
 
 
 class ProjectionListForm(forms.ModelForm):
-	projection = forms.DecimalField(widget=forms.TextInput(attrs={'style':'width:50px;'}))
 	balanced_projection = forms.DecimalField(widget=forms.TextInput(attrs={'style':'width:50px;'}))
 	balanced_value = forms.DecimalField(widget=forms.TextInput(attrs={'style':'width:50px;'}))
 	min_exposure = forms.IntegerField(widget=forms.TextInput(attrs={'style':'width:50px;'}))
@@ -674,24 +673,54 @@ class SlateAdmin(admin.ModelAdmin):
     def process_slate(self, request, slate):
         if slate.is_complete:
             if slate.fc_actuals_sheet:
-                task = BackgroundTask()
-                task.name = 'Process Actuals'
-                task.user = request.user
-                task.save()
+                task1 = BackgroundTask()
+                task1.name = 'Process Actuals'
+                task1.user = request.user
+                task1.save()
 
-                tasks.process_actuals_sheet.delay(slate.id, task.id)
+                tasks.process_actuals_sheet.delay(slate.id, task1.id)
 
                 messages.add_message(
                     request,
                     messages.WARNING,
                     'Processing actuals for {}.'.format(str(slate)))
         else:
-            task = BackgroundTask()
-            task.name = 'Finding Slate Games'
-            task.user = request.user
-            task.save()
+            find_games_task = BackgroundTask()
+            find_games_task.name = 'Finding Slate Games'
+            find_games_task.user = request.user
+            find_games_task.save()
 
-            tasks.find_slate_games.delay(slate.id, task.id)
+            slate_players_task = BackgroundTask()
+            slate_players_task.name = 'Process Slate Players'
+            slate_players_task.user = request.user
+            slate_players_task.save()
+
+            result = chain(
+                tasks.find_slate_games.s(slate.id, find_games_task.id), 
+                tasks.process_slate_players.s(slate.id, slate_players_task.id),
+                group([
+                    tasks.process_projection_sheet.s(s.id, BackgroundTask.objects.create(
+                        name=f'Process Projections from {s.projection_site}',
+                        user=request.user
+                    ).id) for s in slate.projections.all()
+                ]),
+                tasks.handle_base_projections.s(slate.id, BackgroundTask.objects.create(
+                        name='Process Base Projectrions',
+                        user=request.user
+                ).id),
+                tasks.process_ownership_sheet.s(slate.ownership_projections_sheets.id, BackgroundTask.objects.create(
+                        name=f'Process Ownership Projections from {slate.ownership_projections_sheets}',
+                        user=request.user
+                ).id),
+                tasks.assign_zscores_to_players.s(slate.id, BackgroundTask.objects.create(
+                        name='Assign Z-Scores to Players',
+                        user=request.user
+                ).id),
+                tasks.process_sim_datasheets.s(slate.id, BackgroundTask.objects.create(
+                        name='Process Player Simulation Outcomes',
+                        user=request.user
+                ).id)
+            )()
 
             messages.add_message(
                 request,
@@ -2538,7 +2567,6 @@ class SlateBuildAdmin(admin.ModelAdmin):
 class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     list_display = (
         'get_player_name',
-        'get_slate',
         'get_player_salary',
         'get_player_position',
         'get_player_team',
@@ -2546,8 +2574,9 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_game',
         'get_player_game_z',
         'projection',
-        'get_ceiling',
         'get_player_zscore',
+        'get_ceiling',
+        'get_player_ceiling_zscore',
         'get_4for4_proj',
         'get_awesemo_proj',
         'get_etr_proj',
@@ -2576,7 +2605,6 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     )
     list_editable = (
         'in_play',
-        'projection',
         'balanced_projection',
         'balanced_value',
         'rb_group',
@@ -2689,8 +2717,16 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         if proj is None or proj.ceiling is None:
             return None
         return '{:.2f}'.format(proj.ceiling)
-    get_ceiling.short_description = 'ceiling'
+    get_ceiling.short_description = 'ceil'
     get_ceiling.admin_order_field = 'slate_player__projection__ceiling'
+
+    def get_player_ceiling_zscore(self, obj):
+        proj = obj.slate_player.projection
+        if proj is None or proj.ceiling_zscore is None:
+            return None
+        return '{:.2f}'.format(proj.ceiling_zscore)
+    get_player_ceiling_zscore.short_description = 'cz'
+    get_player_ceiling_zscore.admin_order_field = 'slate_player__projection__ceiling_zscore'
 
     def get_player_ao(self, obj):
         proj = obj.slate_player.projection

@@ -1236,7 +1236,7 @@ def export_projections(proj_ids, result_path, result_url, task_id):
 
 
 @shared_task
-def process_slate_players(slate_id, task_id):
+def process_slate_players(chained_result, slate_id, task_id):
     task = None
 
     try:
@@ -1311,23 +1311,6 @@ def process_slate_players(slate_id, task_id):
         task.content = '{} players have been successfully added to {}.'.format(success_count, str(slate)) if len(missing_players) == 0 else '{} players have been successfully added to {}. {} players could not be identified.'.format(success_count, str(slate), len(missing_players))
         task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
         task.save()
-
-        for projection_sheet in slate.projections.all():
-            task_proj = BackgroundTask()
-            task_proj.name = 'Processing Projections'
-            task_proj.user = task.user
-            task_proj.save()
-
-            process_projection_sheet.delay(projection_sheet.id, task_proj.id)
-        
-        if hasattr(slate, 'ownership_projections_sheets'):
-            task_own_proj = BackgroundTask()
-            task_own_proj.name = 'Processing Ownership Projections'
-            task_own_proj.user = task.user
-            task_own_proj.save()
-
-            process_ownership_sheet.delay(slate.ownership_projections_sheets.id, task_own_proj.id)
-
     except Exception as e:
         if task is not None:
             task.status = 'error'
@@ -1339,7 +1322,7 @@ def process_slate_players(slate_id, task_id):
 
 
 @shared_task
-def process_projection_sheet(sheet_id, task_id):
+def process_projection_sheet(chained_result, sheet_id, task_id):
     task = None
 
     try:
@@ -1426,26 +1409,6 @@ def process_projection_sheet(sheet_id, task_id):
                             )
                             
                             success_count += 1
-
-                            # if this sheet is primary (4for4, likely) then duplicate the projection data to SlatePlayerProjection model instance
-                            if sheet.is_primary or sheet.projection_site == '4for4':
-                                (projection, _) = models.SlatePlayerProjection.objects.get_or_create(
-                                    slate_player=slate_player
-                                )
-
-                                if sheet.is_primary:
-                                    projection.projection = mu
-                                    projection.balanced_projection = mu
-                                    projection.floor = flr
-                                    projection.ceiling = ceil
-                                    projection.stdev = stdev
-                                
-                                # 4for4 is only site with adjusted opportunity components, so must use even if not primary
-                                if sheet.projection_site == '4for4':
-                                    projection.adjusted_opportunity=float(rec_projection) * 2.0 + float(rush_att_projection)
-
-                                projection.save()
-
                     except models.SlatePlayer.DoesNotExist:
                         pass
                 else:
@@ -1455,21 +1418,6 @@ def process_projection_sheet(sheet_id, task_id):
         task.content = '{} projections have been successfully added to {} for {}.'.format(success_count, str(sheet.slate), sheet.projection_site) if len(missing_players) == 0 else '{} players have been successfully added to {} for {}. {} players could not be identified.'.format(success_count, str(sheet.slate), sheet.projection_site, len(missing_players))
         task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
         task.save()        
-
-        if sheet.is_primary:
-            task2 = BackgroundTask()
-            task2.name = 'Find Z-Scores for Players'
-            task2.user = task.user
-            task2.save()
-
-            assign_zscores_to_players.delay(sheet.slate.id, task2.id)
-
-            task3 = BackgroundTask()
-            task3.name = 'Process Sim Data Sheets'
-            task3.user = task.user
-            task3.save()
-
-            process_sim_datasheets.delay(sheet.slate.id, task3.id)
     except Exception as e:
         if task is not None:
             task.status = 'error'
@@ -1481,7 +1429,65 @@ def process_projection_sheet(sheet_id, task_id):
 
 
 @shared_task
-def process_ownership_sheet(sheet_id, task_id):
+def handle_base_projections(chained_results, slate_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        slate = models.Slate.objects.get(id=slate_id)
+        primary_sheet = slate.projections.get(is_primary=True)
+        raw_projections = models.SlatePlayerRawProjection.objects.filter(
+            slate_player__slate=slate,
+            projection_site=primary_sheet.projection_site
+        )
+        ao_projections = models.SlatePlayerRawProjection.objects.filter(
+            slate_player__slate=slate,
+            projection_site='4for4'
+        )
+        
+        for slate_player in slate.players.all():
+            (projection, _) = models.SlatePlayerProjection.objects.get_or_create(
+                slate_player=slate_player
+            )
+
+            try:
+                raw_projection = raw_projections.get(slate_player=slate_player)
+
+                try:
+                    ao_projection = ao_projections.get(slate_player=slate_player)
+                except models.SlatePlayerRawProjection.DoesNotExist:
+                    pass
+
+                projection.projection = raw_projection.projection
+                projection.balanced_projection = raw_projection.projection
+                projection.floor = raw_projection.floor
+                projection.ceiling = raw_projection.ceiling
+                projection.stdev = raw_projection.stdev
+                projection.adjusted_opportunity=ao_projection.adjusted_opportunity if ao_projection is not None else 0.0
+                projection.save()
+            except models.SlatePlayerRawProjection.DoesNotExist:
+                pass
+
+        task.status = 'success'
+        task.content = 'Base Projections processed.'
+        task.save()        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error creating or updated your base projections: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def process_ownership_sheet(chained_results, sheet_id, task_id):
     task = None
 
     try:
@@ -1537,17 +1543,6 @@ def process_ownership_sheet(sheet_id, task_id):
                         pass
                 else:
                     missing_players.append(player_name)
-
-        for game in sheet.slate.games.all():
-            game.calc_ownership()
-
-        own_totals = list(sheet.slate.games.all().values_list('ownership', flat=True))
-        game_own_zscores = scipy.stats.zscore(own_totals)
-        for (index, game) in enumerate(sheet.slate.games.all()):
-            game.ownership_zscore = game_own_zscores[index]
-            game.save()
-
-            # game.calc_rating()
 
         task.status = 'success'
         task.content = '{} ownership projections have been successfully added to {} for {}.'.format(success_count, str(sheet.slate), sheet.projection_site) if len(missing_players) == 0 else '{} ownership projections have been successfully added to {} for {}. {} players could not be identified.'.format(success_count, str(sheet.slate), sheet.projection_site, len(missing_players))
@@ -1629,7 +1624,7 @@ def process_actuals_sheet(slate_id, task_id):
 
 
 @shared_task
-def process_sim_datasheets(slate_id, task_id):
+def process_sim_datasheets(chained_results, slate_id, task_id):
     task = None
 
     try:
@@ -1679,7 +1674,7 @@ def process_sim_datasheets(slate_id, task_id):
             task.save()
         else:
             task.status = 'error'
-            task.content = f'There is no sim datasheet for this slate: {e}'
+            task.content = 'There is no sim datasheet for this slate'
             task.save()
 
     except Exception as e:
@@ -1709,14 +1704,6 @@ def find_slate_games(slate_id, task_id):
         task.status = 'success'
         task.content = '{} games found for {}'.format(slate.num_games(), str(slate))
         task.save()
-
-        task2 = BackgroundTask()
-        task2.name = 'Process Slate Players'
-        task2.user = task.user
-        task2.save()
-
-        process_slate_players.delay(slate_id, task2.id)
-
     except Exception as e:
         if task is not None:
             task.status = 'error'
@@ -1728,7 +1715,7 @@ def find_slate_games(slate_id, task_id):
 
 
 @shared_task
-def assign_zscores_to_players(slate_id, task_id):
+def assign_zscores_to_players(chained_results, slate_id, task_id):
     task = None
 
     try:
