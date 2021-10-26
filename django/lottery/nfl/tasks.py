@@ -1454,60 +1454,9 @@ def export_optimals_for_sim_data(lineup_ids, result_path, result_url, task_id):
             task = BackgroundTask.objects.get(id=task_id)
         lineups = models.SlateBuildActualsLineup.objects.filter(id__in=lineup_ids)
 
-        with open(result_path, 'w') as temp_csv:
-            lineup_writer = csv.writer(temp_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            lineup_writer.writerow([
-                'slate', 
-                'week',
-                'qb', 
-                'rb', 
-                'rb', 
-                'wr', 
-                'wr',
-                'wr', 
-                'te', 
-                'flex', 
-                'dst', 
-                'score',
-                'top_pass_catcher_for_qb',
-                'top_opp_pass_catchers_for_qb',
-                'salary',
-                'main_stack',
-                'ev',
-                'std'
-            ])
-
-            limit = 500
-            pages = math.ceil(lineups.count()/limit)
-
-            offset = 0
-
-            count = 0
-            for page in range(0, pages):
-                offset = page * limit
-
-                for lineup in lineups[offset:offset+limit]:
-                    count += 1
-                    lineup_writer.writerow([
-                        lineup.build.slate.name,
-                        lineup.build.slate.week,
-                        lineup.qb.name,
-                        lineup.rb1.name,
-                        lineup.rb2.name,
-                        lineup.wr1.name,
-                        lineup.wr2.name,
-                        lineup.wr3.name,
-                        lineup.te.name,
-                        lineup.flex.name,
-                        lineup.dst.name,
-                        lineup.actual,
-                        lineup.contains_top_projected_pass_catcher(),
-                        lineup.contains_opp_top_projected_pass_catcher(),
-                        lineup.salary,
-                        str(lineup.stack),
-                        lineup.ev,
-                        lineup.std
-                    ])
+        lineups_df = pandas.DataFrame.from_records(lineups.values())
+        print(lineups_df)
+        lineups_df.to_excel(result_path)
 
         task.status = 'download'
         task.content = result_url

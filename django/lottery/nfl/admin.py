@@ -2290,7 +2290,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
         now = datetime.datetime.now()
         timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
-        result_file = 'Optimals Export {}.csv'.format(timestamp)
+        result_file = 'Optimals Export {}.xlsx'.format(timestamp)
         result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
         os.makedirs(result_path, exist_ok=True)
         result_path = os.path.join(result_path, result_file)
