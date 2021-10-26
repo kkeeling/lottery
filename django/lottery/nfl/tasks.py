@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from django.contrib.auth.models import User
 from django.contrib.messages.api import success
 from django.db.models.aggregates import Count, Sum
-from django.db.models import Q
+from django.db.models import Q, F
 from django.db import transaction
 from django.urls import reverse_lazy
 
@@ -1075,11 +1075,13 @@ def export_lineups_for_analysis(lineup_ids, result_path, result_url, task_id, us
             task = BackgroundTask.objects.get(id=task_id)
 
         if use_optimals:
-            lineups = models.SlateBuildActualsLineup.objects.filter(id__in=lineup_ids)
+            lineups = models.SlateBuildActualsLineup.objects.filter(id__in=lineup_ids).select_related('build__slate__week').annotate(week=F('build__slate__week__num'), year=F('build__slate__week__slate_year'))
         else:
-            lineups = models.SlateBuildLineup.objects.filter(id__in=lineup_ids)
+            lineups = models.SlateBuildLineup.objects.filter(id__in=lineup_ids).select_related('build__slate__week').annotate(week=F('build__slate__week__num'), year=F('build__slate__week__slate_year'))
 
         lineups_df = pandas.DataFrame.from_records(lineups.values())
+
+        print(lineups_df)
         lineups_df.to_excel(result_path)
 
         task.status = 'download'
