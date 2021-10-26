@@ -695,7 +695,7 @@ class SlateAdmin(admin.ModelAdmin):
             slate_players_task.user = request.user
             slate_players_task.save()
 
-            result = chain(
+            _ = chain(
                 tasks.find_slate_games.s(slate.id, find_games_task.id), 
                 tasks.process_slate_players.s(slate.id, slate_players_task.id),
                 group([
@@ -3204,6 +3204,7 @@ class BacktestAdmin(admin.ModelAdmin):
         'prepare_construction',
         'execute',
         'analyze',
+        'export_lineups',
         'duplicate',
         'find_optimals',
         'export_optimals'
@@ -3510,6 +3511,29 @@ class BacktestAdmin(admin.ModelAdmin):
             messages.success(request, 'Finding optimals for {}. Refresh page to check progress'.format(backtest.name))
     find_optimals.short_description = 'Find optimal lineups for all unique slates in selected backtests'
 
+    def export_lineups(self, request, queryset):
+        task = BackgroundTask()
+        task.name = 'Export Lineups'
+        task.user = request.user
+        task.save()
+
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file = 'Lineups Export {}.xlsx'.format(timestamp)
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+        lineups = models.SlateBuildLineup.objects.filter(build__backtest__backtest__in=queryset)
+        tasks.export_lineups_for_analysis.delay(list(lineups.values_list('id', flat=True)), result_path, result_url, task.id, False)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
+    export_lineups.short_description = 'Export lineups from selected backtests'
+
     def export_optimals(self, request, queryset):
         task = BackgroundTask()
         task.name = 'Export Optimals'
@@ -3531,3 +3555,4 @@ class BacktestAdmin(admin.ModelAdmin):
             request,
             messages.WARNING,
             'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
+    export_optimals.short_description = 'Export optimals from selected backtests'
