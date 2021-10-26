@@ -2350,7 +2350,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
             build_lineups = build.lineups.all().order_by('id')
             build_lineups.update(ev=0, mean=0, std=0, sim_rating=0)
-            contest = build.slate.contests.get(outcomes_sheet__isnull=False)
+            contest = build.slate.contests.get(use_for_sims=True)
 
             if settings.DEBUG:
                 num_outcomes = 100
@@ -2424,7 +2424,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
             optimal_lineups = build.actuals.all().order_by('id')
             optimal_lineups.update(ev=0, mean=0, std=0, sim_rating=0)
-            contest = build.slate.contests.get(outcomes_sheet__isnull=False)
+            contest = build.slate.contests.get(use_for_sims=True)
 
             if settings.DEBUG:
                 num_outcomes = 100

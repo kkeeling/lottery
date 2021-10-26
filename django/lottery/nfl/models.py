@@ -600,7 +600,8 @@ class SlateGame(models.Model):
 class Contest(models.Model):
     slate = models.ForeignKey(Slate, related_name='contests', on_delete=models.CASCADE, null=True, blank=True)
     outcomes_sheet = models.FileField(upload_to='uploads/sims', blank=True, null=True)
-    outcomes = ArrayField(ArrayField(models.DecimalField(max_digits=5, decimal_places=2)), null=True, blank=True)
+    use_for_sims = models.BooleanField(default=False)
+    use_for_actuals = models.BooleanField(default=True)
     cost = models.DecimalField(decimal_places=2, max_digits=10)
     num_games = models.IntegerField(null=True, blank=True)
     max_entrants = models.IntegerField()

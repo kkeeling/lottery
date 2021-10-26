@@ -179,7 +179,7 @@ def calculate_actuals_for_build(build_id, task_id):
         # Task implementation goes here
 
         build = models.SlateBuild.objects.get(id=build_id)
-        contest = build.slate.contests.get(outcomes_sheet__isnull=False)
+        contest = build.slate.contests.get(use_for_actuals=True)
 
         top_score = 0
         total_cashes = 0
