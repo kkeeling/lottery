@@ -1570,13 +1570,13 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
 
         now = datetime.datetime.now()
         timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
-        result_file = 'Optimals Export {}.csv'.format(timestamp)
+        result_file = 'Optimals Export {}.xlsx'.format(timestamp)
         result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
         os.makedirs(result_path, exist_ok=True)
         result_path = os.path.join(result_path, result_file)
         result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
-        tasks.export_optimal_lineups.delay(list(queryset.values_list('id', flat=True)), result_path, result_url, task.id)
+        tasks.export_lineups_for_analysis.delay(list(queryset.values_list('id', flat=True)), result_path, result_url, task.id, True)
 
         messages.add_message(
             request,
@@ -2263,7 +2263,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
         now = datetime.datetime.now()
         timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
-        result_file = 'Lineups Export {}.csv'.format(timestamp)
+        result_file = 'Lineups Export {}.xlsx'.format(timestamp)
         result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
         os.makedirs(result_path, exist_ok=True)
         result_path = os.path.join(result_path, result_file)
@@ -2296,7 +2296,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         result_path = os.path.join(result_path, result_file)
         result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
-        tasks.export_optimals_for_sim_data.delay(list(build.actuals.all().values_list('id', flat=True)), result_path, result_url, task.id)
+        tasks.export_lineups_for_analysis.delay(list(build.actuals.all().values_list('id', flat=True)), result_path, result_url, task.id, True)
 
         messages.add_message(
             request,
@@ -3483,14 +3483,14 @@ class BacktestAdmin(admin.ModelAdmin):
 
         now = datetime.datetime.now()
         timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
-        result_file = 'Optimals Export {}.csv'.format(timestamp)
+        result_file = 'Optimals Export {}.xlsx'.format(timestamp)
         result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
         os.makedirs(result_path, exist_ok=True)
         result_path = os.path.join(result_path, result_file)
         result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
         optimals = models.SlateBuildActualsLineup.objects.filter(build__backtest__backtest__in=queryset)
-        tasks.export_optimal_lineups.delay(list(optimals.values_list('id', flat=True)), result_path, result_url, task.id)
+        tasks.export_lineups_for_analysis.delay(list(optimals.values_list('id', flat=True)), result_path, result_url, task.id, True)
 
         messages.add_message(
             request,
