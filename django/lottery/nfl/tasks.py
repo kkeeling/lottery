@@ -1081,7 +1081,6 @@ def export_lineups_for_analysis(lineup_ids, result_path, result_url, task_id, us
 
         lineups_df = pandas.DataFrame.from_records(lineups.values())
 
-        print(lineups_df)
         lineups_df.to_excel(result_path)
 
         task.status = 'download'
