@@ -21,7 +21,7 @@ services:
   redis:
     container_name: lottery_production_redis
     image: redis:5.0
-    command: redis-server /opt/redis/redis.conf
+    command: redis-server
     volumes:
       - ../redis:/opt/redis
       - 'lottery_redis:/data'
