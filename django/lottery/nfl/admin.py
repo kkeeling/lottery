@@ -2373,9 +2373,9 @@ class SlateBuildAdmin(admin.ModelAdmin):
         task.user = request.user
         task.save()
 
-        models.SlateBuildLineup.objects.filter(
-            build__in=queryset
-        ).update(ev=0, mean=0, std=0, sim_rating=0)
+        # models.SlateBuildLineup.objects.filter(
+        #     build__in=queryset
+        # ).update(ev=0, mean=0, std=0, sim_rating=0)
 
         if settings.DEBUG:
             num_outcomes = 100
