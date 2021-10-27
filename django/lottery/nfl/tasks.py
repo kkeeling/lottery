@@ -2,6 +2,7 @@ import csv
 import datetime
 import logging
 import math
+from django.db.models.expressions import Case, When
 import numpy
 import pandas
 import pandasql
@@ -166,7 +167,65 @@ def build_lineups_for_stack(stack_id, lineup_number, num_qb_stacks):
 
 
 @shared_task
-def calculate_actuals_for_build(build_id, task_id):
+def calculate_actuals_for_stacks(stack_ids, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids)
+        for stack in (stacks):
+            stack.calc_actual_score()
+
+        task.status = 'success'
+        task.content = f'Scores calculated for {len(stack_ids)} stacks.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem calculating actuals: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def calculate_actuals_for_lineups(lineup_ids, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        lineups = models.SlateBuildLineup.objects.filter(id__in=lineup_ids)
+        for lineup in (lineups):
+            lineup.calc_actual_score()
+
+        task.status = 'success'
+        task.content = f'Scores calculated for {len(lineup_ids)} lineups.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem calculating actuals: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def calculate_actuals_for_build(chained_results, build_id, task_id):
     task = None
 
     try:
@@ -181,39 +240,23 @@ def calculate_actuals_for_build(build_id, task_id):
         build = models.SlateBuild.objects.get(id=build_id)
         contest = build.slate.contests.get(use_for_actuals=True)
 
-        top_score = 0
-        total_cashes = 0
-        total_one_pct = 0
-        total_half_pct = 0
-        binked = False
-        great_build = False
+        lineups = build.lineups.all().order_by('-actual')
+        metrics = lineups.aggregate(
+            total_cashes=Count('pk', filter=Q(actual__gte=contest.mincash_score)),
+            total_one_pct=Count('pk', filter=Q(actual__gte=contest.one_pct_score)),
+            total_half_pct=Count('pk', filter=Q(actual__gte=contest.half_pct_score))
+        )
 
-        for stack in build.stacks.all():
-            stack.calc_actual_score()
-
-        for lineup in build.lineups.all():
-            score = lineup.calc_actual_score()
-            top_score = max(top_score, score)
-            if score >= contest.mincash_score:
-                total_cashes += 1
-            if score >= contest.one_pct_score:
-                total_one_pct += 1
-            if score >= contest.half_pct_score:
-                total_half_pct += 1
-            if score >= contest.winning_score:
-                binked = True
-            if score >= contest.great_score:
-                great_build = True
-
-        build.top_score = top_score
-        build.total_cashes = total_cashes
-        build.total_one_pct = total_one_pct
-        build.total_half_pct = total_half_pct
-        build.great_build = great_build
-        build.binked = binked
+        build.top_score = lineups[0].actual
+        build.total_cashes = metrics.get('total_cashes')
+        build.total_one_pct = metrics.get('total_one_pct')
+        build.total_half_pct = metrics.get('total_half_pct')
+        build.great_build = (lineups[0].actual >= contest.great_score)
+        build.binked = (lineups[0].actual >= contest.winning_score)
         build.save()
 
         task.status = 'success'
+        task.content = 'Actual build metrics calculated.'
         task.save()
         
     except Exception as e:
@@ -221,11 +264,6 @@ def calculate_actuals_for_build(build_id, task_id):
             task.status = 'error'
             task.content = f'There was a problem calculating actuals: {e}'
             task.save()
-
-        if build is not None:
-            build.status = 'error'
-            build.error_message = str(e)
-            build.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))

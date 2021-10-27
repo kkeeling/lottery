@@ -2502,12 +2502,36 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
     def get_actual_scores(self, request, queryset):
         for build in queryset:
-            task = BackgroundTask()
-            task.name = 'Calculate Actual Scores'
-            task.user = request.user
-            task.save()
+            build_lineups = list(build.lineups.all().order_by('id').values_list('id', flat=True))
+            lineup_limit = 100
+            lineup_pages = math.ceil(len(build_lineups)/lineup_limit)
 
-            tasks.calculate_actuals_for_build.delay(build.id, task.id)
+            chord([
+                group([
+                    tasks.calculate_actuals_for_stacks.s(
+                        list(build.stacks.all().values_list('id', flat=True)),
+                        BackgroundTask.objects.create(
+                            name='Calculate Actual Stack Scores',
+                            user=request.user
+                        ).id
+                    ),
+                    group([
+                        tasks.calculate_actuals_for_lineups.s(
+                            list(build_lineups[(lineup_page * lineup_limit):(lineup_page * lineup_limit) + lineup_limit]),
+                            BackgroundTask.objects.create(
+                                name='Calculate Actual Lineup Scores',
+                                user=request.user
+                            ).id
+                        ) for lineup_page in range(0, lineup_pages)
+                    ])
+                ])
+            ], tasks.calculate_actuals_for_build.s(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Calculate Actual Build Metrics',
+                    user=request.user
+                ).id
+            ))()
 
             messages.add_message(
                 request,
