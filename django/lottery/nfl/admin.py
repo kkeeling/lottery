@@ -2386,6 +2386,8 @@ class SlateBuildAdmin(admin.ModelAdmin):
         col_limit = 50  # sim columns per call
         pages = math.ceil(num_outcomes/col_limit)  # number of calls to make
 
+        print(f'column pages = {pages}; lineup pages = {math.ceil(45390/lineup_limit)}')
+
         group([
             chord([
                 chord([tasks.analyze_lineup_outcomes.s(
