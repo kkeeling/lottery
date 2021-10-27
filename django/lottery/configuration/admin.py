@@ -3,7 +3,7 @@ from lottery.admin import lottery_admin_site
 
 from . import models
 
-@admin.register(models.BackgroundTask, site=lottery_admin_site)
+@admin.register(models.BackgroundTask)
 class BackgroundTaskAdmin(admin.ModelAdmin):
     list_display = ['name', 'action', 'user', 'status', 'created']
 

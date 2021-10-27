@@ -74,6 +74,7 @@ INSTALLED_APPS = (
     'django.contrib.sites',
     'django.contrib.staticfiles',
     'corsheaders',
+    'django_celery_beat',
     'grappelli',
     'rest_framework',
     'django_admin_listfilter_dropdown',
@@ -157,6 +158,8 @@ REST_FRAMEWORK = {
 
 CELERY_BROKER_URL = 'redis://redis:6379/0'
 CELERY_BACKEND = 'redis://redis:6379/0'
+CELERY_RESULT_EXPIRES = 60
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 USE_CELERY = True
 
 # Logging

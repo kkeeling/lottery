@@ -9,7 +9,8 @@ from rest_framework.routers import DefaultRouter
 import nfl.views
 import configuration.views
 
-from .admin import lottery_admin_site
+# from .admin import lottery_admin_site
+# admin.autodiscover()
 
 urlpatterns = []
 if settings.DEBUG:
@@ -24,7 +25,7 @@ urlpatterns += [
     url(r'^grappelli-docs/', include('grappelli.urls_docs')),
     url(r'^grappelli/', include('grappelli.urls')), # grappelli URLS
     url(r'^admin/nfl/slate_build/', nfl.views.slate_build, name='slate_build'),
-    url(r'^admin/', lottery_admin_site.urls),
+    url(r'^admin/', admin.site.urls),
     url(r'^api/', include(router.urls)),
     # include URLs
     url('^', include('django.contrib.auth.urls')),

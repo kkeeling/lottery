@@ -38,7 +38,7 @@ services:
       - production/django.env
     depends_on:
       - redis
-    command: celery -A lottery worker -l info --concurrency=16 --task-events 
+    command: celery -A lottery worker -B -l info --concurrency=16 --task-events 
     volumes:
       - ../django/lottery:/opt/lottery
       - lottery_static:/opt/static

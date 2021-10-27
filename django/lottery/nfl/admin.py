@@ -479,7 +479,7 @@ class SlatePlayerOwnershipProjectionSheetInline(admin.TabularInline):
 # Admins
 
 
-@admin.register(models.Alias, site=lottery_admin_site)
+@admin.register(models.Alias)
 class AliasAdmin(admin.ModelAdmin):
     list_display = (
         'dk_name',
@@ -505,7 +505,7 @@ class AliasAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(models.MissingAlias, site=lottery_admin_site)
+@admin.register(models.MissingAlias)
 class MissingAliasAdmin(admin.ModelAdmin):
     list_display = (
         'player_name',
@@ -610,7 +610,7 @@ class MissingAliasAdmin(admin.ModelAdmin):
         queryset.delete()
 
 
-@admin.register(models.SheetColumnHeaders, site=lottery_admin_site)
+@admin.register(models.SheetColumnHeaders)
 class SheetColumnHeadersAdmin(admin.ModelAdmin):
     list_display = (
         'projection_site',
@@ -628,7 +628,7 @@ class SheetColumnHeadersAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(models.Slate, site=lottery_admin_site)
+@admin.register(models.Slate)
 class SlateAdmin(admin.ModelAdmin):
     list_display = (
         'datetime',
@@ -797,7 +797,7 @@ class SlateAdmin(admin.ModelAdmin):
         return redirect(request.META.get('HTTP_REFERER'), context=context)
 
 
-@admin.register(models.SlatePlayerActualsSheet, site=lottery_admin_site)
+@admin.register(models.SlatePlayerActualsSheet)
 class SlatePlayerActualsSheetAdmin(admin.ModelAdmin):
     list_display = (
         'slate',
@@ -810,7 +810,7 @@ class SlatePlayerActualsSheetAdmin(admin.ModelAdmin):
     save_again.short_description = 'Re-import selected sheets'
 
 
-@admin.register(models.SlatePlayerOwnershipProjectionSheet, site=lottery_admin_site)
+@admin.register(models.SlatePlayerOwnershipProjectionSheet)
 class SlatePlayerOwnershipProjectionSheetAdmin(admin.ModelAdmin):
     list_display = (
         'slate',
@@ -823,7 +823,7 @@ class SlatePlayerOwnershipProjectionSheetAdmin(admin.ModelAdmin):
     save_again.short_description = 'Re-import selected sheets'
 
 
-@admin.register(models.SlateProjectionSheet, site=lottery_admin_site)
+@admin.register(models.SlateProjectionSheet)
 class SlateProjectionSheetAdmin(admin.ModelAdmin):
     list_display = (
         'slate',
@@ -836,7 +836,7 @@ class SlateProjectionSheetAdmin(admin.ModelAdmin):
     save_all.short_description = 'Save all selected projection sheets'
 
 
-@admin.register(models.ContestImportSheet, site=lottery_admin_site)
+@admin.register(models.ContestImportSheet)
 class ContestSheetAdmin(admin.ModelAdmin):
     list_display = (
         'site',
@@ -849,7 +849,7 @@ class ContestSheetAdmin(admin.ModelAdmin):
     save_again.short_description = 'Re-import selected sheets'
 
 
-@admin.register(models.SlatePlayer, site=lottery_admin_site)
+@admin.register(models.SlatePlayer)
 class SlatePlayerAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -867,7 +867,7 @@ class SlatePlayerAdmin(admin.ModelAdmin):
         'team')
 
 
-@admin.register(models.SlatePlayerBuildExposure, site=lottery_admin_site)
+@admin.register(models.SlatePlayerBuildExposure)
 class SlatePlayerBuildExposureAdmin(admin.ModelAdmin):
     build = None
     list_display = (
@@ -925,7 +925,7 @@ class SlatePlayerBuildExposureAdmin(admin.ModelAdmin):
     get_exposure.short_description = 'Exposure'
 
 
-@admin.register(models.SlatePlayerProjection, site=lottery_admin_site)
+@admin.register(models.SlatePlayerProjection)
 class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     list_display = (
         'get_player_name',
@@ -1135,7 +1135,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     export.short_description = 'Export selected player projections'
 
 
-@admin.register(models.SlatePlayerRawProjection, site=lottery_admin_site)
+@admin.register(models.SlatePlayerRawProjection)
 class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
     list_display = (
         'get_player_name',
@@ -1313,7 +1313,7 @@ class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
     export.short_description = 'Export selected player projections'
 
 
-@admin.register(models.SlateBuildGroup, site=lottery_admin_site)
+@admin.register(models.SlateBuildGroup)
 class SlateBuildGroupAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -1332,7 +1332,7 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
     ]
 
 
-@admin.register(models.SlateBuildLineup, site=lottery_admin_site)
+@admin.register(models.SlateBuildLineup)
 class SlateBuildLineupAdmin(admin.ModelAdmin):
     list_per_page = 10
     # paginator = NoCountPaginator
@@ -1482,7 +1482,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
     get_ceiling_percentile_score.short_description = 'ceil'
 
 
-@admin.register(models.SlateBuildActualsLineup, site=lottery_admin_site)
+@admin.register(models.SlateBuildActualsLineup)
 class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = (
@@ -1614,7 +1614,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
     export.short_description = 'Export selected lineups'
 
 
-@admin.register(models.SlateBuildStack, site=lottery_admin_site)
+@admin.register(models.SlateBuildStack)
 class SlateBuildStackAdmin(admin.ModelAdmin):
     list_per_page = 25
     list_display = (
@@ -1787,7 +1787,7 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
     export.short_description = 'Export selected stacks'
 
 
-@admin.register(models.SlateBuildTopStack, site=lottery_admin_site)
+@admin.register(models.SlateBuildTopStack)
 class SlateBuildTopStackAdmin(admin.ModelAdmin):
     list_per_page = 25
     list_display = (
@@ -1868,7 +1868,7 @@ class SlateBuildTopStackAdmin(admin.ModelAdmin):
     export.short_description = 'Export selected stacks'
 
 
-@admin.register(models.SlateBuild, site=lottery_admin_site)
+@admin.register(models.SlateBuild)
 class SlateBuildAdmin(admin.ModelAdmin):
     date_hierarchy = 'slate__datetime'
     list_per_page = 25
@@ -2618,7 +2618,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
     find_optimal_lineups.short_description = 'Generate optimal lineups for selected builds'
 
 
-@admin.register(models.BuildPlayerProjection, site=lottery_admin_site)
+@admin.register(models.BuildPlayerProjection)
 class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     list_display = (
         'get_player_name',
@@ -2985,7 +2985,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     remove_at_least_groups.short_description = 'Remove ALx designations from selected players'
 
 
-@admin.register(models.Contest, site=lottery_admin_site)
+@admin.register(models.Contest)
 class ContestAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -3030,7 +3030,7 @@ class ContestAdmin(admin.ModelAdmin):
     #         'Loading contest simulations. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the contest is ready.')
 
 
-@admin.register(models.CeilingProjectionRangeMapping, site=lottery_admin_site)
+@admin.register(models.CeilingProjectionRangeMapping)
 class CeilingProjectionRangeMappingAdmin(admin.ModelAdmin):
     list_display = (
         'min_projection',
@@ -3042,7 +3042,7 @@ class CeilingProjectionRangeMappingAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(models.SlateBuildConfig, site=lottery_admin_site)
+@admin.register(models.SlateBuildConfig)
 class ConfigAdmin(admin.ModelAdmin):
     list_display = [
         'name',
@@ -3096,7 +3096,7 @@ class ConfigAdmin(admin.ModelAdmin):
     ]
 
 
-@admin.register(models.PlayerSelectionCriteria, site=lottery_admin_site)
+@admin.register(models.PlayerSelectionCriteria)
 class PlayerSelectionCriteriaAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -3109,7 +3109,7 @@ class PlayerSelectionCriteriaAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(models.LineupConstructionRule, site=lottery_admin_site)
+@admin.register(models.LineupConstructionRule)
 class LineupConstructionRuleAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -3120,7 +3120,7 @@ class LineupConstructionRuleAdmin(admin.ModelAdmin):
     ]
 
 
-@admin.register(models.StackConstructionRule, site=lottery_admin_site)
+@admin.register(models.StackConstructionRule)
 class StackConstructionRuleAdmin(admin.ModelAdmin):
     list_display = (
         'name',
@@ -3130,7 +3130,7 @@ class StackConstructionRuleAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(models.Game, site=lottery_admin_site)
+@admin.register(models.Game)
 class GameAdmin(admin.ModelAdmin):
     list_display = (
         'get_game_title',
@@ -3151,7 +3151,7 @@ class GameAdmin(admin.ModelAdmin):
     get_game_title.short_description = 'Game'
 
 
-@admin.register(models.Week, site=lottery_admin_site)
+@admin.register(models.Week)
 class WeekAdmin(admin.ModelAdmin):
     list_display = (
         'get_week_title',
@@ -3185,7 +3185,7 @@ class WeekAdmin(admin.ModelAdmin):
     get_num_games.short_description = '# Games'
 
 
-@admin.register(models.Backtest, site=lottery_admin_site)
+@admin.register(models.Backtest)
 class BacktestAdmin(admin.ModelAdmin):
     list_per_page = 15
     list_display = (
