@@ -2382,7 +2382,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         else:
             num_outcomes = 10000
 
-        lineup_limit = 500
+        lineup_limit = 5000
         col_limit = 50  # sim columns per call
         pages = math.ceil(num_outcomes/col_limit)  # number of calls to make
 
