@@ -791,6 +791,21 @@ def analyze_lineup_outcomes(build_id, contest_id, lineup_ids, col_min, col_max, 
 
 
 @shared_task
+def analyze_lineup_outcomes_complete(chained_results, build_id, task_id):
+    try:
+        task = BackgroundTask.objects.get(id=task_id)
+    except BackgroundTask.DoesNotExist:
+        time.sleep(0.2)
+        task = BackgroundTask.objects.get(id=task_id)
+
+    build = models.SlateBuild.objects.get(id=build_id)
+
+    task.status = 'success'
+    task.content = f'Lineups analyzed for {build}'
+    task.save()
+
+
+@shared_task
 def combine_lineup_outcomes(partial_outcomes, build_id, lineup_ids, use_optimals=False):    
     build = models.SlateBuild.objects.get(id=build_id)
     if use_optimals:

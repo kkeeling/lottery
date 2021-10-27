@@ -2368,47 +2368,78 @@ class SlateBuildAdmin(admin.ModelAdmin):
         return redirect(request.META.get('HTTP_REFERER'), context=context)
 
     def analyze_lineups(self, request, queryset):
-        for build in queryset:
-            # task = BackgroundTask()
-            # task.name = 'Analyze Lineups'
-            # task.user = request.user
-            # task.save()
+        task = BackgroundTask()
+        task.name = 'Analyze Lineups'
+        task.user = request.user
+        task.save()
 
-            # tasks.analyze_lineups.delay(build.id, task.id)
+        models.SlateBuildLineup.objects.filter(
+            build__in=queryset
+        ).update(ev=0, mean=0, std=0, sim_rating=0)
 
-            build_lineups = build.lineups.all().order_by('id')
-            build_lineups.update(ev=0, mean=0, std=0, sim_rating=0)
-            contest = build.slate.contests.get(use_for_sims=True)
+        if settings.DEBUG:
+            num_outcomes = 100
+        else:
+            num_outcomes = 10000
 
-            if settings.DEBUG:
-                num_outcomes = 100
-            else:
-                num_outcomes = 10000
+        lineup_limit = 500
+        col_limit = 50  # sim columns per call
+        pages = math.ceil(num_outcomes/col_limit)  # number of calls to make
 
-            lineup_limit = 100
-            lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
-
-            limit = 50  # sim columns per call
-            pages = math.ceil(num_outcomes/limit)  # number of calls to make
-
-            for lineup_page in range(0, lineup_pages):
-                lineup_min = lineup_page * lineup_limit
-                lineup_max = lineup_min + lineup_limit
-                lineups = build_lineups[lineup_min:lineup_max]
-
+        group([
+            chord([
                 chord([tasks.analyze_lineup_outcomes.s(
                     build.id,
-                    contest.id,
-                    list(lineups.values_list('id', flat=True)),
-                    col_count * limit + 3,  # index min
-                    (col_count * limit + 3) + limit,  # index max
+                    build.slate.contests.get(use_for_sims=True).id,
+                    list(build.lineups.all().order_by('id').values_list('id', flat=True))[lineup_page * lineup_limit:(lineup_page * lineup_limit) + lineup_limit],
+                    col_count * col_limit + 3,  # index min
+                    (col_count * col_limit + 3) + col_limit,  # index max
                     False
-                ) for col_count in range(0, pages)], tasks.combine_lineup_outcomes.s(build.id, list(lineups.values_list('id', flat=True)), False))()
+                ) for col_count in range(0, pages)], 
+                tasks.combine_lineup_outcomes.s(build.id, list(build.lineups.all().order_by('id').values_list('id', flat=True))[lineup_page * lineup_limit:(lineup_page * lineup_limit) + lineup_limit], False)) for lineup_page in range(0, math.ceil(build.lineups.all().count()/lineup_limit))
+            ], tasks.analyze_lineup_outcomes_complete.s(build.id, task.id)) for build in queryset
+        ])()
 
-            messages.add_message(
-                request,
-                messages.WARNING,
-                'Analyzing lineups. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Analyzing lineups. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
+
+
+        # for build in queryset:
+        #     build_lineups = build.lineups.all().order_by('id')
+        #     build_lineups.update(ev=0, mean=0, std=0, sim_rating=0)
+        #     contest = build.slate.contests.get(use_for_sims=True)
+
+        #     if settings.DEBUG:
+        #         num_outcomes = 100
+        #     else:
+        #         num_outcomes = 10000
+
+        #     lineup_limit = 100
+        #     lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
+
+        #     limit = 50  # sim columns per call
+        #     pages = math.ceil(num_outcomes/limit)  # number of calls to make
+
+        #     for lineup_page in range(0, lineup_pages):
+        #         lineup_min = lineup_page * lineup_limit
+        #         lineup_max = lineup_min + lineup_limit
+        #         lineups = build_lineups[lineup_min:lineup_max]
+
+        #         chord([tasks.analyze_lineup_outcomes.s(
+        #             build.id,
+        #             contest.id,
+        #             list(lineups.values_list('id', flat=True)),
+        #             col_count * limit + 3,  # index min
+        #             (col_count * limit + 3) + limit,  # index max
+        #             False
+        #         ) for col_count in range(0, pages)], tasks.combine_lineup_outcomes.s(build.id, list(lineups.values_list('id', flat=True)), False))()
+
+            # messages.add_message(
+            #     request,
+            #     messages.WARNING,
+            #     'Analyzing lineups. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
     analyze_lineups.short_description = 'Analyze lineups for selected builds'
 
     def rate_lineups(self, request, queryset):
