@@ -2373,9 +2373,9 @@ class SlateBuildAdmin(admin.ModelAdmin):
         task.user = request.user
         task.save()
 
-        # models.SlateBuildLineup.objects.filter(
-        #     build__in=queryset
-        # ).update(ev=0, mean=0, std=0, sim_rating=0)
+        models.SlateBuildLineup.objects.filter(
+            build__in=queryset
+        ).update(ev=0, mean=0, std=0, sim_rating=0)
 
         if settings.DEBUG:
             num_outcomes = 100
@@ -2398,7 +2398,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 ) for col_count in range(0, pages)], 
                 tasks.combine_lineup_outcomes.s(build.id, list(build.lineups.all().order_by('id').values_list('id', flat=True))[lineup_page * lineup_limit:(lineup_page * lineup_limit) + lineup_limit], False)) for lineup_page in range(0, math.ceil(build.lineups.all().count()/lineup_limit))
             ], tasks.analyze_lineup_outcomes_complete.s(build.id, task.id)) for build in queryset
-        ])()
+        ])
 
         messages.add_message(
             request,
