@@ -23,7 +23,6 @@ services:
     image: redis:5.0
     command: redis-server /opt/redis/redis.conf
     volumes:
-      - ./redis/redis.conf:/opt/redis/redis.conf
       - ../redis:/opt/redis
       - 'lottery_redis:/data'
     expose:
