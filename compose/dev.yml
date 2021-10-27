@@ -19,8 +19,9 @@ services:
   redis:
     container_name: lottery_dev_redis
     image: redis:5.0
-    command: redis-server
+    command: redis-server /usr/local/etc/redis/redis.conf
     volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
       - ../redis:/opt/redis
       - 'lottery_redis:/data'
     ports:
