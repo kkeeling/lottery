@@ -2382,7 +2382,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         else:
             num_outcomes = 10000
 
-        lineup_limit = 5000
+        lineup_limit = 10000
         col_limit = 50  # sim columns per call
         pages = math.ceil(num_outcomes/col_limit)  # number of calls to make
 
@@ -2400,7 +2400,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 ) for col_count in range(0, pages)], 
                 tasks.combine_lineup_outcomes.s(build.id, list(build.lineups.all().order_by('id').values_list('id', flat=True))[lineup_page * lineup_limit:(lineup_page * lineup_limit) + lineup_limit], False)) for lineup_page in range(0, math.ceil(build.lineups.all().count()/lineup_limit))
             ], tasks.analyze_lineup_outcomes_complete.s(build.id, task.id)) for build in queryset
-        ])
+        ])()
 
         messages.add_message(
             request,
