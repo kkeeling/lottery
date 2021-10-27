@@ -2380,9 +2380,9 @@ class SlateBuildAdmin(admin.ModelAdmin):
         if settings.DEBUG:
             num_outcomes = 100
         else:
-            num_outcomes = 10000
+            num_outcomes = 100
 
-        lineup_limit = 10000
+        lineup_limit = 500
         col_limit = 50  # sim columns per call
         pages = math.ceil(num_outcomes/col_limit)  # number of calls to make
 
