@@ -1007,7 +1007,7 @@ def find_top_lineups_for_build(build_id, players_outcome_index, num_lineups):
 
     return optimize.naked_simulate(
         build.slate.site, 
-        build.slate.get_projections().iterator(), 
+        build.projections.filter(in_play=True).iterator(), 
         build.configuration, 
         players_outcome_index,
         num_lineups
