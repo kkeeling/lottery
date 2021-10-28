@@ -2376,30 +2376,9 @@ class SlateBuildAdmin(admin.ModelAdmin):
         models.SlateBuildLineup.objects.filter(
             build__in=queryset
         ).update(ev=0, mean=0, std=0, sim_rating=0)
-
-        if settings.DEBUG:
-            num_outcomes = 100
-        else:
-            num_outcomes = 10000
-
-        lineup_limit = 500
-        col_limit = 50  # sim columns per call
-        pages = math.ceil(num_outcomes/col_limit)  # number of calls to make
-
-        print(f'column pages = {pages}; lineup pages = {math.ceil(45390/lineup_limit)}')
-
+        
         group([
-            chord([
-                chord([tasks.analyze_lineup_outcomes.s(
-                    build.id,
-                    build.slate.contests.get(use_for_sims=True).id,
-                    list(build.lineups.all().order_by('id').values_list('id', flat=True))[lineup_page * lineup_limit:(lineup_page * lineup_limit) + lineup_limit],
-                    col_count * col_limit + 3,  # index min
-                    (col_count * col_limit + 3) + col_limit,  # index max
-                    False
-                ) for col_count in range(0, pages)], 
-                tasks.combine_lineup_outcomes.s(build.id, list(build.lineups.all().order_by('id').values_list('id', flat=True))[lineup_page * lineup_limit:(lineup_page * lineup_limit) + lineup_limit], False)) for lineup_page in range(0, math.ceil(build.lineups.all().count()/lineup_limit))
-            ], tasks.analyze_lineup_outcomes_complete.s(build.id, task.id)) for build in queryset
+            tasks.analyze_lineups_for_build.s(build.id, task.id, False) for build in queryset
         ])()
 
         messages.add_message(

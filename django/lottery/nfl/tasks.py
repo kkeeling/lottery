@@ -12,9 +12,10 @@ import sys
 import time
 import traceback
 
-from celery import shared_task, chord
+from celery import shared_task, chord, group
 from contextlib import contextmanager
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.messages.api import success
 from django.db.models.aggregates import Count, Sum
@@ -698,6 +699,52 @@ def analyze_optimals(build_id, task_id):
         task.status = 'success'
         task.content = 'Optimals analyzed.'
         task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem analyzing lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def analyze_lineups_for_build(build_id, task_id, use_optimals=False):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        build = models.SlateBuild.objects.get(id=build_id)
+
+        if settings.DEBUG:
+            num_outcomes = 100
+        else:
+            num_outcomes = 10000
+
+        lineup_limit = 5000
+        col_limit = 50  # sim columns per call
+        pages = math.ceil(num_outcomes/col_limit)  # number of calls to make
+
+        print(f'column pages = {pages}; lineup pages = {math.ceil(45390/lineup_limit)}')
+
+        chord([
+            chord([analyze_lineup_outcomes.s(
+                build.id,
+                build.slate.contests.get(use_for_sims=True).id,
+                list(build.lineups.all().order_by('id').values_list('id', flat=True))[lineup_page * lineup_limit:(lineup_page * lineup_limit) + lineup_limit],
+                col_count * col_limit + 3,  # index min
+                (col_count * col_limit + 3) + col_limit,  # index max
+                use_optimals
+            ) for col_count in range(0, pages)], 
+            combine_lineup_outcomes.s(build.id, list(build.lineups.all().order_by('id').values_list('id', flat=True))[lineup_page * lineup_limit:(lineup_page * lineup_limit) + lineup_limit], use_optimals)) for lineup_page in range(0, math.ceil(build.lineups.all().count()/lineup_limit))
+        ], analyze_lineup_outcomes_complete.s(build.id, task.id))()
     except Exception as e:
         if task is not None:
             task.status = 'error'
