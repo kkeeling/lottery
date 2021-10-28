@@ -160,6 +160,8 @@ CELERY_BROKER_URL = 'redis://redis:6379/0'
 CELERY_BACKEND = 'redis://redis:6379/0'
 CELERY_RESULT_EXPIRES = 60
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERYD_TASK_TIME_LIMIT = 30 #sec
+CELERYD_TASK_SOFT_TIME_LIMIT = 30 #sec
 USE_CELERY = True
 
 # Logging
