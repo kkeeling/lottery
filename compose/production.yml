@@ -39,7 +39,7 @@ services:
       - production/django.env
     depends_on:
       - redis
-    command: celery -A lottery worker -B -l info --concurrency=16 --task-events 
+    command: celery -A lottery worker -B -l warning --task-events --max-tasks-per-child=20
     volumes:
       - ../django/lottery:/opt/lottery
       - lottery_static:/opt/static
@@ -57,7 +57,7 @@ services:
     depends_on:
       - redis
       - celery
-    command: celery --broker=redis://redis:6379 flower --port=5555 --logging=INFO --url_prefix=flower --max-tasks-per-child=1
+    command: celery --broker=redis://redis:6379 flower --port=5555 --logging=WARNING --url_prefix=flower --max-tasks-per-child=1
     expose:
       - 5555
     volumes:
