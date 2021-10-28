@@ -1002,6 +1002,105 @@ def monitor_backtest_optimals(backtest_id):
 
 
 @shared_task
+def find_top_lineups_for_build(build_id, players_outcome_index, num_lineups):
+    build = models.SlateBuild.objects.get(id=build_id)
+
+    return optimize.naked_simulate(
+        build.slate.site, 
+        build.slate.get_projections().iterator(), 
+        build.configuration, 
+        players_outcome_index,
+        num_lineups
+    )
+
+
+@shared_task
+def complete_top_lineups_for_build(results, build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        flat_list = [item for sublist in results for item in sublist]
+        df = pandas.DataFrame(
+            flat_list, 
+            columns=[
+                'qb',
+                'rb',
+                'rb',
+                'wr',
+                'wr',
+                'wr',
+                'te',
+                'flex',
+                'dst',
+                'salary',
+            ]
+        )
+        print(df)
+
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.lineups.all().delete()
+
+        for index, row in df.iterrows():
+            print(models.BuildPlayerProjection.objects.filter(build=build, slate_player__player_id=row[0]))
+            lineup = models.SlateBuildLineup.objects.create(
+                build=build,
+                qb=models.BuildPlayerProjection.objects.get(build=build, slate_player__player_id=row[0]),
+                rb1=models.BuildPlayerProjection.objects.get(build=build, slate_player__player_id=row[1]),
+                rb2=models.BuildPlayerProjection.objects.get(build=build, slate_player__player_id=row[2]),
+                wr1=models.BuildPlayerProjection.objects.get(build=build, slate_player__player_id=row[3]),
+                wr2=models.BuildPlayerProjection.objects.get(build=build, slate_player__player_id=row[4]),
+                wr3=models.BuildPlayerProjection.objects.get(build=build, slate_player__player_id=row[5]),
+                te=models.BuildPlayerProjection.objects.get(build=build, slate_player__player_id=row[6]),
+                flex=models.BuildPlayerProjection.objects.get(build=build, slate_player__player_id=row[7]),
+                dst=models.BuildPlayerProjection.objects.get(build=build, slate_player__player_id=row[8]),
+                salary=row[9],
+                projection=0.0
+            )
+        #     player_ids = index.split(',')
+        #     players = models.BuildPlayerProjection.objects.filter(
+        #         build=build,
+        #         slate_player__player_id__in=player_ids
+        #     )
+            
+        #     qb = players.get(slate_player__site_pos='QB')
+        #     team_players = players.exclude(id=qb.id).filter(slate_player__team=qb.team)
+        #     opp_players = players.filter(slate_player__team=qb.get_opponent())
+        #     total_salary = players.aggregate(total_salary=Sum('slate_player__salary')).get('total_salary')
+        #     total_projection = players.aggregate(total_projection=Sum('projection')).get('total_projection')
+        #     top_stack, _ = models.SlateBuildTopStack.objects.get_or_create(
+        #         build=build,
+        #         game=players[0].game,
+        #         qb=qb,
+        #         player_1=team_players[0],
+        #         player_2=team_players[1] if team_players.count() > 1 else None,
+        #         opp_player=opp_players[0] if opp_players.count() > 0 else None
+        #     )
+
+        #     top_stack.salary = total_salary
+        #     top_stack.projection = total_projection
+        #     top_stack.times_used += row
+        #     top_stack.save()
+
+        task.status = 'success'
+        task.content = f'{build.lineups.all().count()} lineups identified.'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error identifying the lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def simulate_player_outcomes_for_build(build_id, players_outcome_index):
     build = models.SlateBuild.objects.get(id=build_id)
 

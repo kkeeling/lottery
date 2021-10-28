@@ -2222,7 +2222,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         build = get_object_or_404(models.SlateBuild, pk=pk)
 
         task = BackgroundTask()
-        task.name = 'Find top stacks'
+        task.name = 'Find top lineups'
         task.user = request.user
         task.save()
 
@@ -2231,15 +2231,21 @@ class SlateBuildAdmin(admin.ModelAdmin):
         else:
             num_outcomes = 10000
             
-        chord([tasks.simulate_player_outcomes_for_build.s(
+        chord([tasks.find_top_lineups_for_build.s(
             build.id, 
-            players_outcome_index
-        ) for players_outcome_index in range(0, num_outcomes)], tasks.combine_build_sim_results.s(build.id, task.id))()
+            players_outcome_index,
+            1
+        ) for players_outcome_index in range(0, num_outcomes)], tasks.complete_top_lineups_for_build.s(build.id, task.id))()
+            
+        # chord([tasks.simulate_player_outcomes_for_build.s(
+        #     build.id, 
+        #     players_outcome_index
+        # ) for players_outcome_index in range(0, num_outcomes)], tasks.combine_build_sim_results.s(build.id, task.id))()
 
         messages.add_message(
             request,
             messages.WARNING,
-            'Finding top stacks for {}'.format(str(build)))
+            'Finding top lineups for {}'.format(str(build)))
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
