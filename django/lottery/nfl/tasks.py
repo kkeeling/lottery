@@ -728,7 +728,7 @@ def analyze_lineups_for_build(build_id, task_id, use_optimals=False):
         else:
             num_outcomes = 10000
 
-        lineup_limit = 5000
+        lineup_limit = 500
         col_limit = 50  # sim columns per call
         pages = math.ceil(num_outcomes/col_limit)  # number of calls to make
 
