@@ -1,5 +1,6 @@
 import csv
 import datetime
+from functools import partial
 import logging
 import math
 from django.db.models.expressions import Case, When
@@ -732,8 +733,6 @@ def analyze_lineups_for_build(build_id, task_id, use_optimals=False):
         col_limit = 50  # sim columns per call
         pages = math.ceil(num_outcomes/col_limit)  # number of calls to make
 
-        print(f'column pages = {pages}; lineup pages = {math.ceil(45390/lineup_limit)}')
-
         chord([
             chord([analyze_lineup_outcomes.s(
                 build.id,
@@ -796,23 +795,24 @@ def analyze_lineup_outcomes(build_id, contest_id, lineup_ids, col_min, col_max, 
     contest_scores.columns = ['X{}'.format(i) for i in range(col_min, col_max)] + ['X1']
     sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
 
-    contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, usecols=['X2', 'X3']).sort_index(ascending=False)
+    contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, usecols=['X2', 'X3']).sort_index(ascending=True)
 
-    no_cash_rank = contest_payouts.iloc[0]['X2']
-    sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, no_cash_rank, -float(contest.cost))
+    top_payout_rank = contest_payouts.iloc[0]['X2']
+    top_payout = float(contest_payouts.iloc[0]['X3'])
+    sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, top_payout_rank, top_payout)
     for payout in contest_payouts.itertuples():
-        if payout.X2 == no_cash_rank:
+        if payout.X2 == top_payout_rank:
             continue
-        sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)-float(contest.cost)))
-    sql += ' END as payout_{}'.format(0)
+        sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, payout.X2, float(payout.X3))
+    sql += ' ELSE 0 END as payout_{}'.format(col_min)
     
     for i in range(1, limit):
-        sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, no_cash_rank, -float(contest.cost))
+        sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, top_payout_rank, top_payout)
         for payout in contest_payouts.itertuples():
-            if payout.X2 == no_cash_rank:
+            if payout.X2 == top_payout_rank:
                 continue
-            sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)-float(contest.cost)))
-        sql += ' END as payout_{}'.format(i)
+            sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, float(payout.X3))
+        sql += ' ELSE 0 END as payout_{}'.format(col_min + i)
 
     sql += ' FROM lineup_values A'
     sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
@@ -860,7 +860,7 @@ def combine_lineup_outcomes(partial_outcomes, build_id, lineup_ids, use_optimals
     else:
         lineups = build.lineups.filter(id__in=lineup_ids)
 
-    outcomes_df = pandas.concat([pandas.read_json(partial_outcome) for partial_outcome in partial_outcomes])
+    outcomes_df = pandas.concat([pandas.read_json(partial_outcome) for partial_outcome in partial_outcomes], axis=1)
     ev_result = (outcomes_df * (1/len(outcomes_df.columns))).sum(axis=1).to_list()
     std_result = outcomes_df.std(axis=1).to_list()
 
