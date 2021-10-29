@@ -2234,7 +2234,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         chord([tasks.find_top_lineups_for_build.s(
             build.id, 
             players_outcome_index,
-            1
+            2
         ) for players_outcome_index in range(0, num_outcomes)], tasks.complete_top_lineups_for_build.s(build.id, task.id))()
             
         # chord([tasks.simulate_player_outcomes_for_build.s(
