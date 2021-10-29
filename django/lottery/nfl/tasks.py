@@ -169,59 +169,28 @@ def build_lineups_for_stack(stack_id, lineup_number, num_qb_stacks):
 
 
 @shared_task
-def calculate_actuals_for_stacks(stack_ids, task_id):
+def calculate_actuals_for_stacks(stack_ids):
     task = None
 
     try:
-        try:
-            task = BackgroundTask.objects.get(id=task_id)
-        except BackgroundTask.DoesNotExist:
-            time.sleep(0.2)
-            task = BackgroundTask.objects.get(id=task_id)
-
         stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids)
         for stack in (stacks):
             stack.calc_actual_score()
 
-        task.status = 'success'
-        task.content = f'Scores calculated for {len(stack_ids)} stacks.'
-        task.save()
-
     except Exception as e:
-        if task is not None:
-            task.status = 'error'
-            task.content = f'There was a problem calculating actuals: {e}'
-            task.save()
-
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task
-def calculate_actuals_for_lineups(lineup_ids, task_id):
+def calculate_actuals_for_lineups(lineup_ids):
     task = None
 
     try:
-        try:
-            task = BackgroundTask.objects.get(id=task_id)
-        except BackgroundTask.DoesNotExist:
-            time.sleep(0.2)
-            task = BackgroundTask.objects.get(id=task_id)
-
         lineups = models.SlateBuildLineup.objects.filter(id__in=lineup_ids)
         for lineup in (lineups):
             lineup.calc_actual_score()
-
-        task.status = 'success'
-        task.content = f'Scores calculated for {len(lineup_ids)} lineups.'
-        task.save()
-
     except Exception as e:
-        if task is not None:
-            task.status = 'error'
-            task.content = f'There was a problem calculating actuals: {e}'
-            task.save()
-
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
@@ -1041,13 +1010,11 @@ def complete_top_lineups_for_build(results, build_id, task_id):
                 'salary',
             ]
         )
-        print(df)
 
         build = models.SlateBuild.objects.get(id=build_id)
         build.lineups.all().delete()
 
         for index, row in df.iterrows():
-            print(models.BuildPlayerProjection.objects.filter(build=build, slate_player__player_id=row[0]))
             lineup = models.SlateBuildLineup.objects.create(
                 build=build,
                 qb=models.BuildPlayerProjection.objects.get(build=build, slate_player__player_id=row[0]),

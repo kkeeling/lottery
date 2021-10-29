@@ -2527,19 +2527,11 @@ class SlateBuildAdmin(admin.ModelAdmin):
             chord([
                 group([
                     tasks.calculate_actuals_for_stacks.s(
-                        list(build.stacks.all().values_list('id', flat=True)),
-                        BackgroundTask.objects.create(
-                            name='Calculate Actual Stack Scores',
-                            user=request.user
-                        ).id
+                        list(build.stacks.all().values_list('id', flat=True))
                     ),
                     group([
                         tasks.calculate_actuals_for_lineups.s(
-                            list(build_lineups[(lineup_page * lineup_limit):(lineup_page * lineup_limit) + lineup_limit]),
-                            BackgroundTask.objects.create(
-                                name='Calculate Actual Lineup Scores',
-                                user=request.user
-                            ).id
+                            list(build_lineups[(lineup_page * lineup_limit):(lineup_page * lineup_limit) + lineup_limit])
                         ) for lineup_page in range(0, lineup_pages)
                     ])
                 ])
