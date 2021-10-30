@@ -1454,6 +1454,7 @@ class StackConstructionRule(models.Model):
             'qb_ownership': float(stack.qb.ownership_projection),
             'opposing_player_qb_ownership': float(stack.opp_player.get_qb().ownership_projection) if stack.opp_player is not None else 0.0,
             'mini_stack_min_player_projection': float(stack.mini_stack_min_player_projection()),
+            'mini_stack_min_player_zscore': float(stack.mini_stack_min_player_projection()),
             'mini_stack_min_player_ownership': float(stack.mini_stack_min_player_ownership()),
             'mini_stack_ownership': float(stack.mini_stack_ownership()),
             'contains_top_pass_catcher': stack.contains_top_projected_pass_catcher(self.top_pc_margin)
@@ -2444,6 +2445,16 @@ class SlateBuildStack(models.Model):
             ]
 
             return min([proj.projection for proj in p])
+        return 0
+
+    def mini_stack_min_player_zscore(self):
+        if self.mini_player_1 is not None and self.mini_player_2 is not None:
+            p = [
+                self.mini_player_1,
+                self.mini_player_2
+            ]
+
+            return min([proj.zscore for proj in p])
         return 0
 
     def mini_stack_min_player_ownership(self):
