@@ -3131,8 +3131,8 @@ class StackConstructionRuleAdmin(admin.ModelAdmin):
     list_display = (
         'name',
         'site',
-        'lock_top_pc',
         'top_pc_margin',
+        'criteria',
     )
 
 

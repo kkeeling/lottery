@@ -1422,7 +1422,6 @@ class GroupCreationRule(models.Model):
 class StackConstructionRule(models.Model):
     name = models.CharField(max_length=255)
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
-    lock_top_pc = models.BooleanField(default=False)
     top_pc_margin = models.DecimalField(max_digits=4, decimal_places=2, default=2.00)
     criteria = models.TextField(null=True, blank=True, help_text='Critertia for stack inclusion')
 
