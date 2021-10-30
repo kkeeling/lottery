@@ -611,6 +611,12 @@ class SlateGame(models.Model):
     def away_team_total(self):
         return self.game.away_implied
 
+    def get_home_players(self):
+        return self.slate.players.filter(team=self.game.home_team)
+
+    def get_away_players(self):
+        return self.slate.players.filter(team=self.game.away_team)
+
 
 class Contest(models.Model):
     slate = models.ForeignKey(Slate, related_name='contests', on_delete=models.CASCADE, null=True, blank=True)
