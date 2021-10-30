@@ -2186,7 +2186,7 @@ class BuildPlayerProjection(models.Model):
         ordering = ['-projection']
 
     def __str__(self):
-        return f'{str(self.slate_player)} -- Proj: {self.projection} -- OP: {self.ownership_projection}'
+        return f'{str(self.slate_player)} -- Proj: {self.projection} -- OP: {self.ownership_projection * 100}%'
 
     @property
     def name(self):
