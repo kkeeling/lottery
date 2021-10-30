@@ -2132,7 +2132,34 @@ class SlateBuildAdmin(admin.ModelAdmin):
         task.save()
 
         build = models.SlateBuild.objects.get(pk=pk)
-        tasks.prepare_construction_for_build.delay(build.id, task.id)
+        build.construction_ready = False
+        build.save()
+
+        build.groups.all().delete()
+        build.stacks.all().delete()
+
+        # get all qbs in play
+        qbs = build.projections.filter(slate_player__site_pos='QB', in_play=True)
+        total_qb_projection = qbs.aggregate(total_projection=Sum('projection')).get('total_projection')
+        
+        # for each qb, create all possible stacking configurations
+
+        chord([
+            tasks.create_groups_for_build.s(
+                build.id, 
+                BackgroundTask.objects.create(
+                    name='Create Groups',
+                    user=request.user
+                ).id
+            ),
+            chain([
+                group([
+                    tasks.create_stacks_for_qb.s(build.id, qb.id, total_qb_projection) for qb in qbs
+                ]),
+                tasks.calc_zscores_for_stacks.s(),
+                tasks.rank_stacks.s()
+            ])
+        ], tasks.prepare_construction_complete.s(build.id, task.id))()
 
         messages.add_message(
             request,

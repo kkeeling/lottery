@@ -14,7 +14,7 @@ import time
 import traceback
 import uuid
 
-from celery import group
+from celery import group, chain
 from collections import namedtuple
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
@@ -598,6 +598,18 @@ class SlateGame(models.Model):
 
     def game_total(self):
         return self.game.game_total
+
+    def home_spread(self):
+        return self.game.home_spread
+
+    def away_spread(self):
+        return self.game.away_spread
+
+    def home_team_total(self):
+        return self.game.home_implied
+
+    def away_team_total(self):
+        return self.game.away_implied
 
 
 class Contest(models.Model):
@@ -1412,6 +1424,7 @@ class StackConstructionRule(models.Model):
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
     lock_top_pc = models.BooleanField(default=False)
     top_pc_margin = models.DecimalField(max_digits=4, decimal_places=2, default=2.00)
+    criteria = models.TextField(null=True, blank=True, help_text='Critertia for stack inclusion')
 
     def __str__(self):
         return '{}'.format(self.name)
@@ -1422,7 +1435,22 @@ class StackConstructionRule(models.Model):
         verbose_name_plural = 'Stack Construction Rules'
 
     def passes_rule(self, stack):
-        return not self.lock_top_pc or (self.lock_top_pc and stack.contains_top_projected_pass_catcher(self.top_pc_margin))
+        locals = {
+            'projection': float(stack.projection),
+            'qb_team_total': float(stack.qb.team_total) if stack.qb.team_total is not None else 0.0,
+            'qb_game_total': float(stack.game.game_total()) if stack.game is not None and stack.game.game_total() is not None else 0.0,
+            'qb_game_zscore': float(stack.game.zscore) if stack.game is not None and stack.game.zscore is not None else 0.0,
+            'qb_spread': float(stack.qb.spread) if stack.qb.spread is not None else 0.0,
+            'mini_game_total': float(stack.mini_game.game_total()) if stack.mini_game is not None and stack.mini_game.game_total() is not None else 0.0,
+            'mini_game_zscore': float(stack.mini_game.zscore) if stack.mini_game is not None and stack.mini_game.zscore is not None else 0.0,
+            'min_player_projection': float(stack.min_player_projection()),
+            'min_player_ownership': float(stack.min_player_ownership()),
+            'mini_stack_min_player_projection': float(stack.mini_stack_min_player_projection()),
+            'mini_stack_min_player_ownership': float(stack.mini_stack_min_player_ownership()),
+            'contains_top_pass_catcher': stack.contains_top_projected_pass_catcher(self.top_pc_margin)
+        }
+
+        return eval(self.criteria, {'__builtins__': {}}, locals)
 
 
 class CeilingProjectionRangeMapping(models.Model):
@@ -1671,44 +1699,6 @@ class SlateBuild(models.Model):
 
         self.get_target_score()
 
-
-    def prepare_construction(self):
-        self.construction_ready = False
-        self.save()
-
-        self.groups.all().delete()
-
-        # create groups
-        if self.lineup_construction is not None:
-            for (index, group_rule) in enumerate(self.lineup_construction.group_rules.all()):
-                group = SlateBuildGroup.objects.create(
-                    build=self,
-                    name='{}: Group {}'.format(self.slate.name, index+1),
-                    min_from_group=group_rule.at_least,
-                    max_from_group=group_rule.at_most
-                )
-
-                # add players to group
-                for projection in self.projections.filter(in_play=True, slate_player__site_pos__in=group_rule.allowed_positions):
-                    if group_rule.meets_threshold(projection):
-                        SlateBuildGroupPlayer.objects.create(
-                            group=group,
-                            slate_player=projection.slate_player
-                        )
-
-                group.save()
-    
-        # create stacks
-        self.create_stacks()
-
-        # clean stacks
-        self.clean_stacks()
-
-        self.total_lineups = self.stacks.all().aggregate(total=Sum('count')).get('total') 
-        self.save()
-
-        self.calc_construction_ready()
-
     def get_target_score(self):
         top_projected_lineup = optimize.optimize(
             self.slate.site,
@@ -1890,81 +1880,6 @@ class SlateBuild(models.Model):
 
         return num_stacks         
 
-    def create_stacks(self):
-        # Delete existing stacks for this build
-        SlateBuildStack.objects.filter(build=self).delete()
-
-        if self.configuration.use_top_stacks:
-            top_stacks = self.top_stacks.filter(
-                Q(Q(player_2__isnull=True)|Q(player_2__in_play=True)),
-                Q(Q(opp_player__isnull=True)|Q(opp_player__in_play=True)),
-                times_used__gte=500,
-                player_1__in_play=True,
-            )
-
-            total_stack_usage_count = top_stacks.aggregate(total_usage=Sum('times_used')).get('total_usage')
-            for index, top_stack in enumerate(top_stacks.order_by('-times_used')):
-                stack = SlateBuildStack.objects.create(
-                    build=self,
-                    game=top_stack.game,
-                    build_order=index,
-                    qb=top_stack.qb,
-                    player_1=top_stack.player_1,
-                    player_2=top_stack.player_2,
-                    opp_player=top_stack.opp_player,
-                    salary=top_stack.salary,
-                    projection=top_stack.projection,
-                    count=round(max(top_stack.times_used/total_stack_usage_count * self.total_lineups, 1), 0)
-                )
-
-                if self.stack_construction is not None:
-                    stack.contains_top_pc = stack.contains_top_projected_pass_catcher(self.stack_construction.top_pc_margin)
-                    stack.save()
-
-                # Make sure all players in stack are in play
-                if not stack.qb.in_play:
-                    stack.qb.in_play = True
-                    stack.qb.save()
-
-                if not stack.player_1.in_play:
-                    stack.player_1.in_play = True
-                    stack.player_1.stack_only = True
-                    stack.player_1.qb_stack_only = True
-                    stack.player_1.opp_qb_stack_only = True
-                    stack.player_1.save()
-
-                if stack.player_2 is not None and not stack.player_2.in_play:
-                    stack.player_2.in_play = True
-                    stack.player_2.stack_only = True
-                    stack.player_2.qb_stack_only = True
-                    stack.player_2.opp_qb_stack_only = True
-                    stack.player_2.save()
-
-                if stack.opp_player is not None and not stack.opp_player.in_play:
-                    stack.opp_player.in_play = True
-                    stack.opp_player.stack_only = True
-                    stack.opp_player.qb_stack_only = True
-                    stack.opp_player.opp_qb_stack_only = True
-                    stack.opp_player.save()
-
-        else:
-            # get all qbs in play
-            qbs = self.projections.filter(slate_player__site_pos='QB', in_play=True)
-            total_qb_projection = qbs.aggregate(total_projection=Sum('projection')).get('total_projection')
-            
-            # for each qb, create all possible stacking configurations
-            for qb in qbs:
-                tasks.create_stacks_for_qb(self.id, qb.id, total_qb_projection)
-
-        self.calc_zscores_for_stacks()
-        self.rank_stacks()
-
-    def rank_stacks(self):
-        stacks = self.stacks.all().order_by('-projection')
-        for (index, stack) in enumerate(stacks):
-            stack.rank = index + 1
-            stack.save()
-
     def clean_stacks(self):
         '''
         Will remove all but {stack_cutoff} stacks, and then redistribute the removed lineups evenly
@@ -1979,14 +1894,6 @@ class SlateBuild(models.Model):
             for stack in ordered_stacks:
                 stack.count += math.ceil(num_lineups_to_distribute/self.stack_cutoff)
                 stack.save()
-
-    def calc_zscores_for_stacks(self):
-        projections = list(self.stacks.all().order_by('-projection').values_list('projection', flat=True))
-        zscores = scipy.stats.zscore(projections)
-
-        for (index, stack) in enumerate(self.stacks.all().order_by('-projection')):
-            stack.projection_zscore = zscores[index]
-            stack.save()
 
     def speed_test(self):
         _ = optimize.optimize(
@@ -2474,6 +2381,50 @@ class SlateBuildStack(models.Model):
 
     def contains_slate_player(self, slate_player):
         return self.qb.slate_player == slate_player or self.player_1.slate_player == slate_player or (self.player_2 is not None and self.player_2.slate_player == slate_player) or (self.opp_player is not None and self.opp_player.slate_player == slate_player)
+
+    def min_player_projection(self):
+        p = [
+            self.qb,
+            self.player_1
+        ]
+        if self.player_2:
+            p.append(self.player_2)
+        if self.opp_player:
+            p.append(self.opp_player)
+
+        return min([proj.projection for proj in p])
+
+    def min_player_ownership(self):
+        p = [
+            self.qb,
+            self.player_1
+        ]
+        if self.player_2:
+            p.append(self.player_2)
+        if self.opp_player:
+            p.append(self.opp_player)
+
+        return min([proj.ownership_projection for proj in p])
+
+    def mini_stack_min_player_projection(self):
+        if self.mini_player_1 is not None and self.mini_player_2 is not None:
+            p = [
+                self.mini_player_1,
+                self.mini_player_2
+            ]
+
+            return min([proj.projection for proj in p])
+        return 0
+
+    def mini_stack_min_player_ownership(self):
+        if self.mini_player_1 is not None and self.mini_player_2 is not None:
+            p = [
+                self.mini_player_1,
+                self.mini_player_2
+            ]
+
+            return min([proj.ownership_projection for proj in p])
+        return 0
 
     def calc_salary(self):
         slate_player_ids = [p.slate_player.id for p in self.players]

@@ -131,13 +131,8 @@ def prepare_construction_for_build(build_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         # Task implementation goes here
-        start = datetime.datetime.now()
         build = models.SlateBuild.objects.get(id=build_id)
-        build.prepare_construction()
-
-        task.status = 'success'
-        task.content = 'Stacks and groups are ready for {}'.format(str(build))
-        task.save()
+        build.prepare_construction(task)
         
     except Exception as e:
         if task is not None:
@@ -350,11 +345,59 @@ def flatten_exposure(build_id, task_id):
 
 
 @shared_task
+def create_groups_for_build(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+
+        build = models.SlateBuild.objects.get(id=build_id)
+
+        if build.lineup_construction is not None:
+            for (index, group_rule) in enumerate(build.lineup_construction.group_rules.all()):
+                group = models.SlateBuildGroup.objects.create(
+                    build=build,
+                    name='{}: Group {}'.format(build.slate.name, index+1),
+                    min_from_group=group_rule.at_least,
+                    max_from_group=group_rule.at_most
+                )
+
+                # add players to group
+                for projection in build.projections.filter(in_play=True, slate_player__site_pos__in=group_rule.allowed_positions):
+                    if group_rule.meets_threshold(projection):
+                        models.SlateBuildGroupPlayer.objects.create(
+                            group=group,
+                            slate_player=projection.slate_player
+                        )
+
+                group.save()
+
+        task.status = 'success'
+        task.content = 'Groups created.'
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a creating groups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+   
+
+@shared_task
 def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
     build = models.SlateBuild.objects.get(pk=build_id)
     qb = models.BuildPlayerProjection.objects.get(pk=qb_id)
 
-    qb_lineup_count = round(qb.projection/total_qb_projection * build.total_lineups)
+    qb_lineup_count = round(float(qb.projection)/float(total_qb_projection) * float(build.total_lineups))
     d_label = 'D' if build.slate.site == 'fanduel' else 'DST'
 
     print('Making stacks for {} {} lineups...'.format(qb_lineup_count, qb.name))
@@ -519,7 +562,63 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
         stack.count = round(max(stack.projection/total_stack_projection * qb_lineup_count, 1), 0)
         stack.save()
 
+
+@shared_task
+def calc_zscores_for_stacks(stack_ids):
+    stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids).order_by('-projection')
+    projections = list(stacks.values_list('projection', flat=True))
+    zscores = scipy.stats.zscore(projections)
+
+    for (index, stack) in enumerate(stacks):
+        stack.projection_zscore = zscores[index]
+        stack.save()
+    
+    return list(stacks.values_list('id', flat=True))
+
+
+@shared_task
+def rank_stacks(stack_ids):
+    stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids).order_by('-projection')
+
+    for (index, stack) in enumerate(stacks):
+        stack.rank = index + 1
+        stack.save()
+
+
+@shared_task
+def prepare_construction_complete(chained_result, build_id, task_id=None):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.clean_stacks()
+        build.total_lineups = build.stacks.all().aggregate(total=Sum('count')).get('total') 
+        build.save()
+
+        build.calc_construction_ready()
+
+        task.status = 'success'
+        task.content = f'Stacks and groups created for {build}'
+        task.save()
         
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem creating groups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
 @shared_task
 def run_backtest(backtest_id, user_id):
     try:
