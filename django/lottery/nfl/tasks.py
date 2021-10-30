@@ -1373,42 +1373,12 @@ def export_stacks(stack_ids, result_path, result_url, task_id):
         except BackgroundTask.DoesNotExist:
             time.sleep(0.2)
             task = BackgroundTask.objects.get(id=task_id)
+
         stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids)
 
-        with open(result_path, 'w') as temp_csv:
-            lineup_writer = csv.writer(temp_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            lineup_writer.writerow([
-                'id',
-                'qb', 
-                'p1',
-                'p2', 
-                'opp_p1', 
-                'sal', 
-                'proj', 
-                'actual'
-            ])
+        lineups_df = pandas.DataFrame.from_records(stacks.values())
 
-            limit = 100
-            pages = math.ceil(stacks.count()/limit)
-
-            offset = 0
-
-            count = 0
-            for page in range(0, pages):
-                offset = page * limit
-
-                for stack in stacks[offset:offset+limit]:
-                    count += 1
-                    lineup_writer.writerow([
-                        stack.id,
-                        stack.qb.name,
-                        stack.player_1.name,
-                        stack.player_2.name,
-                        stack.opp_player.name,
-                        stack.salary,
-                        stack.projection,
-                        stack.actual
-                    ])
+        lineups_df.to_excel(result_path)
 
         task.status = 'download'
         task.content = result_url
