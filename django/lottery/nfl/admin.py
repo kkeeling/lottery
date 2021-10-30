@@ -1644,6 +1644,15 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
         'count',
     )
 
+    search_fields = (
+        'qb__slate_player__name',
+        'player_1__slate_player__name',
+        'player_2__slate_player__name',
+        'opp_player__slate_player__name',
+        'mini_player_1__slate_player__name',
+        'mini_player_1__slate_player__name',
+    )
+
     raw_id_fields = (
         'qb',
         'player_1',
