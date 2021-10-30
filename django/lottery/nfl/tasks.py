@@ -433,7 +433,7 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                         
                             for (idx, mini_player_1) in enumerate(build.projections.filter(slate_player__slate_game__zscore__gte=0.0, slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')):
                                 for mini_player_2 in build.projections.filter(slate_player__slate_game__zscore__gte=0.0, slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')[idx+1:]:
-                                    stack = models.SlateBuildStack(
+                                    stack = models.SlateBuildStack.objects.create(
                                         build=build,
                                         game=qb.game,
                                         mini_game=mini_player_1.game,
@@ -448,13 +448,13 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                                     )
 
                                     if build.stack_construction is not None:
-                                        stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
-
-                                    # check stack construction rules; if not all are satisfied, do not save this stack
-                                    if build.stack_construction is None or build.stack_construction.passes_rule(stack):
-                                        stack.save()
+                                        if build.stack_construction.passes_rule(stack):
+                                            stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                                            stack.save()
+                                        else:
+                                            stack.delete()                                            
                     else:
-                        stack = models.SlateBuildStack(
+                        stack = models.SlateBuildStack.objects.create(
                             build=build,
                             game=qb.game,
                             build_order=count,
@@ -466,11 +466,11 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                         )
 
                         if build.stack_construction is not None:
-                            stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
-
-                        # check stack construction rules; if not all are satisfied, do not save this stack
-                        if build.stack_construction is None or build.stack_construction.passes_rule(stack):
-                            stack.save()
+                            if build.stack_construction.passes_rule(stack):
+                                stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                                stack.save()
+                            else:
+                                stack.delete()                                            
             
             if len(build.configuration.qb_stack_positions) > 0:
                 for player2 in team_players[index+1:]:
@@ -484,7 +484,7 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                         
                             for (idx, mini_player_1) in enumerate(build.projections.filter(slate_player__slate_game__zscore__gte=0.0, slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')):
                                 for mini_player_2 in build.projections.filter(slate_player__slate_game__zscore__gte=0.0, slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')[idx+1:]:
-                                    stack = models.SlateBuildStack(
+                                    stack = models.SlateBuildStack.objects.create(
                                         build=build,
                                         game=qb.game,
                                         mini_game=mini_player_1.game,
@@ -499,13 +499,13 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                                     )
 
                                     if build.stack_construction is not None:
-                                        stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
-
-                                    # check stack construction rules; if not all are satisfied, do not save this stack
-                                    if build.stack_construction is None or build.stack_construction.passes_rule(stack):
-                                        stack.save()
+                                        if build.stack_construction.passes_rule(stack):
+                                            stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                                            stack.save()
+                                        else:
+                                            stack.delete()                                            
                     else:
-                        stack = models.SlateBuildStack(
+                        stack = models.SlateBuildStack.objects.create(
                             build=build,
                             game=qb.game,
                             build_order=count,
@@ -517,11 +517,11 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                         )
 
                         if build.stack_construction is not None:
-                            stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
-
-                        # check stack construction rules; if not all are satisfied, do not save this stack
-                        if build.stack_construction is None or build.stack_construction.passes_rule(stack):
-                            stack.save()
+                            if build.stack_construction.passes_rule(stack):
+                                stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                                stack.save()
+                            else:
+                                stack.delete()                                            
 
             else:
                 for player2 in team_players[index+1:]:
@@ -535,7 +535,7 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                         
                             for (idx, mini_player_1) in enumerate(build.projections.filter(slate_player__slate_game__zscore__gte=0.0, slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')):
                                 for mini_player_2 in build.projections.filter(slate_player__slate_game__zscore__gte=0.0, slate_player__team=team, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')[idx+1:]:
-                                    stack = models.SlateBuildStack(
+                                    stack = models.SlateBuildStack.objects.create(
                                         build=build,
                                         game=qb.game,
                                         mini_game=mini_player_1.game,
@@ -550,13 +550,13 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                                     )
 
                                     if build.stack_construction is not None:
-                                        stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
-
-                                    # check stack construction rules; if not all are satisfied, do not save this stack
-                                    if build.stack_construction is None or build.stack_construction.passes_rule(stack):
-                                        stack.save()
+                                        if build.stack_construction.passes_rule(stack):
+                                            stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                                            stack.save()
+                                        else:
+                                            stack.delete()                                            
                     else:
-                        stack = models.SlateBuildStack(
+                        stack = models.SlateBuildStack.objects.create(
                             build=build,
                             game=qb.game,
                             build_order=count,
@@ -568,11 +568,11 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                         )
 
                         if build.stack_construction is not None:
-                            stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
-
-                        # check stack construction rules; if not all are satisfied, do not save this stack
-                        if build.stack_construction is None or build.stack_construction.passes_rule(stack):
-                            stack.save()
+                            if build.stack_construction.passes_rule(stack):
+                                stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                                stack.save()
+                            else:
+                                stack.delete()                                            
 
     elif build.configuration.game_stack_size == 4:
         count = 0
@@ -589,7 +589,7 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                             else:
                                 count += 1
                                 mu = float(sum(p.projection for p in [qb, player, player2, opp_player]))
-                                stack = models.SlateBuildStack(
+                                stack = models.SlateBuildStack.objects.create(
                                     build=build,
                                     game=qb.game,
                                     build_order=count,
@@ -602,15 +602,15 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                                 )
 
                                 if build.stack_construction is not None:
-                                    stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
-
-                                # check stack construction rules; if not all are satisfied, do not save this stack
-                                if build.stack_construction is None or build.stack_construction.passes_rule(stack):
-                                    stack.save()                        
+                                    if build.stack_construction.passes_rule(stack):
+                                        stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                                        stack.save()
+                                    else:
+                                        stack.delete()                                            
 
     total_stack_projection = models.SlateBuildStack.objects.filter(build=build, qb=qb).aggregate(total_projection=Sum('projection')).get('total_projection')
     for stack in models.SlateBuildStack.objects.filter(build=build, qb=qb):
-        print(stack, stack.projection/total_stack_projection, round(stack.projection/total_stack_projection * qb_lineup_count, 0))
+        # print(stack, stack.projection/total_stack_projection, round(stack.projection/total_stack_projection * qb_lineup_count, 0))
         stack.count = round(max(stack.projection/total_stack_projection * qb_lineup_count, 1), 0)
         stack.save()
 

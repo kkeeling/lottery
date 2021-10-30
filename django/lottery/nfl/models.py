@@ -1434,18 +1434,22 @@ class StackConstructionRule(models.Model):
         verbose_name_plural = 'Stack Construction Rules'
 
     def passes_rule(self, stack):
+        # TODO: Make this expose various objects to allow more flexibility in conditionals, instead of hardcoding the specific variables
         locals = {
-            'projection': float(stack.projection),
+            'stack_projection': float(stack.projection),
+            'stack_min_player_projection': float(stack.min_player_projection()),
+            'stack_min_player_ownership': float(stack.min_player_ownership()),
             'qb_team_total': float(stack.qb.team_total) if stack.qb.team_total is not None else 0.0,
             'qb_game_total': float(stack.game.game_total()) if stack.game is not None and stack.game.game_total() is not None else 0.0,
             'qb_game_zscore': float(stack.game.zscore) if stack.game is not None and stack.game.zscore is not None else 0.0,
             'qb_spread': float(stack.qb.spread) if stack.qb.spread is not None else 0.0,
-            'mini_game_total': float(stack.mini_game.game_total()) if stack.mini_game is not None and stack.mini_game.game_total() is not None else 0.0,
-            'mini_game_zscore': float(stack.mini_game.zscore) if stack.mini_game is not None and stack.mini_game.zscore is not None else 0.0,
-            'min_player_projection': float(stack.min_player_projection()),
-            'min_player_ownership': float(stack.min_player_ownership()),
+            'mini_stack_game_total': float(stack.mini_game.game_total()) if stack.mini_game is not None and stack.mini_game.game_total() is not None else 0.0,
+            'mini_stack_game_zscore': float(stack.mini_game.zscore) if stack.mini_game is not None and stack.mini_game.zscore is not None else 0.0,
+            'qb_ownership': float(stack.qb.ownership_projection),
+            'opposing_player_qb_ownership': float(stack.opp_player.get_qb().ownership_projection) if stack.opp_player is not None else 0.0,
             'mini_stack_min_player_projection': float(stack.mini_stack_min_player_projection()),
             'mini_stack_min_player_ownership': float(stack.mini_stack_min_player_ownership()),
+            'mini_stack_ownership': float(stack.mini_stack_ownership()),
             'contains_top_pass_catcher': stack.contains_top_projected_pass_catcher(self.top_pc_margin)
         }
 
@@ -2262,6 +2266,26 @@ class BuildPlayerProjection(models.Model):
     def sim_scores(self):
         return self.slate_player.projection.sim_scores
 
+    def get_qb(self):
+        qbs = BuildPlayerProjection.objects.filter(
+            slate_player__site_pos='QB',
+            slate_player__team=self.team
+        ).order_by('-projection')
+
+        if qbs.count() > 0:
+            return qbs[0]
+        return None 
+
+    def get_opposing_qb(self):
+        opp_qbs = BuildPlayerProjection.objects.filter(
+            slate_player__site_pos='QB',
+            slate_player__team=self.get_opponent()
+        ).order_by('-projection')
+
+        if opp_qbs.count() > 0:
+            return opp_qbs[0]
+        return None 
+
     def get_team_color(self):
         return self.slate_player.get_team_color()
 
@@ -2424,6 +2448,16 @@ class SlateBuildStack(models.Model):
             ]
 
             return min([proj.ownership_projection for proj in p])
+        return 0
+
+    def mini_stack_ownership(self):
+        if self.mini_player_1 is not None and self.mini_player_2 is not None:
+            p = [
+                self.mini_player_1,
+                self.mini_player_2
+            ]
+
+            return sum([proj.ownership_projection for proj in p])
         return 0
 
     def calc_salary(self):
