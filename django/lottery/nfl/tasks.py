@@ -579,11 +579,16 @@ def calc_zscores_for_stacks(stack_ids):
 
 
 @shared_task
-def rank_stacks(stack_ids):
-    stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids).order_by('-projection')
+def rank_stacks(chained_results, stack_ids):
+    stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids).order_by('-projection').iterator()
 
-    for (index, stack) in enumerate(stacks):
-        stack.rank = index + 1
+    for stack in stacks:
+        rank = models.SlateBuildStack.objects.filter(
+            build=stack.build,
+            projection__gt=stack.projection    
+        ).count()
+
+        stack.rank = rank
         stack.save()
 
 

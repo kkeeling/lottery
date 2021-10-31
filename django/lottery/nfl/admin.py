@@ -2165,8 +2165,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 group([
                     tasks.create_stacks_for_qb.s(build.id, qb.id, total_qb_projection) for qb in qbs
                 ]),
-                # tasks.calc_zscores_for_stacks.s(),
-                tasks.rank_stacks.s()
+                tasks.rank_stacks.s([stack.id for stack in build.stacks.all()])
             ])
         ], tasks.prepare_construction_complete.s(build.id, task.id))()
 
