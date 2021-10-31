@@ -2560,11 +2560,17 @@ class SlateBuildAdmin(admin.ModelAdmin):
             lineup_limit = 100
             lineup_pages = math.ceil(len(build_lineups)/lineup_limit)
 
+            stacks = build.stacks.all().values_list('id', flat=True)
+            stack_limit = 100
+            stack_pages = math.ceil(len(stacks)/stack_limit)
+
             chord([
                 group([
-                    tasks.calculate_actuals_for_stacks.s(
-                        list(build.stacks.all().values_list('id', flat=True))
-                    ),
+                    group([
+                        tasks.calculate_actuals_for_stacks.s(
+                            list(stacks[(stack_page * stack_limit):(stack_page * stack_limit) + stack_limit])
+                        ) for stack_page in range(0, stack_pages)
+                    ]),
                     group([
                         tasks.calculate_actuals_for_lineups.s(
                             list(build_lineups[(lineup_page * lineup_limit):(lineup_page * lineup_limit) + lineup_limit])
