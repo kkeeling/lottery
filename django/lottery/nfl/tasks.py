@@ -522,7 +522,108 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                             stack.save()
                         else:
                             stack.delete()                                            
-                                    
+
+            for player2 in team_players[index+1:]:
+                count += 1
+
+                # add mini stacks if configured
+                if build.configuration.use_super_stacks:
+                    for game in build.slate.games.all():
+                        if game == qb.game:
+                            continue
+                    
+                        home_players = game.get_home_players()
+                        away_players = game.get_away_players()
+
+                        # First make all mini stacks with 2 home team players
+                        for (idx, home_player_1) in enumerate(build.projections.filter(slate_player__in=home_players, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')):
+                            for home_player_2 in build.projections.filter(slate_player__in=home_players, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).exclude(slate_player=home_player_1.slate_player).order_by('-projection', 'slate_player__site_pos'):
+                                stack = models.SlateBuildStack.objects.create(
+                                    build=build,
+                                    game=qb.game,
+                                    mini_game=game,
+                                    build_order=count,
+                                    qb=qb,
+                                    player_1=player,
+                                    player_2=player2,
+                                    mini_player_1=home_player_1,
+                                    mini_player_2=home_player_2,
+                                    salary=sum(p.slate_player.salary for p in [qb, player, opp_player, home_player_1, home_player_2]),
+                                    projection=sum(p.projection for p in [qb, player, opp_player, home_player_1, home_player_2])
+                                )
+
+                                if build.stack_construction is not None:
+                                    if build.stack_construction.passes_rule(stack):
+                                        stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                                        stack.save()
+                                    else:
+                                        stack.delete()                                            
+
+                        # Next make all mini stacks with 2 away team players
+                        for (idx, away_player_1) in enumerate(build.projections.filter(slate_player__in=away_players, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')):
+                            for away_player_2 in build.projections.filter(slate_player__in=away_players, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).exclude(slate_player=away_player_1.slate_player).order_by('-projection', 'slate_player__site_pos'):
+                                stack = models.SlateBuildStack.objects.create(
+                                    build=build,
+                                    game=qb.game,
+                                    mini_game=game,
+                                    build_order=count,
+                                    qb=qb,
+                                    player_1=player,
+                                    player_2=player2,
+                                    mini_player_1=away_player_1,
+                                    mini_player_2=away_player_2,
+                                    salary=sum(p.slate_player.salary for p in [qb, player, opp_player, away_player_1, away_player_2]),
+                                    projection=sum(p.projection for p in [qb, player, opp_player, away_player_1, away_player_2])
+                                )
+
+                                if build.stack_construction is not None:
+                                    if build.stack_construction.passes_rule(stack):
+                                        stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                                        stack.save()
+                                    else:
+                                        stack.delete()                                            
+
+                        # Finally make all mini stacks with players from both teams
+                        for (idx, home_player) in enumerate(build.projections.filter(slate_player__in=home_players, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos')):
+                            for away_player in build.projections.filter(slate_player__in=away_players, in_play=True, slate_player__site_pos__in=['RB', 'WR', 'TE']).order_by('-projection', 'slate_player__site_pos'):
+                                stack = models.SlateBuildStack.objects.create(
+                                    build=build,
+                                    game=qb.game,
+                                    mini_game=game,
+                                    build_order=count,
+                                    qb=qb,
+                                    player_1=player,
+                                    player_2=player2,
+                                    mini_player_1=home_player,
+                                    mini_player_2=away_player,
+                                    salary=sum(p.slate_player.salary for p in [qb, player, opp_player, home_player, away_player]),
+                                    projection=sum(p.projection for p in [qb, player, opp_player, home_player, away_player])
+                                )
+
+                                if build.stack_construction is not None:
+                                    if build.stack_construction.passes_rule(stack):
+                                        stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                                        stack.save()
+                                    else:
+                                        stack.delete()                                            
+                else:
+                    stack = models.SlateBuildStack.objects.create(
+                        build=build,
+                        game=qb.game,
+                        build_order=count,
+                        qb=qb,
+                        player_1=player,
+                        player_2=player2,
+                        salary=sum(p.slate_player.salary for p in [qb, player, player2]),
+                        projection=sum(p.projection for p in [qb, player, player2])
+                    )
+
+                    if build.stack_construction is not None:
+                        if build.stack_construction.passes_rule(stack):
+                            stack.contains_top_pc = stack.contains_top_projected_pass_catcher(build.stack_construction.top_pc_margin)
+                            stack.save()
+                        else:
+                            stack.delete()                                            
 
     elif build.configuration.game_stack_size == 4:
         count = 0
