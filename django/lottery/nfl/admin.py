@@ -1951,6 +1951,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'reset',
         # 'prepare_projections',
         # 'prepare_construction',
+        'reallocate_stacks',
         'analyze_lineups',
         'rate_lineups',
         'clean_lineups',
@@ -2176,6 +2177,21 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def reallocate_stacks(self, request, queryset):
+        for build in queryset:
+            task = BackgroundTask()
+            task.name = 'Reallocate Stacks'
+            task.user = request.user
+            task.save()
+
+            tasks.reallocate_stacks_for_build.delay(build.id, task.id)
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Reallocating stacks for {}. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once they are ready.'.format(str(build)))
+
 
     def flatten_exposures(self, request, pk):
         context = dict(

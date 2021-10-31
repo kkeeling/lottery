@@ -552,14 +552,14 @@ class Slate(models.Model):
             )
 
     def calc_player_zscores(self, position):
-        projections = list(self.get_projections().filter(slate_player__site_pos=position).values_list('projection', flat=True))
-        ceiling_projections = list(self.get_projections().filter(slate_player__site_pos=position).values_list('ceiling', flat=True))
-        ao_projections = list(self.get_projections().filter(slate_player__site_pos=position).values_list('adjusted_opportunity', flat=True)) if position == 'RB' else None
+        projections = list(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0).values_list('projection', flat=True))
+        ceiling_projections = list(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0).values_list('ceiling', flat=True))
+        ao_projections = list(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0).values_list('adjusted_opportunity', flat=True)) if position == 'RB' else None
         zscores = scipy.stats.zscore(projections)
         ao_zscores = scipy.stats.zscore(ao_projections) if ao_projections is not None else None
         ceiling_zscores = scipy.stats.zscore(ceiling_projections) if ceiling_projections is not None else None
 
-        for (index, projection) in enumerate(self.get_projections().filter(slate_player__site_pos=position)):
+        for (index, projection) in enumerate(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0)):
             projection.zscore = zscores[index]
             projection.ao_zscore = ao_zscores[index] if ao_zscores is not None else 0.0
             projection.ceiling_zscore = ceiling_zscores[index] if ceiling_zscores is not None else 0.0
@@ -1905,6 +1905,18 @@ class SlateBuild(models.Model):
             for stack in ordered_stacks:
                 stack.count += math.ceil(num_lineups_to_distribute/self.stack_cutoff)
                 stack.save()
+
+    def reallocate_stacks(self):
+        qbs = self.projections.filter(slate_player__site_pos='QB', in_play=True)
+        total_qb_projection = qbs.aggregate(total_projection=Sum('projection')).get('total_projection')
+        print(f'total_qb_projection = {total_qb_projection}')
+
+        for stack in self.stacks.all():
+            total_stack_projection = self.stacks.filter(qb=stack.qb).aggregate(total_projection=Sum('projection')).get('total_projection')
+            qb_lineup_count = round(float(stack.qb.projection)/float(total_qb_projection) * float(self.total_lineups))
+            print(f'total_stack_projection = {total_stack_projection}, qb_lineup_count = {qb_lineup_count}')
+            stack.count = round(max(stack.projection/total_stack_projection * qb_lineup_count, 1), 0)
+            stack.save()
 
     def speed_test(self):
         _ = optimize.optimize(

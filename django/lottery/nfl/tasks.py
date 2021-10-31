@@ -694,6 +694,37 @@ def rank_stacks(stack_ids):
 
 
 @shared_task
+def reallocate_stacks_for_build(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.reallocate_stacks()
+        build.total_lineups = build.stacks.all().aggregate(total=Sum('count')).get('total') 
+        build.save()
+
+        task.status = 'success'
+        task.content = f'Stacks reallocated for {build}'
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem reallocating: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+@shared_task
 def prepare_construction_complete(chained_result, build_id, task_id=None):
     task = None
 
