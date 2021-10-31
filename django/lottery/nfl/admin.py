@@ -2161,11 +2161,8 @@ class SlateBuildAdmin(admin.ModelAdmin):
                     user=request.user
                 ).id
             ),
-            chain([
-                group([
-                    tasks.create_stacks_for_qb.s(build.id, qb.id, total_qb_projection) for qb in qbs
-                ]),
-                tasks.rank_stacks.s([stack.id for stack in build.stacks.all()])
+            group([
+                tasks.create_stacks_for_qb.s(build.id, qb.id, total_qb_projection) for qb in qbs
             ])
         ], tasks.prepare_construction_complete.s(build.id, task.id))()
 

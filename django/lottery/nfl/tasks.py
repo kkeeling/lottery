@@ -579,14 +579,15 @@ def calc_zscores_for_stacks(stack_ids):
 
 
 @shared_task
-def rank_stacks(chained_results, stack_ids):
+def rank_stacks(stack_ids):
+    print(stack_ids)
     stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids).order_by('-projection').iterator()
 
     for stack in stacks:
         rank = models.SlateBuildStack.objects.filter(
             build=stack.build,
             projection__gt=stack.projection    
-        ).count()
+        ).count() + 1
 
         stack.rank = rank
         stack.save()
@@ -606,6 +607,7 @@ def prepare_construction_complete(chained_result, build_id, task_id=None):
         # Task implementation goes here
 
         build = models.SlateBuild.objects.get(id=build_id)
+        rank_stacks(build.stacks.all().values_list('id', flat=True))
         build.clean_stacks()
         build.total_lineups = build.stacks.all().aggregate(total=Sum('count')).get('total') 
         build.save()
