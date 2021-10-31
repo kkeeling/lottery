@@ -467,6 +467,8 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
         same_game_rb_groups = get_same_game_rb_groups(players_list)
         optimizer.add_stack(Stack(same_game_rb_groups))
 
+    optimizer.force_positions_for_opposing_team(('RB', 'WR'), ('RB', 'TE'), ('WR', 'WR'), ('WR', 'TE'))
+
     try:
         optimized_lineups = optimizer.optimize(
             n=num_lineups * config.lineup_multiplier if config.use_simulation and not for_optimals else num_lineups,
