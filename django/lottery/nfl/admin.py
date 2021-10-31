@@ -116,6 +116,9 @@ class ProjectionFilter(SimpleListFilter):
 
     def lookups(self, request, model_admin):
         return (
+            (4.9, '4.9 or better'),
+            (7.9, '7.9 or better'),
+            (9.9, '9.9 or better'),
             (14.9, '14.9 or better'),
             (15.9, '15.9 or better'),
             (16.9, '16.9 or better'),
