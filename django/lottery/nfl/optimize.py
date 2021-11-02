@@ -506,7 +506,10 @@ def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75,
             # If player is in-play
             if player_projection.in_play:
                 # If player is stack-only and not in the same game as qb, not a valid player
-                if use_stack_only and player_projection.stack_only and player_projection.slate_player.game != game_qb.game:
+                if player_projection.slate_player.game == game_qb.game and not (player_projection == stack.qb or player_projection == stack.player_1 or player_projection == stack.player_2 or player_projection == stack.opp_player):
+                    print(player_projection)
+                    valid_player = False
+                elif use_stack_only and player_projection.stack_only and player_projection.slate_player.game != game_qb.game:
                     valid_player = False
                 elif not allow_qb_dst_stack and (player_projection.position == 'DST' or player_projection.position == 'D') and player_projection.team == game_qb.team and not stack.contains_slate_player(player_projection.slate_player):
                     valid_player = False
