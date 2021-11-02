@@ -1,6 +1,16 @@
 from pydfs_lineup_optimizer.sites.sites_registry import SitesRegistry
 from pydfs_lineup_optimizer.sites.draftkings.classic.settings import DraftKingsSettings, LineupPosition, Sport
-from pydfs_lineup_optimizer.sites.fanduel.classic.settings import FanDuelSettings
+from pydfs_lineup_optimizer.sites.fanduel.classic.settings import FanDuelSettings, FanDuelFootballSettings
+
+
+class FanduelNFLSettingsMax2PerTeam(FanDuelFootballSettings):
+    sport = Sport.FOOTBALL
+    max_from_one_team = 2
+
+
+class FanduelNFLSettingsMax3PerTeam(FanDuelFootballSettings):
+    sport = Sport.FOOTBALL
+    max_from_one_team = 3
 
 
 # @SitesRegistry.register_settings
