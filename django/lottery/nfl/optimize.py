@@ -12,6 +12,7 @@ from collections import namedtuple
 from django.core.management.base import BaseCommand
 from pydfs_lineup_optimizer import Site, Sport, Player, get_optimizer, \
     exceptions, LineupOptimizer
+from pydfs_lineup_optimizer.rules import MaxGamesRule
 from pydfs_lineup_optimizer.stacks import PlayersGroup, Stack, GameStack
 from pydfs_lineup_optimizer.player_pool import PlayerFilter
 from pydfs_lineup_optimizer.solvers.mip_solver import MIPSolver
@@ -505,9 +506,17 @@ def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75,
         try:
             # If player is in-play
             if player_projection.in_play:
+                stack_player_ids = [
+                    stack.qb.slate_player.player_id,
+                    stack.player_1.slate_player.player_id
+                ]
+                if stack.player_2 is not None:
+                    stack_player_ids.append(stack.player_2.slate_player.player_id)
+                if stack.opp_player is not None:
+                    stack_player_ids.append(stack.opp_player.slate_player.player_id)
+                    
                 # If player is stack-only and not in the same game as qb, not a valid player
-                if player_projection.slate_player.game == game_qb.game and not (player_projection == stack.qb or player_projection == stack.player_1 or player_projection == stack.player_2 or player_projection == stack.opp_player):
-                    print(player_projection)
+                if player_projection.slate_player.game == game_qb.game and not (player_projection.slate_player.player_id in stack_player_ids):
                     valid_player = False
                 elif use_stack_only and player_projection.stack_only and player_projection.slate_player.game != game_qb.game:
                     valid_player = False

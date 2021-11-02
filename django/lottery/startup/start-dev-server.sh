@@ -2,6 +2,9 @@
 
 echo "Waiting for Postgres..."
 python ./startup/wait-for-postgres.py
+echo "Installing requirements..."
+pip install --upgrade pip
+pip install -r /tmp/requirements.txt
 echo "Migrating database..."
 python manage.py migrate --noinput
 echo "Starting runserver..."

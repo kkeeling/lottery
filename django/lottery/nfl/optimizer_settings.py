@@ -6,13 +6,13 @@ from pydfs_lineup_optimizer.sites.fanduel.classic.settings import FanDuelSetting
 class FanduelNFLSettingsMax2PerTeam(FanDuelFootballSettings):
     sport = Sport.FOOTBALL
     max_from_one_team = 2
-    max_games = 6
+    max_games = 5
 
 
 class FanduelNFLSettingsMax3PerTeam(FanDuelFootballSettings):
     sport = Sport.FOOTBALL
     max_from_one_team = 3
-    max_games = 6
+    max_games = 5
 
 
 # @SitesRegistry.register_settings
