@@ -1160,7 +1160,7 @@ def clean_lineups(build_id, task_id):
 @shared_task
 def build_optimals_for_stack(stack_id):
     try:
-        max_optimals_per_stack = 50
+        max_optimals_per_stack = 100
         stack = models.SlateBuildStack.objects.get(id=stack_id)
 
         if stack.has_possible_optimals():
@@ -1750,7 +1750,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                 ownership_projection = row[headers.column_own_projection] if headers.column_own_projection is not None and row[headers.column_own_projection] != '' else 0.0
 
                 if sheet.projection_site == 'etr':
-                    print(ownership_projection)
+                    ownership_projection /= 100.0
                     alias = models.Alias.find_alias(player_name, sheet.slate.site)
                 else:
                     alias = models.Alias.find_alias(player_name, sheet.projection_site)
