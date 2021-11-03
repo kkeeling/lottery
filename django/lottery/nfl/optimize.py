@@ -12,7 +12,6 @@ from collections import namedtuple
 from django.core.management.base import BaseCommand
 from pydfs_lineup_optimizer import Site, Sport, Player, get_optimizer, \
     exceptions, LineupOptimizer
-# from pydfs_lineup_optimizer.rules import MaxGamesRule
 from pydfs_lineup_optimizer.stacks import PlayersGroup, Stack, GameStack
 from pydfs_lineup_optimizer.player_pool import PlayerFilter
 from pydfs_lineup_optimizer.solvers.mip_solver import MIPSolver
