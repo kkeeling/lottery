@@ -1784,7 +1784,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                                 floor=flr,
                                 ceiling=ceil,
                                 stdev=stdev,
-                                ownership_projection=ownership_projection,
+                                ownership_projection=float(ownership_projection),
                                 adjusted_opportunity=float(rec_projection) * 2.0 + float(rush_att_projection)
                             )
                             
