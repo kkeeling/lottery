@@ -1740,6 +1740,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                 headers.save()
 
             for row in csv_reader:
+                print(f'{sheet.slate.site} -- {row[headers.column_rec_projection]}')
                 player_name = row[headers.column_player_name].strip()
                 team = 'JAC' if row[headers.column_team] == 'JAX' else row[headers.column_team].strip()
                 median_projection = row[headers.column_median_projection] if row[headers.column_median_projection] != '' else 0.0
