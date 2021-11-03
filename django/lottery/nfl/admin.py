@@ -2674,6 +2674,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_tda_proj',
         'get_exposure',
         'get_ownership_projection',
+        'get_etr_ownership_projection',
         'get_rating',
         'get_player_ao',
         'get_player_ao_zscore',
@@ -2917,6 +2918,19 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         return '{:.2f}%'.format(float(proj.ownership_projection*100))
     get_ownership_projection.short_description = 'OP'
     get_ownership_projection.admin_order_field = 'slate_player__projection__ownership_projection'
+
+    def get_etr_ownership_projection(self, obj):
+        try:
+            proj = models.SlatePlayerRawProjection.objects.get(
+                projection_site='etr',
+                slate_player=obj.slate_player
+            )
+            if proj.ownership_projection is None:
+                return None
+            return '{:.2f}%'.format(float(proj.ownership_projection*100))
+        except models.SlatePlayerRawProjection.DoesNotExist:
+            return None
+    get_etr_ownership_projection.short_description = 'E-OP'
 
     def get_num_pass_catchers(self, obj):
         if obj.slate_player.site_pos == 'QB':
