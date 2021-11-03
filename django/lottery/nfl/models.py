@@ -1246,6 +1246,8 @@ class SlateBuildConfig(models.Model):
     std_cutoff = models.DecimalField(max_digits=9, decimal_places=2, default=0.0)
     lineup_multiplier = models.SmallIntegerField(default=5)
     optimize_with_ceilings = models.BooleanField(default=False)
+    use_leverage = models.BooleanField(default=False)
+    use_mini_stacks = models.BooleanField(default=False)
     lineup_removal_pct = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
 
     class Meta:
@@ -1335,6 +1337,7 @@ class PlayerSelectionCriteria(models.Model):
     def meets_threshold(self, build_projection):
         # variables used in threshold equations
 
+        # TODO: Make this expose various objects to allow more flexibility in conditionals, instead of hardcoding the specific variables
         locals = {
             'projection': float(build_projection.projection),
             'ownership_projection': float(build_projection.ownership_projection),
@@ -1408,6 +1411,7 @@ class GroupCreationRule(models.Model):
         return f_pos
 
     def meets_threshold(self, build_projection):
+        # TODO: Make this expose various objects to allow more flexibility in conditionals, instead of hardcoding the specific variables
         locals = {
             'projection': float(build_projection.projection),
             'team_total': float(build_projection.team_total) if build_projection.team_total is not None else 0.0,

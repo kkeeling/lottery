@@ -368,12 +368,18 @@ def simulate(site, projections, qbs, config, player_sim_index=0, optimals_per_si
 def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineups, groups=[], for_optimals=False):
     if site == 'fanduel':
         if config.game_stack_size == 3:
-            if stack.player_2 is not None:
-                optimizer = LineupOptimizer(optimizer_settings.FanduelNFLSettingsMax3PerTeam)
+            if config.use_mini_stacks:
+                if stack.player_2 is not None:
+                    optimizer = LineupOptimizer(optimizer_settings.FanduelNFLSettingsMax3PerTeam)
+                else:
+                    optimizer = LineupOptimizer(optimizer_settings.FanduelNFLSettingsMax2PerTeam)
             else:
-                optimizer = LineupOptimizer(optimizer_settings.FanduelNFLSettingsMax2PerTeam)
+                optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
         elif config.game_staack_size == 4:
-            optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
+            if config.use_mini_stacks:
+                optimizer = LineupOptimizer(optimizer_settings.FanduelNFLSettingsMax3PerTeamMax5Games)
+            else:
+                optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
     elif site == 'draftkings':
         if len(config.flex_positions) > 1:
             if 'RB' not in config.flex_positions:

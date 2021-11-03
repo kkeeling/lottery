@@ -15,6 +15,12 @@ class FanduelNFLSettingsMax3PerTeam(FanDuelFootballSettings):
     max_games = 6
 
 
+class FanduelNFLSettingsMax3PerTeamMax5Games(FanDuelFootballSettings):
+    sport = Sport.FOOTBALL
+    max_from_one_team = 3
+    max_games = 5
+
+
 # @SitesRegistry.register_settings
 class DraftKingsFootballNoRBFlexSettings(DraftKingsSettings):
     sport = Sport.FOOTBALL
