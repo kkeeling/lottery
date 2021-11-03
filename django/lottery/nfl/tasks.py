@@ -1740,8 +1740,6 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                 headers.save()
 
             for row in csv_reader:
-                if sheet.projection_site == 'etr':
-                    print(f'{sheet.projection_site} -- {row[headers.column_own_projection] if headers.column_own_projection is not None else 0.0}')
                 player_name = row[headers.column_player_name].strip()
                 team = 'JAC' if row[headers.column_team] == 'JAX' else row[headers.column_team].strip()
                 median_projection = row[headers.column_median_projection] if row[headers.column_median_projection] != '' else 0.0
@@ -1752,6 +1750,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                 ownership_projection = row[headers.column_own_projection] if headers.column_own_projection is not None and row[headers.column_own_projection] != '' else 0.0
 
                 if sheet.projection_site == 'etr':
+                    print(ownership_projection)
                     alias = models.Alias.find_alias(player_name, sheet.slate.site)
                 else:
                     alias = models.Alias.find_alias(player_name, sheet.projection_site)
@@ -1784,7 +1783,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                                 floor=flr,
                                 ceiling=ceil,
                                 stdev=stdev,
-                                # ownership_projection=float(ownership_projection),
+                                ownership_projection=float(ownership_projection),
                                 adjusted_opportunity=float(rec_projection) * 2.0 + float(rush_att_projection)
                             )
                             
