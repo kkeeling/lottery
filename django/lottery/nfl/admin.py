@@ -2927,6 +2927,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
             )
             if proj.ownership_projection is None:
                 return None
+            print(f'{proj} - {proj.ownership_projection}')
             return '{:.2f}%'.format(float(proj.ownership_projection*100))
         except models.SlatePlayerRawProjection.DoesNotExist:
             return None
