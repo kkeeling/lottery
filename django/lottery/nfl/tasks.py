@@ -13,7 +13,7 @@ import sys
 import time
 import traceback
 
-from celery import shared_task, chord, group
+from celery import shared_task, chord, group, chain
 from contextlib import contextmanager
 
 from django.conf import settings
@@ -89,10 +89,63 @@ def prepare_projections_for_build(build_id, task_id):
             time.sleep(0.2)
             task = BackgroundTask.objects.get(id=task_id)
 
+        chain(
+            update_projections_for_build.s(build_id),
+            find_in_play_for_build.s(build_id),
+            find_stack_only_for_build.s(build_id),
+            prepare_projections_for_build_complete.s(build_id, task.id)
+        )()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem preparing projections: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def update_projections_for_build(build_id):
+    build = models.SlateBuild.objects.get(id=build_id)
+    build.update_projections(True)
+
+
+@shared_task
+def find_in_play_for_build(chained_results, build_id):
+    build = models.SlateBuild.objects.get(id=build_id)
+    group([
+        find_in_play_for_projection.s(id) for id in list(build.projections.all().values_list('id', flat=True))
+    ])()
+
+
+@shared_task
+def find_in_play_for_projection(projection_id):
+    projection = models.BuildPlayerProjection.objects.get(id=projection_id)
+    projection.find_in_play()
+
+
+@shared_task
+def find_stack_only_for_build(chained_results, build_id):
+    build = models.SlateBuild.objects.get(id=build_id)
+    build.find_stack_only()
+
+@shared_task
+def prepare_projections_for_build_complete(chained_results, build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
         # Task implementation goes here
-        start = datetime.datetime.now()
         build = models.SlateBuild.objects.get(id=build_id)
-        build.prepare_projections()
+        build.calc_projections_ready()
+        build.get_target_score()
 
         qbs = build.num_in_play('QB')
         rbs = build.num_in_play('RB')
@@ -109,11 +162,6 @@ def prepare_projections_for_build(build_id, task_id):
             task.status = 'error'
             task.content = f'There was a problem preparing projections: {e}'
             task.save()
-
-        if build is not None:
-            build.status = 'error'
-            build.error_message = str(e)
-            build.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))

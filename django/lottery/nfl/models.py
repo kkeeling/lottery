@@ -1246,7 +1246,9 @@ class SlateBuildConfig(models.Model):
     std_cutoff = models.DecimalField(max_digits=9, decimal_places=2, default=0.0)
     lineup_multiplier = models.SmallIntegerField(default=5)
     optimize_with_ceilings = models.BooleanField(default=False)
-    use_leverage = models.BooleanField(default=False)
+    qb_low_owned_threshold = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    qb_high_owned_threshold = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
+    player_high_owned_threshold = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     use_mini_stacks = models.BooleanField(default=False)
     lineup_removal_pct = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
 
@@ -1747,6 +1749,10 @@ class SlateBuild(models.Model):
                     projection.balanced_value = round(float(projection.balanced_projection)/(player.salary/1000.0), 2)
                     projection.adjusted_opportunity = player.projection.adjusted_opportunity
                     projection.rb_group = 0
+                    projection.in_play = False
+                    projection.stack_only = False
+                    projection.qb_stack_only = False
+                    projection.opp_qb_stack_only = False
 
                     if projection.position == 'DST' or projection.position == 'D':
                         projection.max_exposure = self.configuration.max_dst_exposure * 100
@@ -1780,45 +1786,53 @@ class SlateBuild(models.Model):
                 slate_player__team=game.game.home_team
             ).update(stack_only=False)
 
-            # Get all WR/TE from team
+            # Get all stack positions from team
             pass_catchers = self.projections.filter(
                 Q(slate_player__team=game.game.home_team),
-                Q(slate_player__site_pos='WR') | Q(slate_player__site_pos='TE')
+                slate_player__site_pos__in=self.configuration.qb_stack_positions
             ).order_by('-projection')
 
-            # Get all WR/TE from opposing team
+            # Get all stack positions from opposing team
             opp_pass_catchers = self.projections.filter(
                 Q(slate_player__team=game.game.away_team),
-                Q(slate_player__site_pos='WR') | Q(slate_player__site_pos='TE')
+                slate_player__site_pos__in=self.configuration.opp_qb_stack_positions
             ).order_by('-projection')
-
+            
             for (index, pass_catcher) in enumerate(pass_catchers):
-                pass_catcher.find_in_play()
+                if pass_catcher.in_play or index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0:
+                    if pass_catcher.get_qb().in_play:
+                        pass_catcher.stack_only = not pass_catcher.in_play and (index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0)
+                        pass_catcher.in_play = pass_catcher.in_play or index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0
 
-                if not pass_catcher.in_play:
-                    pass_catcher.stack_only = index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0
-                    pass_catcher.in_play = index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0
-                    pass_catcher.qb_stack_only = index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0
-                    pass_catcher.opp_qb_stack_only = index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0
-                else:
-                    pass_catcher.stack_only = False
-                    pass_catcher.qb_stack_only = True
-                    pass_catcher.opp_qb_stack_only = True
+                        if self.configuration.qb_high_owned_threshold > 0.0 and self.configuration.player_high_owned_threshold > 0.0:
+                            print(f'Checking QB Stack: {pass_catcher.slate_player.name}; in_play = {pass_catcher.in_play}; own = {pass_catcher.ownership_projection}; qb_own = {pass_catcher.get_qb().ownership_projection}')
+                            pass_catcher.qb_stack_only = pass_catcher.in_play and (pass_catcher.get_qb().ownership_projection < self.configuration.qb_high_owned_threshold or pass_catcher.ownership_projection < float(self.configuration.player_high_owned_threshold))
+                        else:
+                            pass_catcher.qb_stack_only = True
+                    if pass_catcher.get_opposing_qb().in_play:
+                        if self.configuration.qb_low_owned_threshold > 0.0:
+                            print(f'Checking Opp QB Stack: {pass_catcher.slate_player.name}; in_play = {pass_catcher.in_play}; qb_own = {pass_catcher.get_qb().ownership_projection}')
+                            pass_catcher.opp_qb_stack_only = pass_catcher.in_play and (pass_catcher.get_qb().ownership_projection < float(self.configuration.qb_low_owned_threshold))
+                        else:
+                            pass_catcher.opp_qb_stack_only = True
 
                 pass_catcher.save()
 
             for (index, pass_catcher) in enumerate(opp_pass_catchers):
-                pass_catcher.find_in_play()
+                if pass_catcher.in_play or index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0:
+                    if pass_catcher.get_qb().in_play:
+                        pass_catcher.stack_only = not pass_catcher.in_play and (index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0)
+                        pass_catcher.in_play = pass_catcher.in_play or index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0
 
-                if not pass_catcher.in_play:
-                    pass_catcher.stack_only = index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0
-                    pass_catcher.in_play = index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0
-                    pass_catcher.qb_stack_only = index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0
-                    pass_catcher.opp_qb_stack_only = index < 2 or abs(pass_catchers[1].projection - pass_catcher.projection) < 1.0
-                else:
-                    pass_catcher.stack_only = False
-                    pass_catcher.qb_stack_only = True
-                    pass_catcher.opp_qb_stack_only = True
+                        if self.configuration.qb_high_owned_threshold > 0.0 and self.configuration.player_high_owned_threshold > 0.0:
+                            pass_catcher.qb_stack_only = pass_catcher.in_play and (pass_catcher.get_qb().ownership_projection < self.configuration.qb_high_owned_threshold or pass_catcher.ownership_projection < float(self.configuration.player_high_owned_threshold))
+                        else:
+                            pass_catcher.qb_stack_only = True
+                    if pass_catcher.get_opposing_qb().in_play:
+                        if self.configuration.qb_low_owned_threshold > 0.0:
+                            pass_catcher.opp_qb_stack_only = pass_catcher.in_play and (pass_catcher.get_qb().ownership_projection < float(self.configuration.qb_low_owned_threshold))
+                        else:
+                            pass_catcher.opp_qb_stack_only = True
 
                 pass_catcher.save()
 
@@ -2292,16 +2306,19 @@ class BuildPlayerProjection(models.Model):
 
     def get_qb(self):
         qbs = BuildPlayerProjection.objects.filter(
+            build=self.build,
             slate_player__site_pos='QB',
             slate_player__team=self.team
         ).order_by('-projection')
 
+        print(qbs)
         if qbs.count() > 0:
             return qbs[0]
         return None 
 
     def get_opposing_qb(self):
         opp_qbs = BuildPlayerProjection.objects.filter(
+            build=self.build,
             slate_player__site_pos='QB',
             slate_player__team=self.get_opponent()
         ).order_by('-projection')
