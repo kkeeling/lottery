@@ -82,6 +82,7 @@ INSTALLED_APPS = (
     'django_extensions',
     'configuration',
     'nfl',
+    'fanduel',
 )
 
 MIDDLEWARE = (
