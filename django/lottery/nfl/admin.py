@@ -1356,9 +1356,9 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'contains_opp_top_projected_pass_catcher',
         'salary',
         'projection',
-        'ev',
-        'get_std',
-        'sim_rating',
+        'get_median_score',
+        'get_75th_percentile_score',
+        'get_ceiling_percentile_score',
         'get_actual',
     )
 
@@ -1449,40 +1449,19 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
     get_actual.admin_order_field = 'actual_coalesced'
 
     def get_median_score(self, obj):
-        matrix = [obj.stack.sim_scores] + obj.non_stack_sim_scores
-        score_matrix = numpy.array(matrix)
-
-        try:
-            scores = score_matrix.sum(axis=0)
-        except:
-            traceback.print_exc()
-            return None
-        return numpy.median(scores)
+        return '{:.2f}'.format(obj.median)
     get_median_score.short_description = 'mu'
+    get_median_score.admin_order_field = 'median'
 
     def get_75th_percentile_score(self, obj):
-        matrix = [obj.stack.sim_scores] + obj.non_stack_sim_scores
-        score_matrix = numpy.array(matrix)
-
-        try:
-            scores = score_matrix.sum(axis=0)
-        except:
-            traceback.print_exc()
-            return None
-        return numpy.percentile(scores, decimal.Decimal(75.0))
-    get_75th_percentile_score.short_description = '75'
+        return '{:.2f}'.format(obj.s75)
+    get_75th_percentile_score.short_description = 's75'
+    get_75th_percentile_score.admin_order_field = 's75'
 
     def get_ceiling_percentile_score(self, obj):
-        matrix = [obj.stack.sim_scores] + obj.non_stack_sim_scores
-        score_matrix = numpy.array(matrix)
-
-        try:
-            scores = score_matrix.sum(axis=0)
-        except:
-            traceback.print_exc()
-            return None
-        return numpy.amax(scores)
+        return '{:.2f}'.format(obj.s90)
     get_ceiling_percentile_score.short_description = 'ceil'
+    get_ceiling_percentile_score.admin_order_field = 's90'
 
 
 @admin.register(models.SlateBuildActualsLineup)
@@ -2432,7 +2411,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
         models.SlateBuildLineup.objects.filter(
             build__in=queryset
-        ).update(ev=0, mean=0, std=0, sim_rating=0)
+        ).update(ev=0, mean=0, std=0, sim_rating=0, s75=0, s90=0)
         
         group([
             tasks.analyze_lineups_for_build.s(build.id, task.id, False) for build in queryset
@@ -2644,7 +2623,6 @@ class SlateBuildAdmin(admin.ModelAdmin):
                         group=group,
                         slate_player=p.slate_player
                     )
-
     duplicate_builds.short_description = 'Duplicate selected builds'
 
     def find_optimal_lineups(self, request, queryset):

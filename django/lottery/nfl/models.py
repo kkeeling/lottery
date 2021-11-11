@@ -2794,7 +2794,10 @@ class SlateBuildLineup(models.Model):
     rating = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     ev = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, db_index=True)
     mean = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    median = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
     std = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    s75 = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    s90 = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
     sim_rating = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
     actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
@@ -2929,8 +2932,14 @@ class SlateBuildLineup(models.Model):
 
         return score        
 
+    def get_percentile_sim_score(self, percentile):
+        return numpy.percentile(self.sim_scores, float(percentile))
+
     def simulate(self):
         self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, 10000)]
+        self.median = numpy.median(self.sim_scores)
+        self.s75 = self.get_percentile_sim_score(75)
+        self.s90 = self.get_percentile_sim_score(98)
         self.save()
 
 

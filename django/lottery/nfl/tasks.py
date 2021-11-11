@@ -980,26 +980,10 @@ def analyze_lineups_for_build(build_id, task_id, use_optimals=False):
         # Task implementation goes here
         build = models.SlateBuild.objects.get(id=build_id)
 
-        if settings.DEBUG:
-            num_outcomes = 100
-        else:
-            num_outcomes = 10000
-
-        lineup_limit = 500
-        col_limit = 50  # sim columns per call
-        pages = math.ceil(num_outcomes/col_limit)  # number of calls to make
-
         chord([
-            chord([analyze_lineup_outcomes.s(
-                build.id,
-                build.slate.contests.get(use_for_sims=True).id,
-                list(build.lineups.all().order_by('id').values_list('id', flat=True))[lineup_page * lineup_limit:(lineup_page * lineup_limit) + lineup_limit],
-                col_count * col_limit + 3,  # index min
-                (col_count * col_limit + 3) + col_limit,  # index max
-                use_optimals
-            ) for col_count in range(0, pages)], 
-            combine_lineup_outcomes.s(build.id, list(build.lineups.all().order_by('id').values_list('id', flat=True))[lineup_page * lineup_limit:(lineup_page * lineup_limit) + lineup_limit], use_optimals)) for lineup_page in range(0, math.ceil(build.lineups.all().count()/lineup_limit))
-        ], analyze_lineup_outcomes_complete.s(build.id, task.id))()
+            analyze_lineup_outcomes.s(lineup_id) for lineup_id in list(build.lineups.all().values_list('id', flat=True))
+        ], analyze_lineup_outcomes_complete.s(build_id, task.id))()
+
     except Exception as e:
         if task is not None:
             task.status = 'error'
@@ -1011,86 +995,9 @@ def analyze_lineups_for_build(build_id, task_id, use_optimals=False):
 
 
 @shared_task
-def analyze_lineup_outcomes(build_id, contest_id, lineup_ids, col_min, col_max, use_optimals=False):
-    build = models.SlateBuild.objects.get(id=build_id)
-    contest = models.Contest.objects.get(id=contest_id)
-    limit = col_max - col_min
-    
-    if use_optimals:
-        all_lineups = build.actuals.filter(id__in=lineup_ids)
-    else:
-        all_lineups = build.lineups.filter(id__in=lineup_ids)
-
-    lineup_values = pandas.DataFrame(list(all_lineups.values_list(
-        'qb__slate_player__name',
-        'rb1__slate_player__name',
-        'rb2__slate_player__name',
-        'wr1__slate_player__name',
-        'wr2__slate_player__name',
-        'wr3__slate_player__name',
-        'te__slate_player__name',
-        'flex__slate_player__name',
-        'dst__slate_player__name')), 
-        columns=[
-            'p1',
-            'p2',
-            'p3',
-            'p4',
-            'p5',
-            'p6',
-            'p7',
-            'p8',
-            'p9',
-        ]
-    )
-
-    sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
-    sim_scores['X1'] = sim_scores.index
-    contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min+1, col_max+1)])
-    contest_scores['X1'] = contest_scores.index
-    contest_scores.columns = ['X{}'.format(i) for i in range(col_min, col_max)] + ['X1']
-    sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
-
-    contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, usecols=['X2', 'X3']).sort_index(ascending=True)
-
-    top_payout_rank = contest_payouts.iloc[0]['X2']
-    top_payout = float(contest_payouts.iloc[0]['X3'])
-    sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, top_payout_rank, top_payout)
-    for payout in contest_payouts.itertuples():
-        if payout.X2 == top_payout_rank:
-            continue
-        sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, payout.X2, float(payout.X3))
-    sql += ' ELSE 0 END as payout_{}'.format(col_min)
-    
-    for i in range(1, limit):
-        sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, top_payout_rank, top_payout)
-        for payout in contest_payouts.itertuples():
-            if payout.X2 == top_payout_rank:
-                continue
-            sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, float(payout.X3))
-        sql += ' ELSE 0 END as payout_{}'.format(col_min + i)
-
-    sql += ' FROM lineup_values A'
-    sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
-    sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
-    sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
-    sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
-    sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
-    sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
-    sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
-    sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
-    sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
-    
-    for payout in contest_payouts.itertuples():
-        sql += f' LEFT JOIN sim_scores T{payout.X2} ON T{payout.X2}.X1 = \'{payout.X2}\''
-
-    sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
-    
-    for i in range(0, limit):
-        for payout in contest_payouts.itertuples():
-            sql += f', T{payout.X2}.x{i+col_min}'
-
-    return pandasql.sqldf(sql, locals()).to_json()
+def analyze_lineup_outcomes(lineup_id):
+    lineup = models.SlateBuildLineup.objects.get(id=lineup_id)
+    lineup.simulate()
 
 
 @shared_task
