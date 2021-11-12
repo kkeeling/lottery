@@ -1965,7 +1965,7 @@ class SlateBuild(models.Model):
         task.user = user
         task.save()
 
-        tasks.monitor_build.delay(self.id, task.id)
+        tasks.monitor_build.delay(self.id)
 
         last_qb = None
         stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
@@ -1978,11 +1978,19 @@ class SlateBuild(models.Model):
             else:
                 lineup_number += 1
 
-            jobs.append(tasks.build_lineups_for_stack.s(stack.id, lineup_number, num_qb_stacks))
+            jobs.append(tasks.build_lineups_for_stack.si(stack.id, lineup_number, num_qb_stacks))
 
             last_qb = qb
 
-        group(jobs)()
+        chain(
+            group(jobs),
+            group([
+                tasks.analyze_lineup_outcomes.si(lineup_id) for lineup_id in list(self.lineups.all().values_list('id', flat=True))
+            ]),
+            tasks.clean_lineups.si(self.id),
+            tasks.find_expected_lineup_order.si(self.id),
+            tasks.build_complete.s(self.id, task.id)
+        )()
 
     def analyze_lineups(self):
         group([
@@ -2004,20 +2012,6 @@ class SlateBuild(models.Model):
         remaining_stacks = all_stacks.filter(lineups_created=False)
         if remaining_stacks.count() == 0:
             self.pct_complete = 1.0
-            self.status = 'complete'
-            self.save()
-
-            chain(
-                group([
-                    tasks.analyze_lineup_outcomes.s(lineup_id) for lineup_id in list(self.lineups.all().values_list('id', flat=True))
-                ]),
-                tasks.clean_lineups.s(self.id),
-                tasks.find_expected_lineup_order.s(self.id)
-            )()
-
-            if self.backtest is not None:
-                # analyze build
-                self.get_actual_scores()
         else:
             self.pct_complete = (all_stacks.count() - remaining_stacks.count()) / all_stacks.count()
             self.save()

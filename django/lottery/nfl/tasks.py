@@ -900,44 +900,16 @@ def monitor_backtest(backtest_id, task_id):
 
 
 @shared_task
-def monitor_build(build_id, task_id):
-    task = None
+def monitor_build(build_id):
+    start = datetime.datetime.now()
+    build = models.SlateBuild.objects.get(id=build_id)
+    while build.status != 'complete':
+        build.update_build_progress()
+        time.sleep(1)
 
-    try:
-        try:
-            task = BackgroundTask.objects.get(id=task_id)
-        except BackgroundTask.DoesNotExist:
-            time.sleep(0.2)
-            task = BackgroundTask.objects.get(id=task_id)
-
-        # Task implementation goes here
-        start = datetime.datetime.now()
-        build = models.SlateBuild.objects.get(id=build_id)
-        while build.status != 'complete':
-            build.update_build_progress()
-            time.sleep(1)
-
-        # build.analyze_lineups()
-        build.elapsed_time = (datetime.datetime.now() - start)
-        build.save()
-
-        task.status = 'success'
-        task.content = '{} lineups ready from {} unique stacks. Download with Export button.'.format(build.num_lineups_created(), build.stacks.filter(count__gt=0).count())
-        task.save()
-        
-    except Exception as e:
-        if task is not None:
-            task.status = 'error'
-            task.content = f'There was a problem running your build: {e}'
-            task.save()
-
-        if build is not None:
-            build.status = 'error'
-            build.error_message = str(e)
-            build.save()
-
-        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+    # build.analyze_lineups()
+    build.elapsed_time = (datetime.datetime.now() - start)
+    build.save()
 
 
 @shared_task
@@ -1111,9 +1083,30 @@ def clean_lineups(build_id, task_id=None):
 
 
 @shared_task
-def find_expected_lineup_order(chained_results, build_id):
+def find_expected_lineup_order(build_id):
     build = models.SlateBuild.objects.get(id=build_id)
     build.find_expected_lineup_order()
+
+
+@shared_task
+def build_complete(chained_results, build_id, task_id):
+    try:
+        task = BackgroundTask.objects.get(id=task_id)
+    except BackgroundTask.DoesNotExist:
+        time.sleep(0.2)
+        task = BackgroundTask.objects.get(id=task_id)
+
+    build = models.SlateBuild.objects.get(id=build_id)
+    build.status = 'complete'
+    build.save()
+
+    if build.backtest is not None:
+        # analyze build
+        build.get_actual_scores()
+
+    task.status = 'success'
+    task.content = f'{build.lineups.all().count()} lineups built.'
+    task.save()
 
 
 @shared_task
