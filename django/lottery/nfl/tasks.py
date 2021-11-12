@@ -131,6 +131,7 @@ def find_stack_only_for_build(chained_results, build_id):
     build = models.SlateBuild.objects.get(id=build_id)
     build.find_stack_only()
 
+
 @shared_task
 def prepare_projections_for_build_complete(chained_results, build_id, task_id):
     task = None
@@ -772,6 +773,7 @@ def reallocate_stacks_for_build(build_id, task_id):
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
+
 @shared_task
 def prepare_construction_complete(chained_result, build_id, task_id=None):
     task = None
@@ -788,7 +790,7 @@ def prepare_construction_complete(chained_result, build_id, task_id=None):
         build = models.SlateBuild.objects.get(id=build_id)
         rank_stacks(build.stacks.all().values_list('id', flat=True))
         build.clean_stacks()
-        build.total_lineups = build.stacks.all().aggregate(total=Sum('count')).get('total') 
+        # build.total_lineups = build.stacks.all().aggregate(total=Sum('count')).get('total') 
         build.save()
 
         build.calc_construction_ready()

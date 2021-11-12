@@ -67,6 +67,12 @@ PROJECTION_SITES = (
     ('rts', 'Run The Sims'),
 )
 
+RANK_BY_CHOICES = (
+    ('projection', 'Projection'),
+    ('median', 'Median'),
+    ('s90', 'Ceiling'),
+)
+
 GREAT_BUILD_CASH_THRESHOLD = 0.3
 
 
@@ -1251,6 +1257,7 @@ class SlateBuildConfig(models.Model):
     player_high_owned_threshold = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     use_mini_stacks = models.BooleanField(default=False)
     lineup_removal_pct = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
+    lineup_removal_by = models.CharField(max_length=15, choices=RANK_BY_CHOICES, default='projection')
 
     class Meta:
         verbose_name = 'Build Config'
@@ -1995,15 +2002,14 @@ class SlateBuild(models.Model):
         #         tasks.analyze_lineups_page.delay(self.id, contest.id, list(lineups.values_list('id', flat=True)), False)
 
     def clean_lineups(self):
-        if self.configuration.use_simulation:
+        if self.configuration.ev_cutoff > 0.0:
             self.lineups.filter(ev__lt=self.configuration.ev_cutoff).delete()
+
+        if self.configuration.std_cutoff > 0.0:
             self.lineups.filter(std__gt=self.configuration.std_cutoff).delete()
 
-            with transaction.atomic():
-                for index, lineup in enumerate(self.lineups.all().order_by('-ev')):
-                    lineup.order_number = index + 1
-                    lineup.expected_lineup_order = index + 1
-                    lineup.save()
+        ordered_lineups = self.lineups.all().order_by(f'-{self.configuration.lineup_removal_by}')
+        ordered_lineups.filter(id__in=ordered_lineups.values_list('pk', flat=True)[:self.total_lineups]).delete()
 
     def update_build_progress(self):
         all_stacks = self.stacks.filter(count__gt=0)
