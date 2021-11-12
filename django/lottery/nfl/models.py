@@ -1984,9 +1984,9 @@ class SlateBuild(models.Model):
 
         chain(
             group(jobs),
-            group([
-                tasks.analyze_lineup_outcomes.si(lineup_id) for lineup_id in list(self.lineups.all().values_list('id', flat=True))
-            ]),
+            # group([
+            #     tasks.analyze_lineup_outcomes.si(lineup_id) for lineup_id in list(self.lineups.all().values_list('id', flat=True))
+            # ]),
             tasks.clean_lineups.si(self.id),
             tasks.find_expected_lineup_order.si(self.id),
             tasks.build_complete.s(self.id, task.id)
@@ -2596,6 +2596,7 @@ class SlateBuildStack(models.Model):
                     projection=lineup.fantasy_points_projection,
                     ownership_projection=sum(x.projection for x in BuildPlayerProjection.objects.filter(build=self.build, slate_player__player_id__in=player_ids))
                 )
+                lineup.simulate()
 
             self.times_used = count
             self.lineups_created = True
