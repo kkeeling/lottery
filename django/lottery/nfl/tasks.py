@@ -1111,7 +1111,7 @@ def clean_lineups(build_id, task_id=None):
 
 
 @shared_task
-def find_expected_lineup_order(build_id):
+def find_expected_lineup_order(chained_results, build_id):
     build = models.SlateBuild.objects.get(id=build_id)
     build.find_expected_lineup_order()
 
