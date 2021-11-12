@@ -1093,12 +1093,6 @@ def clean_lineups(build_id, task_id):
 
         build = models.SlateBuild.objects.get(id=build_id)
         build.clean_lineups()
-        # stacks = build.stacks.filter(times_used__gt=0)
-
-        # for stack in stacks:
-        #     stack_lineups = stack.lineups.all().order_by('-sim_rating')
-        #     for lineup in stack_lineups[stack.count:]:
-        #         lineup.delete()        
 
         task.status = 'success'
         task.content = 'Lineups cleaned.'
