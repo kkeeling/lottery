@@ -2013,7 +2013,7 @@ class SlateBuild(models.Model):
                 ]),
                 tasks.clean_lineups.s(self.id),
                 tasks.find_expected_lineup_order.s(self.id)
-            )
+            )()
 
             if self.backtest is not None:
                 # analyze build
