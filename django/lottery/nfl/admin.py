@@ -1352,8 +1352,8 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'get_te',
         'get_flex',
         'get_dst',
-        'contains_top_projected_pass_catcher',
-        'contains_opp_top_projected_pass_catcher',
+        # 'contains_top_projected_pass_catcher',
+        # 'contains_opp_top_projected_pass_catcher',
         'salary',
         'projection',
         'get_median_score',
@@ -2170,7 +2170,6 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 request,
                 messages.WARNING,
                 'Reallocating stacks for {}. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once they are ready.'.format(str(build)))
-
 
     def flatten_exposures(self, request, pk):
         context = dict(

@@ -2593,7 +2593,7 @@ class SlateBuildStack(models.Model):
             for (index, lineup) in enumerate(lineups):
                 count += 1
                 player_ids = [p.id for p in lineup.players]
-                SlateBuildLineup.objects.create(
+                lineup = SlateBuildLineup.objects.create(
                     build=self.build,
                     stack=self,
                     order_number=lineup_number + (num_qb_stacks * index),
@@ -2610,6 +2610,8 @@ class SlateBuildStack(models.Model):
                     projection=lineup.fantasy_points_projection,
                     ownership_projection=sum(x.projection for x in BuildPlayerProjection.objects.filter(build=self.build, slate_player__player_id__in=player_ids))
                 )
+
+                tasks.analyze_lineup_outcomes.delay(lineup.id)
 
             self.times_used = count
             self.lineups_created = True
