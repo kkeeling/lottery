@@ -1985,21 +1985,9 @@ class SlateBuild(models.Model):
         group(jobs)()
 
     def analyze_lineups(self):
-        pass
-        # if self.slate.contests.count() > 0:
-        #     contest = self.slate.contests.get(outcomes_sheet__isnull=False)
-        #     build_lineups = self.lineups.all().order_by('id')
-        #     build_lineups.update(ev=0, mean=0, std=0)
-
-        #     lineup_limit = 600
-        #     lineup_pages = math.ceil(build_lineups.count()/lineup_limit)
-
-        #     for lineup_page in range(0, lineup_pages):
-        #         lineup_min = lineup_page * lineup_limit
-        #         lineup_max = lineup_min + lineup_limit
-        #         lineups = build_lineups[lineup_min:lineup_max]
-
-        #         tasks.analyze_lineups_page.delay(self.id, contest.id, list(lineups.values_list('id', flat=True)), False)
+        group([
+            tasks.analyze_lineup_outcomes.s(lineup_id) for lineup_id in list(self.lineups.all().values_list('id', flat=True))
+        ])()
 
     def clean_lineups(self):
         if self.configuration.ev_cutoff > 0.0:
@@ -2019,6 +2007,7 @@ class SlateBuild(models.Model):
             self.status = 'complete'
             self.save()
 
+            self.analyze_lineups()
             self.clean_lineups()
 
             self.find_expected_lineup_order()
@@ -2610,8 +2599,6 @@ class SlateBuildStack(models.Model):
                     projection=lineup.fantasy_points_projection,
                     ownership_projection=sum(x.projection for x in BuildPlayerProjection.objects.filter(build=self.build, slate_player__player_id__in=player_ids))
                 )
-
-                tasks.analyze_lineup_outcomes.delay(lineup.id)
 
             self.times_used = count
             self.lineups_created = True
