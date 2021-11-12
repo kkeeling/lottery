@@ -1081,22 +1081,24 @@ def rate_lineups(build_id, task_id, use_optimals=False):
 
 
 @shared_task
-def clean_lineups(build_id, task_id):
+def clean_lineups(build_id, task_id=None):
     task = None
 
     try:
-        try:
-            task = BackgroundTask.objects.get(id=task_id)
-        except BackgroundTask.DoesNotExist:
-            time.sleep(0.2)
-            task = BackgroundTask.objects.get(id=task_id)
+        if task_id is not None:
+            try:
+                task = BackgroundTask.objects.get(id=task_id)
+            except BackgroundTask.DoesNotExist:
+                time.sleep(0.2)
+                task = BackgroundTask.objects.get(id=task_id)
 
         build = models.SlateBuild.objects.get(id=build_id)
         build.clean_lineups()
 
-        task.status = 'success'
-        task.content = 'Lineups cleaned.'
-        task.save()
+        if task is not None:
+            task.status = 'success'
+            task.content = 'Lineups cleaned.'
+            task.save()
 
     except Exception as e:
         if task is not None:
@@ -1106,6 +1108,12 @@ def clean_lineups(build_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def find_expected_lineup_order(build_id):
+    build = models.SlateBuild.objects.get(id=build_id)
+    build.find_expected_lineup_order()
 
 
 @shared_task

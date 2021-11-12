@@ -2007,10 +2007,13 @@ class SlateBuild(models.Model):
             self.status = 'complete'
             self.save()
 
-            self.analyze_lineups()
-            self.clean_lineups()
-
-            self.find_expected_lineup_order()
+            chain(
+                group([
+                    tasks.analyze_lineup_outcomes.s(lineup_id) for lineup_id in list(self.lineups.all().values_list('id', flat=True))
+                ]),
+                tasks.clean_lineups.s(self.id),
+                tasks.find_expected_lineup_order.s(self.id)
+            )
 
             if self.backtest is not None:
                 # analyze build
