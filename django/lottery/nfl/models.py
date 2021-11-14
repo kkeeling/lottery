@@ -2012,6 +2012,7 @@ class SlateBuild(models.Model):
         remaining_stacks = all_stacks.filter(lineups_created=False)
         if remaining_stacks.count() == 0:
             self.pct_complete = 1.0
+            self.save()
         else:
             self.pct_complete = (all_stacks.count() - remaining_stacks.count()) / all_stacks.count()
             self.save()
