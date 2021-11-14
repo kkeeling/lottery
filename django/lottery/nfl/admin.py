@@ -1934,6 +1934,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'analyze_lineups',
         'rate_lineups',
         'clean_lineups',
+        'find_expected_lineup_order',
         'analyze_optimals',
         'rate_optimals',
         'export_lineups', 
@@ -2487,6 +2488,10 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 messages.WARNING,
                 'Cleaning lineups. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once complete.')
     clean_lineups.short_description = 'Clean lineups for selected builds'
+
+    def find_expected_lineup_order(self, requests, queryset):
+        for build in queryset:
+            tasks.find_expected_lineup_order.delay(build.id)
 
     def analyze_optimals(self, request, queryset):
         for build in queryset:
