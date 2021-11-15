@@ -909,6 +909,7 @@ def monitor_build(build_id):
         build.update_build_progress()
         time.sleep(1)
 
+    build.pct_complete = 1.0
     build.elapsed_time = (datetime.datetime.now() - start)
     build.save()
 
