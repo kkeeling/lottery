@@ -1866,12 +1866,10 @@ class SlateBuildAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'view_page_button',
-        'sim_button',
         'prepare_projections_button',
         'prepare_construction_button',
         'flatten_exposure_button',
         'build_button',
-        'simulate_stacks_button',
         'export_button',
         'slate',
         'used_in_contests',
@@ -1948,14 +1946,10 @@ class SlateBuildAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         my_urls = [
-            path('slatebuild-speed-test/<int:pk>/', self.speed_test, name="admin_slatebuild_speed_test"),
-            path('slatebuild-simulate/<int:pk>/', self.simulate, name="admin_slatebuild_simulate"),
             path('slatebuild-build/<int:pk>/', self.build, name="admin_slatebuild_build"),
             path('slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_slatebuild_export"),
-            path('slatebuild-balance-rbs/<int:pk>/', self.balance_rbs, name="admin_slatebuild_balance_rbs"),
             path('slatebuild-prepare-projections/<int:pk>/', self.prepare_projections, name="admin_slatebuild_prepare_projections"),
             path('slatebuild-prepare-construction/<int:pk>/', self.prepare_construction, name="admin_slatebuild_prepare_construction"),
-            path('slatebuild-sim_stacks/<int:pk>/', self.simulate_stack_outcomes, name="admin_slatebuild_sim_stacks"),
             path('slatebuild-flatten_exposures/<int:pk>/', self.flatten_exposures, name="admin_slatebuild_flatten_exposure"),
         ]
         return my_urls + urls
@@ -2195,105 +2189,11 @@ class SlateBuildAdmin(admin.ModelAdmin):
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
 
-    def simulate_stack_outcomes(self, request, pk):
-        context = dict(
-           # Include common variables for rendering the admin template.
-           self.admin_site.each_context(request),
-           # Anything else you want in the context...
-        )
-
-        task = BackgroundTask()
-        task.name = 'Simulate Stack Outcomes'
-        task.user = request.user
-        task.save()
-
-        build = models.SlateBuild.objects.get(pk=pk)
-        tasks.sim_outcomes_for_stacks.delay(list(build.stacks.all().values_list('id', flat=True)), task.id)
-
-        messages.add_message(
-            request,
-            messages.WARNING,
-            'Simulating outcomes for {} stacks.'.format(build.stacks.all().count()))
-
-        # redirect or TemplateResponse(request, "sometemplate.html", context)
-        return redirect(request.META.get('HTTP_REFERER'), context=context)
-
-    def balance_rbs(self, request, pk):
-        context = dict(
-           # Include common variables for rendering the admin template.
-           self.admin_site.each_context(request),
-           # Anything else you want in the context...
-        )
-
-        # Get the scenario to activate
-        build = get_object_or_404(models.SlateBuild, pk=pk)
-        if build.ready:
-            build.balance_rbs()
-            self.message_user(request, 'RBs balanced for {}.'.format(str(build)), level=messages.INFO)
-        else:
-            self.message_user(request, 'Cannot balance RBs for {}. Check projections and construction.'.format(str(build)), level=messages.ERROR)
-
-        # redirect or TemplateResponse(request, "sometemplate.html", context)
-        return redirect(request.META.get('HTTP_REFERER'), context=context)
-
     def get_target_score(self, request, queryset):
         for build in queryset:
             tasks.get_target_score.delay(build.id)
             messages.success(request, 'Getting target score for {}. Refresh this page to check progress.'.format(build))
     get_target_score.short_description = 'Get target score for selected builds'
-
-    def simulate(self, request, pk):
-        context = dict(
-           # Include common variables for rendering the admin template.
-           self.admin_site.each_context(request),
-           # Anything else you want in the context...
-        )
-
-        build = get_object_or_404(models.SlateBuild, pk=pk)
-
-        task = BackgroundTask()
-        task.name = 'Find top lineups'
-        task.user = request.user
-        task.save()
-
-        if settings.DEBUG:
-            num_outcomes = 2
-        else:
-            num_outcomes = 10000
-            
-        chord([tasks.find_top_lineups_for_build.s(
-            build.id, 
-            players_outcome_index,
-            2
-        ) for players_outcome_index in range(0, num_outcomes)], tasks.complete_top_lineups_for_build.s(build.id, task.id))()
-            
-        # chord([tasks.simulate_player_outcomes_for_build.s(
-        #     build.id, 
-        #     players_outcome_index
-        # ) for players_outcome_index in range(0, num_outcomes)], tasks.combine_build_sim_results.s(build.id, task.id))()
-
-        messages.add_message(
-            request,
-            messages.WARNING,
-            'Finding top lineups for {}'.format(str(build)))
-
-        # redirect or TemplateResponse(request, "sometemplate.html", context)
-        return redirect(request.META.get('HTTP_REFERER'), context=context)
-
-    def speed_test(self, request, pk):
-        context = dict(
-           # Include common variables for rendering the admin template.
-           self.admin_site.each_context(request),
-           # Anything else you want in the context...
-        )
-
-        # Get the scenario to activate
-        build = get_object_or_404(models.SlateBuild, pk=pk)
-        tasks.speed_test.delay(build.id)
-        self.message_user(request, 'Speed test for {}.'.format(str(build)), level=messages.INFO)
-
-        # redirect or TemplateResponse(request, "sometemplate.html", context)
-        return redirect(request.META.get('HTTP_REFERER'), context=context)
 
     def build(self, request, pk):
         context = dict(

@@ -1984,9 +1984,6 @@ class SlateBuild(models.Model):
 
         chain(
             group(jobs),
-            # group([
-            #     tasks.analyze_lineup_outcomes.si(lineup_id) for lineup_id in list(self.lineups.all().values_list('id', flat=True))
-            # ]),
             tasks.clean_lineups.si(self.id),
             tasks.find_expected_lineup_order.si(self.id),
             tasks.build_complete.s(self.id, task.id)
