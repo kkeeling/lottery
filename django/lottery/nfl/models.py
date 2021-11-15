@@ -1983,7 +1983,7 @@ class SlateBuild(models.Model):
             last_qb = qb
 
         chord(
-            group(jobs),
+            jobs,
             tasks.build_complete.s(self.id, task.id).on_error(tasks.build_completed_with_error.s())
         )()
 
