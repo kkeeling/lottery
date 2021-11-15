@@ -2002,7 +2002,7 @@ class SlateBuild(models.Model):
             self.lineups.filter(std__gt=self.configuration.std_cutoff).delete()
 
         ordered_lineups = self.lineups.all().order_by(f'-{self.configuration.lineup_removal_by}')
-        ordered_lineups.filter(id__in=ordered_lineups.values_list('pk', flat=True)[self.total_lineups:]).delete()
+        ordered_lineups.filter(id__in=ordered_lineups.values_list('pk', flat=True)[int(self.total_lineups*1.20):]).delete()
 
     def update_build_progress(self):
         all_stacks = self.stacks.filter(count__gt=0)
