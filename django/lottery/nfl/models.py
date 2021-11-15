@@ -14,7 +14,7 @@ import time
 import traceback
 import uuid
 
-from celery import group, chord
+from celery import group, chord, chain
 from collections import namedtuple
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
@@ -1965,7 +1965,7 @@ class SlateBuild(models.Model):
         task.user = user
         task.save()
 
-        tasks.monitor_build.delay(self.id)
+        chain(tasks.monitor_build.s(self.id), tasks.build_complete.si(self.id, task.id))
 
         last_qb = None
         stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
@@ -1982,10 +1982,7 @@ class SlateBuild(models.Model):
 
             last_qb = qb
 
-        chord(
-            jobs,
-            tasks.build_complete.s(self.id, task.id).on_error(tasks.build_completed_with_error.s())
-        )()
+        group(jobs)()
 
     def analyze_lineups(self):
         group([
