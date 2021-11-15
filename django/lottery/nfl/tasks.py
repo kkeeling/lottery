@@ -1115,7 +1115,7 @@ def find_expected_lineup_order(build_id, task_id):
 
 
 @shared_task
-def build_complete(lineup_ids, build_id, task_id):
+def build_complete(build_id, task_id):
     try:
         task = BackgroundTask.objects.get(id=task_id)
     except BackgroundTask.DoesNotExist:
