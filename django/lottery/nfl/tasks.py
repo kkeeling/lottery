@@ -904,8 +904,8 @@ def monitor_build(build_id):
     start = datetime.datetime.now()
     build = models.SlateBuild.objects.get(id=build_id)
     all_stacks = build.stacks.filter(count__gt=0)
-    remaining_stacks = all_stacks.filter(lineups_created=False)
-    while remaining_stacks.count() > 0:
+
+    while all_stacks.filter(lineups_created=False).count() > 0:
         build.update_build_progress()
         time.sleep(1)
 
