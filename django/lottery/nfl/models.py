@@ -1978,13 +1978,15 @@ class SlateBuild(models.Model):
             else:
                 lineup_number += 1
 
-            jobs.append(tasks.build_lineups_for_stack.si(stack.id, lineup_number, num_qb_stacks))
+            jobs.append(tasks.build_lineups_for_stack.s(stack.id, lineup_number, num_qb_stacks))
 
             last_qb = qb
 
         chord(
             group(jobs),
-            tasks.build_complete.s(self.id, task.id)
+            tasks.build_complete.s(self.id, task.id).set(link_error=[
+                'super_task.build_complete'
+            ])
         )()
 
     def analyze_lineups(self):
