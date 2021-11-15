@@ -1965,7 +1965,7 @@ class SlateBuild(models.Model):
         task.user = user
         task.save()
 
-        chain(tasks.monitor_build.s(self.id), tasks.build_complete.si(self.id, task.id))
+        chain(tasks.monitor_build.s(self.id), tasks.build_complete.si(self.id, task.id))()
 
         last_qb = None
         stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
