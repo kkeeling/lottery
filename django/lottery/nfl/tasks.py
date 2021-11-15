@@ -211,6 +211,8 @@ def build_lineups_for_stack(stack_id, lineup_number, num_qb_stacks):
     stack = models.SlateBuildStack.objects.get(id=stack_id)
     stack.build_lineups_for_stack(lineup_number, num_qb_stacks)
 
+    return list(stack.lineups.all().values_list('id', flat=True))
+
 
 @shared_task
 def calculate_actuals_for_stacks(stack_ids):
@@ -1085,13 +1087,35 @@ def clean_lineups(build_id, task_id=None):
 
 
 @shared_task
-def find_expected_lineup_order(build_id):
-    build = models.SlateBuild.objects.get(id=build_id)
-    build.find_expected_lineup_order()
+def find_expected_lineup_order(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.find_expected_lineup_order()
+
+        task.status = 'success'
+        task.content = 'Lineups ordered.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem ordering lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task
-def build_complete(chained_results, build_id, task_id):
+def build_complete(lineup_ids, build_id, task_id):
     try:
         task = BackgroundTask.objects.get(id=task_id)
     except BackgroundTask.DoesNotExist:
@@ -1099,6 +1123,9 @@ def build_complete(chained_results, build_id, task_id):
         task = BackgroundTask.objects.get(id=task_id)
 
     build = models.SlateBuild.objects.get(id=build_id)
+    build.clean_lineups()
+    build.find_expected_lineup_order()
+    build.pct_complete = 1.0
     build.status = 'complete'
     build.save()
 

@@ -14,7 +14,7 @@ import time
 import traceback
 import uuid
 
-from celery import group, chain
+from celery import group, chord
 from collections import namedtuple
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
@@ -1982,10 +1982,8 @@ class SlateBuild(models.Model):
 
             last_qb = qb
 
-        chain(
+        chord(
             group(jobs),
-            tasks.clean_lineups.si(self.id),
-            tasks.find_expected_lineup_order.si(self.id),
             tasks.build_complete.s(self.id, task.id)
         )()
 
