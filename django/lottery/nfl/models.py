@@ -1984,9 +1984,7 @@ class SlateBuild(models.Model):
 
         chord(
             group(jobs),
-            tasks.build_complete.s(self.id, task.id).set(link_error=[
-                'super_task.build_complete'
-            ])
+            tasks.build_complete.s(self.id, task.id).on_error(tasks.build_completed_with_error.s())
         )()
 
     def analyze_lineups(self):

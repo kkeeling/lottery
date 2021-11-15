@@ -1137,6 +1137,9 @@ def build_complete(lineup_ids, build_id, task_id):
     task.content = f'{build.lineups.all().count()} lineups built.'
     task.save()
 
+@shared_task
+def build_completed_with_error(request, exc, traceback):
+    print('Task {0!r} raised error: {1!r}'.format(request.id, exc))
 
 @shared_task
 def build_optimals_for_stack(stack_id):
