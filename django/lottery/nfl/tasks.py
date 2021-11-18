@@ -1,11 +1,11 @@
 import csv
 import datetime
-from functools import partial
 import logging
+import json
 import math
-from django.db.models.expressions import Case, When
 import numpy
 import pandas
+from pandas.core.frame import DataFrame
 import pandasql
 from pydfs_lineup_optimizer import player
 import scipy
@@ -72,6 +72,138 @@ def update_vegas_for_week(week_id, task_id):
         if task is not None:
             task.status = 'error'
             task.content = f'There was a problem updating vegas odds: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def simulate_game(game_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        game = models.SlateGame.objects.get(id=game_id)
+
+        r_df = pandas.read_csv('data/nfl_correl_matrix_no_k.csv', index_col=0)
+        c = scipy.linalg.cholesky(r_df, lower=True)
+
+        home_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_home_players().values_list('id', flat=True))
+        away_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_away_players().values_list('id', flat=True))
+
+        home_qb = home_players.filter(slate_player__site_pos='QB').order_by('-projection', '-slate_player__salary')[0]
+        home_rb1 = home_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[0]
+        home_rb2 = home_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[1]
+        home_wr1 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[0]
+        home_wr2 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[1]
+        home_wr3 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[2]
+        home_te = home_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[0]
+        home_dst = home_players.filter(slate_player__site_pos='D').order_by('-projection', '-slate_player__salary')[0]
+
+        away_qb = away_players.filter(slate_player__site_pos='QB').order_by('-projection', '-slate_player__salary')[0]
+        away_rb1 = away_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[0]
+        away_rb2 = away_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[1]
+        away_wr1 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[0]
+        away_wr2 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[1]
+        away_wr3 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[2]
+        away_te = away_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[0]
+        away_dst = away_players.filter(slate_player__site_pos='D').order_by('-projection', '-slate_player__salary')[0]
+
+        t = []
+
+        home_qb_scores = []
+        home_rb1_scores = []
+        home_rb2_scores = []
+        home_wr1_scores = []
+        home_wr2_scores = []
+        home_wr3_scores = []
+        home_te_scores = []
+        home_dst_scores = []
+
+        away_qb_scores = []
+        away_rb1_scores = []
+        away_rb2_scores = []
+        away_wr1_scores = []
+        away_wr2_scores = []
+        away_wr3_scores = []
+        away_te_scores = []
+        away_dst_scores = []
+
+        for _ in range(0, 10000):
+            x = [
+                numpy.random.gamma((float(home_qb.projection)/float(home_qb.stdev))**2, (float(home_qb.stdev)**2)/float(home_qb.projection)),
+                numpy.random.gamma((float(home_rb1.projection)/float(home_rb1.stdev))**2, (float(home_rb1.stdev)**2)/float(home_rb1.projection)),
+                numpy.random.gamma((float(home_rb2.projection)/float(home_rb2.stdev))**2, (float(home_rb2.stdev)**2)/float(home_rb2.projection)),
+                numpy.random.gamma((float(home_wr1.projection)/float(home_wr1.stdev))**2, (float(home_wr1.stdev)**2)/float(home_wr1.projection)),
+                numpy.random.gamma((float(home_wr2.projection)/float(home_wr2.stdev))**2, (float(home_wr2.stdev)**2)/float(home_wr2.projection)),
+                numpy.random.gamma((float(home_wr3.projection)/float(home_wr3.stdev))**2, (float(home_wr3.stdev)**2)/float(home_wr3.projection)),
+                numpy.random.gamma((float(home_te.projection)/float(home_te.stdev))**2, (float(home_te.stdev)**2)/float(home_te.projection)),
+                numpy.random.gamma((float(home_dst.projection)/float(home_dst.stdev))**2, (float(home_dst.stdev)**2)/float(home_dst.projection)),
+                numpy.random.gamma((float(away_qb.projection)/float(away_qb.stdev))**2, (float(away_qb.stdev)**2)/float(away_qb.projection)),
+                numpy.random.gamma((float(away_rb1.projection)/float(away_rb1.stdev))**2, (float(away_rb1.stdev)**2)/float(away_rb1.projection)),
+                numpy.random.gamma((float(away_rb2.projection)/float(away_rb2.stdev))**2, (float(away_rb2.stdev)**2)/float(away_rb2.projection)),
+                numpy.random.gamma((float(away_wr1.projection)/float(away_wr1.stdev))**2, (float(away_wr1.stdev)**2)/float(away_wr1.projection)),
+                numpy.random.gamma((float(away_wr2.projection)/float(away_wr2.stdev))**2, (float(away_wr2.stdev)**2)/float(away_wr2.projection)),
+                numpy.random.gamma((float(away_wr3.projection)/float(away_wr3.stdev))**2, (float(away_wr3.stdev)**2)/float(away_wr3.projection)),
+                numpy.random.gamma((float(away_te.projection)/float(away_te.stdev))**2, (float(away_te.stdev)**2)/float(away_te.projection)),
+                numpy.random.gamma((float(away_dst.projection)/float(away_dst.stdev))**2, (float(away_dst.stdev)**2)/float(away_dst.projection)),
+            ]
+
+            y = numpy.dot(c, x)
+
+            home_qb_scores.append(y[0])
+            home_rb1_scores.append(y[1])
+            home_rb2_scores.append(y[2])
+            home_wr1_scores.append(y[3])
+            home_wr2_scores.append(y[4])
+            home_wr3_scores.append(y[5])
+            home_te_scores.append(y[6])
+            home_dst_scores.append(y[7])
+            away_qb_scores.append(y[8])
+            away_rb1_scores.append(y[9])
+            away_rb2_scores.append(y[10])
+            away_wr1_scores.append(y[11])
+            away_wr2_scores.append(y[12])
+            away_wr3_scores.append(y[13])
+            away_te_scores.append(y[14])
+            away_dst_scores.append(y[15])
+
+        df_scores = pandas.DataFrame([
+            home_qb_scores,
+            home_rb1_scores,
+            home_rb2_scores,
+            home_wr1_scores,
+            home_wr2_scores,
+            home_wr3_scores,
+            home_te_scores,
+            home_dst_scores,
+            away_qb_scores,
+            away_rb1_scores,
+            away_rb2_scores,
+            away_wr1_scores,
+            away_wr2_scores,
+            away_wr3_scores,
+            away_te_scores,
+            away_dst_scores,
+        ])
+
+        game.game_sim = json.dumps(df_scores.to_json())
+        game.save()
+
+        task.status = 'success'
+        task.content = f'Simulation of {game} complete.'
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem simulating{game}: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
@@ -1373,6 +1505,36 @@ def combine_build_sim_results(results, build_id, task_id):
             task.content = f'There was an error identifying the top stacks: {e}'
             task.save()
 
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def export_game_sim(game_id, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        game = models.SlateGame.objects.get(id=game_id)
+        
+        data = json.loads(json.loads(game.game_sim))
+        sim_df = pandas.DataFrame.from_dict(data, orient='columns')
+        sim_df.to_csv(result_path)
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 

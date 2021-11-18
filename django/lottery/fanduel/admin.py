@@ -2,7 +2,7 @@ import math
 
 from django.contrib import admin, messages
 
-from celery import chain
+from celery import chain, group, chord
 from configuration.models import BackgroundTask
 
 from . import models
@@ -20,6 +20,7 @@ class ContestAdmin(admin.ModelAdmin):
         'name',
         'cost',
         'entries_url',
+        'last_page_processed',
     )
     inlines = [
         ContestPrizeInline
@@ -62,8 +63,12 @@ class ContestAdmin(admin.ModelAdmin):
             return
 
         contest = queryset[0]
+
+        if contest.last_page_processed == 0:
+            contest.entries.all().delete()
+
         chain([
-            tasks.get_entries_page_for_contest.si(contest.id, page, math.ceil(contest.num_entries/10)) for page in range(0, math.ceil(contest.num_entries/10))
+            tasks.get_entries_page_for_contest.si(contest.id, page, math.ceil(contest.num_entries/10)) for page in range(contest.last_page_processed, math.ceil(contest.num_entries/10))
         ])()
     get_entries.short_description = 'Get Entries For Selected Contests'
 

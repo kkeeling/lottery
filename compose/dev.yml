@@ -36,7 +36,7 @@ services:
       - dev/django.env
     depends_on:
       - redis
-    command: celery -A lottery worker -B -Ofair -l info --task-events --max-tasks-per-child=5
+    command: celery -A lottery worker -B -Ofair -l info --task-events --max-tasks-per-child=5 --purge --discard
     volumes:
       - ../django/lottery:/opt/lottery
       - lottery_static:/opt/static

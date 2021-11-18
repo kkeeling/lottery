@@ -586,6 +586,7 @@ class SlateGame(models.Model):
     ownership_zscore = models.DecimalField('Own Z-Score', max_digits=6, decimal_places=4, default=0.0000)
     avg_stack_ceiling = models.DecimalField('Avg Stack Ceiling', max_digits=5, decimal_places=2, default=0.00)
     rating = models.DecimalField('Rating', max_digits=6, decimal_places=4, default=0.0000)
+    game_sim = models.TextField(null=True, blank=True)
 
     class Meta:
         verbose_name = 'Game'

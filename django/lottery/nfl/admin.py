@@ -654,7 +654,11 @@ class SlateAdmin(admin.ModelAdmin):
         'is_main_slate',
         
     )
-    actions = ['process_slates', 'analyze_projections']
+    actions = [
+        'process_slates', 
+        'analyze_projections',
+        'export_game_sims',
+    ]
     inlines = (SlateProjectionSheetInline, SlatePlayerOwnershipProjectionSheetInline, SlateGameInline, )
     fields = (
         'datetime',
@@ -775,6 +779,36 @@ class SlateAdmin(admin.ModelAdmin):
             slate.analyze_projections()
     analyze_projections.short_description = 'Analyze projections for selected slates'
 
+    def export_game_sims(self, request, queryset):
+        jobs = []
+
+        for slate_game in models.SlateGame.objects.filter(slate__in=queryset):
+            result_file = f'{slate_game.slate}-{slate_game.game.away_team} @ {slate_game.game.home_team}.csv'
+            result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+            os.makedirs(result_path, exist_ok=True)
+            result_path = os.path.join(result_path, result_file)
+            result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+            jobs.append(
+                tasks.export_game_sim.s(
+                    slate_game.id,
+                    result_path,
+                    result_url,
+                    BackgroundTask.objects.create(
+                        name=f'Export Simulation for {slate_game}',
+                        user=request.user
+                    ).id
+                )
+            )
+
+        group(jobs)()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your exports are being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your exports are ready.')
+    export_game_sims.short_description = 'Export Game Sims from selected Slates'
+
     def simulate(self, request, pk):
         context = dict(
            # Include common variables for rendering the admin template.
@@ -784,12 +818,15 @@ class SlateAdmin(admin.ModelAdmin):
 
         slate = get_object_or_404(models.Slate, pk=pk)
 
-        task = BackgroundTask()
-        task.name = 'Simulating Player Outcomes'
-        task.user = request.user
-        task.save()
-
-        tasks.sim_outcomes_for_players.delay(list(models.SlatePlayerProjection.objects.filter(slate_player__slate=slate).values_list('id', flat=True)), task.id)
+        group([
+            tasks.simulate_game.s(
+                slate_game.id,
+                BackgroundTask.objects.create(
+                    name=f'Simulate {slate_game}',
+                    user=request.user
+                ).id
+            ) for slate_game in slate.games.all()
+        ])()
 
         messages.add_message(
             request,
