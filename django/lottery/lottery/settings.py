@@ -83,6 +83,7 @@ INSTALLED_APPS = (
     'configuration',
     'nfl',
     'fanduel',
+    'nfl_sims',
 )
 
 MIDDLEWARE = (
