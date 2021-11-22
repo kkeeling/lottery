@@ -1424,6 +1424,7 @@ class GroupCreationRule(models.Model):
         # TODO: Make this expose various objects to allow more flexibility in conditionals, instead of hardcoding the specific variables
         locals = {
             'projection': float(build_projection.projection),
+            'ownership_projection': float(build_projection.ownership_projection),
             'team_total': float(build_projection.team_total) if build_projection.team_total is not None else 0.0,
             'game_total': float(build_projection.game_total) if build_projection.game_total is not None else 0.0,
             'game_zscore': float(build_projection.game.zscore) if build_projection.game is not None and build_projection.game.zscore is not None else 0.0,

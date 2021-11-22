@@ -1,3 +1,5 @@
+import pandas
+
 from django.db import models
 
 
@@ -36,3 +38,7 @@ class Simulation(models.Model):
 
     def __str__(self):
         return f'Simulation for week {self.week_num} {self.slate_year}'
+
+    def get_player_outcomes(self, draftkings_player_id=None, fanduel_player_id=None, yahoo_player_id=None):
+        df_outcomes = pandas.read_csv(self.player_outcomes.path)
+        print(df_outcomes)

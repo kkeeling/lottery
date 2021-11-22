@@ -92,7 +92,9 @@ def get_contest_data(contest_id, task_id):
             task.status = 'success'
             task.content = f'Data for {contest.name} retrieved and saved.'
         elif contest.contest_json is not None:
-            data = json.loads(contest.contest_json)
+            print(f'HTTP Status {response.status_code}.')
+            if contest.contest_json is not None:
+                data = json.loads(contest.contest_json)
 
             task.status = 'success'
             task.content = f'HTTP Status {response.status_code}. Using cached data.'

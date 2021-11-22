@@ -1362,6 +1362,9 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
         'num_players',
         'active',
     )
+    raw_id_fields = (
+        'build',
+    )
     list_editable = (
         'min_from_group',
         'max_from_group',
