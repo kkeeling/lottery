@@ -30,6 +30,7 @@ from django.utils.html import format_html
 from django.urls import reverse_lazy
 
 from configuration.models import BackgroundTask
+from fanduel import models as fanduel_models
 
 from . import optimize
 from . import new_optimize
@@ -628,6 +629,7 @@ class SlateGame(models.Model):
 class Contest(models.Model):
     slate = models.ForeignKey(Slate, related_name='contests', on_delete=models.CASCADE, null=True, blank=True)
     outcomes_sheet = models.FileField(upload_to='uploads/sims', blank=True, null=True)
+    fanduel_contest = models.ForeignKey(fanduel_models.Contest, on_delete=models.SET_NULL, blank=True, null=True)
     use_for_sims = models.BooleanField(default=False)
     use_for_actuals = models.BooleanField(default=True)
     cost = models.DecimalField(decimal_places=2, max_digits=10)

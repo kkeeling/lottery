@@ -80,3 +80,6 @@ class ContestEntryAdmin(admin.ModelAdmin):
         'contest',
         'entry_url',
     )
+    search_fields = (
+        'username',
+    )

@@ -2992,26 +2992,42 @@ class ContestAdmin(admin.ModelAdmin):
         ('slate', RelatedDropdownFilter),
         'slate__site',
     )
+    raw_id_fields = (
+        'fanduel_contest',
+    )
     inlines = [
         ContestPrizeInline
     ]
+    actions = [
+        'export_field'
+    ]
 
-    # def save_model(self, request, obj, form, change):
-    #     super().save_model(request, obj, form, change)
-    #     self.process_contest(request, obj)
+    def export_field(self, request, queryset):
+        if queryset.count() > 1:
+            return
+        
+        contest = queryset[0]
 
-    # def process_contest(self, request, contest):
-    #     task = BackgroundTask()
-    #     task.name = 'Process Contest Outcomes'
-    #     task.user = request.user
-    #     task.save()
+        task = BackgroundTask()
+        task.name = f'Export Field Lineups for {contest.slate} - {contest.name}'
+        task.user = request.user
+        task.save()
 
-    #     tasks.process_contest_sim_datasheet.delay(contest.id, task.id)
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file = f'Field Lineups Export {timestamp}.xlsx'
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
-    #     messages.add_message(
-    #         request,
-    #         messages.WARNING,
-    #         'Loading contest simulations. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the contest is ready.')
+        tasks.export_field_for_contest.delay(contest.id, result_path, result_url, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
+    export_field.short_description = 'Export lineups from selected contest'
 
 
 @admin.register(models.CeilingProjectionRangeMapping)

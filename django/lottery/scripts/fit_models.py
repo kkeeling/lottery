@@ -7,7 +7,7 @@ from nfl import models
 
 
 def run():
-    dataset = pd.read_csv("/opt/lottery/data/qbs_actuals.csv")
+    dataset = pd.read_csv("/opt/lottery/data/dsts_actuals.csv")
     dataset.head()
     dataset.info()
     
@@ -15,8 +15,8 @@ def run():
     f = Fitter(
         diffs,
         distributions=[
-            'gamma',
-            'lognorm',
+            # 'gamma',
+            # 'lognorm',
             "skewnorm",
         ]
     )

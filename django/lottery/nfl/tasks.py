@@ -1269,6 +1269,7 @@ def build_complete(build_id, task_id):
     task.content = f'{build.lineups.all().count()} lineups built.'
     task.save()
 
+
 @shared_task
 def build_completed_with_error(request, exc, traceback):
     print('Task {0!r} raised error: {1!r}'.format(request.id, exc))
@@ -2389,5 +2390,39 @@ def sim_outcomes_for_players(proj_ids, task_id):
             task.content = f'There was a problem simulating outcomes: {e}'
             task.save()
 
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def export_field_for_contest(contest_id, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)  
+
+        contest = models.Contest.objects.get(id=contest_id)
+        entries_json = contest.fanduel_contest.get_lineups_as_json()
+        df_entries = pandas.DataFrame(entries_json)
+        df_players = pandas.DataFrame.from_records(contest.slate.players.all().values())
+
+        with pandas.ExcelWriter(result_path) as writer:
+            df_players.to_excel(writer, sheet_name="players")
+            df_entries.to_excel(writer, sheet_name="entries")
+            writer.save()
+        
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
