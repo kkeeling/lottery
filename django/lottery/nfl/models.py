@@ -778,7 +778,7 @@ class SlatePlayerProjection(models.Model):
     rb_group_value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     rb_group = models.PositiveIntegerField('RBG', null=True, blank=True)
     balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
-    sim_scores = ArrayField(models.DecimalField(max_digits=4, decimal_places=2), null=True, blank=True)
+    sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
     in_play = models.BooleanField(default=True)
     stack_only = models.BooleanField(default=False, verbose_name='SO', help_text='Player is only in pool when stacked with QB or opposing QB')
     qb_stack_only = models.BooleanField(default=False, verbose_name='SwQB', help_text='Generate QB stacks with this player')

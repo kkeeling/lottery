@@ -1,6 +1,6 @@
 import json
 import logging
-import math
+import pandas
 import random
 import requests
 import sys
@@ -216,7 +216,81 @@ def get_lineup_for_entry(entry_id):
 
 
 @shared_task
-def get_lineup_for_entries(entry_ids):
-    group([
-        get_lineup_for_entry.s(entry_id) for entry_id in entry_ids
-    ])()
+def export_contest_data(contest_ids, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)  
+
+        df = pandas.DataFrame.from_records(models.Contest.objects.filter(id__in=contest_ids).values())
+        df.to_csv(result_path)
+        
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def export_contest_prize_data(contest_ids, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)  
+
+        df = pandas.DataFrame.from_records(models.ContestPrize.objects.filter(contest_id__in=contest_ids).values())
+        df.to_csv(result_path)
+        
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def export_contest_entries_data(contest_ids, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)  
+
+        df = pandas.DataFrame.from_records(models.ContestEntry.objects.filter(contest_id__in=contest_ids).values())
+        df.to_csv(result_path)
+        
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))

@@ -78,6 +78,60 @@ def update_vegas_for_week(week_id, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
+def find_qbs(qb=None):
+    '''
+    Query DB for relevant QBs.
+
+    If qb parameter is used, find opposing qb
+    '''
+    if qb is None:
+        qbs = models.SlatePlayer.objects.filter(
+            slate__site='fanduel',
+            site_pos='QB',
+            projection__projection__gt=9.9,
+            fantasy_points__gt=4.9,
+            slate_game__isnull=False,
+            slate__is_main_slate=True
+        ).select_related('projection').annotate(proj=F('projection__projection'))
+    else:
+        qbs = models.SlatePlayer.objects.filter(
+            slate=qb.slate,
+            site_pos='QB',
+            projection__projection__gt=9.9,
+            fantasy_points__gt=4.9,
+            team=qb.get_opponent()
+        ).select_related(
+            'projection'
+        ).annotate(
+            proj=F('projection__projection')
+        )
+    
+    return qbs
+
+
+def find_players(qb, position, depth, find_opponent=False):
+    team = qb.get_opponent() if find_opponent else qb.team
+    players = models.SlatePlayer.objects.filter(
+        slate=qb.slate,
+        site_pos=position,
+        team=team,
+        projection__isnull=False
+    ).select_related(
+        'projection'
+    ).annotate(
+        proj=F('projection__projection')
+    ).order_by('-proj')
+
+    if players.count() < depth:
+        return players
+    return players[:depth]
+
+
+def get_corr_matrix():
+    r_df = pandas.read_csv('data/r.csv', index_col=0)
+    return r_df
+
+
 @shared_task
 def simulate_game(game_id, task_id):
     task = None
@@ -91,8 +145,14 @@ def simulate_game(game_id, task_id):
 
         game = models.SlateGame.objects.get(id=game_id)
 
-        r_df = pandas.read_csv('data/nfl_correl_matrix_no_k.csv', index_col=0)
-        c = scipy.linalg.cholesky(r_df, lower=True)
+        N = 10000
+
+        r_df = get_corr_matrix()
+        c_target = r_df.to_numpy()
+        r0 = [0] * c_target.shape[0]
+        mv_norm = scipy.stats.multivariate_normal(mean=r0, cov=c_target)
+        rand_Nmv = mv_norm.rvs(N) 
+        rand_U = scipy.stats.norm.cdf(rand_Nmv)
 
         home_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_home_players().values_list('id', flat=True))
         away_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_away_players().values_list('id', flat=True))
@@ -115,86 +175,96 @@ def simulate_game(game_id, task_id):
         away_te = away_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[0]
         away_dst = away_players.filter(slate_player__site_pos='D').order_by('-projection', '-slate_player__salary')[0]
 
-        t = []
+        home_qb_rv = scipy.stats.gamma((float(home_qb.projection)/float(home_qb.stdev))**2, scale=(float(home_qb.stdev)**2)/float(home_qb.projection))
+        home_rb1_rv = scipy.stats.gamma((float(home_rb1.projection)/float(home_rb1.stdev))**2, scale=(float(home_rb1.stdev)**2)/float(home_rb1.projection))
+        home_rb2_rv = scipy.stats.gamma((float(home_rb2.projection)/float(home_rb2.stdev))**2, scale=(float(home_rb2.stdev)**2)/float(home_rb2.projection))
+        home_wr1_rv = scipy.stats.gamma((float(home_wr1.projection)/float(home_wr1.stdev))**2, scale=(float(home_wr1.stdev)**2)/float(home_wr1.projection))
+        home_wr2_rv = scipy.stats.gamma((float(home_wr2.projection)/float(home_wr2.stdev))**2, scale=(float(home_wr2.stdev)**2)/float(home_wr2.projection))
+        home_wr3_rv = scipy.stats.gamma((float(home_wr3.projection)/float(home_wr3.stdev))**2, scale=(float(home_wr3.stdev)**2)/float(home_wr3.projection))
+        home_te_rv = scipy.stats.gamma((float(home_te.projection)/float(home_te.stdev))**2, scale=(float(home_te.stdev)**2)/float(home_te.projection))
+        home_dst_rv = scipy.stats.gamma((float(home_dst.projection)/float(home_dst.stdev))**2, scale=(float(home_dst.stdev)**2)/float(home_dst.projection))
+        away_qb_rv = scipy.stats.gamma((float(away_qb.projection)/float(away_qb.stdev))**2, scale=(float(away_qb.stdev)**2)/float(away_qb.projection))
+        away_rb1_rv = scipy.stats.gamma((float(away_rb1.projection)/float(away_rb1.stdev))**2, scale=(float(away_rb1.stdev)**2)/float(away_rb1.projection))
+        away_rb2_rv = scipy.stats.gamma((float(away_rb2.projection)/float(away_rb2.stdev))**2, scale=(float(away_rb2.stdev)**2)/float(away_rb2.projection))
+        away_wr1_rv = scipy.stats.gamma((float(away_wr1.projection)/float(away_wr1.stdev))**2, scale=(float(away_wr1.stdev)**2)/float(away_wr1.projection))
+        away_wr2_rv = scipy.stats.gamma((float(away_wr2.projection)/float(away_wr2.stdev))**2, scale=(float(away_wr2.stdev)**2)/float(away_wr2.projection))
+        away_wr3_rv = scipy.stats.gamma((float(away_wr3.projection)/float(away_wr3.stdev))**2, scale=(float(away_wr3.stdev)**2)/float(away_wr3.projection))
+        away_te_rv = scipy.stats.gamma((float(away_te.projection)/float(away_te.stdev))**2, scale=(float(away_te.stdev)**2)/float(away_te.projection))
+        away_dst_rv = scipy.stats.gamma((float(away_dst.projection)/float(away_dst.stdev))**2, scale=(float(away_dst.stdev)**2)/float(away_dst.projection))
 
-        home_qb_scores = []
-        home_rb1_scores = []
-        home_rb2_scores = []
-        home_wr1_scores = []
-        home_wr2_scores = []
-        home_wr3_scores = []
-        home_te_scores = []
-        home_dst_scores = []
-
-        away_qb_scores = []
-        away_rb1_scores = []
-        away_rb2_scores = []
-        away_wr1_scores = []
-        away_wr2_scores = []
-        away_wr3_scores = []
-        away_te_scores = []
-        away_dst_scores = []
-
-        for _ in range(0, 10000):
-            x = [
-                numpy.random.gamma((float(home_qb.projection)/float(home_qb.stdev))**2, (float(home_qb.stdev)**2)/float(home_qb.projection)),
-                numpy.random.gamma((float(home_rb1.projection)/float(home_rb1.stdev))**2, (float(home_rb1.stdev)**2)/float(home_rb1.projection)),
-                numpy.random.gamma((float(home_rb2.projection)/float(home_rb2.stdev))**2, (float(home_rb2.stdev)**2)/float(home_rb2.projection)),
-                numpy.random.gamma((float(home_wr1.projection)/float(home_wr1.stdev))**2, (float(home_wr1.stdev)**2)/float(home_wr1.projection)),
-                numpy.random.gamma((float(home_wr2.projection)/float(home_wr2.stdev))**2, (float(home_wr2.stdev)**2)/float(home_wr2.projection)),
-                numpy.random.gamma((float(home_wr3.projection)/float(home_wr3.stdev))**2, (float(home_wr3.stdev)**2)/float(home_wr3.projection)),
-                numpy.random.gamma((float(home_te.projection)/float(home_te.stdev))**2, (float(home_te.stdev)**2)/float(home_te.projection)),
-                numpy.random.gamma((float(home_dst.projection)/float(home_dst.stdev))**2, (float(home_dst.stdev)**2)/float(home_dst.projection)),
-                numpy.random.gamma((float(away_qb.projection)/float(away_qb.stdev))**2, (float(away_qb.stdev)**2)/float(away_qb.projection)),
-                numpy.random.gamma((float(away_rb1.projection)/float(away_rb1.stdev))**2, (float(away_rb1.stdev)**2)/float(away_rb1.projection)),
-                numpy.random.gamma((float(away_rb2.projection)/float(away_rb2.stdev))**2, (float(away_rb2.stdev)**2)/float(away_rb2.projection)),
-                numpy.random.gamma((float(away_wr1.projection)/float(away_wr1.stdev))**2, (float(away_wr1.stdev)**2)/float(away_wr1.projection)),
-                numpy.random.gamma((float(away_wr2.projection)/float(away_wr2.stdev))**2, (float(away_wr2.stdev)**2)/float(away_wr2.projection)),
-                numpy.random.gamma((float(away_wr3.projection)/float(away_wr3.stdev))**2, (float(away_wr3.stdev)**2)/float(away_wr3.projection)),
-                numpy.random.gamma((float(away_te.projection)/float(away_te.stdev))**2, (float(away_te.stdev)**2)/float(away_te.projection)),
-                numpy.random.gamma((float(away_dst.projection)/float(away_dst.stdev))**2, (float(away_dst.stdev)**2)/float(away_dst.projection)),
-            ]
-
-            y = numpy.dot(c, x)
-
-            home_qb_scores.append(y[0])
-            home_rb1_scores.append(y[1])
-            home_rb2_scores.append(y[2])
-            home_wr1_scores.append(y[3])
-            home_wr2_scores.append(y[4])
-            home_wr3_scores.append(y[5])
-            home_te_scores.append(y[6])
-            home_dst_scores.append(y[7])
-            away_qb_scores.append(y[8])
-            away_rb1_scores.append(y[9])
-            away_rb2_scores.append(y[10])
-            away_wr1_scores.append(y[11])
-            away_wr2_scores.append(y[12])
-            away_wr3_scores.append(y[13])
-            away_te_scores.append(y[14])
-            away_dst_scores.append(y[15])
+        rand_home_qb = home_qb_rv.ppf(rand_U[:, 0])
+        rand_home_rb1 = home_rb1_rv.ppf(rand_U[:, 1])
+        rand_home_rb2 = home_rb2_rv.ppf(rand_U[:, 2])
+        rand_home_wr1 = home_wr1_rv.ppf(rand_U[:, 3])
+        rand_home_wr2 = home_wr2_rv.ppf(rand_U[:, 4])
+        rand_home_wr3 = home_wr3_rv.ppf(rand_U[:, 5])
+        rand_home_te = home_te_rv.ppf(rand_U[:, 6])
+        rand_home_dst = home_dst_rv.ppf(rand_U[:, 7])
+        rand_away_qb = away_qb_rv.ppf(rand_U[:, 8])
+        rand_away_rb1 = away_rb1_rv.ppf(rand_U[:, 9])
+        rand_away_rb2 = away_rb2_rv.ppf(rand_U[:, 10])
+        rand_away_wr1 = away_wr1_rv.ppf(rand_U[:, 11])
+        rand_away_wr2 = away_wr2_rv.ppf(rand_U[:, 12])
+        rand_away_wr3 = away_wr3_rv.ppf(rand_U[:, 13])
+        rand_away_te = away_te_rv.ppf(rand_U[:, 14])
+        rand_away_dst = away_dst_rv.ppf(rand_U[:, 15])
 
         df_scores = pandas.DataFrame([
-            home_qb_scores,
-            home_rb1_scores,
-            home_rb2_scores,
-            home_wr1_scores,
-            home_wr2_scores,
-            home_wr3_scores,
-            home_te_scores,
-            home_dst_scores,
-            away_qb_scores,
-            away_rb1_scores,
-            away_rb2_scores,
-            away_wr1_scores,
-            away_wr2_scores,
-            away_wr3_scores,
-            away_te_scores,
-            away_dst_scores,
+            rand_home_qb,
+            rand_home_rb1,
+            rand_home_rb2,
+            rand_home_wr1,
+            rand_home_wr2,
+            rand_home_wr3,
+            rand_home_te,
+            rand_home_dst,
+            rand_away_qb,
+            rand_away_rb1,
+            rand_away_rb2,
+            rand_away_wr1,
+            rand_away_wr2,
+            rand_away_wr3,
+            rand_away_te,
+            rand_away_dst,
         ])
+        df_scores.to_csv(f'data/{game.slate}-{game.game.away_team} @ {game.game.home_team}.csv')
 
         game.game_sim = json.dumps(df_scores.to_json())
         game.save()
+        
+        # assign outcomes to players
+        home_qb.sim_scores = numpy.round(rand_home_qb, 2).tolist()
+        home_qb.save()
+        home_rb1.sim_scores = numpy.round(rand_home_rb1, 2).tolist()
+        home_rb1.save()
+        home_rb2.sim_scores = numpy.round(rand_home_rb2, 2).tolist()
+        home_rb2.save()
+        home_wr1.sim_scores = numpy.round(rand_home_wr1, 2).tolist()
+        home_wr1.save()
+        home_wr2.sim_scores = numpy.round(rand_home_wr2, 2).tolist()
+        home_wr2.save()
+        home_wr3.sim_scores = numpy.round(rand_home_wr3, 2).tolist()
+        home_wr3.save()
+        home_te.sim_scores = numpy.round(rand_home_te, 2).tolist()
+        home_te.save()
+        home_dst.sim_scores = numpy.round(rand_home_dst, 2).tolist()
+        home_dst.save()
+        away_qb.sim_scores = numpy.round(rand_away_qb, 2).tolist()
+        away_qb.save()
+        away_rb1.sim_scores = numpy.round(rand_away_rb1, 2).tolist()
+        away_rb1.save()
+        away_rb2.sim_scores = numpy.round(rand_away_rb2, 2).tolist()
+        away_rb2.save()
+        away_wr1.sim_scores = numpy.round(rand_away_wr1, 2).tolist()
+        away_wr1.save()
+        away_wr2.sim_scores = numpy.round(rand_away_wr2, 2).tolist()
+        away_wr2.save()
+        away_wr3.sim_scores = numpy.round(rand_away_wr3, 2).tolist()
+        away_wr3.save()
+        away_te.sim_scores = numpy.round(rand_away_te, 2).tolist()
+        away_te.save()
+        away_dst.sim_scores = numpy.round(rand_away_dst, 2).tolist()
+        away_dst.save()
 
         task.status = 'success'
         task.content = f'Simulation of {game} complete.'
@@ -203,7 +273,7 @@ def simulate_game(game_id, task_id):
     except Exception as e:
         if task is not None:
             task.status = 'error'
-            task.content = f'There was a problem simulating{game}: {e}'
+            task.content = f'There was a problem simulating {game}: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
