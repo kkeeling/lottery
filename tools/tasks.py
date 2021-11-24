@@ -84,7 +84,7 @@ def flower(ctx):
 def rebuild(ctx):
     if ctx.config.path:
         with ctx.config.connection.cd(ctx.config.path):
-            ctx.config.runner('git pull')
+            ctx.config.runner('git pull --force')
             ctx.config.runner('docker-compose -p lottery -f compose/{}.yml down'.format(ctx.config.target))
             ctx.config.runner('docker-compose -p lottery -f compose/{}.yml build --no-cache'.format(ctx.config.target))
             ctx.config.runner('docker-compose -p lottery -f compose/{}.yml up -d'.format(ctx.config.target))
@@ -95,7 +95,7 @@ def rebuild(ctx):
 def deploy(ctx):
     if ctx.config.path:
         with ctx.config.connection.cd(ctx.config.path):
-            ctx.config.runner('git pull')
+            ctx.config.runner('git pull --force')
             ctx.config.runner('docker-compose -p lottery -f compose/{}.yml down'.format(ctx.config.target))
             ctx.config.runner('docker-compose -p lottery -f compose/{}.yml up -d'.format(ctx.config.target))
     else:
