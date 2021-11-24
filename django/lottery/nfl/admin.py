@@ -3611,3 +3611,30 @@ class BacktestAdmin(admin.ModelAdmin):
             messages.WARNING,
             'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
     export_optimals.short_description = 'Export optimals from selected backtests'
+
+
+@admin.register(models.GroupImportSheet)
+class GroupImportSheetAdmin(admin.ModelAdmin):
+    list_display = (
+        'build',
+    )
+    raw_id_fields = (
+        'build',
+    )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.process_sheet(request, obj)
+
+    def process_sheet(self, request, sheet):
+        task = BackgroundTask()
+        task.name = 'Process Group Import'
+        task.user = request.user
+        task.save()
+
+        tasks.process_group_import_sheet.delay(sheet.id, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your group import is being processed.')

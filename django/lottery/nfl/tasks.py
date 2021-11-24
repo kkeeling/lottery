@@ -2495,3 +2495,65 @@ def export_field_for_contest(contest_id, result_path, result_url, task_id):
             task.save()
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def process_group_import_sheet(sheet_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        sheet = models.GroupImportSheet.objects.get(id=sheet_id)
+        df = pandas.read_csv(sheet.sheet.path, header=None, sep='\n')
+        df = df[0].str.split(',', expand=True)
+
+        l = df.values.tolist()
+        # create a group for each row
+        for row in l[1:]:
+            group_type = row[0]
+            count = int(row[1])
+            name = row[2]
+            players = []
+
+            for index, p in enumerate(row):
+                if p is None or p == '':
+                    break
+                if index >= 3:
+                    players.append(p)
+            
+            group = models.SlateBuildGroup.objects.create(
+                build=sheet.build,
+                name=f'{group_type}{count} - {name}',
+                max_from_group=int(count) if group_type == 'AM' else len(players),
+                min_from_group=int(count) if group_type == 'AL' else 0
+            )
+
+            slate_players = models.SlatePlayer.objects.filter(
+                name__in=players,
+                slate=sheet.build.slate
+            )
+
+            for slate_player in slate_players:
+                _ = models.SlateBuildGroupPlayer.objects.create(
+                    group=group,
+                    slate_player=slate_player
+                )
+
+        task.status = 'success'
+        task.content = 'Groups imported.'
+        task.save()        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error importing your groups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+

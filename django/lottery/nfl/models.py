@@ -1557,6 +1557,14 @@ class ContestImportSheet(models.Model):
         return '{}'.format(str(self.site))
 
 
+class GroupImportSheet(models.Model):
+    build = models.ForeignKey('SlateBuild', on_delete=models.CASCADE)
+    sheet = models.FileField(upload_to='uploads/groups')
+
+    def __str__(self):
+        return '{}'.format(str(self.build))
+
+
 # Builds
 
 
