@@ -227,7 +227,6 @@ def simulate_game(game_id, task_id):
             rand_away_te,
             rand_away_dst,
         ])
-        df_scores.to_csv(f'data/{game.slate}-{game.game.away_team} @ {game.game.home_team}.csv')
 
         game.game_sim = json.dumps(df_scores.to_json())
         game.save()
