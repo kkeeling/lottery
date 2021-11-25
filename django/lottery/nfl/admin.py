@@ -2023,14 +2023,14 @@ class SlateBuildAdmin(admin.ModelAdmin):
     get_construction_ready.boolean = True
 
     def get_pct_one_pct(self, obj):
-        if obj.total_one_pct is None:
+        if obj.total_one_pct is None or obj.total_lineups == 0:
             return 0
         return '{:.2f}'.format(obj.total_one_pct/obj.total_lineups * 100)
     get_pct_one_pct.short_description = '1%'
     get_pct_one_pct.admin_order_field = 'total_one_pct'
 
     def get_pct_half_pct(self, obj):
-        if obj.total_half_pct is None:
+        if obj.total_half_pct is None or obj.total_lineups == 0:
             return 0
         return '{:.2f}'.format(obj.total_half_pct/obj.total_lineups * 100)
     get_pct_half_pct.short_description = '0.5%'
