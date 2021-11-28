@@ -1625,7 +1625,7 @@ def export_build_for_upload(build_id, result_path, result_url, task_id):
             build_writer = csv.writer(temp_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             build_writer.writerow(['QB', 'RB', 'RB', 'WR', 'WR', 'WR', 'TE', 'FLEX', 'DEF'])
 
-            lineups = build.lineups.all().order_by('order_number', '-qb__projection')
+            lineups = build.lineups.all().order_by('expected_lineup_order')
 
             for lineup in lineups:
                 rbs = lineup.get_rbs()
