@@ -2037,14 +2037,14 @@ class SlateBuild(models.Model):
         current_qb = None
         qb_count = 0
         index = 0
-        for lineup in self.lineups.all().order_by('-qb__projection', '-s90').iterator():
+        for lineup in self.lineups.all().order_by('-qb__projection', 'qb').iterator():
             if current_qb is None or current_qb != lineup.qb:
                 current_qb = lineup.qb
                 qb_count += 1
                 index = 0
             else:
                 index += 1
-
+            
             lineup.expected_lineup_order = ((num_qbs * index) + 1) + (qb_count - 1)
             lineup.save()
 
