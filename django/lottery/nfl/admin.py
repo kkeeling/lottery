@@ -1382,6 +1382,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
     list_display = (
         'stack',
         'get_stack_rank',
+        'order_number',
         'expected_lineup_order',
         'get_qb',
         'get_rb1',
