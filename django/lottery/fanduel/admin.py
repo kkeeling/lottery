@@ -21,6 +21,9 @@ class ContestAdmin(admin.ModelAdmin):
     list_display = (
         'url',
         'name',
+        'slate_year',
+        'slate_week',
+        'is_main_slate',
         'cost',
         'entries_url',
         'last_page_processed',

@@ -1637,7 +1637,6 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
 
 @admin.register(models.SlateBuildStack)
 class SlateBuildStackAdmin(admin.ModelAdmin):
-    list_per_page = 25
     list_display = (
         'get_stack_name',
         'build_order',
@@ -2097,7 +2096,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         if obj.total_cashes == None:
             return None
         lineups = obj.lineups.all().order_by('-actual')
-        return lineups[0].expected_lineup_order if lineups.count() > 0 else None
+        return lineups[0].order_number if lineups.count() > 0 else None
     get_el.short_description = 'EL'
 
     def get_elapsed_time(self, obj):

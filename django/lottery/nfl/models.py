@@ -2034,10 +2034,11 @@ class SlateBuild(models.Model):
 
     def find_expected_lineup_order(self): 
         num_qbs = self.lineups.all().aggregate(num_qbs=Count('qb', distinct=True)).get('num_qbs')
+        all_lineups = self.lineups.all()
         current_qb = None
         qb_count = 0
         index = 0
-        for lineup in self.lineups.all().order_by('-qb__projection', 'qb__slate_player_id').iterator():
+        for lineup in all_lineups.order_by('-qb__projection', 'qb__slate_player_id'):
             if current_qb is None or current_qb != lineup.qb:
                 current_qb = lineup.qb
                 qb_count += 1
@@ -2046,6 +2047,10 @@ class SlateBuild(models.Model):
                 index += 1
             
             lineup.expected_lineup_order = ((num_qbs * index) + 1) + (qb_count - 1)
+            lineup.save()
+        
+        for i, lineup in enumerate(all_lineups.order_by('expected_lineup_order')):
+            lineup.order_number = i+1
             lineup.save()
 
     def num_lineups_created(self):
