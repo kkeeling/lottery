@@ -662,6 +662,7 @@ class SlateAdmin(admin.ModelAdmin):
     inlines = (SlateProjectionSheetInline, SlatePlayerOwnershipProjectionSheetInline, SlateGameInline, )
     fields = (
         'datetime',
+        'end_datetime',
         'name',
         'is_main_slate',
         'week',
@@ -721,10 +722,6 @@ class SlateAdmin(admin.ModelAdmin):
                 ).id),
                 tasks.assign_zscores_to_players.s(slate.id, BackgroundTask.objects.create(
                         name='Assign Z-Scores to Players',
-                        user=request.user
-                ).id),
-                tasks.process_sim_datasheets.s(slate.id, BackgroundTask.objects.create(
-                        name='Process Player Simulation Outcomes',
                         user=request.user
                 ).id)
             )()

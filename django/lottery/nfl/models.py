@@ -369,6 +369,7 @@ class Game(models.Model):
 
 class Slate(models.Model):
     datetime = models.DateTimeField(null=True, blank=True)
+    end_datetime = models.DateTimeField(null=True, blank=True)
     name = models.CharField(max_length=255, verbose_name='Slate', null=True, blank=True)
     week = models.ForeignKey(Week, related_name='slates', verbose_name='Week', on_delete=models.SET_NULL, null=True, blank=True)
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
@@ -538,15 +539,12 @@ class Slate(models.Model):
         return None
 
     def find_games(self):
-        if not self.is_main_slate:
-            return
-
         self.games.all().delete()
 
         games = Game.objects.filter(
             week=self.week,
             game_date__gte=self.datetime,
-            game_date__lt=self.datetime + datetime.timedelta(hours=5)
+            game_date__lt=self.datetime + datetime.timedelta(hours=6) if self.end_datetime is None else self.end_datetime
         )
         game_totals = list(games.values_list('game_total', flat=True))
         zscores = scipy.stats.zscore(game_totals)
