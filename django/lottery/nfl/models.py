@@ -238,6 +238,8 @@ class Alias(models.Model):
             return self.fc_name
         elif for_site == 'rts':
             return self.rts_name
+        elif for_site == 'yahoo':
+            return self.yahoo_name
 
 
 class MissingAlias(models.Model):
