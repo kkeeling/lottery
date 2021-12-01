@@ -98,6 +98,7 @@ class Alias(models.Model):
     etr_name = models.CharField(max_length=255, null=True, blank=True)
     rg_name = models.CharField(max_length=255, null=True, blank=True)
     rts_name = models.CharField(max_length=255, null=True, blank=True)
+    yahoo_name = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         verbose_name = 'Alias'
@@ -129,6 +130,8 @@ class Alias(models.Model):
                 alias = Alias.objects.get(fc_name=player_name)
             elif site == 'rts':
                 alias = Alias.objects.get(rts_name=player_name)
+            elif site == 'yahoo':
+                alias = Alias.objects.get(yahoo_name=player_name)
             else:
                 raise Exception('{} is not a supported site yet.'.format(site))
         except Alias.MultipleObjectsReturned:
@@ -152,6 +155,8 @@ class Alias(models.Model):
                 alias = Alias.objects.filter(fc_name=player_name)[0]
             elif site == 'rts':
                 alias = Alias.objects.filter(rts_name=player_name)[0]
+            elif site == 'yahoo':
+                alias = Alias.objects.filter(yahoo_name=player_name)[0]
             else:
                 raise Exception('{} is not a supported site yet.'.format(site))
         except Alias.DoesNotExist:
@@ -188,6 +193,9 @@ class Alias(models.Model):
                     score = seqmatch.quick_ratio()
                 elif site == 'rts':
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rts_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'yahoo':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.yahoo_name.lower())
                     score = seqmatch.quick_ratio()
                 else:
                     raise Exception('{} is not a supported site yet.'.format(site))
