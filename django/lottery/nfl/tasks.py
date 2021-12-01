@@ -1839,35 +1839,54 @@ def process_slate_players(chained_result, slate_id, task_id):
         slate = models.Slate.objects.get(id=slate_id)
         
         with open(slate.salaries.path, mode='r') as salaries_file:
-            if slate.site == 'fanduel':
-                csv_reader = csv.DictReader(salaries_file)
+            if slate.salaries_sheet_type == 'site':
+                if slate.site == 'fanduel':
+                    csv_reader = csv.DictReader(salaries_file)
+                else:
+                    csv_reader = csv.reader(salaries_file, delimiter=',')
             else:
-                csv_reader = csv.reader(salaries_file, delimiter=',')
+                csv_reader = csv.DictReader(salaries_file)
+
             success_count = 0
             missing_players = []
 
             for row in csv_reader:
-                if slate.site == 'fanduel':
-                    player_id = row['Id']
-                    site_pos = row['Position']
-                    player_name = row['Nickname'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
-                    salary = int(row['Salary'])
-                    game = row['Game'].replace('@', '_').replace('JAX', 'JAC')
+                if slate.salaries_sheet_type == 'site':
+                    site = slate.site
+                    if slate.site == 'fanduel':
+                        player_id = row['Id']
+                        site_pos = row['Position']
+                        player_name = row['Nickname'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
+                        salary = int(row['Salary'])
+                        game = row['Game'].replace('@', '_').replace('JAX', 'JAC')
+                        team = row['Team']
+                    elif slate.site == 'draftkings':
+                        if success_count < 8:
+                            success_count += 1
+                            continue
+
+                        player_id = row[13]
+                        site_pos = row[10]
+                        player_name = row[12].strip()
+                        salary = row[15]
+                        game = row[16].replace('@', '_').replace('JAX', 'JAC')
+                        game = game[:game.find(' ')]
+                        team = 'JAC' if row[17] == 'JAX' else row[17]
+                else:
+                    print(row)
+                    site = 'fc'
+                    player_id = None
+                    site_pos = row['Pos']
+                    player_name = row['Player'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
+                    salary = int(row['Salary'])                    
                     team = row['Team']
-                elif slate.site == 'draftkings':
-                    if success_count < 8:
-                        success_count += 1
-                        continue
+                    opp = row['Opp']
+                    if '@' in opp:
+                        game = f'{team}{opp}'.replace('@ ', '_').replace('JAX', 'JAC')
+                    else:
+                        game = f'{opp}_{team}'.replace('vs ', '').replace('JAX', 'JAC')
 
-                    player_id = row[13]
-                    site_pos = row[10]
-                    player_name = row[12].strip()
-                    salary = row[15]
-                    game = row[16].replace('@', '_').replace('JAX', 'JAC')
-                    game = game[:game.find(' ')]
-                    team = 'JAC' if row[17] == 'JAX' else row[17]
-
-                alias = models.Alias.find_alias(player_name, slate.site)
+                alias = models.Alias.find_alias(player_name, site)
                 
                 if alias is not None:
                     try:
