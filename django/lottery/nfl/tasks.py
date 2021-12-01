@@ -127,8 +127,11 @@ def find_players(qb, position, depth, find_opponent=False):
     return players[:depth]
 
 
-def get_corr_matrix():
-    r_df = pandas.read_csv('data/r.csv', index_col=0)
+def get_corr_matrix(site):
+    if site == 'fanduel' or site == 'yahoo':
+        r_df = pandas.read_csv('data/r.csv', index_col=0)
+    elif site == 'draftkings':
+        r_df = pandas.read_csv('data/dk_r.csv', index_col=0)
     return r_df
 
 
@@ -148,7 +151,7 @@ def simulate_game(game_id, task_id):
         N = 10000
         dst_label = 'D' if game.slate.site == 'fanduel' else 'DST'
 
-        r_df = get_corr_matrix()
+        r_df = get_corr_matrix(game.slate.site)
         c_target = r_df.to_numpy()
         r0 = [0] * c_target.shape[0]
         mv_norm = scipy.stats.multivariate_normal(mean=r0, cov=c_target)

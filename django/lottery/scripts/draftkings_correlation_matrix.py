@@ -23,7 +23,7 @@ def run():
         tes = find_players(qb, 'TE', 1)
         if tes.count() < 1:
             continue
-        dsts = find_players(qb, 'D', 1)
+        dsts = find_players(qb, 'DST', 1)
         if dsts.count() < 1:
             continue
 
@@ -39,7 +39,7 @@ def run():
         o_tes = find_players(qb, 'TE', 1, find_opponent=True)
         if o_tes.count() < 1:
             continue
-        o_dsts = find_players(qb, 'D', 1, find_opponent=True)
+        o_dsts = find_players(qb, 'DST', 1, find_opponent=True)
         if o_dsts.count() < 1:
             continue
 
@@ -84,7 +84,8 @@ def run():
     ])
 
     r = v.corr(method='pearson')
-    r.to_csv(f'data/r.csv')
+    print(r)
+    r.to_csv(f'data/dk_r.csv')
 
 
 def find_qbs(qb=None):
@@ -95,7 +96,7 @@ def find_qbs(qb=None):
     '''
     if qb is None:
         qbs = models.SlatePlayer.objects.filter(
-            slate__site='fanduel',
+            slate__site='draftkings',
             site_pos='QB',
             projection__projection__gt=9.9,
             fantasy_points__gt=4.9,
