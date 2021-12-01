@@ -1876,7 +1876,7 @@ def process_slate_players(chained_result, slate_id, task_id):
                 else:
                     site = 'fc'
                     player_id = None
-                    site_pos = row['Pos']
+                    site_pos = 'D' if slate.site == 'fanduel' and row['Pos'] == 'DST' else row['Pos']
                     player_name = row['Player'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
                     salary = int(row['Salary'])                    
                     team = row['Team']
