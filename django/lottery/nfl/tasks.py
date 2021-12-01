@@ -146,6 +146,7 @@ def simulate_game(game_id, task_id):
         game = models.SlateGame.objects.get(id=game_id)
 
         N = 10000
+        dst_label = 'D' if game.slate.site == 'fanduel' else 'DST'
 
         r_df = get_corr_matrix()
         c_target = r_df.to_numpy()
@@ -164,7 +165,7 @@ def simulate_game(game_id, task_id):
         home_wr2 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[1]
         home_wr3 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[2]
         home_te = home_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[0]
-        home_dst = home_players.filter(slate_player__site_pos='D').order_by('-projection', '-slate_player__salary')[0]
+        home_dst = home_players.filter(slate_player__site_pos=dst_label).order_by('-projection', '-slate_player__salary')[0]
 
         away_qb = away_players.filter(slate_player__site_pos='QB').order_by('-projection', '-slate_player__salary')[0]
         away_rb1 = away_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[0]
@@ -173,7 +174,7 @@ def simulate_game(game_id, task_id):
         away_wr2 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[1]
         away_wr3 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[2]
         away_te = away_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[0]
-        away_dst = away_players.filter(slate_player__site_pos='D').order_by('-projection', '-slate_player__salary')[0]
+        away_dst = away_players.filter(slate_player__site_pos=dst_label).order_by('-projection', '-slate_player__salary')[0]
 
         home_qb_rv = scipy.stats.gamma((float(home_qb.projection)/float(home_qb.stdev))**2, scale=(float(home_qb.stdev)**2)/float(home_qb.projection))
         home_rb1_rv = scipy.stats.gamma((float(home_rb1.projection)/float(home_rb1.stdev))**2, scale=(float(home_rb1.stdev)**2)/float(home_rb1.projection))
@@ -1873,7 +1874,6 @@ def process_slate_players(chained_result, slate_id, task_id):
                         game = game[:game.find(' ')]
                         team = 'JAC' if row[17] == 'JAX' else row[17]
                 else:
-                    print(row)
                     site = 'fc'
                     player_id = None
                     site_pos = row['Pos']
