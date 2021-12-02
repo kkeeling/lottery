@@ -571,8 +571,8 @@ class Slate(models.Model):
         ceiling_projections = list(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0).values_list('ceiling', flat=True))
         ao_projections = list(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0).values_list('adjusted_opportunity', flat=True)) if position == 'RB' else None
         zscores = scipy.stats.zscore(projections)
-        ao_zscores = scipy.stats.zscore(ao_projections) if ao_projections is not None else None
-        ceiling_zscores = scipy.stats.zscore(ceiling_projections) if ceiling_projections is not None else None
+        ao_zscores = scipy.stats.zscore(ao_projections) if ao_projections is not None and len(ao_projections) > 0 else None
+        ceiling_zscores = scipy.stats.zscore(ceiling_projections) if ceiling_projections is not None and len(ceiling_projections) > 0 else None
 
         for (index, projection) in enumerate(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0)):
             projection.zscore = zscores[index]
@@ -1162,7 +1162,7 @@ class SlatePlayerRawProjection(models.Model):
         ordering = ['-projection']
 
     def __str__(self):
-        return '{} -- {}}: {}'.format(str(self.slate_player), self.projection)
+        return f'{str(self.slate_player)} -- Proj: {self.projection}'
 
     @property
     def name(self):
@@ -2610,23 +2610,42 @@ class SlateBuildStack(models.Model):
             for (index, lineup) in enumerate(lineups):
                 count += 1
                 player_ids = [p.id for p in lineup.players]
-                lineup = SlateBuildLineup.objects.create(
-                    build=self.build,
-                    stack=self,
-                    order_number=lineup_number + (num_qb_stacks * index),
-                    qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
-                    rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self.build),
-                    rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self.build),
-                    wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self.build),
-                    wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self.build),
-                    wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self.build),
-                    te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self.build),
-                    flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
-                    dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
-                    salary=lineup.salary_costs,
-                    projection=lineup.fantasy_points_projection,
-                    ownership_projection=sum(x.projection for x in BuildPlayerProjection.objects.filter(build=self.build, slate_player__player_id__in=player_ids))
-                )
+                if self.build.slate.site == 'yahoo':
+                    lineup = SlateBuildLineup.objects.create(
+                        build=self.build,
+                        stack=self,
+                        order_number=lineup_number + (num_qb_stacks * index),
+                        qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
+                        rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self.build),
+                        rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self.build),
+                        wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self.build),
+                        wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self.build),
+                        wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self.build),
+                        te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self.build),
+                        flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
+                        dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
+                        salary=lineup.salary_costs,
+                        projection=lineup.fantasy_points_projection,
+                        ownership_projection=sum(x.projection for x in BuildPlayerProjection.objects.filter(build=self.build, slate_player__player_id__in=player_ids))
+                    )
+                else:
+                    lineup = SlateBuildLineup.objects.create(
+                        build=self.build,
+                        stack=self,
+                        order_number=lineup_number + (num_qb_stacks * index),
+                        qb=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[0].id, build=self.build),
+                        rb1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[1].id, build=self.build),
+                        rb2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[2].id, build=self.build),
+                        wr1=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[3].id, build=self.build),
+                        wr2=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[4].id, build=self.build),
+                        wr3=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[5].id, build=self.build),
+                        te=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[6].id, build=self.build),
+                        flex=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[7].id, build=self.build),
+                        dst=BuildPlayerProjection.objects.get(slate_player__player_id=lineup.players[8].id, build=self.build),
+                        salary=lineup.salary_costs,
+                        projection=lineup.fantasy_points_projection,
+                        ownership_projection=sum(x.projection for x in BuildPlayerProjection.objects.filter(build=self.build, slate_player__player_id__in=player_ids))
+                    )
                 if self.build.configuration.use_simulation:
                     lineup.simulate()
 

@@ -12,6 +12,7 @@ import scipy
 import sys
 import time
 import traceback
+import uuid
 
 from celery import shared_task, chord, group, chain
 from contextlib import contextmanager
@@ -149,7 +150,12 @@ def simulate_game(game_id, task_id):
         game = models.SlateGame.objects.get(id=game_id)
 
         N = 10000
-        dst_label = 'D' if game.slate.site == 'fanduel' else 'DST'
+        if game.slate.site == 'fanduel':
+            dst_label = 'D' 
+        elif game.slate.site == 'yahoo':
+            dst_label = 'DEF' 
+        else:
+            dst_label = 'DST' 
 
         r_df = get_corr_matrix(game.slate.site)
         c_target = r_df.to_numpy()
@@ -351,13 +357,17 @@ def prepare_projections_for_build_complete(chained_results, build_id, task_id):
         # Task implementation goes here
         build = models.SlateBuild.objects.get(id=build_id)
         build.calc_projections_ready()
-        build.get_target_score()
 
         qbs = build.num_in_play('QB')
         rbs = build.num_in_play('RB')
         wrs = build.num_in_play('WR')
         tes = build.num_in_play('TE')
-        dsts = build.num_in_play('D') if build.slate.site == 'fanduel' else build.num_in_play('DST')
+        if build.slate.site == 'fanduel':
+            dsts = build.num_in_play('D') 
+        elif build.slate.site == 'yahoo':
+            dsts = build.num_in_play('DEF') 
+        else:
+            dsts = build.num_in_play('DST')
         
         task.status = 'success'
         task.content = 'Projections ready for {}: {} qbs in play, {} rbs in play, {} wrs in play, {} tes in play, {} dsts in play'.format(str(build), qbs, rbs, wrs, tes, dsts)
@@ -460,25 +470,32 @@ def calculate_actuals_for_build(chained_results, build_id, task_id):
         # Task implementation goes here
 
         build = models.SlateBuild.objects.get(id=build_id)
-        contest = build.slate.contests.get(use_for_actuals=True)
+        try:
+            contest = build.slate.contests.get(use_for_actuals=True)
 
-        lineups = build.lineups.all().order_by('-actual')
-        metrics = lineups.aggregate(
-            total_cashes=Count('pk', filter=Q(actual__gte=contest.mincash_score)),
-            total_one_pct=Count('pk', filter=Q(actual__gte=contest.one_pct_score)),
-            total_half_pct=Count('pk', filter=Q(actual__gte=contest.half_pct_score))
-        )
+            lineups = build.lineups.all().order_by('-actual')
+            metrics = lineups.aggregate(
+                total_cashes=Count('pk', filter=Q(actual__gte=contest.mincash_score)),
+                total_one_pct=Count('pk', filter=Q(actual__gte=contest.one_pct_score)),
+                total_half_pct=Count('pk', filter=Q(actual__gte=contest.half_pct_score))
+            )
 
-        build.top_score = lineups[0].actual
-        build.total_cashes = metrics.get('total_cashes')
-        build.total_one_pct = metrics.get('total_one_pct')
-        build.total_half_pct = metrics.get('total_half_pct')
-        build.great_build = (lineups[0].actual >= contest.great_score)
-        build.binked = (lineups[0].actual >= contest.winning_score)
-        build.save()
+            build.top_score = lineups[0].actual
+            build.total_cashes = metrics.get('total_cashes')
+            build.total_one_pct = metrics.get('total_one_pct')
+            build.total_half_pct = metrics.get('total_half_pct')
+            build.great_build = (lineups[0].actual >= contest.great_score)
+            build.binked = (lineups[0].actual >= contest.winning_score)
+            build.save()
+
+            task.status = 'success'
+            task.content = 'Actual build metrics calculated.'
+            task.save()
+        except:
+            contest = None
 
         task.status = 'success'
-        task.content = 'Actual build metrics calculated.'
+        task.content = 'Actual build metrics calculated, but no contest data was available so only lineup actuals calculated.'
         task.save()
         
     except Exception as e:
@@ -658,7 +675,6 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
     qb = models.BuildPlayerProjection.objects.get(pk=qb_id)
 
     qb_lineup_count = round(float(qb.projection)/float(total_qb_projection) * float(build.total_lineups))
-    d_label = 'D' if build.slate.site == 'fanduel' else 'DST'
 
     print('Making stacks for {} {} lineups...'.format(qb_lineup_count, qb.name))
     stack_players = build.projections.filter(
@@ -1846,7 +1862,7 @@ def process_slate_players(chained_result, slate_id, task_id):
         
         with open(slate.salaries.path, mode='r') as salaries_file:
             if slate.salaries_sheet_type == 'site':
-                if slate.site == 'fanduel':
+                if slate.site == 'fanduel' or slate.site == 'yahoo':
                     csv_reader = csv.DictReader(salaries_file)
                 else:
                     csv_reader = csv.reader(salaries_file, delimiter=',')
@@ -1878,10 +1894,27 @@ def process_slate_players(chained_result, slate_id, task_id):
                         game = row[16].replace('@', '_').replace('JAX', 'JAC')
                         game = game[:game.find(' ')]
                         team = 'JAC' if row[17] == 'JAX' else row[17]
+                    elif slate.site == 'yahoo':
+                        if success_count < 9:
+                            success_count += 1
+                            continue
+                        
+                        player_id = row['ID']
+                        site_pos = row['Position']
+                        player_name = f'{row["First Name"]} {row["Last Name"]}'.replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team').strip()
+                        salary = int(row["Salary"])
+                        game = row['Game'].replace('@', '_').replace('JAX', 'JAC')
+                        game = game[:game.find(' ')]
+                        team = 'JAC' if row['Team'] == 'JAX' else row['Team']
                 else:
                     site = 'fc'
-                    player_id = None
-                    site_pos = 'D' if slate.site == 'fanduel' and row['Pos'] == 'DST' else row['Pos']
+                    player_id = uuid.uuid4()
+                    if slate.site == 'fanduel' and row['Pos'] == 'DST':
+                        site_pos = 'D'
+                    elif slate.site == 'yahoo' and row['Pos'] == 'DST':
+                        site_pos = 'DEF'
+                    else:
+                        site_pos = row['Pos']
                     player_name = row['Player'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
                     salary = int(row['Salary'])                    
                     team = row['Team']
@@ -2077,7 +2110,7 @@ def handle_base_projections(chained_results, slate_id, task_id):
                 try:
                     ao_projection = ao_projections.get(slate_player=slate_player)
                 except models.SlatePlayerRawProjection.DoesNotExist:
-                    pass
+                    ao_projection = None
 
                 projection.projection = raw_projection.projection
                 projection.balanced_projection = raw_projection.projection
@@ -2348,6 +2381,8 @@ def assign_zscores_to_players(chained_results, slate_id, task_id):
         slate.calc_player_zscores('TE')
         if slate.site == 'fanduel':
             slate.calc_player_zscores('D')
+        elif slate.site == 'yahoo':
+            slate.calc_player_zscores('DEF')
         else:
             slate.calc_player_zscores('DST')
 

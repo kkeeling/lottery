@@ -28,6 +28,8 @@ def optimize(site, projections, num_lineups=1):
         optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
     elif site == 'draftkings':
         optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
+    elif site == 'yahoo':
+        optimizer = get_optimizer(Site.YAHOO, Sport.FOOTBALL)
     else:
         raise Exception('{} is not a supported dfs site.'.format(site))
 
@@ -375,21 +377,64 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
                     optimizer = LineupOptimizer(optimizer_settings.FanduelNFLSettingsMax2PerTeam)
             else:
                 optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
-        elif config.game_staack_size == 4:
+        elif config.game_stack_size == 4:
             if config.use_mini_stacks:
                 optimizer = LineupOptimizer(optimizer_settings.FanduelNFLSettingsMax3PerTeamMax5Games)
             else:
                 optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
     elif site == 'draftkings':
-        if len(config.flex_positions) > 1:
-            if 'RB' not in config.flex_positions:
-                optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettings)
-            elif 'TE' not in config.flex_positions:
-                optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettings)
+        if config.game_stack_size == 3:
+            if config.use_mini_stacks:
+                if stack.player_2 is not None:
+                    if 'RB' not in config.flex_positions:
+                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettingsMax3PerTeam)
+                    elif 'TE' not in config.flex_positions:
+                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettingsMax3PerTeam)
+                    else:
+                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsNFLSettingsMax3PerTeam)
+                else:
+                    if 'RB' not in config.flex_positions:
+                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettingsMax2PerTeam)
+                    elif 'TE' not in config.flex_positions:
+                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettingsMax2PerTeam)
+                    else:
+                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsNFLSettingsMax2PerTeam)
             else:
-                optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
-        else:
-            optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
+                if 'RB' not in config.flex_positions:
+                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettings)
+                elif 'TE' not in config.flex_positions:
+                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettings)
+                else:
+                    optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
+        elif config.game_stack_size == 4:
+            if config.use_mini_stacks:
+                if 'RB' not in config.flex_positions:
+                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettingsMax3PerTeamMax5Games)
+                elif 'TE' not in config.flex_positions:
+                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettingsMax3PerTeamMax5Games)
+                else:
+                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsNFLSettingsMax3PerTeamMax5Games)
+            else:
+                if 'RB' not in config.flex_positions:
+                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettings)
+                elif 'TE' not in config.flex_positions:
+                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettings)
+                else:
+                    optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
+    elif site == 'yahoo':
+        if config.game_stack_size == 3:
+            if config.use_mini_stacks:
+                if stack.player_2 is not None:
+                    optimizer = LineupOptimizer(optimizer_settings.YahooNFLSettingsMax3PerTeam)
+                else:
+                    optimizer = LineupOptimizer(optimizer_settings.YahooNFLSettingsMax2PerTeam)
+            else:
+                optimizer = get_optimizer(Site.YAHOO, Sport.FOOTBALL)
+        elif config.game_stack_size == 4:
+            if config.use_mini_stacks:
+                optimizer = LineupOptimizer(optimizer_settings.YahooNFLSettingsMax3PerTeamMax5Games)
+            else:
+                optimizer = get_optimizer(Site.Yahoo, Sport.FOOTBALL)
     else:
         raise Exception('{} is not a supported dfs site.'.format(site))
 
@@ -411,7 +456,12 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
     lineups = []
 
     ### SETTINGS ###
-    dst_label = 'D' if site == 'fanduel' else 'DST'
+    if site == 'fanduel':
+        dst_label = 'D' 
+    elif site == 'yahoo':
+        dst_label = 'DEF' 
+    else:
+        dst_label = 'DST'
 
     # Locked Players
     locked_players = projections.filter(locked=True)
@@ -525,7 +575,7 @@ def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75,
                     valid_player = False
                 elif use_stack_only and player_projection.stack_only and player_projection.slate_player.game != game_qb.game:
                     valid_player = False
-                elif not allow_qb_dst_stack and (player_projection.position == 'DST' or player_projection.position == 'D') and player_projection.team == game_qb.team and not stack.contains_slate_player(player_projection.slate_player):
+                elif not allow_qb_dst_stack and (player_projection.position == 'DST' or player_projection.position == 'D' or player_projection.position == 'DEF') and player_projection.team == game_qb.team and not stack.contains_slate_player(player_projection.slate_player):
                     valid_player = False
                 elif not allow_rb_qb_stack and player_projection.position == 'RB' and player_projection.team == game_qb.team and not stack.contains_slate_player(player_projection.slate_player):
                     valid_player = False
@@ -552,6 +602,8 @@ def get_player_list_for_game_stack(projections, game_qb, stack, randomness=0.75,
                     player_position = player_projection.position
                     if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel':
                         player_position = ['D']
+                    elif player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'yahoo':
+                        player_position = ['DEF']
                     elif '/' in player_projection.position:
                         player_position = player_projection.position.split('/')
                     else:
