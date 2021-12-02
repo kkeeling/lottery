@@ -791,9 +791,6 @@ class SlatePlayerProjection(models.Model):
     stack_only = models.BooleanField(default=False, verbose_name='SO', help_text='Player is only in pool when stacked with QB or opposing QB')
     qb_stack_only = models.BooleanField(default=False, verbose_name='SwQB', help_text='Generate QB stacks with this player')
     opp_qb_stack_only = models.BooleanField(default=False, verbose_name='SwOQB', help_text='Generate Opp QB stacks with this player')
-    at_most_one_in_stack = models.BooleanField(default=False, verbose_name='AM1', help_text='Generate stacks with only 1 of players with this designation')
-    at_least_one_in_lineup = models.BooleanField(default=False, verbose_name='AL1', help_text='At least one player with this designation should appear in every lineup')
-    at_least_two_in_lineup = models.BooleanField(default=False, verbose_name='AL2', help_text='At least two players with this designation should appear in every lineup')
     locked = models.BooleanField(default=False)
 
     class Meta:
@@ -1777,9 +1774,9 @@ class SlateBuild(models.Model):
                     projection.ownership_projection = player.projection.ownership_projection
                     projection.balanced_projection = projection.projection if self.configuration.optimize_with_ceilings else player.projection.balanced_projection
                     if self.slate.site == 'yahoo':
-                        projection.balanced_value = round(float(projection.balanced_projection)/(player.salary/1000.0), 2)
-                    else:
                         projection.balanced_value = round(float(projection.balanced_projection)/float(player.salary), 2)
+                    else:
+                        projection.balanced_value = round(float(projection.balanced_projection)/(player.salary/1000.0), 2)
                     projection.adjusted_opportunity = player.projection.adjusted_opportunity
                     projection.rb_group = 0
                     projection.in_play = False
@@ -1931,7 +1928,7 @@ class SlateBuild(models.Model):
             opp_players = stack_players.filter(slate_player__game=qb.game, slate_player__site_pos__in=self.configuration.opp_qb_stack_positions).exclude(slate_player__team=qb.team).order_by('-balanced_projection')
 
             am1_players = team_players.filter(
-                Q(Q(stack_only=True) | Q(at_most_one_in_stack=True))
+                stack_only=True
             )
             team_has_all_stack_only = (am1_players.count() == team_players.count())
 

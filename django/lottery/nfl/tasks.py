@@ -634,7 +634,7 @@ def create_groups_for_build(build_id, task_id):
                 group.save()
 
         # Make anti-ministack rules
-        
+
 
         # Make anti-leverage rule
 
@@ -673,7 +673,7 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
     opp_players = stack_players.filter(slate_player__slate_game=qb.game, slate_player__site_pos__in=build.configuration.opp_qb_stack_positions).exclude(slate_player__team=qb.team).order_by('-projection')
 
     am1_players = team_players.filter(
-        Q(Q(stack_only=True) | Q(at_most_one_in_stack=True))
+        stack_only=True
     )
     team_has_all_stack_only = (am1_players.count() == team_players.count())
 
@@ -895,8 +895,6 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
                         for opp_player in opp_players:
                             if player.slate_player.site_pos == 'TE' and player2.slate_player.site_pos == 'TE' and opp_player.slate_player.site_pos == 'TE':  # You can't have stacks with 3 TEs
                                 continue
-                            elif player.at_most_one_in_stack and player2.at_most_one_in_stack:
-                                continue  # You can't have stacks with 2 same team bobos
                             else:
                                 count += 1
                                 mu = float(sum(p.projection for p in [qb, player, player2, opp_player]))
