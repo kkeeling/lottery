@@ -611,10 +611,9 @@ def create_groups_for_build(build_id, task_id):
             time.sleep(0.2)
             task = BackgroundTask.objects.get(id=task_id)
 
-        # Task implementation goes here
-
         build = models.SlateBuild.objects.get(id=build_id)
 
+        # Make groups for lineup construction rules
         if build.lineup_construction is not None:
             for (index, group_rule) in enumerate(build.lineup_construction.group_rules.all()):
                 group = models.SlateBuildGroup.objects.create(
@@ -633,6 +632,11 @@ def create_groups_for_build(build_id, task_id):
                         )
 
                 group.save()
+
+        # Make anti-ministack rules
+        
+
+        # Make anti-leverage rule
 
         task.status = 'success'
         task.content = 'Groups created.'
