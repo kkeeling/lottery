@@ -2670,9 +2670,9 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
             site_pos=F('slate_player__site_pos'), 
             player_salary=F('slate_player__salary')            
         )
-        qs = qs.annotate(
-            player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
-        )
+        # qs = qs.annotate(
+        #     player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
+        # )
 
         return qs
 
