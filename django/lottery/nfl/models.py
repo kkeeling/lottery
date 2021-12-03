@@ -2985,6 +2985,7 @@ class SlateBuildLineup(models.Model):
         return numpy.percentile(self.sim_scores, float(percentile))
 
     def simulate(self):
+        print([p.sim_scores for p in self.players])
         self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, 10000)]
         self.median = numpy.median(self.sim_scores)
         self.s75 = self.get_percentile_sim_score(75)
