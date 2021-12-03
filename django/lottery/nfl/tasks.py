@@ -689,7 +689,24 @@ def create_groups_for_build(build_id, task_id):
                         )
 
 
-        # Make anti-leverage rule
+        # Make anti-leverage group
+        anti_lev_players = build.projections.filter(
+            use_as_antileverage=True
+        )
+
+        group = models.SlateBuildGroup.objects.create(
+            build=build,
+            name='AM1 - Bobo + Lev',
+            min_from_group=0,
+            max_from_group=1
+        )
+
+        for anti_lev_player in anti_lev_players:
+            models.SlateBuildGroupPlayer.objects.create(
+                group=group,
+                slate_player=anti_lev_player.slate_player
+            )
+
 
         task.status = 'success'
         task.content = f'{build.groups.all().count()} groups created.'
