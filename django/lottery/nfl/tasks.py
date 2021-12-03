@@ -1957,7 +1957,6 @@ def process_slate_players(chained_result, slate_id, task_id):
                         player_name = f'{row["First Name"]} {row["Last Name"]}'.replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team').strip()
                         salary = int(row["Salary"])
                         game = row['Game'].replace('@', '_').replace('JAX', 'JAC')
-                        game = game[:game.find(' ')]
                         team = 'JAC' if row['Team'] == 'JAX' else row['Team']
                 else:
                     site = 'fc'
@@ -2063,7 +2062,12 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
 
             for row in csv_reader:
                 player_name = row[headers.column_player_name].strip()
-                team = 'JAC' if row[headers.column_team] == 'JAX' else row[headers.column_team].strip()
+                if row[headers.column_team] == 'JAX':
+                    team = 'JAC'
+                elif row[headers.column_team] == 'LA':
+                    team = 'LAR'
+                else:
+                    team = row[headers.column_team].strip()
                 median_projection = row[headers.column_median_projection] if row[headers.column_median_projection] != '' else 0.0
                 floor_projection = row[headers.column_floor_projection] if headers.column_floor_projection is not None and row[headers.column_floor_projection] != '' else 0.0
                 ceiling_projection = row[headers.column_ceiling_projection] if headers.column_ceiling_projection is not None and row[headers.column_ceiling_projection] != '' else 0.0
@@ -2212,7 +2216,12 @@ def process_ownership_sheet(chained_results, sheet_id, task_id):
 
             for row in csv_reader:
                 player_name = row[headers.column_player_name]
-                team = 'JAC' if row[headers.column_team] == 'JAX' else row[headers.column_team]
+                if row[headers.column_team] == 'JAX':
+                    team = 'JAC'
+                elif row[headers.column_team] == 'LA':
+                    team = 'LAR'
+                else:
+                    team = row[headers.column_team].strip()
                 ownership_projection = row[headers.column_own_projection] if headers.column_own_projection is not None and row[headers.column_own_projection] != '' else 0.0
 
                 alias = models.Alias.find_alias(player_name, sheet.projection_site)
