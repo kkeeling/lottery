@@ -1487,10 +1487,10 @@ class StackConstructionRule(models.Model):
 
 
 class CeilingProjectionRangeMapping(models.Model):
-    min_projection = models.DecimalField(max_digits=5, decimal_places=3)
-    max_projection = models.DecimalField(max_digits=5, decimal_places=3)
-    value_to_assign = models.DecimalField(max_digits=5, decimal_places=3)
-    yh_value_to_assign = models.DecimalField(max_digits=5, decimal_places=3)
+    min_projection = models.DecimalField(max_digits=6, decimal_places=4)
+    max_projection = models.DecimalField(max_digits=6, decimal_places=4)
+    value_to_assign = models.DecimalField(max_digits=6, decimal_places=4)
+    yh_value_to_assign = models.DecimalField(max_digits=6, decimal_places=4)
 
     class Model:
         verbose_name = 'Ceiling Projection Range Mapping'
