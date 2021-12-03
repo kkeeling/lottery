@@ -470,8 +470,9 @@ def calculate_actuals_for_build(chained_results, build_id, task_id):
         # Task implementation goes here
 
         build = models.SlateBuild.objects.get(id=build_id)
-        try:
-            contest = build.slate.contests.get(use_for_actuals=True)
+        contests = build.slate.contests.filter(use_for_actuals=True)
+        if contests.count() > 0:
+            contest = contests[0]
 
             lineups = build.lineups.all().order_by('-actual')
             metrics = lineups.aggregate(
@@ -491,12 +492,10 @@ def calculate_actuals_for_build(chained_results, build_id, task_id):
             task.status = 'success'
             task.content = 'Actual build metrics calculated.'
             task.save()
-        except:
-            contest = None
-
-        task.status = 'success'
-        task.content = 'Actual build metrics calculated, but no contest data was available so only lineup actuals calculated.'
-        task.save()
+        else:
+            task.status = 'error'
+            task.content = 'Actual build metrics calculated, but no contest data was available so only lineup actuals calculated.'
+            task.save()
         
     except Exception as e:
         if task is not None:
