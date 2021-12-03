@@ -649,13 +649,50 @@ def create_groups_for_build(build_id, task_id):
 
                 group.save()
 
-        # Make anti-ministack rules
+        # Make anti-ministack groups
+        games = build.slate.games.all()
+        for game in games:
+            # find anti-ministack players
+            anti_mini_players = build.projections.filter(
+                slate_player__slate_game=game,
+                disallow_ministack=True
+            )
+
+            if anti_mini_players.count() > 0:
+                # find stacked players
+                stacked_players = build.projections.filter(
+                    Q(Q(qb_stack_only=True) | Q(opp_qb_stack_only=True)),
+                    slate_player__slate_game=game,
+                    disallow_ministack=False
+                )
+
+                # make groups for each stacked player with each anti-ministack player
+                for stacked_player in stacked_players:
+                    group = models.SlateBuildGroup.objects.create(
+                        build=build,
+                        name=f'AM1 {game.game.home_team}/{game.game.away_team} - {stacked_player.name}',
+                        min_from_group=0,
+                        max_from_group=1
+                    )
+
+                    # add stacked player to group
+                    models.SlateBuildGroupPlayer.objects.create(
+                        group=group,
+                        slate_player=stacked_player.slate_player
+                    )
+
+                    # add anti-ministack players
+                    for anti_mini_player in anti_mini_players:
+                        models.SlateBuildGroupPlayer.objects.create(
+                            group=group,
+                            slate_player=anti_mini_player.slate_player
+                        )
 
 
         # Make anti-leverage rule
 
         task.status = 'success'
-        task.content = 'Groups created.'
+        task.content = f'{build.groups.all().count()} groups created.'
         task.save()
         
     except Exception as e:

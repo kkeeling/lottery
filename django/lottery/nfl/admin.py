@@ -1357,6 +1357,7 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
         'min_from_group',
         'max_from_group',
         'num_players',
+        'get_players',
         'active',
     )
     raw_id_fields = (
@@ -1370,6 +1371,10 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
     inlines = [
         SlateBuildGroupPlayerInline
     ]
+
+    def get_players(self, obj):
+        return mark_safe('<br />'.join(list(obj.players.all().values_list('slate_player__name', flat=True))))
+    get_players.short_description = 'players'
 
 
 @admin.register(models.SlateBuildLineup)
@@ -2664,7 +2669,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     change_list_template = 'admin/nfl/build_player_projection_changelist.html'
 
     def get_queryset(self, request):
-        qs = super().get_queryset(request)
+        qs = super().get_queryset(request).select_related('slate_player__projection')
         qs = qs.annotate(
             slate=F('slate_player__slate'), 
             site_pos=F('slate_player__site_pos'), 
@@ -2693,23 +2698,23 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         return response
 
     def get_slate(self, obj):
-        return obj.slate_player.slate
+        return obj.slate
     get_slate.short_description = 'Slate'
-    get_slate.admin_order_field = 'slate_player__slate__name'
+    get_slate.admin_order_field = 'slate__name'
 
     def get_player_name(self, obj):
         return obj.slate_player.name
     get_player_name.short_description = 'Player'
 
     def get_player_salary(self, obj):
-        return obj.slate_player.salary
+        return obj.player_salary
     get_player_salary.short_description = 'Sal'
-    get_player_salary.admin_order_field = 'slate_player__salary'
+    get_player_salary.admin_order_field = 'player_salary'
 
     def get_player_position(self, obj):
-        return obj.slate_player.site_pos
+        return obj.site_pos
     get_player_position.short_description = 'Pos'
-    get_player_position.admin_order_field = 'slate_player__site_pos'
+    get_player_position.admin_order_field = 'site_pos'
 
     def get_player_team(self, obj):
         return obj.slate_player.team
@@ -3035,9 +3040,11 @@ class CeilingProjectionRangeMappingAdmin(admin.ModelAdmin):
         'min_projection',
         'max_projection',
         'value_to_assign',
+        'yh_value_to_assign',
     )
     list_editable = (
         'value_to_assign',
+        'yh_value_to_assign',
     )
 
 

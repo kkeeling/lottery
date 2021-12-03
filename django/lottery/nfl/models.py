@@ -1490,6 +1490,7 @@ class CeilingProjectionRangeMapping(models.Model):
     min_projection = models.DecimalField(max_digits=4, decimal_places=2)
     max_projection = models.DecimalField(max_digits=4, decimal_places=2)
     value_to_assign = models.DecimalField(max_digits=4, decimal_places=2)
+    yh_value_to_assign = models.DecimalField(max_digits=4, decimal_places=2)
 
     class Model:
         verbose_name = 'Ceiling Projection Range Mapping'
@@ -1801,13 +1802,17 @@ class SlateBuild(models.Model):
 
     def flatten_exposure(self):
         for projection in self.projections.filter(projection__gte=5):
-            print(projection.projection)
             mapping = CeilingProjectionRangeMapping.objects.get(
                 min_projection__lte=projection.projection,
                 max_projection__gte=projection.projection
             )
-            projection.balanced_projection = projection.salary / 1000 * float(mapping.value_to_assign)
-            projection.balanced_value = mapping.value_to_assign
+
+            if self.slate.site == 'yahoo':
+                projection.balanced_projection = projection.salary * float(mapping.yh_value_to_assign)
+                projection.balanced_value = mapping.yh_value_to_assign
+            else:
+                projection.balanced_projection = projection.salary / 1000 * float(mapping.value_to_assign)
+                projection.balanced_value = mapping.value_to_assign
             projection.save()
 
     def find_stack_only(self):
