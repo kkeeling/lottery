@@ -1929,19 +1929,18 @@ def process_slate_players(chained_result, slate_id, task_id):
                 if alias is not None:
                     try:
                         slate_player = models.SlatePlayer.objects.get(
-                            player_id=player_id,
                             slate=slate,
                             name=alias.get_alias(slate.site),
                             team=team
                         )
                     except models.SlatePlayer.DoesNotExist:
                         slate_player = models.SlatePlayer(
-                            player_id=player_id,
                             slate=slate,
                             team=team,
                             name=alias.get_alias(slate.site)
                         )
 
+                    slate_player.player_id = player_id
                     slate_player.salary = salary
                     slate_player.site_pos = site_pos
                     slate_player.game = game
