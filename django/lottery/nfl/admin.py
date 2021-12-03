@@ -2608,7 +2608,6 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_exposure',
         'get_ownership_projection',
         'get_etr_ownership_projection',
-        'get_rating',
         'get_player_ao',
         'get_player_ao_zscore',
         'value',
