@@ -27,6 +27,8 @@ header {
 {% if build %}
     <script type="text/javascript">
     $(document).ready(function() {
+        var site = "{{ build.slate.site }}";
+
         $("input[name$='balanced_projection']" ).change(function() {
             var elementName = $(this).attr('name');
             var otherElementName = elementName.replace('balanced_projection', 'balanced_value');
@@ -34,8 +36,13 @@ header {
             var balancedProjection = $(this).val();
             var salary = $(this).parent().parent().find(".field-get_player_salary").text();
             var otherElement = $("input[name='" + otherElementName + "']" );
-
-            var value = (balancedProjection/(salary/1000)).toFixed(2);
+            
+            var value;
+            if (site == "yahoo") {
+                value = (balancedProjection/salary).toFixed(4);
+            } else {
+                value = (balancedProjection/(salary/1000)).toFixed(4);
+            }
             otherElement.val(value);
         });
 
@@ -47,7 +54,12 @@ header {
             var salary = $(this).parent().parent().find(".field-get_player_salary").text();
             var otherElement = $("input[name='" + otherElementName + "']" );
 
-            var projection = (balancedValue * (salary/1000)).toFixed(2);
+            var projection;
+            if (site == "yahoo") {
+                projection = (balancedValue * salary).toFixed(4);
+            } else {
+                projection = (balancedValue * (salary/1000)).toFixed(4);
+            }
             otherElement.val(projection);
         });
     });
