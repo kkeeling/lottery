@@ -990,7 +990,7 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
     for stack in models.SlateBuildStack.objects.filter(build=build, qb=qb):
         # print(stack, stack.projection/total_stack_projection, round(stack.projection/total_stack_projection * qb_lineup_count, 0))
         # stack.count = round(max(stack.projection/total_stack_projection * qb_lineup_count, 1), 0)
-        stack.count = 100
+        stack.count = 20
         stack.save()
 
 
@@ -1738,6 +1738,18 @@ def export_build_for_upload(build_id, result_path, result_url, task_id):
                         '{1} ({0})'.format(tes[0].slate_player.player_id, tes[0].name),
                         '{1} ({0})'.format(flex.slate_player.player_id, flex.name),
                         '{1} ({0})'.format(lineup.dst.slate_player.player_id, lineup.dst.name)
+                    ]
+                elif build.slate.site == 'yahoo':
+                    row = [
+                        '{1} - {0}'.format(lineup.qb.slate_player.player_id, lineup.qb.name),
+                        '{1} - {0}'.format(rbs[0].slate_player.player_id, rbs[0].name),
+                        '{1} - {0}'.format(rbs[1].slate_player.player_id, rbs[1].name),
+                        '{1} - {0}'.format(wrs[0].slate_player.player_id, wrs[0].name),
+                        '{1} - {0}'.format(wrs[1].slate_player.player_id, wrs[1].name),
+                        '{1} - {0}'.format(wrs[2].slate_player.player_id, wrs[2].name),
+                        '{1} - {0}'.format(tes[0].slate_player.player_id, tes[0].name),
+                        '{1} - {0}'.format(flex.slate_player.player_id, flex.name),
+                        '{1} - {0}'.format(lineup.dst.slate_player.player_id, lineup.dst.name)
                     ]
                 else:
                     raise Exception('{} is not a supported dfs site.'.format(build.slate.site)) 
