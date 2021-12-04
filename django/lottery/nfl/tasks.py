@@ -1741,15 +1741,15 @@ def export_build_for_upload(build_id, result_path, result_url, task_id):
                     ]
                 elif build.slate.site == 'yahoo':
                     row = [
-                        '{1} - {0}'.format(lineup.qb.slate_player.player_id, lineup.qb.name),
-                        '{1} - {0}'.format(rbs[0].slate_player.player_id, rbs[0].name),
-                        '{1} - {0}'.format(rbs[1].slate_player.player_id, rbs[1].name),
-                        '{1} - {0}'.format(wrs[0].slate_player.player_id, wrs[0].name),
-                        '{1} - {0}'.format(wrs[1].slate_player.player_id, wrs[1].name),
-                        '{1} - {0}'.format(wrs[2].slate_player.player_id, wrs[2].name),
-                        '{1} - {0}'.format(tes[0].slate_player.player_id, tes[0].name),
-                        '{1} - {0}'.format(flex.slate_player.player_id, flex.name),
-                        '{1} - {0}'.format(lineup.dst.slate_player.player_id, lineup.dst.name)
+                        '{0} - {1}'.format(lineup.qb.slate_player.player_id, lineup.qb.name),
+                        '{0} - {1}'.format(rbs[0].slate_player.player_id, rbs[0].name),
+                        '{0} - {1}'.format(rbs[1].slate_player.player_id, rbs[1].name),
+                        '{0} - {1}'.format(wrs[0].slate_player.player_id, wrs[0].name),
+                        '{0} - {1}'.format(wrs[1].slate_player.player_id, wrs[1].name),
+                        '{0} - {1}'.format(wrs[2].slate_player.player_id, wrs[2].name),
+                        '{0} - {1}'.format(tes[0].slate_player.player_id, tes[0].name),
+                        '{0} - {1}'.format(flex.slate_player.player_id, flex.name),
+                        '{0} - {1}'.format(lineup.dst.slate_player.player_id, lineup.dst.name)
                     ]
                 else:
                     raise Exception('{} is not a supported dfs site.'.format(build.slate.site)) 
