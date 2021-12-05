@@ -2075,7 +2075,7 @@ class SlateBuild(models.Model):
         current_qb = None
         qb_count = 0
         index = 0
-        for lineup in all_lineups.order_by('-qb__projection', 'qb__slate_player_id'):
+        for lineup in all_lineups.order_by('-qb__projection', 'qb__slate_player_id', '-s90'):
             if current_qb is None or current_qb != lineup.qb:
                 current_qb = lineup.qb
                 qb_count += 1
