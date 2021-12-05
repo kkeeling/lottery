@@ -66,6 +66,7 @@ PROJECTION_SITES = (
     ('rg', 'Rotogrinders'),
     ('fc', 'Fantasy Cruncher'),
     ('rts', 'Run The Sims'),
+    ('sabersim', 'Saber Sim'),
 )
 
 RANK_BY_CHOICES = (
@@ -99,6 +100,8 @@ class Alias(models.Model):
     rg_name = models.CharField(max_length=255, null=True, blank=True)
     rts_name = models.CharField(max_length=255, null=True, blank=True)
     yahoo_name = models.CharField(max_length=255, null=True, blank=True)
+    rg_name = models.CharField(max_length=255, null=True, blank=True)
+    ss_name = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         verbose_name = 'Alias'
@@ -132,6 +135,10 @@ class Alias(models.Model):
                 alias = Alias.objects.get(rts_name=player_name)
             elif site == 'yahoo':
                 alias = Alias.objects.get(yahoo_name=player_name)
+            elif site == 'rotogrinders':
+                alias = Alias.objects.get(rg_name=player_name)
+            elif site == 'sabersim':
+                alias = Alias.objects.get(ss_name=player_name)
             else:
                 raise Exception('{} is not a supported site yet.'.format(site))
         except Alias.MultipleObjectsReturned:
@@ -157,6 +164,10 @@ class Alias(models.Model):
                 alias = Alias.objects.filter(rts_name=player_name)[0]
             elif site == 'yahoo':
                 alias = Alias.objects.filter(yahoo_name=player_name)[0]
+            elif site == 'rotogrinders':
+                alias = Alias.objects.filter(rg_name=player_name)[0]
+            elif site == 'sabersim':
+                alias = Alias.objects.filter(ss_name=player_name)[0]
             else:
                 raise Exception('{} is not a supported site yet.'.format(site))
         except Alias.DoesNotExist:
@@ -196,6 +207,12 @@ class Alias(models.Model):
                     score = seqmatch.quick_ratio()
                 elif site == 'yahoo':
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.yahoo_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'rotogrinders':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rg_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'sabersim':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.ss_name.lower())
                     score = seqmatch.quick_ratio()
                 else:
                     raise Exception('{} is not a supported site yet.'.format(site))
@@ -240,6 +257,10 @@ class Alias(models.Model):
             return self.rts_name
         elif for_site == 'yahoo':
             return self.yahoo_name
+        elif for_site == 'rotogrinders':
+            return self.rg_name
+        elif for_site == 'sabersim':
+            return self.ss_name
 
 
 class MissingAlias(models.Model):
@@ -1542,7 +1563,7 @@ class SlatePlayerActualsSheet(models.Model):
 
 
 class SlatePlayerOwnershipProjectionSheet(models.Model):
-    slate = models.OneToOneField(Slate, related_name='ownership_projections_sheets', on_delete=models.CASCADE)
+    slate = models.ForeignKey(Slate, related_name='ownership_projections_sheets', on_delete=models.CASCADE)
     sheet = models.FileField(upload_to='uploads/ownership_projections')
     projection_site = models.CharField(max_length=255, choices=PROJECTION_SITES, default='awesemo')
 

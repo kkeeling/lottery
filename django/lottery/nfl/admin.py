@@ -716,10 +716,12 @@ class SlateAdmin(admin.ModelAdmin):
                         name='Process Base Projectrions',
                         user=request.user
                 ).id),
-                tasks.process_ownership_sheet.s(slate.ownership_projections_sheets.id, BackgroundTask.objects.create(
-                        name=f'Process Ownership Projections from {slate.ownership_projections_sheets}',
+                group([
+                    tasks.process_ownership_sheet.s(s.id, BackgroundTask.objects.create(
+                        name=f'Process Ownership Projections from {s.projection_site}',
                         user=request.user
-                ).id),
+                    ).id) for s in slate.ownership_projections_sheets.all()
+                ]),
                 tasks.assign_zscores_to_players.s(slate.id, BackgroundTask.objects.create(
                         name='Assign Z-Scores to Players',
                         user=request.user
@@ -2608,6 +2610,8 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_exposure',
         'get_ownership_projection',
         'get_etr_ownership_projection',
+        'get_rg_ownership_projection',
+        'get_ss_ownership_projection',
         'get_player_ao',
         'get_player_ao_zscore',
         'value',
@@ -2863,11 +2867,36 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
             )
             if proj.ownership_projection is None:
                 return None
-            print(f'{proj.id} - {proj.ownership_projection}')
             return '{:.2f}%'.format(float(proj.ownership_projection*100))
         except models.SlatePlayerRawProjection.DoesNotExist:
             return None
     get_etr_ownership_projection.short_description = 'E-OP'
+
+    def get_rg_ownership_projection(self, obj):
+        try:
+            proj = models.SlatePlayerRawProjection.objects.get(
+                projection_site='rg',
+                slate_player=obj.slate_player
+            )
+            if proj.ownership_projection is None:
+                return None
+            return '{:.2f}%'.format(float(proj.ownership_projection*100))
+        except models.SlatePlayerRawProjection.DoesNotExist:
+            return None
+    get_rg_ownership_projection.short_description = 'RG-OP'
+
+    def get_ss_ownership_projection(self, obj):
+        try:
+            proj = models.SlatePlayerRawProjection.objects.get(
+                projection_site='sabersim',
+                slate_player=obj.slate_player
+            )
+            if proj.ownership_projection is None:
+                return None
+            return '{:.2f}%'.format(float(proj.ownership_projection*100))
+        except models.SlatePlayerRawProjection.DoesNotExist:
+            return None
+    get_ss_ownership_projection.short_description = 'SS-OP'
 
     def get_num_pass_catchers(self, obj):
         if obj.slate_player.site_pos == 'QB':

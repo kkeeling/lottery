@@ -2081,6 +2081,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                     team = 'LAR'
                 else:
                     team = row[headers.column_team].strip()
+
                 median_projection = row[headers.column_median_projection] if row[headers.column_median_projection] != '' else 0.0
                 floor_projection = row[headers.column_floor_projection] if headers.column_floor_projection is not None and row[headers.column_floor_projection] != '' else 0.0
                 ceiling_projection = row[headers.column_ceiling_projection] if headers.column_ceiling_projection is not None and row[headers.column_ceiling_projection] != '' else 0.0
@@ -2091,6 +2092,12 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                 if sheet.projection_site == 'etr':
                     ownership_projection /= 100.0
                     alias = models.Alias.find_alias(player_name, sheet.slate.site)
+                elif sheet.projection_site == 'rg':
+                    ownership_projection /= 100.0
+                    alias = models.Alias.find_alias(player_name, sheet.projection_site)
+                elif sheet.projection_site == 'sabersim':
+                    ownership_projection /= 100.0
+                    alias = models.Alias.find_alias(player_name, sheet.projection_site)
                 else:
                     alias = models.Alias.find_alias(player_name, sheet.projection_site)
                 
