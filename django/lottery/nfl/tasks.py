@@ -474,6 +474,7 @@ def calculate_actuals_for_build(chained_results, build_id, task_id):
         if contests.count() > 0:
             contest = contests[0]
 
+            print(f'{contest}: {contest.mincash_score}, {contest.one_pct_score}, {contest.half_pct_score}')
             lineups = build.lineups.all().order_by('-actual')
             metrics = lineups.aggregate(
                 total_cashes=Count('pk', filter=Q(actual__gte=contest.mincash_score)),
