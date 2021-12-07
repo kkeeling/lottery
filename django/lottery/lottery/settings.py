@@ -83,6 +83,7 @@ INSTALLED_APPS = (
     'configuration',
     'nfl',
     'fanduel',
+    'yahoo',
     'nfl_sims',
 )
 
