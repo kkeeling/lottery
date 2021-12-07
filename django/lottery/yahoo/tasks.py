@@ -151,10 +151,10 @@ def get_entries_page_for_contest(contest_id, page, num_pages):
     #         ('page_size', '10'),
     #     )
 
-    # if index_in_cool_down_range(page):
-    #     seconds_to_wait = random.randint(60, 120)
-    #     print('Waiting {}s...'.format(seconds_to_wait))
-    #     time.sleep(seconds_to_wait)
+    if index_in_cool_down_range(page):
+        seconds_to_wait = random.randint(60, 120)
+        print('Waiting {}s...'.format(seconds_to_wait))
+        time.sleep(seconds_to_wait)
     # elif page > 0:
     #     seconds_to_wait = random.randint(5, 10)
     #     print('Waiting {}s...'.format(seconds_to_wait))
@@ -182,13 +182,12 @@ def get_entries_page_for_contest(contest_id, page, num_pages):
         contest.last_page_processed = page + 1
         contest.save()
     else:
-        print(f'HTTP Status {response.status_code}')
+        print(f'get_entries_page_for_contest: HTTP Status {response.status_code}')
 
 
 @shared_task
 def get_lineup_for_entry(entry_id):
     seconds_to_wait = random.randint(1, 2)
-    print(f'Getting entry {entry_id}')
     # print('Waiting {}s...'.format(seconds_to_wait))
     # time.sleep(seconds_to_wait)
 
@@ -205,7 +204,7 @@ def get_lineup_for_entry(entry_id):
         entry.entry_json = json.dumps(data.get('entries').get('result')[0].get('lineupSlotList'))
         entry.save()
     else:
-        print(f'HTTP Status {response.status_code}.')
+        print(f'get_lineup_for_entry: HTTP Status {response.status_code}.')
 
 
 @shared_task
