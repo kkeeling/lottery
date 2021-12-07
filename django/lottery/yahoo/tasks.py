@@ -155,10 +155,10 @@ def get_entries_page_for_contest(contest_id, page, num_pages):
         seconds_to_wait = random.randint(60, 120)
         print('Waiting {}s...'.format(seconds_to_wait))
         time.sleep(seconds_to_wait)
-    # elif page > 0:
-    #     seconds_to_wait = random.randint(5, 10)
-    #     print('Waiting {}s...'.format(seconds_to_wait))
-    #     time.sleep(seconds_to_wait)
+    elif page > 0:
+        seconds_to_wait = random.randint(5, 10)
+        print('Waiting {}s...'.format(seconds_to_wait))
+        time.sleep(seconds_to_wait)
         
     print(f'Page -- {page+1} out of {num_pages}')
     response = requests.get(contest.entries_url(page), headers=models.GET_ENTRIES_HEADERS)
@@ -188,8 +188,8 @@ def get_entries_page_for_contest(contest_id, page, num_pages):
 @shared_task
 def get_lineup_for_entry(entry_id):
     seconds_to_wait = random.randint(1, 2)
-    # print('Waiting {}s...'.format(seconds_to_wait))
-    # time.sleep(seconds_to_wait)
+    print('Waiting {}s...'.format(seconds_to_wait))
+    time.sleep(seconds_to_wait)
 
     entry = models.ContestEntry.objects.get(entry_id=entry_id)
     # params = (
