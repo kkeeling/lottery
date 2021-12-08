@@ -74,7 +74,7 @@ class ContestAdmin(admin.ModelAdmin):
             contest.entries.all().delete()
 
         group([
-            tasks.get_entries_page_for_contest.si(contest.id, page, math.ceil(contest.num_entries/50)) for page in range(contest.last_page_processed, math.ceil(contest.num_entries/50))
+            tasks.get_entries_page_for_contest.si(contest.id, page, min(math.ceil(contest.num_entries/50), 1000)) for page in range(contest.last_page_processed, min(math.ceil(contest.num_entries/50), 1000))
         ])()
     get_entries.short_description = 'Get Entries For Selected Contests'
 
