@@ -45,20 +45,30 @@ class Contest(models.Model):
         entries = []
 
         for entry in self.entries.all().iterator():
+            if entry.entry_json is None:
+                print(f'Entry {entry.username} has no lineup data.')
+                continue
+
             raw_json = json.loads(entry.entry_json)
             if len(raw_json) > 0:
                 entry_dict = {
-                    'username': entry.username,
-                    'qb_id': raw_json[0].get("id"),
-                    'rb1_id': raw_json[1].get("id"),
-                    'rb2_id': raw_json[2].get("id"),
-                    'wr1_id': raw_json[3].get("id"),
-                    'wr2_id': raw_json[4].get("id"),
-                    'wr3_id': raw_json[5].get("id"),
-                    'te_id': raw_json[6].get("id"),
-                    'flex_id': raw_json[7].get("id"),
-                    'dst_id': raw_json[8].get("id"),
+                    'username': entry.username
                 }
+                
+                pos_count = 1
+                for lineup_player in raw_json:
+                    pos = lineup_player.get('lineupSlot').get('abbr')
+                    
+                    if pos == 'FLEX':
+                        entry_dict['flex_pos'] = lineup_player.get('player').get('primaryPosition')
+
+                    lineup_pos = pos
+                    player_id = lineup_player.get('player').get('playerGameCode')
+                    while lineup_pos in entry_dict:
+                        pos_count += 1
+                        lineup_pos = f'{pos}{pos_count}'
+                    entry_dict[lineup_pos] = player_id
+                    pos_count = 1
                 entries.append(entry_dict)
         return entries
 

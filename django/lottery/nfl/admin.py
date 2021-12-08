@@ -28,6 +28,9 @@ from django_admin_listfilter_dropdown.filters import DropdownFilter, RelatedDrop
 from lottery.admin import lottery_admin_site
 from configuration.models import BackgroundTask
 
+from fanduel import models as fanduel_models
+from yahoo import models as yahoo_models
+
 from . import models
 from . import tasks
 
@@ -686,7 +689,38 @@ class SlateAdmin(admin.ModelAdmin):
                 task1.user = request.user
                 task1.save()
 
-                tasks.process_actuals_sheet.delay(slate.id, task1.id)
+                jobs = []
+                
+                if slate.fc_actuals_sheet is not None:
+                    jobs.append(tasks.process_actuals_sheet.si(slate.id, task1.id))
+
+                if slate.site == 'fanduel':
+                    fanduel_contests = fanduel_models.Contest.objects.filter(slate_week=slate.week.num, slate_year=slate.week.slate_year)
+
+                    if fanduel_contests.count() > 0:
+                        jobs.append(tasks.process_actual_ownership.si(
+                            slate.id,
+                            fanduel_contests[0].id,
+                             BackgroundTask.objects.create(
+                                name='Process actual ownership',
+                                user=request.user
+                            ).id
+                        ))
+                elif slate.site == 'yahoo':
+                    yahoo_contests = yahoo_models.Contest.objects.filter(slate_week=slate.week.num, slate_year=slate.week.slate_year)
+
+                    if yahoo_contests.count() > 0:
+                        jobs.append(tasks.process_actual_ownership.si(
+                            slate.id,
+                            yahoo_contests[0].id,
+                             BackgroundTask.objects.create(
+                                name='Process actual ownership',
+                                user=request.user
+                            ).id
+                        ))
+
+                if len(jobs) > 0:
+                    chain(jobs)()
 
                 messages.add_message(
                     request,
@@ -713,7 +747,7 @@ class SlateAdmin(admin.ModelAdmin):
                     ).id) for s in slate.projections.all()
                 ]),
                 tasks.handle_base_projections.s(slate.id, BackgroundTask.objects.create(
-                        name='Process Base Projectrions',
+                        name='Process Base Projections',
                         user=request.user
                 ).id),
                 group([
@@ -897,6 +931,7 @@ class SlatePlayerAdmin(admin.ModelAdmin):
         'site_pos',
         'salary',
         'fantasy_points',
+        'ownership',
         'slate_game',
     )
     search_fields = ('name',)

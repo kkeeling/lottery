@@ -5,8 +5,6 @@ import json
 import math
 import numpy
 import pandas
-from pandas.core.frame import DataFrame
-import pandasql
 from pydfs_lineup_optimizer import player
 import scipy
 import sys
@@ -17,15 +15,16 @@ import uuid
 from celery import shared_task, chord, group, chain
 from contextlib import contextmanager
 
-from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.messages.api import success
 from django.db.models.aggregates import Count, Sum
 from django.db.models import Q, F
 from django.db import transaction
-from django.urls import reverse_lazy
 
 from configuration.models import BackgroundTask
+
+from fanduel import models as fanduel_models
+from yahoo import models as yahoo_models
 
 from . import models
 from . import optimize
@@ -2347,6 +2346,67 @@ def process_actuals_sheet(slate_id, task_id):
         if task is not None:
             task.status = 'error'
             task.content = f'There was a problem processing actuals: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def process_actual_ownership(slate_id, contest_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
+        if slate.site == 'fanduel':
+            contest = fanduel_models.Contest.objects.get(id=contest_id)
+            dst_label = 'D'
+        elif slate.site == 'yahoo':
+            contest = yahoo_models.Contest.objects.get(id=contest_id)
+            dst_label = 'DEF'
+        else:
+            raise Exception(f'{slate.site} is not supported for processing ownership')
+
+        df_lineups = pandas.DataFrame(contest.get_lineups_as_json())
+        
+        # qb_ownership = df_lineups['QB'].value_counts(normalize=True)
+        # for player_id, ownership in qb_ownership.items():
+        #     models.SlatePlayer.objects.filter(
+        #         slate=slate,
+        #         player_id=player_id
+        #     ).update(ownership=ownership)
+        
+        # dst_ownership = df_lineups[dst_label].value_counts(normalize=True)
+        # for player_id, ownership in dst_ownership.items():
+        #     models.SlatePlayer.objects.filter(
+        #         slate=slate,
+        #         player_id=player_id
+        #     ).update(ownership=ownership)
+
+        df_m = df_lineups.filter(items=['QB', 'RB', 'RB2', 'WR', 'WR2', 'WR3', 'TE', 'FLEX', 'DEF']).melt(var_name='columns', value_name='index')
+        df_own = pandas.crosstab(index=df_m['index'], columns=df_m['columns']).sum(axis=1)
+
+        for player_id, player_count in df_own.items():
+            models.SlatePlayer.objects.filter(
+                slate=slate,
+                player_id=player_id
+            ).update(ownership=numpy.round(player_count/contest.num_entries, 2))
+
+        task.status = 'success'
+        task.content = 'Ownership processed'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem processing ownership: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
