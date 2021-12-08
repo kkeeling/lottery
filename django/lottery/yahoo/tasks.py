@@ -178,6 +178,10 @@ def get_entries_page_for_contest(contest_id, page, num_pages):
     else:
         print(f'get_entries_page_for_contest: HTTP Status {response.status_code}')
 
+        if response.status_code == 404:
+            print("Waiting 3m to resume.")
+            time.sleep(3*60)
+            get_entries_page_for_contest(contest_id, page, num_pages)
 
 @shared_task
 def get_lineup_for_entry(entry_id):
@@ -203,6 +207,11 @@ def get_lineup_for_entry(entry_id):
         entry.save()
     else:
         print(f'get_lineup_for_entry: HTTP Status {response.status_code}.')
+
+        if response.status_code == 404:
+            print("Waiting 3m to resume.")
+            time.sleep(3*60)
+            get_lineup_for_entry(entry_id)
 
 
 @shared_task
