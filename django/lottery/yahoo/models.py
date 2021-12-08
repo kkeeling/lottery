@@ -59,11 +59,11 @@ class Contest(models.Model):
                 for lineup_player in raw_json:
                     pos = lineup_player.get('lineupSlot').get('abbr')
 
-                    if pos == 'FLEX':
-                        entry_dict['flex_pos'] = lineup_player.get('player').get('primaryPosition')
-
-                    lineup_pos = pos
                     if 'player' in lineup_player:
+                        if pos == 'FLEX':
+                            entry_dict['flex_pos'] = lineup_player.get('player').get('primaryPosition')
+
+                        lineup_pos = pos
                         player_id = lineup_player.get('player').get('playerGameCode')
                         while lineup_pos in entry_dict:
                             pos_count += 1
@@ -72,9 +72,9 @@ class Contest(models.Model):
                         pos_count = 1
                     else:
                         print(f'No player field found.')
-                        print(lineup_player)
+                        print(raw_json)
                         entry_dict = None
-                        continue
+                        break
                 if entry_dict is not None:
                     entries.append(entry_dict)
         return entries
