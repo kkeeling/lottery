@@ -100,7 +100,7 @@ def get_contest_data(contest_id, task_id):
         if data is not None:
             cost = float(data.get('contests').get('result')[0].get('entryFee'))
             name = data.get('contests').get('result')[0].get('title')
-            num_entries = int(data.get('contests').get('result')[0].get('entryLimit'))
+            num_entries = int(data.get('contests').get('result')[0].get('entryCount'))
 
             contest.cost = cost
             contest.name = name
@@ -159,22 +159,27 @@ def get_entries_page_for_contest(contest_id, page, num_pages):
             print("Waiting 3m to resume.")
             time.sleep(3*60)
             get_entries_page_for_contest(contest_id, page, num_pages)
-        
-        # process entries from page 
-        for entry in data.get('entries').get('result'):
-            entry_id = entry.get('id')
-            username = entry.get('user').get('nickname')
+        elif 'entries' not in data:
+            print('No entries found in payload.')
+            print(data)
+            time.sleep(3*60)
+            get_entries_page_for_contest(contest_id, page, num_pages)
+        else:
+            # process entries from page 
+            for entry in data.get('entries').get('result'):
+                entry_id = entry.get('id')
+                username = entry.get('user').get('nickname')
 
-            models.ContestEntry.objects.get_or_create(
-                entry_id=entry_id,
-                contest=contest,
-                username=username
-            )
+                models.ContestEntry.objects.get_or_create(
+                    entry_id=entry_id,
+                    contest=contest,
+                    username=username
+                )
 
-            get_lineup_for_entry(entry_id)
+                get_lineup_for_entry(entry_id)
 
-        contest.last_page_processed = page + 1
-        contest.save()
+            contest.last_page_processed = page + 1
+            contest.save()
     else:
         print(f'get_entries_page_for_contest: HTTP Status {response.status_code}')
 
