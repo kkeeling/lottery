@@ -2666,7 +2666,8 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'locked',
         'min_exposure',
         'max_exposure',
-        'get_actual_score'
+        'get_actual_score',
+        'get_actual_ownership'
     )
     list_editable = (
         'in_play',
@@ -2711,7 +2712,8 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         qs = qs.annotate(
             slate=F('slate_player__slate'), 
             site_pos=F('slate_player__site_pos'), 
-            player_salary=F('slate_player__salary')            
+            player_salary=F('slate_player__salary'),
+            actual_own=F('slate_player__ownership'),       
         )
         # qs = qs.annotate(
         #     player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
@@ -2972,6 +2974,11 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         return obj.slate_player.fantasy_points
     get_actual_score.short_description = 'Actual'
     get_actual_score.admin_order_field = 'slate_player__fantasy_points'
+
+    def get_actual_ownership(self, obj):
+            return '{:.2f}%'.format(float(obj.actual_own*100))
+    get_actual_ownership.short_description = 'Own'
+    get_actual_ownership.admin_order_field = 'actual_own'
 
     def set_rb_group_values(self, request, queryset):
         for rb in queryset:
