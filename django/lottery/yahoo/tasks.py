@@ -138,18 +138,6 @@ def get_contest_data(contest_id, task_id):
 @shared_task
 def get_entries_page_for_contest(contest_id, page, num_pages):
     contest = models.Contest.objects.get(id=contest_id)
-    
-    # if page == 0:
-    #     params = (
-    #         ('include_projections', 'false'),
-    #         ('page_size', '10'),
-    #     )
-    # else:
-    #     params = (
-    #         ('include_projections', 'false'),
-    #         ('page', str(page+1)),
-    #         ('page_size', '10'),
-    #     )
 
     if index_in_cool_down_range(page):
         seconds_to_wait = random.randint(60, 120)
@@ -165,6 +153,12 @@ def get_entries_page_for_contest(contest_id, page, num_pages):
     
     if response.status_code < 300:
         data = response.json()
+
+        if 'error' in data:
+            print(f'{data.get("error").get("description")}')
+            print("Waiting 3m to resume.")
+            time.sleep(3*60)
+            get_entries_page_for_contest(contest_id, page, num_pages)
         
         # process entries from page 
         for entry in data.get('entries').get('result'):
@@ -188,19 +182,23 @@ def get_entries_page_for_contest(contest_id, page, num_pages):
 @shared_task
 def get_lineup_for_entry(entry_id):
     seconds_to_wait = random.randint(1, 2)
-    print('Waiting {}s...'.format(seconds_to_wait))
+    # print('Waiting {}s...'.format(seconds_to_wait))
     time.sleep(seconds_to_wait)
 
+    print(f'Getting entry {entry_id}')
     entry = models.ContestEntry.objects.get(entry_id=entry_id)
-    # params = (
-    #     ('include_projections', 'false'),
-    #     ('content_sources', 'NUMBERFIRE,ROTOWIRE,ROTOGRINDERS'),
-    # )
 
     response = requests.get(entry.entry_url, headers=models.GET_LINEUP_HEADERS)
     
     if response.status_code < 300:
         data = response.json()
+
+        if 'error' in data:
+            print(f'{data.get("error").get("description")}')
+            print("Waiting 3m to resume.")
+            time.sleep(3*60)
+            get_lineup_for_entry(entry_id)
+
         entry.entry_json = json.dumps(data.get('entries').get('result')[0].get('lineupSlotList'))
         entry.save()
     else:
