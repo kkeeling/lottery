@@ -155,7 +155,7 @@ def get_entries_page_for_contest(contest_id, page, num_pages):
         data = response.json()
 
         if 'error' in data:
-            print(f'{data.get("error").get("description")}')
+            print(f'{data.get("error")}')
             print("Waiting 3m to resume.")
             time.sleep(3*60)
             get_entries_page_for_contest(contest_id, page, num_pages)
@@ -185,9 +185,9 @@ def get_entries_page_for_contest(contest_id, page, num_pages):
 
 @shared_task
 def get_lineup_for_entry(entry_id):
-    # seconds_to_wait = random.randint(1, 2)
-    # print('Waiting {}s...'.format(seconds_to_wait))
-    # time.sleep(seconds_to_wait)
+    seconds_to_wait = random.randint(0, 1)
+    print('Waiting {}s...'.format(seconds_to_wait))
+    time.sleep(seconds_to_wait)
 
     print(f'Getting entry {entry_id}')
     entry = models.ContestEntry.objects.get(entry_id=entry_id)
