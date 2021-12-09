@@ -1418,6 +1418,7 @@ def build_complete(build_id, task_id):
 def build_completed_with_error(request, exc, traceback):
     print('Task {0!r} raised error: {1!r}'.format(request.id, exc))
 
+
 @shared_task
 def build_optimals_for_stack(stack_id):
     try:
@@ -2392,7 +2393,8 @@ def process_actual_ownership(slate_id, contest_id, task_id):
             raise Exception(f'{slate.site} is not supported for processing ownership')
 
         df_lineups = pandas.DataFrame(contest.get_lineups_as_json())
-        
+        print(df_lineups['QB'].value_counts(normalize=True))
+
         # qb_ownership = df_lineups['QB'].value_counts(normalize=True)
         # for player_id, ownership in qb_ownership.items():
         #     models.SlatePlayer.objects.filter(
