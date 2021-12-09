@@ -54,7 +54,8 @@ BUILD_STATUS = (
 
 SHEET_TYPES = (
     ('site', 'Salary File'),
-    ('fantasycruncher', 'FantasyCruncher Export')
+    ('fantasycruncher', 'FantasyCruncher Export'),
+    ('sabersim', 'SaberSim Export')
 )
 
 PROJECTION_SITES = (

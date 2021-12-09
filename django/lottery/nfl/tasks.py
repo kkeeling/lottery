@@ -1970,7 +1970,7 @@ def process_slate_players(chained_result, slate_id, task_id):
                         salary = int(row["Salary"])
                         game = row['Game'].replace('@', '_').replace('JAX', 'JAC')
                         team = 'JAC' if row['Team'] == 'JAX' else row['Team']
-                else:
+                elif slate.salaries_sheet_type == 'fantasycruncher':
                     site = 'fc'
                     player_id = uuid.uuid4()
                     if slate.site == 'fanduel' and row['Pos'] == 'DST':
@@ -1987,6 +1987,23 @@ def process_slate_players(chained_result, slate_id, task_id):
                         game = f'{team}{opp}'.replace('@ ', '_').replace('JAX', 'JAC')
                     else:
                         game = f'{opp}_{team}'.replace('vs ', '').replace('JAX', 'JAC')
+                elif slate.salaries_sheet_type == 'sabersim':
+                    site = 'sabersim'
+                    player_id = row['DFS ID']
+                    if slate.site == 'fanduel' and row['Pos'] == 'DST':
+                        site_pos = 'D'
+                    elif slate.site == 'yahoo' and row['Pos'] == 'DST':
+                        site_pos = 'DEF'
+                    else:
+                        site_pos = row['Pos'].split(',')[0]
+                    player_name = row['Name'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
+                    salary = int(row['Salary'])                    
+                    team = row['Team']
+                    # opp = row['Opp']
+                    # if '@' in opp:
+                    #     game = f'{team}{opp}'.replace('@ ', '_').replace('JAX', 'JAC')
+                    # else:
+                    #     game = f'{opp}_{team}'.replace('vs ', '').replace('JAX', 'JAC')
 
                 alias = models.Alias.find_alias(player_name, site)
                 
@@ -2007,7 +2024,7 @@ def process_slate_players(chained_result, slate_id, task_id):
                     slate_player.player_id = player_id
                     slate_player.salary = salary
                     slate_player.site_pos = site_pos
-                    slate_player.game = game
+                    # slate_player.game = game
                     slate_player.slate_game = slate_player.get_slate_game()
                     slate_player.save()
 
