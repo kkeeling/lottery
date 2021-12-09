@@ -1998,7 +1998,7 @@ def process_slate_players(chained_result, slate_id, task_id):
                         site_pos = row['Pos'].split(',')[0]
                     player_name = row['Name'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
                     salary = int(row['Salary'])                    
-                    team = row['Team']
+                    team = row['Team'].replace('JAX', 'JAC')
                     # opp = row['Opp']
                     # if '@' in opp:
                     #     game = f'{team}{opp}'.replace('@ ', '_').replace('JAX', 'JAC')
