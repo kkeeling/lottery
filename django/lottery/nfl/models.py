@@ -773,7 +773,8 @@ class SlatePlayer(models.Model):
         return settings.TEAM_COLORS[self.team]
 
     def get_opponent(self):
-        return self.game.replace(self.team, '').replace('_', '')
+        slate_game = self.get_slate_game()
+        return slate_game.game.home_team if slate_game.game.away_team == self.team else slate_game.game.away_team
 
     def get_slate_game(self):
         games = self.slate.games.filter(
