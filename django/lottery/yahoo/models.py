@@ -1,4 +1,6 @@
 import json
+import pandas
+
 from django.db import models
 
 GET_CONTEST_HEADERS = {
@@ -80,6 +82,45 @@ class Contest(models.Model):
                 if entry_dict is not None:
                     entries.append(entry_dict)
         return entries
+
+    def get_lineups_as_dataframe(self):
+        entries = []
+
+        for entry in self.entries.all().iterator():
+            if entry.entry_json is None:
+                print(f'Entry {entry.username} has no lineup data.')
+                continue
+
+            raw_json = json.loads(entry.entry_json)
+            if len(raw_json) > 0:
+                entry_dict = {
+                    'username': entry.username
+                }
+                
+                pos_count = 1
+                for lineup_player in raw_json:
+                    pos = lineup_player.get('lineupSlot').get('abbr')
+
+                    if 'player' in lineup_player:
+                        if pos == 'RB' or pos == 'WR':
+                            lineup_pos = f'{pos}{pos_count}'
+                        else:
+                            lineup_pos = pos
+                            
+                        player_name = f"{lineup_player.get('player').get('firstName')} {lineup_player.get('player').get('lastName')}"
+                        while lineup_pos in entry_dict:
+                            pos_count += 1
+                            lineup_pos = f'{pos}{pos_count}'
+                        entry_dict[lineup_pos] = f'{player_name}'
+                        pos_count = 1
+                    else:
+                        print(f'No player field found.')
+                        print(raw_json)
+                        entry_dict = None
+                        break
+                if entry_dict is not None:
+                    entries.append(entry_dict)
+        return pandas.DataFrame(entries)
 
 
 class ContestEntry(models.Model):

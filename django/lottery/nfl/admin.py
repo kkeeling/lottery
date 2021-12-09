@@ -2015,6 +2015,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'export_lineups', 
         'export_optimals',
         'get_actual_scores', 
+        'race_build',
         'find_optimal_lineups',
         'duplicate_builds', 
         'clear_data'
@@ -2577,6 +2578,23 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 'Calculating actual scores.')
     get_actual_scores.short_description = 'Get actual scores for selected builds'
 
+    def race_build(self, request, queryset):
+        group([
+            tasks.race_lineups_in_build.si(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Race lineups',
+                    user=request.user
+                ).id
+            ) for build in queryset
+        ])()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Racing lineups.')
+    race_build.short_description = 'Race lineups for selected builds'
+
     def duplicate_builds(self, request, queryset):
         for build in queryset:
             new_build = models.SlateBuild.objects.create(
@@ -2976,7 +2994,9 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     get_actual_score.admin_order_field = 'slate_player__fantasy_points'
 
     def get_actual_ownership(self, obj):
-            return '{:.2f}%'.format(float(obj.actual_own*100))
+        if obj.actual_own is None:
+            return None
+        return '{:.2f}%'.format(float(obj.actual_own*100))
     get_actual_ownership.short_description = 'Own'
     get_actual_ownership.admin_order_field = 'actual_own'
 

@@ -2393,21 +2393,6 @@ def process_actual_ownership(slate_id, contest_id, task_id):
             raise Exception(f'{slate.site} is not supported for processing ownership')
 
         df_lineups = pandas.DataFrame(contest.get_lineups_as_json())
-        print(df_lineups['RB'].value_counts(normalize=True))
-
-        # qb_ownership = df_lineups['QB'].value_counts(normalize=True)
-        # for player_id, ownership in qb_ownership.items():
-        #     models.SlatePlayer.objects.filter(
-        #         slate=slate,
-        #         player_id=player_id
-        #     ).update(ownership=ownership)
-        
-        # dst_ownership = df_lineups[dst_label].value_counts(normalize=True)
-        # for player_id, ownership in dst_ownership.items():
-        #     models.SlatePlayer.objects.filter(
-        #         slate=slate,
-        #         player_id=player_id
-        #     ).update(ownership=ownership)
 
         df_m = df_lineups.filter(items=['QB', 'RB', 'RB2', 'WR', 'WR2', 'WR3', 'TE', 'FLEX', dst_label]).melt(var_name='columns', value_name='index')
         df_own = pandas.crosstab(index=df_m['index'], columns=df_m['columns']).sum(axis=1)
@@ -2779,3 +2764,63 @@ def process_group_import_sheet(sheet_id, task_id):
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
+
+@shared_task
+def race_lineups_in_build(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        build = models.SlateBuild.objects.get(id=build_id)
+
+        if build.slate.site == 'yahoo':
+            contests = yahoo_models.Contest.objects.filter(slate_week=build.slate.week.num, slate_year=build.slate.week.slate_year)
+            if contests.count() == 0:
+                raise Exception('Cannot race. No contests found for this slate.')
+            
+            contest = contests[0]
+            df_my_usernames = pandas.DataFrame(['lakergreat1' for _ in range(0, build.lineups.all().count())], columns=['username'])
+            df_my_lineups = pandas.DataFrame(list(build.lineups.all().values_list(
+                'qb__slate_player__name',
+                'rb1__slate_player__name',
+                'rb2__slate_player__name',
+                'wr1__slate_player__name',
+                'wr2__slate_player__name',
+                'wr3__slate_player__name',
+                'te__slate_player__name',
+                'flex__slate_player__name',
+                'dst__slate_player__name'
+            )), columns=[
+                'QB',
+                'RB1',
+                'RB2',
+                'WR1',
+                'WR2',
+                'WR3',
+                'TE',
+                'FLEX',
+                'DEF'
+            ])
+
+            df_my_lineups = pandas.concat([df_my_usernames,df_my_lineups], axis=1)
+            df_field_lineups = contest.get_lineups_as_dataframe()
+
+
+            task.status = 'success'
+            task.content = 'Slate lineup race complete.'
+            task.save()      
+        else:
+            raise Exception(f'{build.slate.site} is not yet supported for races')  
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error racing lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
