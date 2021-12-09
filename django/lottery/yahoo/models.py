@@ -64,11 +64,13 @@ class Contest(models.Model):
                             entry_dict['flex_pos'] = lineup_player.get('player').get('primaryPosition')
 
                         lineup_pos = pos
+                        player_name = f"{lineup_player.get('player').get('firstName')} {lineup_player.get('player').get('lastName')}"
+                        player_team = lineup_player.get('player').get('team').get('abbr').replace('JAX', 'JAC')
                         player_id = lineup_player.get('player').get('playerGameCode')
                         while lineup_pos in entry_dict:
                             pos_count += 1
                             lineup_pos = f'{pos}{pos_count}'
-                        entry_dict[lineup_pos] = player_id
+                        entry_dict[lineup_pos] = f'{player_name}, {player_team}'
                         pos_count = 1
                     else:
                         print(f'No player field found.')

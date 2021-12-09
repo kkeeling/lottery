@@ -2393,7 +2393,7 @@ def process_actual_ownership(slate_id, contest_id, task_id):
             raise Exception(f'{slate.site} is not supported for processing ownership')
 
         df_lineups = pandas.DataFrame(contest.get_lineups_as_json())
-        print(df_lineups['QB'].value_counts(normalize=True))
+        print(df_lineups['RB'].value_counts(normalize=True))
 
         # qb_ownership = df_lineups['QB'].value_counts(normalize=True)
         # for player_id, ownership in qb_ownership.items():
@@ -2409,14 +2409,17 @@ def process_actual_ownership(slate_id, contest_id, task_id):
         #         player_id=player_id
         #     ).update(ownership=ownership)
 
-        df_m = df_lineups.filter(items=['QB', 'RB', 'RB2', 'WR', 'WR2', 'WR3', 'TE', 'FLEX', 'DEF']).melt(var_name='columns', value_name='index')
+        df_m = df_lineups.filter(items=['QB', 'RB', 'RB2', 'WR', 'WR2', 'WR3', 'TE', 'FLEX', dst_label]).melt(var_name='columns', value_name='index')
         df_own = pandas.crosstab(index=df_m['index'], columns=df_m['columns']).sum(axis=1)
 
-        for player_id, player_count in df_own.items():
+        for player, player_count in df_own.items():
+            player_name = player.split(', ')[0]
+            player_team = player.split(', ')[1]
             models.SlatePlayer.objects.filter(
                 slate=slate,
-                player_id=player_id
-            ).update(ownership=numpy.round(player_count/contest.num_entries, 2))
+                name=player_name,
+                team=player_team
+            ).update(ownership=numpy.round(player_count/contest.num_entries, 4))
 
         task.status = 'success'
         task.content = 'Ownership processed'

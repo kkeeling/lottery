@@ -735,7 +735,7 @@ class SlatePlayer(models.Model):
     fantasy_points = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
     game = models.CharField(max_length=10)
     slate_game = models.ForeignKey(SlateGame, related_name='players', on_delete=models.SET_NULL, blank=True, null=True)
-    ownership = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
+    ownership = models.DecimalField(decimal_places=4, max_digits=6, null=True, blank=True)
 
     def __str__(self):
         if self.fantasy_points is None:
