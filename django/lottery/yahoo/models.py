@@ -99,7 +99,7 @@ class Contest(models.Model):
                 
                 pos_count = 1
                 for lineup_player in raw_json:
-                    pos = lineup_player.get('lineupSlot').get('abbr')
+                    pos = lineup_player.get('lineupSlot').get('abbr').lower()
 
                     if 'player' in lineup_player:
                         if pos == 'RB' or pos == 'WR':

@@ -3015,6 +3015,39 @@ class SlateBuildLineup(models.Model):
         self.save()
 
 
+class SlateFieldLineup(models.Model):
+    slate = models.ForeignKey(Slate, db_index=True, verbose_name='Slate', related_name='field_lineups', on_delete=models.CASCADE)
+    username = models.CharField(max_length=50, db_index=True)
+    qb = models.ForeignKey(SlatePlayerProjection, db_index=True, related_name='qb', on_delete=models.CASCADE)
+    rb1 = models.ForeignKey(SlatePlayerProjection, db_index=True, related_name='rb1', on_delete=models.CASCADE)
+    rb2 = models.ForeignKey(SlatePlayerProjection, db_index=True, related_name='rb2', on_delete=models.CASCADE)
+    wr1 = models.ForeignKey(SlatePlayerProjection, db_index=True, related_name='wr1', on_delete=models.CASCADE)
+    wr2 = models.ForeignKey(SlatePlayerProjection, db_index=True, related_name='wr2', on_delete=models.CASCADE)
+    wr3 = models.ForeignKey(SlatePlayerProjection, db_index=True, related_name='wr3', on_delete=models.CASCADE)
+    te = models.ForeignKey(SlatePlayerProjection, db_index=True, related_name='te', on_delete=models.CASCADE)
+    flex = models.ForeignKey(SlatePlayerProjection, db_index=True, related_name='flex', on_delete=models.CASCADE)
+    dst = models.ForeignKey(SlatePlayerProjection, db_index=True, related_name='dst', on_delete=models.CASCADE)
+    sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
+
+    @property
+    def players(self):
+        return [
+            self.qb, 
+            self.rb1,
+            self.rb2,
+            self.wr1,
+            self.wr2,
+            self.wr3,
+            self.te,
+            self.flex,
+            self.dst
+        ]
+
+    def simulate(self):
+        self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, 10000)]
+        self.save()
+
+
 class SlateBuildActualsLineup(models.Model):
     build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='actuals', on_delete=models.CASCADE)
     stack = models.ForeignKey(SlateBuildStack, db_index=True, verbose_name='Stack', related_name='actuals', on_delete=models.CASCADE, null=True, blank=True)

@@ -165,6 +165,8 @@ def simulate_game(game_id, task_id):
 
         home_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_home_players().values_list('id', flat=True))
         away_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_away_players().values_list('id', flat=True))
+        print(home_players)
+        print(away_players)
 
         home_qb = home_players.filter(slate_player__site_pos='QB').order_by('-projection', '-slate_player__salary')[0]
         home_rb1 = home_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[0]
@@ -2421,6 +2423,64 @@ def process_actual_ownership(slate_id, contest_id, task_id):
 
 
 @shared_task
+def process_field_lineups(slate_id, contest_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
+        slate.field_lineups.all().delete()
+
+        if slate.site == 'fanduel':
+            contest = fanduel_models.Contest.objects.get(id=contest_id)
+            dst_label = 'D'
+        elif slate.site == 'yahoo':
+            contest = yahoo_models.Contest.objects.get(id=contest_id)
+            dst_label = 'DEF'
+        else:
+            raise Exception(f'{slate.site} is not supported for processing lineups')
+
+        df_lineups = contest.get_lineups_as_dataframe()
+        for lineup in df_lineups.values:
+            try:
+                l = models.SlateFieldLineup.objects.create(
+                    slate=slate,
+                    username=lineup[0],
+                    qb=models.SlatePlayerProjection.objects.get(slate_player__slate=slate, slate_player__name=lineup[1]),
+                    rb1=models.SlatePlayerProjection.objects.get(slate_player__slate=slate, slate_player__name=lineup[2]),
+                    rb2=models.SlatePlayerProjection.objects.get(slate_player__slate=slate, slate_player__name=lineup[3]),
+                    wr1=models.SlatePlayerProjection.objects.get(slate_player__slate=slate, slate_player__name=lineup[4]),
+                    wr2=models.SlatePlayerProjection.objects.get(slate_player__slate=slate, slate_player__name=lineup[5]),
+                    wr3=models.SlatePlayerProjection.objects.get(slate_player__slate=slate, slate_player__name=lineup[6]),
+                    te=models.SlatePlayerProjection.objects.get(slate_player__slate=slate, slate_player__name=lineup[7]),
+                    flex=models.SlatePlayerProjection.objects.get(slate_player__slate=slate, slate_player__name=lineup[8]),
+                    dst=models.SlatePlayerProjection.objects.get(slate_player__slate=slate, slate_player__name=lineup[9]),
+                )
+                l.simulate()
+            except:
+                pass
+
+        task.status = 'success'
+        task.content = 'Lineups processed'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem processing lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def process_sim_datasheets(chained_results, slate_id, task_id):
     task = None
 
@@ -2806,10 +2866,44 @@ def race_lineups_in_build(build_id, task_id):
                 'FLEX',
                 'DEF'
             ])
+            df_my_outcomes = pandas.DataFrame(list(build.lineups.all().values_list('sim_scores', flat=True)))
+            df_my_lineups = pandas.concat([df_my_usernames,df_my_lineups, df_my_outcomes], axis=1)
 
-            df_my_lineups = pandas.concat([df_my_usernames,df_my_lineups], axis=1)
-            df_field_lineups = contest.get_lineups_as_dataframe()
+            df_field_lineups = pandas.DataFrame(list(build.slate.field_lineups.all().values_list(
+                'username',
+                'qb__slate_player__name',
+                'rb1__slate_player__name',
+                'rb2__slate_player__name',
+                'wr1__slate_player__name',
+                'wr2__slate_player__name',
+                'wr3__slate_player__name',
+                'te__slate_player__name',
+                'flex__slate_player__name',
+                'dst__slate_player__name'
+            )), columns=[
+                'username',
+                'QB',
+                'RB1',
+                'RB2',
+                'WR1',
+                'WR2',
+                'WR3',
+                'TE',
+                'FLEX',
+                'DEF'
+            ])
 
+            def get_payout(x):
+                return contest.get_payout(x)
+
+            df_field_outcomes = pandas.DataFrame(list(build.slate.field_lineups.filter(sim_scores__isnull=False).values_list('sim_scores', flat=True)))
+            df_field_lineups = pandas.concat([df_field_lineups, df_field_outcomes], axis=1)
+
+            df_lineups = pandas.concat([df_my_lineups, df_field_lineups])
+            df_usernames = df_lineups['username'].copy()
+            df_ranks = df_lineups[[i for i in range(0, 10000)]].rank(ascending=False)
+            print(df_ranks)
+            print(df_ranks.applymap(get_payout, na_action='ignore'))
 
             task.status = 'success'
             task.content = 'Slate lineup race complete.'
@@ -2824,3 +2918,6 @@ def race_lineups_in_build(build_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+

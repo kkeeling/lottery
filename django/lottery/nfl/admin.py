@@ -718,6 +718,14 @@ class SlateAdmin(admin.ModelAdmin):
                                 user=request.user
                             ).id
                         ))
+                        jobs.append(tasks.process_field_lineups.si(
+                            slate.id,
+                            yahoo_contests[0].id,
+                            BackgroundTask.objects.create(
+                                name='Process field lineups',
+                                user=request.user
+                            ).id
+                        ))
 
                 if len(jobs) > 0:
                     chain(jobs)()
@@ -1672,6 +1680,75 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
             messages.WARNING,
             'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
     export.short_description = 'Export selected lineups'
+
+
+@admin.register(models.SlateFieldLineup)
+class SlateFieldLineupAdmin(admin.ModelAdmin):
+    list_per_page = 10
+    list_display = (
+        'username',
+        'get_qb',
+        'get_rb1',
+        'get_rb2',
+        'get_wr1',
+        'get_wr2',
+        'get_wr3',
+        'get_te',
+        'get_flex',
+        'get_dst',
+    )
+
+    search_fields = (
+        'username',
+        'qb__slate_player__name',
+        'rb1__slate_player__name',
+        'rb2__slate_player__name',
+        'wr1__slate_player__name',
+        'wr2__slate_player__name',
+        'wr3__slate_player__name',
+        'te__slate_player__name',
+        'flex__slate_player__name',
+        'dst__slate_player__name',
+    )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('qb', 'rb1', 'rb2', 'wr1', 'wr2', 'wr3', 'te', 'flex', 'dst')
+
+    def get_qb(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.qb.get_team_color(), obj.qb))
+    get_qb.short_description = 'QB'
+
+    def get_rb1(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.rb1.get_team_color(), obj.rb1))
+    get_rb1.short_description = 'RB1'
+
+    def get_rb2(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.rb2.get_team_color(), obj.rb2))
+    get_rb2.short_description = 'RB2'
+
+    def get_wr1(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.wr1.get_team_color(), obj.wr1))
+    get_wr1.short_description = 'WR1'
+
+    def get_wr2(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.wr2.get_team_color(), obj.wr2))
+    get_wr2.short_description = 'WR2'
+
+    def get_wr3(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.wr3.get_team_color(), obj.wr3))
+    get_wr3.short_description = 'WR3'
+
+    def get_te(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.te.get_team_color(), obj.te))
+    get_te.short_description = 'TE'
+
+    def get_flex(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.flex.get_team_color(), obj.flex))
+    get_flex.short_description = 'FLEX'
+
+    def get_dst(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.dst.get_team_color(), obj.dst))
+    get_dst.short_description = 'DST'
 
 
 @admin.register(models.SlateBuildStack)
