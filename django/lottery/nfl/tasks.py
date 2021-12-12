@@ -652,10 +652,12 @@ def create_groups_for_build(build_id, task_id):
         games = build.slate.games.all()
         for game in games:
             # find anti-ministack players
+            print(game)
             anti_mini_players = build.projections.filter(
                 slate_player__slate_game=game,
                 disallow_ministack=True
             )
+            print(anti_mini_players)
 
             if anti_mini_players.count() > 0:
                 # find stacked players
