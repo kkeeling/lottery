@@ -688,7 +688,7 @@ def create_groups_for_build(build_id, task_id):
                         )
 
                 # handle players who are nt both anti-mini and anti-leverage (see below)
-                anti_mini_2 = anti_mini_players.filter(use_as_antileverage=True)
+                anti_mini_2 = anti_mini_players.filter(use_as_antileverage=False)
                 for player in anti_mini_2:
                     group = models.SlateBuildGroup.objects.create(
                         build=build,
