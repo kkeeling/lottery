@@ -687,28 +687,24 @@ def create_groups_for_build(build_id, task_id):
                             slate_player=anti_mini_player.slate_player
                         )
 
-                # handle players who are nt both anti-mini and anti-leverage (see below)
-                anti_mini_2 = anti_mini_players.filter(use_as_antileverage=False)
-                for player in anti_mini_2:
-                    group = models.SlateBuildGroup.objects.create(
-                        build=build,
-                        name=f'AM1 {game.game.home_team}/{game.game.away_team} - {player.name}',
-                        min_from_group=0,
-                        max_from_group=1
-                    )
+                # handle players who are not both anti-mini and anti-leverage (see below)
+                if stacked_players.count() == 0:
+                    anti_mini_2 = anti_mini_players.filter(use_as_antileverage=False)
 
-                    # add player to group
-                    models.SlateBuildGroupPlayer.objects.create(
-                        group=group,
-                        slate_player=player.slate_player
-                    )
-
-                    # add anti-ministack players
-                    for anti_mini_player in anti_mini_players.exclude(id=player.id):
-                        models.SlateBuildGroupPlayer.objects.create(
-                            group=group,
-                            slate_player=anti_mini_player.slate_player
+                    if anti_mini_2.count() > 0:
+                        group = models.SlateBuildGroup.objects.create(
+                            build=build,
+                            name=f'AM1 {game.game.home_team}/{game.game.away_team} - Anti-Mini Global',
+                            min_from_group=0,
+                            max_from_group=1
                         )
+
+                        # add anti-ministack players
+                        for anti_mini_player in anti_mini_players:
+                            models.SlateBuildGroupPlayer.objects.create(
+                                group=group,
+                                slate_player=anti_mini_player.slate_player
+                            )
 
         # Make anti-leverage group
         anti_lev_players = build.projections.filter(
