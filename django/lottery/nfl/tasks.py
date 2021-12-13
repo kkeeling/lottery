@@ -2860,67 +2860,83 @@ def race_lineups_in_build(build_id, task_id):
                 raise Exception('Cannot race. No contests found for this slate.')
             
             contest = contests[0]
-            df_my_usernames = pandas.DataFrame(['lakergreat1' for _ in range(0, build.lineups.all().count())], columns=['username'])
-            df_my_lineups = pandas.DataFrame(list(build.lineups.all().values_list(
-                'qb__slate_player__name',
-                'rb1__slate_player__name',
-                'rb2__slate_player__name',
-                'wr1__slate_player__name',
-                'wr2__slate_player__name',
-                'wr3__slate_player__name',
-                'te__slate_player__name',
-                'flex__slate_player__name',
-                'dst__slate_player__name'
-            )), columns=[
-                'QB',
-                'RB1',
-                'RB2',
-                'WR1',
-                'WR2',
-                'WR3',
-                'TE',
-                'FLEX',
-                'DEF'
-            ])
-            df_my_outcomes = pandas.DataFrame(list(build.lineups.all().values_list('sim_scores', flat=True)))
-            df_my_lineups = pandas.concat([df_my_usernames,df_my_lineups, df_my_outcomes], axis=1)
+            # df_my_usernames = pandas.DataFrame(['lakergreat1' for _ in range(0, build.lineups.all().count())], columns=['username'])
+            # df_my_lineups = pandas.DataFrame(list(build.lineups.all().values_list(
+            #     'qb__slate_player__name',
+            #     'rb1__slate_player__name',
+            #     'rb2__slate_player__name',
+            #     'wr1__slate_player__name',
+            #     'wr2__slate_player__name',
+            #     'wr3__slate_player__name',
+            #     'te__slate_player__name',
+            #     'flex__slate_player__name',
+            #     'dst__slate_player__name'
+            # )), columns=[
+            #     'QB',
+            #     'RB1',
+            #     'RB2',
+            #     'WR1',
+            #     'WR2',
+            #     'WR3',
+            #     'TE',
+            #     'FLEX',
+            #     'DEF'
+            # ])
+            # df_my_outcomes = pandas.DataFrame(list(build.lineups.all().values_list('sim_scores', flat=True)))
+            # df_my_lineups = pandas.concat([df_my_usernames,df_my_lineups, df_my_outcomes], axis=1)
 
-            df_field_lineups = pandas.DataFrame(list(build.slate.field_lineups.all().values_list(
-                'username',
-                'qb__slate_player__name',
-                'rb1__slate_player__name',
-                'rb2__slate_player__name',
-                'wr1__slate_player__name',
-                'wr2__slate_player__name',
-                'wr3__slate_player__name',
-                'te__slate_player__name',
-                'flex__slate_player__name',
-                'dst__slate_player__name'
-            )), columns=[
-                'username',
-                'QB',
-                'RB1',
-                'RB2',
-                'WR1',
-                'WR2',
-                'WR3',
-                'TE',
-                'FLEX',
-                'DEF'
-            ])
+            # df_field_lineups = pandas.DataFrame(list(build.slate.field_lineups.all().values_list(
+            #     'username',
+            #     'qb__slate_player__name',
+            #     'rb1__slate_player__name',
+            #     'rb2__slate_player__name',
+            #     'wr1__slate_player__name',
+            #     'wr2__slate_player__name',
+            #     'wr3__slate_player__name',
+            #     'te__slate_player__name',
+            #     'flex__slate_player__name',
+            #     'dst__slate_player__name'
+            # )), columns=[
+            #     'username',
+            #     'QB',
+            #     'RB1',
+            #     'RB2',
+            #     'WR1',
+            #     'WR2',
+            #     'WR3',
+            #     'TE',
+            #     'FLEX',
+            #     'DEF'
+            # ])
 
             def get_payout(x):
                 return contest.get_payout(x)
 
-            df_field_outcomes = pandas.DataFrame(list(build.slate.field_lineups.filter(sim_scores__isnull=False).values_list('sim_scores', flat=True)))
-            df_field_lineups = pandas.concat([df_field_lineups, df_field_outcomes], axis=1)
+            df_field_lineups = contest.get_lineups_as_dataframe()
 
-            df_lineups = pandas.concat([df_my_lineups, df_field_lineups])
-            df_usernames = df_lineups['username'].copy()
-            df_ranks = df_lineups[[i for i in range(0, 10000)]].rank(ascending=False)
-            print(df_ranks)
-            print(df_ranks.applymap(get_payout, na_action='ignore'))
+            outcomes = []
+            for lineup in df_field_lineups.values:
+                players = models.SlatePlayerProjection.objects.filter(
+                    slate_player__slate=build.slate, 
+                    slate_player__name__in=lineup[1:]
+                )
+                try:
+                    outcome = list([float(sum([p.sim_scores[i] for p in players])) for i in range(0, 10000)])
+                    outcomes.append(outcome)
+                except:
+                    traceback.print_exc()
 
+            df_field_outcomes = pandas.DataFrame(outcomes)
+            print(df_field_outcomes)
+            # df_field_outcomes = pandas.DataFrame(list([float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, 10000)]))
+            # df_field_lineups = pandas.concat([df_field_lineups, df_field_outcomes], axis=1)
+
+            # df_lineups = pandas.concat([df_my_lineups, df_field_lineups])
+            # df_usernames = df_lineups['username'].copy()
+            # df_ranks = df_lineups[[i for i in range(0, 10000)]].rank(ascending=False)
+            # print(df_lineups)
+            # print(df_ranks.applymap(get_payout, na_action='ignore'))
+            
             task.status = 'success'
             task.content = 'Slate lineup race complete.'
             task.save()      

@@ -298,3 +298,37 @@ def export_contest_entries_data(contest_ids, result_path, result_url, task_id):
             task.save()
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def export_contest_prize_thresholds(contest_id, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)  
+
+        contest = models.Contest.objects.get(id=contest_id)
+        dst_label = 'DEF'
+        df_lineups = contest.get_lineups_as_dataframe()
+        print(df_lineups)
+
+        outcomes = []
+        for lineup in df_lineups.values:
+            print(lineup)
+            break
+        
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))

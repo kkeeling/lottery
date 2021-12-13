@@ -718,14 +718,14 @@ class SlateAdmin(admin.ModelAdmin):
                                 user=request.user
                             ).id
                         ))
-                        jobs.append(tasks.process_field_lineups.si(
-                            slate.id,
-                            yahoo_contests[0].id,
-                            BackgroundTask.objects.create(
-                                name='Process field lineups',
-                                user=request.user
-                            ).id
-                        ))
+                        # jobs.append(tasks.process_field_lineups.si(
+                        #     slate.id,
+                        #     yahoo_contests[0].id,
+                        #     BackgroundTask.objects.create(
+                        #         name='Process field lineups',
+                        #         user=request.user
+                        #     ).id
+                        # ))
 
                 if len(jobs) > 0:
                     chain(jobs)()
@@ -1769,7 +1769,7 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
         # 'contains_top_projected_pass_catcher',
         # 'contains_opp_top_projected_pass_catcher',
         'count',
-        'times_used',
+        'get_times_used',
         'lineups_created',
         'actual',
         'get_lineups_link',
@@ -1802,6 +1802,14 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
         'get_actual_scores',
         'export'
     ]
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        qs = qs.annotate(
+            used_count=Count('lineups'), 
+        )
+
+        return qs
 
     def get_stack_name(self, obj):
         return '{} Stack {}'.format(obj.qb.name, obj.build_order)
@@ -1860,6 +1868,11 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
             return mark_safe('<a href="/admin/nfl/slatebuildactualslineup/?stack__id__exact={}">Actuals</a>'.format(obj.id))
         return 'None'
     get_actuals_link.short_description = 'Actuals'
+
+    def get_times_used(self, obj):
+        return obj.used_count
+    get_times_used.short_description = 'Times used'
+    get_times_used.admin_order_field = 'used_count'
 
     def build(self, request, queryset):
         for stack in queryset:

@@ -774,6 +774,8 @@ class SlatePlayer(models.Model):
 
     def get_opponent(self):
         slate_game = self.get_slate_game()
+        if slate_game is None:
+            return None
         return slate_game.game.home_team if slate_game.game.away_team == self.team else slate_game.game.away_team
 
     def get_slate_game(self):
