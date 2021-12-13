@@ -2915,7 +2915,7 @@ def race_lineups_in_build(build_id, task_id):
             df_field_lineups = contest.get_lineups_as_dataframe()
 
             outcomes = []
-            for lineup in df_field_lineups.values:
+            for index, lineup in enumerate(df_field_lineups.values):
                 players = models.SlatePlayerProjection.objects.filter(
                     slate_player__slate=build.slate, 
                     slate_player__name__in=lineup[1:]
@@ -2925,9 +2925,18 @@ def race_lineups_in_build(build_id, task_id):
                     outcomes.append(outcome)
                 except:
                     traceback.print_exc()
+            
+            prize_bins = list(contest.prizes.all().values_list('max_rank', flat=True))
+            prizes = list(contest.prizes.all().values_list('prize', flat=True))
 
-            df_field_outcomes = pandas.DataFrame(outcomes)
-            print(df_field_outcomes)
+            np_outcomes = numpy.array(outcomes)
+            np_outcomes.sort(axis=0)
+            np_outcomes = np_outcomes[::-1]
+            df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(4, 10004)])
+            df_bins = df_field_outcomes.iloc[prize_bins]
+            df_bins.insert(0, 'prizes', prizes)
+            
+            print(df_bins)
             # df_field_outcomes = pandas.DataFrame(list([float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, 10000)]))
             # df_field_lineups = pandas.concat([df_field_lineups, df_field_outcomes], axis=1)
 
