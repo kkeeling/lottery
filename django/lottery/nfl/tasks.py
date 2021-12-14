@@ -2842,6 +2842,69 @@ def process_group_import_sheet(sheet_id, task_id):
 
 
 @shared_task
+def get_field_lineup_outcomes(lineup, build_id):
+    build = models.SlateBuild.objects.get(id=build_id)
+    players = models.SlatePlayerProjection.objects.filter(
+        slate_player__slate=build.slate, 
+        slate_player__name__in=lineup[1:]
+    )
+    try:
+        outcomes = list([float(sum([p.sim_scores[i] for p in players])) for i in range(0, 10000)])
+        return outcomes
+    except:
+        traceback.print_exc()
+    
+    return None
+
+
+@shared_task
+def combine_field_outcomes(outcomes, build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        build = models.SlateBuild.objects.get(id=build_id)
+
+        if build.slate.site == 'yahoo':
+            contests = yahoo_models.Contest.objects.filter(slate_week=build.slate.week.num, slate_year=build.slate.week.slate_year)
+            if contests.count() == 0:
+                raise Exception('Cannot race. No contests found for this slate.')
+            
+            contest = contests[0]
+
+            prize_bins = list(contest.prizes.all().values_list('max_rank', flat=True))
+            prizes = list(contest.prizes.all().values_list('prize', flat=True))
+
+            np_outcomes = numpy.array(outcomes)
+            np_outcomes.sort(axis=0)
+            np_outcomes = np_outcomes[::-1]
+            df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(4, 10004)])
+            df_bins = df_field_outcomes.iloc[prize_bins]
+            df_bins.insert(0, 'prizes', prizes)
+            
+            print(df_bins)
+            
+            task.status = 'success'
+            task.content = 'Slate lineup race complete.'
+            task.save()      
+        else:
+            raise Exception(f'{build.slate.site} is not yet supported for races')  
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error racing lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def race_lineups_in_build(build_id, task_id):
     task = None
 
@@ -2915,40 +2978,37 @@ def race_lineups_in_build(build_id, task_id):
             df_field_lineups = contest.get_lineups_as_dataframe()
 
             outcomes = []
-            for index, lineup in enumerate(df_field_lineups.values):
-                players = models.SlatePlayerProjection.objects.filter(
-                    slate_player__slate=build.slate, 
-                    slate_player__name__in=lineup[1:]
-                )
-                try:
-                    outcome = list([float(sum([p.sim_scores[i] for p in players])) for i in range(0, 10000)])
-                    outcomes.append(outcome)
-                except:
-                    traceback.print_exc()
-            
-            prize_bins = list(contest.prizes.all().values_list('max_rank', flat=True))
-            prizes = list(contest.prizes.all().values_list('prize', flat=True))
 
-            np_outcomes = numpy.array(outcomes)
-            np_outcomes.sort(axis=0)
-            np_outcomes = np_outcomes[::-1]
-            df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(4, 10004)])
-            df_bins = df_field_outcomes.iloc[prize_bins]
-            df_bins.insert(0, 'prizes', prizes)
-            
-            print(df_bins)
-            # df_field_outcomes = pandas.DataFrame(list([float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, 10000)]))
-            # df_field_lineups = pandas.concat([df_field_lineups, df_field_outcomes], axis=1)
+            chord([
+                get_field_lineup_outcomes.s(lineup, build_id) for lineup in df_field_lineups.values
+            ], combine_field_outcomes.s(build_id, task.id))()
 
-            # df_lineups = pandas.concat([df_my_lineups, df_field_lineups])
-            # df_usernames = df_lineups['username'].copy()
-            # df_ranks = df_lineups[[i for i in range(0, 10000)]].rank(ascending=False)
-            # print(df_lineups)
-            # print(df_ranks.applymap(get_payout, na_action='ignore'))
+            # for lineup in df_field_lineups.values:
+            #     players = models.SlatePlayerProjection.objects.filter(
+            #         slate_player__slate=build.slate, 
+            #         slate_player__name__in=lineup[1:]
+            #     )
+            #     try:
+            #         outcome = list([float(sum([p.sim_scores[i] for p in players])) for i in range(0, 10000)])
+            #         outcomes.append(outcome)
+            #     except:
+            #         traceback.print_exc()
             
-            task.status = 'success'
-            task.content = 'Slate lineup race complete.'
-            task.save()      
+            # prize_bins = list(contest.prizes.all().values_list('max_rank', flat=True))
+            # prizes = list(contest.prizes.all().values_list('prize', flat=True))
+
+            # np_outcomes = numpy.array(outcomes)
+            # np_outcomes.sort(axis=0)
+            # np_outcomes = np_outcomes[::-1]
+            # df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(4, 10004)])
+            # df_bins = df_field_outcomes.iloc[prize_bins]
+            # df_bins.insert(0, 'prizes', prizes)
+            
+            # print(df_bins)
+            
+            # task.status = 'success'
+            # task.content = 'Slate lineup race complete.'
+            # task.save()      
         else:
             raise Exception(f'{build.slate.site} is not yet supported for races')  
     except Exception as e:
