@@ -2850,11 +2850,10 @@ def get_field_lineup_outcomes(lineup, build_id):
     )
     try:
         outcomes = list([float(sum([p.sim_scores[i] for p in players])) for i in range(0, 10000)])
-        return outcomes
     except:
-        traceback.print_exc()
+        outcomes = list([0.0 for i in range(0, 10000)])
     
-    return None
+    return outcomes
 
 
 @shared_task
