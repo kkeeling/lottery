@@ -2886,7 +2886,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             df_bins = df_field_outcomes.iloc[prize_bins]
             df_bins.insert(0, 'prizes', prizes)
             
-            print(df_bins)
+            print(df_field_outcomes)
             
             task.status = 'success'
             task.content = 'Slate lineup race complete.'
