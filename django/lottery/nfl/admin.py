@@ -2676,7 +2676,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
                     name='Race lineups',
                     user=request.user
                 ).id
-            ) for build in queryset
+            ) for build in queryset[:10000]
         ])()
 
         messages.add_message(
