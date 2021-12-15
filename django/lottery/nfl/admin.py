@@ -2670,13 +2670,13 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
     def race_build(self, request, queryset):
         group([
-            tasks.race_lineups_in_build.si(
+            tasks.race_lineups_in_build.s(
                 build.id,
                 BackgroundTask.objects.create(
                     name='Race lineups',
                     user=request.user
                 ).id
-            ) for build in queryset[:10000]
+            ) for build in queryset
         ])()
 
         messages.add_message(

@@ -2980,7 +2980,7 @@ def race_lineups_in_build(build_id, task_id):
             outcomes = []
 
             chord([
-                get_field_lineup_outcomes.s(lineup, build_id) for lineup in df_field_lineups.values.tolist()
+                get_field_lineup_outcomes.s(lineup, build_id) for lineup in df_field_lineups.values.tolist()[:10000]
             ], combine_field_outcomes.s(build_id, task.id))()
 
             # for lineup in df_field_lineups.values:
