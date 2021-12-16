@@ -2980,9 +2980,9 @@ def combine_field_outcomes(outcomes, build_id, task_id):
 
             sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
             
-            for i in range(0, limit):
-                for payout in df_payouts.itertuples():
-                    sql += f', T{payout.X2}.x{i+col_min}'
+            # for i in range(0, limit):
+            for payout in df_payouts.itertuples():
+                sql += f', T{payout.X2}.x1'
 
             print(sql)
             print(pandasql.sqldf(sql, locals()).to_json())
