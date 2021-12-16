@@ -2887,11 +2887,11 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             np_outcomes = np_outcomes[::-1]
             df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(2, 12)])
             df_bins = df_field_outcomes.iloc[prize_bins]#.reset_index().rename(columns={'index', 'X1'})
-            # df_bins.insert(0, 'X1', prize_bins)
+            df_bins.insert(0, 'X1', prize_bins)
             # df_bins.insert(0, 'X3', prizes)
             
             # print(df_field_outcomes)
-            # print(df_bins)
+            print(df_bins)
 
             all_lineups = build.lineups.all()            
             lineup_values = pandas.DataFrame(list(all_lineups.values_list(
