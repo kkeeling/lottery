@@ -2919,12 +2919,12 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                 slate_player__slate=build.slate,
                 sim_scores__isnull=False
             ).order_by('-slate_player__salary')
-            sim_scores = [p.sim_scores for p in players]
+            sim_scores = [p.sim_scores[:13] for p in players]
             player_names = list(players.values_list('slate_player__name', flat=True))
             print(player_names)
 
             df_sim_scores = pandas.DataFrame(
-                sim_scores[:13],
+                sim_scores,
                 columns=[f'X{i}' for i in range(3, 13)]
             )
             print(df_sim_scores)
