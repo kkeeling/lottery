@@ -2858,6 +2858,9 @@ def get_field_lineup_outcomes(lineup, build_id):
 
 @shared_task
 def combine_field_outcomes(outcomes, build_id, task_id):
+    col_min = 0
+    col_max = 50
+    limit = 50
     task = None
 
     try:
@@ -2933,6 +2936,9 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             
             df_sim_scores = df_sim_scores.append(df_bins, ignore_index=True)
             print(df_sim_scores)
+
+            df_payouts = pandas.DataFrame({'X2': prize_bins, 'X3': prizes}).sort_index(ascending=False)
+            no_cash_rank = df_payouts.iloc[0]['X2']
             # sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
             # sim_scores['X1'] = sim_scores.index
             # contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min+1, col_max+1)])
@@ -2943,42 +2949,43 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             # contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, usecols=['X2', 'X3']).sort_index(ascending=False)
 
             # no_cash_rank = contest_payouts.iloc[0]['X2']
-            # sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, no_cash_rank, -float(contest.cost))
-            # for payout in contest_payouts.itertuples():
-            #     if payout.X2 == no_cash_rank:
-            #         continue
-            #     sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)-float(contest.cost)))
-            # sql += ' END as payout_{}'.format(0)
+            sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, no_cash_rank, 0.0)
+            for payout in df_payouts.itertuples():
+                if payout.X2 == no_cash_rank:
+                    continue
+                sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)))
+            sql += ' END as payout_{}'.format(0)
             
-            # for i in range(1, limit):
-            #     sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, no_cash_rank, -float(contest.cost))
-            #     for payout in contest_payouts.itertuples():
-            #         if payout.X2 == no_cash_rank:
-            #             continue
-            #         sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)-float(contest.cost)))
-            #     sql += ' END as payout_{}'.format(i)
+            for i in range(1, limit):
+                sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, no_cash_rank,0.0)
+                for payout in df_payouts.itertuples():
+                    if payout.X2 == no_cash_rank:
+                        continue
+                    sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)))
+                sql += ' END as payout_{}'.format(i)
 
-            # sql += ' FROM lineup_values A'
-            # sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
-            # sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
-            # sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
-            # sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
-            # sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
-            # sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
-            # sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
-            # sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
-            # sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
+            sql += ' FROM lineup_values A'
+            sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
+            sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
+            sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
+            sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
+            sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
+            sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
+            sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
+            sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
+            sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
             
-            # for payout in contest_payouts.itertuples():
-            #     sql += f' LEFT JOIN sim_scores T{payout.X2} ON T{payout.X2}.X1 = \'{payout.X2}\''
+            for payout in df_payouts.itertuples():
+                sql += f' LEFT JOIN sim_scores T{payout.X2} ON T{payout.X2}.X1 = \'{payout.X2}\''
 
-            # sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
+            sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
             
-            # for i in range(0, limit):
-            #     for payout in contest_payouts.itertuples():
-            #         sql += f', T{payout.X2}.x{i+col_min}'
+            for i in range(0, limit):
+                for payout in df_payouts.itertuples():
+                    sql += f', T{payout.X2}.x{i+col_min}'
 
-            # return pandasql.sqldf(sql, locals()).to_json()
+            print(sql)
+            print(pandasql.sqldf(sql, locals()).to_json())
 
 
             task.status = 'success'
