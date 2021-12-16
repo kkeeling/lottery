@@ -2886,10 +2886,11 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             np_outcomes.sort(axis=0)
             np_outcomes = np_outcomes[::-1]
             df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(2, 12)])
-            df_bins = df_field_outcomes.iloc[prize_bins]
-            df_bins.insert(0, 'X1', prize_bins)
+            df_bins = df_field_outcomes.iloc[prize_bins].reset_index()
+            # df_bins.insert(0, 'X1', prize_bins)
             # df_bins.insert(0, 'X3', prizes)
             
+            print(df_field_outcomes)
             print(df_bins)
 
             all_lineups = build.lineups.all()
@@ -2934,10 +2935,11 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             df_sim_scores = df_sim_scores.append(df_bins, ignore_index=True)
             print(df_sim_scores)
 
-            df_payouts = pandas.DataFrame({'X2': prize_bins, 'X3': prizes}).sort_index(ascending=False)
+            df_payouts = pandas.DataFrame({'X2': prize_bins, 'X3': prizes}).sort_index(ascending=True)
             print(df_payouts)
-            
-            no_cash_rank = df_payouts.iloc[0]['X2']
+
+            top_cash_rank = df_payouts.iloc[0]['X2']
+            top_payout = df_payouts.iloc[0]['X3']
             # sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
             # sim_scores['X1'] = sim_scores.index
             # contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min+1, col_max+1)])
@@ -2948,19 +2950,19 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             # contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, usecols=['X2', 'X3']).sort_index(ascending=False)
 
             # no_cash_rank = contest_payouts.iloc[0]['X2']
-            sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, no_cash_rank, 0.0)
+            sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, top_cash_rank, top_payout)
             for payout in df_payouts.itertuples():
-                if payout.X2 == no_cash_rank:
+                if payout.X2 == top_cash_rank:
                     continue
-                sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)))
+                sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)))
             sql += ' END as payout_{}'.format(0)
             
             for i in range(1, limit):
-                sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, no_cash_rank,0.0)
+                sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, top_cash_rank,top_payout)
                 for payout in df_payouts.itertuples():
-                    if payout.X2 == no_cash_rank:
+                    if payout.X2 == top_cash_rank:
                         continue
-                    sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)))
+                    sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)))
                 sql += ' END as payout_{}'.format(i)
 
             sql += ' FROM lineup_values A'
