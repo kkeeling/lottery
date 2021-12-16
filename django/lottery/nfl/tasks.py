@@ -2949,19 +2949,19 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             # contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, usecols=['X2', 'X3']).sort_index(ascending=False)
 
             # no_cash_rank = contest_payouts.iloc[0]['X2']
-            sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, top_cash_rank, top_payout)
+            sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x1 THEN {2}'.format(col_min, top_cash_rank, top_payout)
             for payout in df_payouts.itertuples():
                 if payout.X2 == top_cash_rank:
                     continue
-                sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)))
+                sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x1 THEN {2}'.format(col_min, payout.X2, (float(payout.X3)))
             sql += ' ELSE 0.0 END as payout_{}'.format(0)
             
             for i in range(1, limit):
-                sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, top_cash_rank,top_payout)
+                sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x1 THEN {2}'.format(i+col_min, top_cash_rank,top_payout)
                 for payout in df_payouts.itertuples():
                     if payout.X2 == top_cash_rank:
                         continue
-                    sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)))
+                    sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x1 THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)))
                 sql += ' ELSE 0.0 END as payout_{}'.format(i)
 
             sql += ' FROM lineup_values A'
