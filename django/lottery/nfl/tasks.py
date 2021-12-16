@@ -2885,7 +2885,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(4, 14)])
             df_bins = df_field_outcomes.iloc[prize_bins]
             df_bins.insert(0, 'X2', prize_bins)
-            df_bins.insert(0, 'X3', prizes)
+            # df_bins.insert(0, 'X3', prizes)
             
             print(df_field_outcomes)
             print(df_bins)
@@ -2928,11 +2928,12 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                 columns=[f'X{i}' for i in range(3, 13)]
             )
             print(df_sim_scores)
-            df_player_names = pandas.DataFrame(player_names)
-            df_sim_scores.insert(0, 'X1', df_player_names)
 
+            df_sim_scores.insert(0, 'X1', player_names)
             print(df_sim_scores)
             
+            df_sim_scores = df_sim_scores.append(df_bins, ignore_index=True)
+            print(df_sim_scores)
             # sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
             # sim_scores['X1'] = sim_scores.index
             # contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min+1, col_max+1)])
