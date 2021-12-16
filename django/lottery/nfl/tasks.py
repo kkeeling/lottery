@@ -2849,9 +2849,10 @@ def get_field_lineup_outcomes(lineup, build_id):
         slate_player__name__in=lineup[1:]
     )
     try:
-        outcomes = list([float(sum([p.sim_scores[i] for p in players])) for i in range(0, 100)])
+        outcomes = list([float(sum([p.sim_scores[i] for p in players])) for i in range(0, 10)])
+        print(f'{len(outcomes)} outcomes for this lineup.')
     except:
-        outcomes = list([0.0 for i in range(0, 100)])
+        outcomes = list([0.0 for i in range(0, 10)])
     
     return outcomes
 
@@ -2882,7 +2883,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             np_outcomes = numpy.array(outcomes)
             np_outcomes.sort(axis=0)
             np_outcomes = np_outcomes[::-1]
-            df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(4, 104)])
+            df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(4, 14)])
             df_bins = df_field_outcomes.iloc[prize_bins]
             df_bins.insert(0, 'prizes', prizes)
             
