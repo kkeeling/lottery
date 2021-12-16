@@ -5,7 +5,7 @@ import json
 import math
 import numpy
 import pandas
-from pydfs_lineup_optimizer import player
+import pandasql
 import scipy
 import sys
 import time
@@ -2889,16 +2889,48 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             print(df_field_outcomes)
             print(df_bins)
 
+            all_lineups = build.lineups.all()
+
+            lineup_values = pandas.DataFrame(list(all_lineups.values_list(
+                'qb__slate_player__name',
+                'rb1__slate_player__name',
+                'rb2__slate_player__name',
+                'wr1__slate_player__name',
+                'wr2__slate_player__name',
+                'wr3__slate_player__name',
+                'te__slate_player__name',
+                'flex__slate_player__name',
+                'dst__slate_player__name')), 
+                columns=[
+                    'p1',
+                    'p2',
+                    'p3',
+                    'p4',
+                    'p5',
+                    'p6',
+                    'p7',
+                    'p8',
+                    'p9',
+                ]
+            )
+
             players = models.SlatePlayerProjection.objects.filter(
                 slate_player__slate=build.slate,
                 sim_scores__isnull=False
-            ).order_by('-slate_player__salary')
+            ).order_by(-'slate_player__salary')
+            sim_scores = [p.sim_scores for p in players]
+            player_names = [p.slate_player.name for p in players]
 
-            sim_scores = pandas.DataFrame(
-                list(players.values_list('slate_player__name', flat=True)) + list(players.values_list('sim_scores', flat=True)),
+            df_sim_scores = pandas.DataFrame(
+                sim_scores,
+                columns=[f'X{i}' for i in range(3, 10003)]
             )
-            print(sim_scores)
+            df_player_names = pandas.DataFrame(player_names)
+            df_sim_scores.insert(0, 'X1', df_player_names)
 
+            print(df_sim_scores)
+            
+            # sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
             # sim_scores['X1'] = sim_scores.index
             # contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min+1, col_max+1)])
             # contest_scores['X1'] = contest_scores.index
@@ -2944,7 +2976,6 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             #         sql += f', T{payout.X2}.x{i+col_min}'
 
             # return pandasql.sqldf(sql, locals()).to_json()
-
 
 
             task.status = 'success'
