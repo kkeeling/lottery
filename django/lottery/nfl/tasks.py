@@ -2882,9 +2882,9 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             np_outcomes = numpy.array(outcomes)
             np_outcomes.sort(axis=0)
             np_outcomes = np_outcomes[::-1]
-            df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(4, 14)])
+            df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(2, 12)])
             df_bins = df_field_outcomes.iloc[prize_bins]
-            df_bins.insert(0, 'X2', prize_bins)
+            df_bins.insert(0, 'X1', prize_bins)
             # df_bins.insert(0, 'X3', prizes)
             
             print(df_field_outcomes)
@@ -2921,11 +2921,10 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             ).order_by('-slate_player__salary')
             sim_scores = [p.sim_scores[:10] for p in players]
             player_names = list(players.values_list('slate_player__name', flat=True))
-            print(player_names)
 
             df_sim_scores = pandas.DataFrame(
                 sim_scores,
-                columns=[f'X{i}' for i in range(3, 13)]
+                columns=[f'X{i}' for i in range(2, 12)]
             )
             print(df_sim_scores)
 
