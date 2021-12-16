@@ -2890,8 +2890,8 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             # df_bins.insert(0, 'X1', prize_bins)
             # df_bins.insert(0, 'X3', prizes)
             
-            print(df_field_outcomes)
-            print(df_bins)
+            # print(df_field_outcomes)
+            # print(df_bins)
 
             all_lineups = build.lineups.all()            
             lineup_values = pandas.DataFrame(list(all_lineups.values_list(
@@ -2921,7 +2921,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                 slate_player__slate=build.slate,
                 sim_scores__isnull=False
             ).order_by('-slate_player__salary')
-            sim_scores = map(float, [p.sim_scores[:10] for p in players])
+            sim_scores = [map(float, p.sim_scores[:10]) for p in players]
             player_names = list(players.values_list('slate_player__name', flat=True))
 
             df_sim_scores = pandas.DataFrame(
@@ -2935,7 +2935,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             print(df_sim_scores)
 
             df_payouts = pandas.DataFrame({'X2': prize_bins, 'X3': prizes}).sort_index(ascending=True)
-            print(df_payouts)
+            # print(df_payouts)
 
             top_cash_rank = df_payouts.iloc[0]['X2']
             top_payout = df_payouts.iloc[0]['X3']
