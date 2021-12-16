@@ -2924,7 +2924,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             print(player_names)
 
             df_sim_scores = pandas.DataFrame(
-                sim_scores,
+                sim_scores[:13],
                 columns=[f'X{i}' for i in range(3, 13)]
             )
             print(df_sim_scores)
