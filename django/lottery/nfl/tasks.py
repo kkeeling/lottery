@@ -2917,7 +2917,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             players = models.SlatePlayerProjection.objects.filter(
                 slate_player__slate=build.slate,
                 sim_scores__isnull=False
-            ).order_by(-'slate_player__salary')
+            ).order_by('-slate_player__salary')
             sim_scores = [p.sim_scores for p in players]
             player_names = [p.slate_player.name for p in players]
 
