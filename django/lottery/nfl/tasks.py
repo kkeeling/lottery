@@ -2893,8 +2893,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             print(df_field_outcomes)
             print(df_bins)
 
-            all_lineups = build.lineups.all()
-
+            all_lineups = build.lineups.all()            
             lineup_values = pandas.DataFrame(list(all_lineups.values_list(
                 'qb__slate_player__name',
                 'rb1__slate_player__name',
@@ -2922,7 +2921,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                 slate_player__slate=build.slate,
                 sim_scores__isnull=False
             ).order_by('-slate_player__salary')
-            sim_scores = [p.sim_scores[:10] for p in players]
+            sim_scores = map(float, [p.sim_scores[:10] for p in players])
             player_names = list(players.values_list('slate_player__name', flat=True))
 
             df_sim_scores = pandas.DataFrame(
