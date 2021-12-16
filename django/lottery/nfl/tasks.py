@@ -2890,7 +2890,6 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             df_bins.insert(0, 'X1', prize_bins)
             # df_bins.insert(0, 'X3', prizes)
             
-            print(df_field_outcomes)
             print(df_bins)
 
             all_lineups = build.lineups.all()
@@ -2929,15 +2928,15 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                 sim_scores,
                 columns=[f'X{i}' for i in range(2, 12)]
             )
-            print(df_sim_scores)
 
             df_sim_scores.insert(0, 'X1', player_names)
-            print(df_sim_scores)
             
             df_sim_scores = df_sim_scores.append(df_bins, ignore_index=True)
             print(df_sim_scores)
 
             df_payouts = pandas.DataFrame({'X2': prize_bins, 'X3': prizes}).sort_index(ascending=False)
+            print(df_payouts)
+            
             no_cash_rank = df_payouts.iloc[0]['X2']
             # sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
             # sim_scores['X1'] = sim_scores.index
