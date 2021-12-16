@@ -2858,7 +2858,7 @@ def get_field_lineup_outcomes(lineup, build_id):
 
 @shared_task
 def combine_field_outcomes(outcomes, build_id, task_id):
-    col_min = 0
+    col_min = 1
     col_max = 50
     limit = 50
     task = None
