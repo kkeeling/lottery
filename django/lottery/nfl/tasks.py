@@ -2886,7 +2886,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             np_outcomes.sort(axis=0)
             np_outcomes = np_outcomes[::-1]
             df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(2, 12)])
-            df_bins = df_field_outcomes.iloc[prize_bins].reset_index()
+            df_bins = df_field_outcomes.iloc[prize_bins]#.reset_index().rename(columns={'index', 'X1'})
             # df_bins.insert(0, 'X1', prize_bins)
             # df_bins.insert(0, 'X3', prizes)
             
@@ -2955,7 +2955,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                 if payout.X2 == top_cash_rank:
                     continue
                 sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)))
-            sql += ' END as payout_{}'.format(0)
+            sql += ' ELSE 0.0 END as payout_{}'.format(0)
             
             for i in range(1, limit):
                 sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, top_cash_rank,top_payout)
@@ -2963,21 +2963,21 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                     if payout.X2 == top_cash_rank:
                         continue
                     sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)))
-                sql += ' END as payout_{}'.format(i)
+                sql += ' ELSE 0.0 END as payout_{}'.format(i)
 
             sql += ' FROM lineup_values A'
-            sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
-            sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
-            sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
-            sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
-            sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
-            sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
-            sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
-            sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
-            sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
+            sql += ' LEFT JOIN df_sim_scores B ON B.X1 = A.p1'
+            sql += ' LEFT JOIN df_sim_scores C ON C.X1 = A.p2'
+            sql += ' LEFT JOIN df_sim_scores D ON D.X1 = A.p3'
+            sql += ' LEFT JOIN df_sim_scores E ON E.X1 = A.p4'
+            sql += ' LEFT JOIN df_sim_scores F ON F.X1 = A.p5'
+            sql += ' LEFT JOIN df_sim_scores G ON G.X1 = A.p6'
+            sql += ' LEFT JOIN df_sim_scores H ON H.X1 = A.p7'
+            sql += ' LEFT JOIN df_sim_scores I ON I.X1 = A.p8'
+            sql += ' LEFT JOIN df_sim_scores J ON J.X1 = A.p9'
             
             for payout in df_payouts.itertuples():
-                sql += f' LEFT JOIN sim_scores T{payout.X2} ON T{payout.X2}.X1 = \'{payout.X2}\''
+                sql += f' LEFT JOIN df_sim_scores T{payout.X2} ON T{payout.X2}.X1 = \'{payout.X2}\''
 
             sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
             
