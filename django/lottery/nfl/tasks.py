@@ -2850,8 +2850,6 @@ def get_field_lineup_outcomes(lineup, build_id):
     )
     try:
         outcomes = list([float(sum([p.sim_scores[i] for p in players])) for i in range(0, 10)])
-        print(f'{players.count()} players for this lineup.')
-        print(f'{len(outcomes)} outcomes for this lineup.')
     except:
         outcomes = list([0.0 for i in range(0, 10)])
     
@@ -2890,7 +2888,65 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             
             print(df_field_outcomes)
             print(df_bins)
+
+            players = models.SlatePlayerProjection.objects.filter(
+                slate_player__slate=build.slate,
+                sim_scores__isnull=False
+            ).order_by('-slate_player__salary')
+
+            sim_scores = pandas.DataFrame(
+                list(players.values_list('slate_player__name', flat=True)) + list(players.values_list('sim_scores', flat=True)),
+            )
+            print(sim_scores)
+
+            # sim_scores['X1'] = sim_scores.index
+            # contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min+1, col_max+1)])
+            # contest_scores['X1'] = contest_scores.index
+            # contest_scores.columns = ['X{}'.format(i) for i in range(col_min, col_max)] + ['X1']
+            # sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
+
+            # contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, usecols=['X2', 'X3']).sort_index(ascending=False)
+
+            # no_cash_rank = contest_payouts.iloc[0]['X2']
+            # sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, no_cash_rank, -float(contest.cost))
+            # for payout in contest_payouts.itertuples():
+            #     if payout.X2 == no_cash_rank:
+            #         continue
+            #     sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) < T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)-float(contest.cost)))
+            # sql += ' END as payout_{}'.format(0)
             
+            # for i in range(1, limit):
+            #     sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, no_cash_rank, -float(contest.cost))
+            #     for payout in contest_payouts.itertuples():
+            #         if payout.X2 == no_cash_rank:
+            #             continue
+            #         sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) <= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)-float(contest.cost)))
+            #     sql += ' END as payout_{}'.format(i)
+
+            # sql += ' FROM lineup_values A'
+            # sql += ' LEFT JOIN sim_scores B ON B.X1 = A.p1'
+            # sql += ' LEFT JOIN sim_scores C ON C.X1 = A.p2'
+            # sql += ' LEFT JOIN sim_scores D ON D.X1 = A.p3'
+            # sql += ' LEFT JOIN sim_scores E ON E.X1 = A.p4'
+            # sql += ' LEFT JOIN sim_scores F ON F.X1 = A.p5'
+            # sql += ' LEFT JOIN sim_scores G ON G.X1 = A.p6'
+            # sql += ' LEFT JOIN sim_scores H ON H.X1 = A.p7'
+            # sql += ' LEFT JOIN sim_scores I ON I.X1 = A.p8'
+            # sql += ' LEFT JOIN sim_scores J ON J.X1 = A.p9'
+            
+            # for payout in contest_payouts.itertuples():
+            #     sql += f' LEFT JOIN sim_scores T{payout.X2} ON T{payout.X2}.X1 = \'{payout.X2}\''
+
+            # sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
+            
+            # for i in range(0, limit):
+            #     for payout in contest_payouts.itertuples():
+            #         sql += f', T{payout.X2}.x{i+col_min}'
+
+            # return pandasql.sqldf(sql, locals()).to_json()
+
+
+
             task.status = 'success'
             task.content = 'Slate lineup race complete.'
             task.save()      
