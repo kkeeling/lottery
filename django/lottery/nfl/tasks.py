@@ -2985,7 +2985,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                     sql += f', T{payout.X2}.x{i+col_min}'
 
             print(sql)
-            print(pandasql.sqldf(sql, locals()).to_json())
+            print(pandasql.sqldf(sql, locals()))
 
 
             task.status = 'success'
