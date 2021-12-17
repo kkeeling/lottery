@@ -2866,7 +2866,7 @@ class SlateBuildLineup(models.Model):
     ownership_projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, db_index=True)
     ownership_projection_percentile = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     rating = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
-    ev = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, db_index=True)
+    roi = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, db_index=True)
     mean = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
     median = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
     std = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
