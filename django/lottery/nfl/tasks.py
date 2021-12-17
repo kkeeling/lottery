@@ -2906,6 +2906,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                 df_payouts = df_ranks.applymap(find_payout)
                 df_payouts["sum"] = df_payouts.sum(axis=1)
                 print(df_payouts)
+                roi = (df_payouts.loc[0, "sum"]  - (contest.cost * 10)) / (contest.cost * 10)
                 print(f'ROI = {df_payouts.loc[0, "sum"]}')
 
 
