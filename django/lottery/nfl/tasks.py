@@ -2890,102 +2890,97 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             df_bins.insert(0, 'X1', prize_bins)
             # df_bins.insert(0, 'X3', prizes)
             
-            # print(df_field_outcomes)
             print(df_bins)
 
-            all_lineups = build.lineups.all()            
-            lineup_values = pandas.DataFrame(list(all_lineups.values_list(
-                'qb__slate_player__name',
-                'rb1__slate_player__name',
-                'rb2__slate_player__name',
-                'wr1__slate_player__name',
-                'wr2__slate_player__name',
-                'wr3__slate_player__name',
-                'te__slate_player__name',
-                'flex__slate_player__name',
-                'dst__slate_player__name')), 
-                columns=[
-                    'p1',
-                    'p2',
-                    'p3',
-                    'p4',
-                    'p5',
-                    'p6',
-                    'p7',
-                    'p8',
-                    'p9',
-                ]
-            )
+            for lineup in build.lineups.all():
+                df_lineup_outcomes = pandas.DataFrame(['lakergreat1'] + lineup.sim_scores, columns=[f'X{i}' for i in range(1, 12)])
+                df_bins.append(df_lineup_outcomes, ignore_index=True)
 
-            players = models.SlatePlayerProjection.objects.filter(
-                slate_player__slate=build.slate,
-                sim_scores__isnull=False
-            ).order_by('-slate_player__salary')
-            sim_scores = [map(float, p.sim_scores[:10]) for p in players]
-            player_names = list(players.values_list('slate_player__name', flat=True))
+                print(df_bins)
+                break
+            # all_lineups = build.lineups.all()            
+            # lineup_values = pandas.DataFrame(list(all_lineups.values_list(
+            #     'qb__slate_player__name',
+            #     'rb1__slate_player__name',
+            #     'rb2__slate_player__name',
+            #     'wr1__slate_player__name',
+            #     'wr2__slate_player__name',
+            #     'wr3__slate_player__name',
+            #     'te__slate_player__name',
+            #     'flex__slate_player__name',
+            #     'dst__slate_player__name')), 
+            #     columns=[
+            #         'p1',
+            #         'p2',
+            #         'p3',
+            #         'p4',
+            #         'p5',
+            #         'p6',
+            #         'p7',
+            #         'p8',
+            #         'p9',
+            #     ]
+            # )
 
-            df_sim_scores = pandas.DataFrame(
-                sim_scores,
-                columns=[f'X{i}' for i in range(2, 12)]
-            )
+            # players = models.SlatePlayerProjection.objects.filter(
+            #     slate_player__slate=build.slate,
+            #     sim_scores__isnull=False
+            # ).order_by('-slate_player__salary')
+            # sim_scores = [map(float, p.sim_scores[:10]) for p in players]
+            # player_names = list(players.values_list('slate_player__name', flat=True))
 
-            df_sim_scores.insert(0, 'X1', player_names)
+            # df_sim_scores = pandas.DataFrame(
+            #     sim_scores,
+            #     columns=[f'X{i}' for i in range(2, 12)]
+            # )
+
+            # df_sim_scores.insert(0, 'X1', player_names)
             
-            df_sim_scores = df_sim_scores.append(df_bins, ignore_index=True)
-            print(df_sim_scores)
+            # df_sim_scores = df_sim_scores.append(df_bins, ignore_index=True)
+            # print(df_sim_scores)
 
-            df_payouts = pandas.DataFrame({'X2': prize_bins, 'X3': prizes}).sort_index(ascending=True)
-            # print(df_payouts)
+            # df_payouts = pandas.DataFrame({'X2': prize_bins, 'X3': prizes}).sort_index(ascending=True)
 
-            top_cash_rank = df_payouts.iloc[0]['X2']
-            top_payout = df_payouts.iloc[0]['X3']
-            # sim_scores = pandas.read_csv(build.slate.player_outcomes.path, index_col='X1', usecols=['X1'] + ['X{}'.format(i) for i in range(col_min, col_max)])
-            # sim_scores['X1'] = sim_scores.index
-            # contest_scores = pandas.read_csv(contest.outcomes_sheet.path, index_col='X2', usecols=['X2'] + ['X{}'.format(i) for i in range(col_min+1, col_max+1)])
-            # contest_scores['X1'] = contest_scores.index
-            # contest_scores.columns = ['X{}'.format(i) for i in range(col_min, col_max)] + ['X1']
-            # sim_scores = sim_scores.append(contest_scores, sort=False, ignore_index=True)
+            # top_cash_rank = df_payouts.iloc[0]['X2']
+            # top_payout = df_payouts.iloc[0]['X3']
 
-            # contest_payouts = pandas.read_csv(contest.outcomes_sheet.path, usecols=['X2', 'X3']).sort_index(ascending=False)
-
-            # no_cash_rank = contest_payouts.iloc[0]['X2']
-            sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, top_cash_rank, top_payout)
-            for payout in df_payouts.itertuples():
-                if payout.X2 == top_cash_rank:
-                    continue
-                sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)))
-            sql += ' ELSE 0.0 END as payout_{}'.format(0)
+            # sql = 'SELECT CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, top_cash_rank, top_payout)
+            # for payout in df_payouts.itertuples():
+            #     if payout.X2 == top_cash_rank:
+            #         continue
+            #     sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(col_min, payout.X2, (float(payout.X3)))
+            # sql += ' ELSE 0.0 END as payout_{}'.format(0)
             
-            for i in range(1, limit):
-                sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, top_cash_rank,top_payout)
-                for payout in df_payouts.itertuples():
-                    if payout.X2 == top_cash_rank:
-                        continue
-                    sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)))
-                sql += ' ELSE 0.0 END as payout_{}'.format(i)
+            # for i in range(1, limit):
+            #     sql += ', CASE WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, top_cash_rank,top_payout)
+            #     for payout in df_payouts.itertuples():
+            #         if payout.X2 == top_cash_rank:
+            #             continue
+            #         sql += ' WHEN SUM(B.x{0}+C.x{0}+D.x{0}+E.x{0}+F.x{0}+G.x{0}+H.x{0}+I.x{0}+J.x{0}) >= T{1}.x{0} THEN {2}'.format(i+col_min, payout.X2, (float(payout.X3)))
+            #     sql += ' ELSE 0.0 END as payout_{}'.format(i)
 
-            sql += ' FROM lineup_values A'
-            sql += ' LEFT JOIN df_sim_scores B ON B.X1 = A.p1'
-            sql += ' LEFT JOIN df_sim_scores C ON C.X1 = A.p2'
-            sql += ' LEFT JOIN df_sim_scores D ON D.X1 = A.p3'
-            sql += ' LEFT JOIN df_sim_scores E ON E.X1 = A.p4'
-            sql += ' LEFT JOIN df_sim_scores F ON F.X1 = A.p5'
-            sql += ' LEFT JOIN df_sim_scores G ON G.X1 = A.p6'
-            sql += ' LEFT JOIN df_sim_scores H ON H.X1 = A.p7'
-            sql += ' LEFT JOIN df_sim_scores I ON I.X1 = A.p8'
-            sql += ' LEFT JOIN df_sim_scores J ON J.X1 = A.p9'
+            # sql += ' FROM lineup_values A'
+            # sql += ' LEFT JOIN df_sim_scores B ON B.X1 = A.p1'
+            # sql += ' LEFT JOIN df_sim_scores C ON C.X1 = A.p2'
+            # sql += ' LEFT JOIN df_sim_scores D ON D.X1 = A.p3'
+            # sql += ' LEFT JOIN df_sim_scores E ON E.X1 = A.p4'
+            # sql += ' LEFT JOIN df_sim_scores F ON F.X1 = A.p5'
+            # sql += ' LEFT JOIN df_sim_scores G ON G.X1 = A.p6'
+            # sql += ' LEFT JOIN df_sim_scores H ON H.X1 = A.p7'
+            # sql += ' LEFT JOIN df_sim_scores I ON I.X1 = A.p8'
+            # sql += ' LEFT JOIN df_sim_scores J ON J.X1 = A.p9'
             
-            for payout in df_payouts.itertuples():
-                sql += f' LEFT JOIN df_sim_scores T{payout.X2} ON T{payout.X2}.X1 = \'{payout.X2}\''
+            # for payout in df_payouts.itertuples():
+            #     sql += f' LEFT JOIN df_sim_scores T{payout.X2} ON T{payout.X2}.X1 = \'{payout.X2}\''
 
-            sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
+            # sql += ' GROUP BY A.p1, A.p2, A.p3, A.p4, A.p5, A.p6, A.p7, A.p8, A.p9'
             
-            for i in range(0, limit):
-                for payout in df_payouts.itertuples():
-                    sql += f', T{payout.X2}.x{i+col_min}'
+            # for i in range(0, limit):
+            #     for payout in df_payouts.itertuples():
+            #         sql += f', T{payout.X2}.x{i+col_min}'
 
-            print(sql)
-            print(pandasql.sqldf(sql, locals()))
+            # print(sql)
+            # print(pandasql.sqldf(sql, locals()))
 
 
             task.status = 'success'
