@@ -2893,6 +2893,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             print(df_bins)
 
             def find_payout(x):
+                print(f'x = {x}; len(prizes) = {len(prizes)}')
                 if x > len(prizes):
                     return 0.0
                 return prizes[x]
