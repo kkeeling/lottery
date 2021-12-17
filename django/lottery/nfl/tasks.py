@@ -2895,9 +2895,8 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             for lineup in build.lineups.all():
                 df_lineup_outcomes = pandas.DataFrame([['lakergreat1'] + lineup.sim_scores[:10]], columns=[f'X{i}' for i in range(1, 12)])
                 print(df_lineup_outcomes)
+                print(pandas.concat([df_lineup_outcomes, df_bins]))
 
-                df_bins.append(df_lineup_outcomes, ignore_index=True)
-                print(df_bins)
                 break
             # all_lineups = build.lineups.all()            
             # lineup_values = pandas.DataFrame(list(all_lineups.values_list(
