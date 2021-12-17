@@ -1440,13 +1440,12 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'get_te',
         'get_flex',
         'get_dst',
-        # 'contains_top_projected_pass_catcher',
-        # 'contains_opp_top_projected_pass_catcher',
         'salary',
         'projection',
         'get_median_score',
         'get_75th_percentile_score',
         'get_ceiling_percentile_score',
+        'get_roi',
         'get_actual',
     )
 
@@ -1530,6 +1529,13 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         return obj.std
     get_std.short_description = 'std'
     get_std.admin_order_field = 'std'
+
+    def get_roi(self, obj):
+        if obj.roi is None:
+            return None
+        return '{:.2f}%'.format(obj.roi * 100)
+    get_roi.short_description = 'roi'
+    get_roi.admin_order_field = 'roi'
 
     def get_actual(self, obj):
         return obj.actual
