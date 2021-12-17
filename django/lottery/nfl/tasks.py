@@ -2881,6 +2881,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
 
             prize_bins = list(contest.prizes.all().values_list('max_rank', flat=True))
             prizes = list(contest.prizes.all().values_list('prize', flat=True))
+            print(prizes)
 
             np_outcomes = numpy.array(outcomes)
             np_outcomes.sort(axis=0)
@@ -2893,7 +2894,6 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             print(df_bins)
 
             def find_payout(x):
-                print(f'x = {x}; len(prizes) = {len(prizes)}')
                 if x >= len(prizes):
                     return 0.0
                 return prizes[int(x)-1]
@@ -2904,10 +2904,10 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                 df_ranks = pandas.concat([df_lineup_outcomes, df_bins]).rank(method='min', ascending=False)
                 print(df_ranks)
                 df_payouts = df_ranks.applymap(find_payout)
-                df_payouts["sum"] = df_payouts.sum(axis=1)
+                df_payouts["sum"] = df_payouts.sum()
                 print(df_payouts)
                 roi = (df_payouts.loc[0, "sum"]  - (float(contest.cost * 10))) / (float(contest.cost * 10))
-                print(f'ROI = {df_payouts.loc[0, "sum"]}')
+                print(f'ROI = {roi}')
 
 
                 break
