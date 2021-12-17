@@ -2885,9 +2885,9 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             np_outcomes = numpy.array(outcomes)
             np_outcomes.sort(axis=0)
             np_outcomes = np_outcomes[::-1]
-            df_field_outcomes = pandas.DataFrame(np_outcomes, columns=[f'X{i}' for i in range(2, 12)])
+            df_field_outcomes = pandas.DataFrame(np_outcomes)
             df_bins = df_field_outcomes.iloc[prize_bins]#.reset_index().rename(columns={'index', 'X1'})
-            df_bins.insert(0, 'X1', prize_bins)
+            # df_bins.insert(0, 'X1', prize_bins)
             # df_bins.insert(0, 'X3', prizes)
             
             print(df_bins)
@@ -2898,11 +2898,11 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                 return prizes[x]
 
             for lineup in build.lineups.all():
-                df_lineup_outcomes = pandas.DataFrame([['lakergreat1'] + lineup.sim_scores[:10]], columns=[f'X{i}' for i in range(1, 12)])
+                df_lineup_outcomes = pandas.DataFrame([lineup.sim_scores[:10]])
                 print(df_lineup_outcomes)
                 df_ranks = pandas.concat([df_lineup_outcomes, df_bins])
                 print(df_ranks)
-                print(df_ranks.rank(ascending=False))
+                print(df_ranks.rank(method='min', ascending=False))
                 # df_payouts = df_ranks.applymap(find_payout)
                 # print(df_payouts)
 
