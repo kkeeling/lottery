@@ -2901,9 +2901,8 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             for lineup in build.lineups.all():
                 df_lineup_outcomes = pandas.DataFrame([lineup.sim_scores[:10]])
                 print(df_lineup_outcomes)
-                df_ranks = pandas.concat([df_lineup_outcomes, df_bins])
+                df_ranks = pandas.concat([df_lineup_outcomes, df_bins]).rank(method='min', ascending=False)
                 print(df_ranks)
-                print(df_ranks.rank(method='min', ascending=False))
                 df_payouts = df_ranks.applymap(find_payout)
                 print(df_payouts)
 
