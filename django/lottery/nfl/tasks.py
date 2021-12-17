@@ -2903,8 +2903,8 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                 df_ranks = pandas.concat([df_lineup_outcomes, df_bins])
                 print(df_ranks)
                 print(df_ranks.rank(method='min', ascending=False))
-                # df_payouts = df_ranks.applymap(find_payout)
-                # print(df_payouts)
+                df_payouts = df_ranks.applymap(find_payout)
+                print(df_payouts)
 
 
                 break
