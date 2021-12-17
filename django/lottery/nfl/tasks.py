@@ -2896,7 +2896,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
                 print(f'x = {x}; len(prizes) = {len(prizes)}')
                 if x > len(prizes):
                     return 0.0
-                return prizes[x]
+                return prizes[int(x)]
 
             for lineup in build.lineups.all():
                 df_lineup_outcomes = pandas.DataFrame([lineup.sim_scores[:10]])
