@@ -2853,11 +2853,14 @@ def get_field_lineup_outcomes(lineup, build_id):
     except:
         outcomes = list([0.0 for i in range(0, 10000)])
     
-    return outcomes
+    models.SlateFieldOutcome.objects.create(
+        slate=build.slate,
+        sim_scores=outcomes
+    )
 
 
 @shared_task
-def combine_field_outcomes(outcomes, build_id, task_id):
+def combine_field_outcomes(build_id, task_id):
     task = None
 
     try:
@@ -2876,6 +2879,7 @@ def combine_field_outcomes(outcomes, build_id, task_id):
             
             contest = contests[0]
 
+            outcomes = list(build.slate.field_outcomes.all().values_list('sim_scores', flat=True))
             prize_bins = list(contest.prizes.all().values_list('max_rank', flat=True))
             prizes = list(contest.prizes.all().values_list('prize', flat=True))
 
@@ -2927,6 +2931,7 @@ def race_lineups_in_build(build_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         build = models.SlateBuild.objects.get(id=build_id)
+        build.slate.field_outcomes.all().delete()
 
         if build.slate.site == 'yahoo':
             contests = yahoo_models.Contest.objects.filter(slate_week=build.slate.week.num, slate_year=build.slate.week.slate_year)
@@ -2938,8 +2943,8 @@ def race_lineups_in_build(build_id, task_id):
             df_field_lineups = contest.get_lineups_as_dataframe()
 
             chord([
-                get_field_lineup_outcomes.s(lineup, build_id) for lineup in df_field_lineups.values.tolist()
-            ], combine_field_outcomes.s(build_id, task.id))()
+                get_field_lineup_outcomes.si(lineup, build_id) for lineup in df_field_lineups.values.tolist()
+            ], combine_field_outcomes.si(build_id, task.id))()
         else:
             raise Exception(f'{build.slate.site} is not yet supported for races')  
     except Exception as e:

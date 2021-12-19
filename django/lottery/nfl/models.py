@@ -3050,6 +3050,11 @@ class SlateFieldLineup(models.Model):
         self.save()
 
 
+class SlateFieldOutcome(models.Model):
+    slate = models.ForeignKey(Slate, db_index=True, verbose_name='Slate', related_name='field_outcomes', on_delete=models.CASCADE)
+    sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
+
+
 class SlateBuildActualsLineup(models.Model):
     build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='actuals', on_delete=models.CASCADE)
     stack = models.ForeignKey(SlateBuildStack, db_index=True, verbose_name='Stack', related_name='actuals', on_delete=models.CASCADE, null=True, blank=True)
