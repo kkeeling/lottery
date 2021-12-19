@@ -1979,7 +1979,7 @@ def process_slate_players(chained_result, slate_id, task_id):
                         game = game[:game.find(' ')]
                         team = 'JAC' if row[17] == 'JAX' else row[17]
                     elif slate.site == 'yahoo':
-                        if success_count < 9:
+                        if success_count < 8:
                             success_count += 1
                             continue
                         
@@ -2904,6 +2904,8 @@ def combine_field_outcomes(build_id, task_id):
                 lineup.save()
                 print(f'ROI = {roi*100}%')
 
+            build.slate.field_outcomes.all().delete()
+    
             task.status = 'success'
             task.content = 'Slate lineup race complete.'
             task.save()      
