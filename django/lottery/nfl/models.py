@@ -327,58 +327,61 @@ class Week(models.Model):
         for event in event_details:
             properties = event.get('EventDetails').get('Properties')
 
-            if properties.get('HomeGameSpreadCurrent', None) is not None:
-                home_team = event.get('HomeTeamShortVar')
-                away_team = event.get('VisitorTeamShortVar')
-                game_date = datetime.datetime.strptime(event.get('EventDateTime'), '%Y-%m-%dT%H:%M:%S')
+            try:
+                if properties.get('HomeGameSpreadCurrent', None) is not None:
+                    home_team = event.get('HomeTeamShortVar')
+                    away_team = event.get('VisitorTeamShortVar')
+                    game_date = datetime.datetime.strptime(event.get('EventDateTime'), '%Y-%m-%dT%H:%M:%S')
 
-                if event.get('HomeTeamShortVar') == 'JAX':
-                    home_team = 'JAC'
-                if event.get('HomeTeamShortVar') == 'LV' and game_date.year < 2020:
-                    home_team = 'OAK'
-                if event.get('HomeTeamShortVar') == 'LA':
-                    home_team = 'LAR'
-                if event.get('VisitorTeamShortVar') == 'JAX':
-                    away_team = 'JAC'
-                if event.get('VisitorTeamShortVar') == 'LV' and game_date.year < 2020:
-                    away_team = 'OAK'
-                if event.get('VisitorTeamShortVar') == 'LA':
-                    away_team = 'LAR'
+                    if event.get('HomeTeamShortVar') == 'JAX':
+                        home_team = 'JAC'
+                    if event.get('HomeTeamShortVar') == 'LV' and game_date.year < 2020:
+                        home_team = 'OAK'
+                    if event.get('HomeTeamShortVar') == 'LA':
+                        home_team = 'LAR'
+                    if event.get('VisitorTeamShortVar') == 'JAX':
+                        away_team = 'JAC'
+                    if event.get('VisitorTeamShortVar') == 'LV' and game_date.year < 2020:
+                        away_team = 'OAK'
+                    if event.get('VisitorTeamShortVar') == 'LA':
+                        away_team = 'LAR'
 
-                try:
-                    game = Game.objects.get(
-                        id=event.get("EventId"),
-                        week=self
-                    )
-                    game.home_team = home_team
-                    game.away_team = away_team
-                    game.game_date = datetime.datetime.strptime(event.get('EventDateTime'), '%Y-%m-%dT%H:%M:%S')
-                    game.game_total = float(event.get('OU'))
-                    game.home_spread = float(properties.get('HomeGameSpreadCurrent'))
-                    game.away_spread = float(properties.get('VisitorGameSpreadCurrent'))
-                    game.home_implied = float(properties.get('HomeVegasRuns'))
-                    game.away_implied = float(properties.get('VisitorVegasRuns'))
-                    game.save()
-                except Game.DoesNotExist:
-                    # check if this game already exists on another week (due to rescheduling)
-                    existing_games = Game.objects.filter(id=event.get("EventId"))
-                    if existing_games.count() > 0:
-                        existing_games.delete()
+                    try:
+                        game = Game.objects.get(
+                            id=event.get("EventId"),
+                            week=self
+                        )
+                        game.home_team = home_team
+                        game.away_team = away_team
+                        game.game_date = datetime.datetime.strptime(event.get('EventDateTime'), '%Y-%m-%dT%H:%M:%S')
+                        game.game_total = float(event.get('OU'))
+                        game.home_spread = float(properties.get('HomeGameSpreadCurrent'))
+                        game.away_spread = float(properties.get('VisitorGameSpreadCurrent'))
+                        game.home_implied = float(properties.get('HomeVegasRuns'))
+                        game.away_implied = float(properties.get('VisitorVegasRuns'))
+                        game.save()
+                    except Game.DoesNotExist:
+                        # check if this game already exists on another week (due to rescheduling)
+                        existing_games = Game.objects.filter(id=event.get("EventId"))
+                        if existing_games.count() > 0:
+                            existing_games.delete()
 
-                    game = Game.objects.create(
-                        id=event.get("EventId"),
-                        week=self,
-                        home_team=home_team,
-                        away_team=away_team,
-                        game_date=datetime.datetime.strptime(event.get('EventDateTime'), '%Y-%m-%dT%H:%M:%S'),
-                        game_total=float(event.get('OU')),
-                        home_spread=float(properties.get('HomeGameSpreadCurrent')),
-                        away_spread=float(properties.get('VisitorGameSpreadCurrent')),
-                        home_implied=float(properties.get('HomeVegasRuns')),
-                        away_implied=float(properties.get('VisitorVegasRuns'))
-                    )
+                        game = Game.objects.create(
+                            id=event.get("EventId"),
+                            week=self,
+                            home_team=home_team,
+                            away_team=away_team,
+                            game_date=datetime.datetime.strptime(event.get('EventDateTime'), '%Y-%m-%dT%H:%M:%S'),
+                            game_total=float(event.get('OU')),
+                            home_spread=float(properties.get('HomeGameSpreadCurrent')),
+                            away_spread=float(properties.get('VisitorGameSpreadCurrent')),
+                            home_implied=float(properties.get('HomeVegasRuns')),
+                            away_implied=float(properties.get('VisitorVegasRuns'))
+                        )
 
-                print(game)
+                    print(game)
+            except:
+                traceback.print_exc()
 
 
 class Game(models.Model):
@@ -1792,26 +1795,26 @@ class SlateBuild(models.Model):
                 
                 # only replace values if projection is new or replace == true
                 if replace or created:
-                    projection.projection = player.projection.ceiling if self.configuration.optimize_with_ceilings else player.projection.projection
-                    if self.slate.site == 'yahoo':
-                        projection.value = round(float(projection.projection)/float(player.salary), 2)
-                    else:
-                        projection.value = round(float(projection.projection)/(player.salary/1000.0), 2)
+                    # projection.projection = player.projection.ceiling if self.configuration.optimize_with_ceilings else player.projection.projection
+                    # if self.slate.site == 'yahoo':
+                    #     projection.value = round(float(projection.projection)/float(player.salary), 2)
+                    # else:
+                    #     projection.value = round(float(projection.projection)/(player.salary/1000.0), 2)
                     projection.ownership_projection = player.projection.ownership_projection
-                    projection.balanced_projection = projection.projection if self.configuration.optimize_with_ceilings else player.projection.balanced_projection
-                    if self.slate.site == 'yahoo':
-                        projection.balanced_value = round(float(projection.balanced_projection)/float(player.salary), 2)
-                    else:
-                        projection.balanced_value = round(float(projection.balanced_projection)/(player.salary/1000.0), 2)
+                    # projection.balanced_projection = projection.projection if self.configuration.optimize_with_ceilings else player.projection.balanced_projection
+                    # if self.slate.site == 'yahoo':
+                    #     projection.balanced_value = round(float(projection.balanced_projection)/float(player.salary), 2)
+                    # else:
+                    #     projection.balanced_value = round(float(projection.balanced_projection)/(player.salary/1000.0), 2)
                     projection.adjusted_opportunity = player.projection.adjusted_opportunity
-                    projection.rb_group = 0
-                    projection.in_play = False
-                    projection.stack_only = False
-                    projection.qb_stack_only = False
-                    projection.opp_qb_stack_only = False
+                    # projection.rb_group = 0
+                    # projection.in_play = False
+                    # projection.stack_only = False
+                    # projection.qb_stack_only = False
+                    # projection.opp_qb_stack_only = False
 
-                    if projection.position == 'DST' or projection.position == 'D':
-                        projection.max_exposure = self.configuration.max_dst_exposure * 100
+                    # if projection.position == 'DST' or projection.position == 'D' or projection.position == 'DEF':
+                    #     projection.max_exposure = self.configuration.max_dst_exposure * 100
 
                     projection.save()
             else:
