@@ -2165,7 +2165,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                                 ceiling=ceil,
                                 stdev=stdev,
                                 ownership_projection=float(ownership_projection),
-                                adjusted_opportunity=float(rec_projection) * 2.0 + float(rush_att_projection)
+                                adjusted_opportunity=float(rec_projection) * 2.75 + float(rush_att_projection) if sheet.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection)
                             )
                             
                             success_count += 1
