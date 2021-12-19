@@ -1795,26 +1795,26 @@ class SlateBuild(models.Model):
                 
                 # only replace values if projection is new or replace == true
                 if replace or created:
-                    # projection.projection = player.projection.ceiling if self.configuration.optimize_with_ceilings else player.projection.projection
-                    # if self.slate.site == 'yahoo':
-                    #     projection.value = round(float(projection.projection)/float(player.salary), 2)
-                    # else:
-                    #     projection.value = round(float(projection.projection)/(player.salary/1000.0), 2)
+                    projection.projection = player.projection.ceiling if self.configuration.optimize_with_ceilings else player.projection.projection
+                    if self.slate.site == 'yahoo':
+                        projection.value = round(float(projection.projection)/float(player.salary), 2)
+                    else:
+                        projection.value = round(float(projection.projection)/(player.salary/1000.0), 2)
                     projection.ownership_projection = player.projection.ownership_projection
-                    # projection.balanced_projection = projection.projection if self.configuration.optimize_with_ceilings else player.projection.balanced_projection
-                    # if self.slate.site == 'yahoo':
-                    #     projection.balanced_value = round(float(projection.balanced_projection)/float(player.salary), 2)
-                    # else:
-                    #     projection.balanced_value = round(float(projection.balanced_projection)/(player.salary/1000.0), 2)
+                    projection.balanced_projection = projection.projection if self.configuration.optimize_with_ceilings else player.projection.balanced_projection
+                    if self.slate.site == 'yahoo':
+                        projection.balanced_value = round(float(projection.balanced_projection)/float(player.salary), 2)
+                    else:
+                        projection.balanced_value = round(float(projection.balanced_projection)/(player.salary/1000.0), 2)
                     projection.adjusted_opportunity = player.projection.adjusted_opportunity
-                    # projection.rb_group = 0
-                    # projection.in_play = False
-                    # projection.stack_only = False
-                    # projection.qb_stack_only = False
-                    # projection.opp_qb_stack_only = False
+                    projection.rb_group = 0
+                    projection.in_play = False
+                    projection.stack_only = False
+                    projection.qb_stack_only = False
+                    projection.opp_qb_stack_only = False
 
-                    # if projection.position == 'DST' or projection.position == 'D' or projection.position == 'DEF':
-                    #     projection.max_exposure = self.configuration.max_dst_exposure * 100
+                    if projection.position == 'DST' or projection.position == 'D' or projection.position == 'DEF':
+                        projection.max_exposure = self.configuration.max_dst_exposure * 100
 
                     projection.save()
             else:
