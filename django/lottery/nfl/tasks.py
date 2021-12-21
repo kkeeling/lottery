@@ -4,6 +4,7 @@ import logging
 import json
 import math
 import numpy
+import os
 import pandas
 import pandasql
 import scipy
@@ -15,6 +16,7 @@ import uuid
 from celery import shared_task, chord, group, chain
 from contextlib import contextmanager
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.messages.api import success
 from django.db.models.aggregates import Count, Sum
@@ -2842,10 +2844,10 @@ def process_group_import_sheet(sheet_id, task_id):
 
 
 @shared_task
-def get_field_lineup_outcomes(lineup, build_id):
-    build = models.SlateBuild.objects.get(id=build_id)
+def get_field_lineup_outcomes(lineup, slate_id):
+    slate = models.Slate.objects.get(id=slate_id)
     players = models.SlatePlayerProjection.objects.filter(
-        slate_player__slate=build.slate, 
+        slate_player__slate=slate, 
         slate_player__name__in=lineup[1:]
     )
     try:
@@ -2854,9 +2856,33 @@ def get_field_lineup_outcomes(lineup, build_id):
         outcomes = list([0.0 for i in range(0, 10000)])
     
     models.SlateFieldOutcome.objects.create(
-        slate=build.slate,
+        slate=slate,
         sim_scores=outcomes
     )
+
+
+@shared_task
+def get_field_lineup_outcomes_complete(task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+    
+        task.status = 'success'
+        task.content = 'Field lineup outcomes complete.'
+        task.save()      
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error generating field lineup outcomes: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task
@@ -2933,7 +2959,6 @@ def race_lineups_in_build(build_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         build = models.SlateBuild.objects.get(id=build_id)
-        build.slate.field_outcomes.all().delete()
 
         if build.slate.site == 'yahoo':
             contests = yahoo_models.Contest.objects.filter(slate_week=build.slate.week.num, slate_year=build.slate.week.slate_year)
@@ -2941,12 +2966,10 @@ def race_lineups_in_build(build_id, task_id):
                 raise Exception('Cannot race. No contests found for this slate.')
             
             contest = contests[0]
-
-            df_field_lineups = contest.get_lineups_as_dataframe()
-
-            chord([
-                get_field_lineup_outcomes.si(lineup, build_id) for lineup in df_field_lineups.values.tolist()
-            ], combine_field_outcomes.si(build_id, task.id))()
+            chord(
+                [get_lineup_roi.si(lineup.id, build.slate.id, contest.id) for lineup in build.lineups.all()[:1]],
+                race_lineups_in_build_complete.si(task_id)
+            )()            
         else:
             raise Exception(f'{build.slate.site} is not yet supported for races')  
     except Exception as e:
@@ -2959,4 +2982,73 @@ def race_lineups_in_build(build_id, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
+@shared_task
+def race_lineups_in_build_complete(task_id):
+    task = None
 
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+    
+        task.status = 'success'
+        task.content = 'Slate lineup race complete.'
+        task.save()      
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error racing lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def get_lineup_roi(lineup_id, slate_id, contest_id):
+    slate = models.Slate.objects.get(id=slate_id)
+    lineup = models.SlateBuildLineup.objects.get(id=lineup_id)
+
+    if slate.site == 'yahoo':
+        contest = yahoo_models.Contest.objects.get(id=contest_id)
+    else:
+        raise Exception(f'{slate.site} is not yet supported for races')  
+
+    num_field_lineups = contest.entries.all().count()
+    outcomes = list(slate.field_outcomes.all().values_list('sim_scores', flat=True))
+    prize_bins = list(contest.prizes.filter(max_rank__lte=num_field_lineups).values_list('max_rank', flat=True))
+    prizes = list(contest.prizes.filter(max_rank__lte=num_field_lineups).values_list('prize', flat=True))
+
+    np_outcomes = numpy.array(outcomes)
+    np_outcomes.sort(axis=0)
+    np_outcomes = np_outcomes[::-1]
+    df_field_outcomes = pandas.DataFrame(np_outcomes)
+    # df_field_outcomes.to_csv('/opt/lottery/data/df_field_outcomes.csv')
+    df_bins = df_field_outcomes.iloc[prize_bins]
+
+    def find_payout(x):
+        if x > len(prizes):
+            return 0.0
+        return float(prizes[int(x)-1])
+
+    df_lineup_outcomes = pandas.DataFrame([lineup.sim_scores])
+    # df_lineup_outcomes.to_csv('/opt/lottery/data/df_lineup_outcomes.csv')
+    df_ranks = pandas.concat([df_lineup_outcomes, df_bins]).rank(method='min', ascending=False)
+    df_payouts = df_ranks.applymap(find_payout)
+    df_payouts["sum"] = df_payouts.sum(axis=1, numeric_only=True)
+
+    # now = datetime.datetime.now()
+    # timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+    # result_file = f'roi export {timestamp}.csv'
+    # result_path = '/opt/lottery/data/'
+    # os.makedirs(result_path, exist_ok=True)
+    # result_path = os.path.join(result_path, result_file)
+    # df_payouts.to_csv(result_path)
+
+    # print(df_payouts)
+    roi = (df_payouts.loc[0, "sum"]  - (float(contest.cost * 10000))) / (float(contest.cost * 10000))
+    lineup.roi = roi
+    lineup.save()
+    print(f'ROI = {roi*100}%')

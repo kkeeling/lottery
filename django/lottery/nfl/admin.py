@@ -659,6 +659,7 @@ class SlateAdmin(admin.ModelAdmin):
     )
     actions = [
         'process_slates', 
+        'get_field_lineup_outcomes',
         'analyze_projections',
         'export_game_sims',
     ]
@@ -876,6 +877,49 @@ class SlateAdmin(admin.ModelAdmin):
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def get_field_lineup_outcomes(self, request, queryset):
+        jobs = []
+        for slate in queryset:
+            slate.field_outcomes.all().delete()
+
+            if slate.site == 'yahoo':
+                contests = yahoo_models.Contest.objects.filter(slate_week=slate.week.num, slate_year=slate.week.slate_year)
+                if contests.count() == 0:
+                    messages.add_message(
+                        request,
+                        messages.ERROR,
+                        'Cannot race. No contests found for this slate.'
+                    )
+                    return
+                
+                contest = contests[0]
+
+                df_field_lineups = contest.get_lineups_as_dataframe()
+                for lineup in df_field_lineups.values.tolist(): 
+                    jobs.append(
+                        tasks.get_field_lineup_outcomes.si(lineup, slate.id)
+                    )
+
+                chord(jobs, tasks.get_field_lineup_outcomes_complete.si(
+                    BackgroundTask.objects.create(
+                        name='Generating outcomes for field lineups',
+                        user=request.user
+                    ).id)
+                )()
+
+                messages.add_message(
+                    request,
+                    messages.WARNING,
+                    f'Generating field outcomes for {slate}'
+                )
+            else:
+                messages.add_message(
+                    request,
+                    messages.ERROR,
+                    f'{slate.site} is not yet supported for races'
+                )
+    get_field_lineup_outcomes.short_description = 'Generate field outcomes for selected slates'
 
 
 @admin.register(models.SlatePlayerActualsSheet)
@@ -1755,6 +1799,11 @@ class SlateFieldLineupAdmin(admin.ModelAdmin):
     def get_dst(self, obj):
         return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.dst.get_team_color(), obj.dst))
     get_dst.short_description = 'DST'
+
+
+@admin.register(models.SlateFieldOutcome)
+class SlateFieldOutcomeAdmin(admin.ModelAdmin):
+    pass
 
 
 @admin.register(models.SlateBuildStack)
