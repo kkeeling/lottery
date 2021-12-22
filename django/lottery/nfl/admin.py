@@ -660,6 +660,7 @@ class SlateAdmin(admin.ModelAdmin):
     actions = [
         'process_slates', 
         'get_field_lineup_outcomes',
+        'export_player_outcomes',
         'analyze_projections',
         'export_game_sims',
     ]
@@ -920,6 +921,36 @@ class SlateAdmin(admin.ModelAdmin):
                     f'{slate.site} is not yet supported for races'
                 )
     get_field_lineup_outcomes.short_description = 'Generate field outcomes for selected slates'
+
+    def export_player_outcomes(self, request, queryset):
+        jobs = []
+
+        for slate in queryset:
+            result_file = f'player-outcomes-{slate}.csv'
+            result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+            os.makedirs(result_path, exist_ok=True)
+            result_path = os.path.join(result_path, result_file)
+            result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+            jobs.append(
+                tasks.export_player_outcomes.si(
+                    list(models.SlatePlayerProjection.objects.filter(slate_player__slate=slate).values_list('id', flat=True)),
+                    result_path,
+                    result_url,
+                    BackgroundTask.objects.create(
+                        name=f'Export Player Outcomes for {slate}',
+                        user=request.user
+                    ).id
+                )
+            )
+
+        group(jobs)()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your exports are being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your exports are ready.')
+    export_player_outcomes.short_description = 'Export player outcomes from selected slates'
 
 
 @admin.register(models.SlatePlayerActualsSheet)

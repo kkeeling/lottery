@@ -1933,6 +1933,38 @@ def export_projections(proj_ids, result_path, result_url, task_id):
 
 
 @shared_task
+def export_player_outcomes(proj_ids, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        projections = models.SlatePlayerProjection.objects.filter(id__in=proj_ids, sim_scores__isnull=False)
+        outcomes = list(projections.values_list('sim_scores', flat=True))
+        player_names = list(projections.values_list('slate_player__name', flat=True))
+        ownerships = list(projections.values_list('slate_player__ownership', flat=True))
+        df_outcomes = pandas.DataFrame(outcomes)
+        df_outcomes.insert(0, 'player', player_names)
+        df_outcomes.insert(1, 'ownership', ownerships)
+        df_outcomes.to_csv(result_path)
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def process_slate_players(chained_result, slate_id, task_id):
     task = None
 
@@ -2879,68 +2911,6 @@ def get_field_lineup_outcomes_complete(task_id):
         if task is not None:
             task.status = 'error'
             task.content = f'There was an error generating field lineup outcomes: {e}'
-            task.save()
-
-        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-@shared_task
-def combine_field_outcomes(build_id, task_id):
-    task = None
-
-    try:
-        try:
-            task = BackgroundTask.objects.get(id=task_id)
-        except BackgroundTask.DoesNotExist:
-            time.sleep(0.2)
-            task = BackgroundTask.objects.get(id=task_id)
-
-        build = models.SlateBuild.objects.get(id=build_id)
-
-        if build.slate.site == 'yahoo':
-            contests = yahoo_models.Contest.objects.filter(slate_week=build.slate.week.num, slate_year=build.slate.week.slate_year)
-            if contests.count() == 0:
-                raise Exception('Cannot race. No contests found for this slate.')
-            
-            contest = contests[0]
-
-            outcomes = list(build.slate.field_outcomes.all().values_list('sim_scores', flat=True))
-            prize_bins = list(contest.prizes.all().values_list('max_rank', flat=True))
-            prizes = list(contest.prizes.all().values_list('prize', flat=True))
-
-            np_outcomes = numpy.array(outcomes)
-            np_outcomes.sort(axis=0)
-            np_outcomes = np_outcomes[::-1]
-            df_field_outcomes = pandas.DataFrame(np_outcomes)
-            df_bins = df_field_outcomes.iloc[prize_bins]
-
-            def find_payout(x):
-                if x > len(prizes):
-                    return 0.0
-                return float(prizes[int(x)-1])
-
-            for lineup in build.lineups.all():
-                df_lineup_outcomes = pandas.DataFrame([lineup.sim_scores])
-                df_ranks = pandas.concat([df_lineup_outcomes, df_bins]).rank(method='min', ascending=False)
-                df_payouts = df_ranks.applymap(find_payout)
-                df_payouts["sum"] = df_payouts.sum(axis=1, numeric_only=True)
-                roi = (df_payouts.loc[0, "sum"]  - (float(contest.cost * 10000))) / (float(contest.cost * 10000))
-                lineup.roi = roi
-                lineup.save()
-                print(f'ROI = {roi*100}%')
-
-            build.slate.field_outcomes.all().delete()
-    
-            task.status = 'success'
-            task.content = 'Slate lineup race complete.'
-            task.save()      
-        else:
-            raise Exception(f'{build.slate.site} is not yet supported for races')  
-    except Exception as e:
-        if task is not None:
-            task.status = 'error'
-            task.content = f'There was an error racing lineups: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
