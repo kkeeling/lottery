@@ -1965,6 +1965,49 @@ def export_player_outcomes(proj_ids, result_path, result_url, task_id):
 
 
 @shared_task
+def export_field_outcomes(slate_id, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)  
+
+        slate = models.Slate.objects.get(id=slate_id)
+        field_lineups = slate.field_lineups.all().select_related(
+            'qb__slate_player',
+            'rb1__slate_player',
+            'rb2__slate_player',
+            'wr1__slate_player',
+            'wr2__slate_player',
+            'wr3__slate_player',
+            'te__slate_player',
+            'flex__slate_player',
+            'dst__slate_player',
+        )
+        field_outcomes = list(field_lineups.values_list('sim_scores', flat=True))
+        
+        df_lineups = pandas.DataFrame.from_records(field_lineups.values('username', 'qb__slate_player__name', 'rb1__slate_player__name', 'rb2__slate_player__name', 'wr1__slate_player__name', 'wr2__slate_player__name', 'wr3__slate_player__name', 'te__slate_player__name', 'flex__slate_player__name', 'dst__slate_player__name'))
+        df_outcomes = pandas.DataFrame(field_outcomes)
+        df_outcomes = pandas.concat([df_lineups, df_outcomes], axis=1)
+        df_outcomes.to_csv(result_path)
+        
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def process_slate_players(chained_result, slate_id, task_id):
     task = None
 
@@ -2781,40 +2824,6 @@ def sim_outcomes_for_players(proj_ids, task_id):
 
 
 @shared_task
-def export_field_for_contest(contest_id, result_path, result_url, task_id):
-    task = None
-
-    try:
-        try:
-            task = BackgroundTask.objects.get(id=task_id)
-        except BackgroundTask.DoesNotExist:
-            time.sleep(0.2)
-            task = BackgroundTask.objects.get(id=task_id)  
-
-        contest = models.Contest.objects.get(id=contest_id)
-        entries_json = contest.fanduel_contest.get_lineups_as_json()
-        df_entries = pandas.DataFrame(entries_json)
-        df_players = pandas.DataFrame.from_records(contest.slate.players.all().values())
-
-        with pandas.ExcelWriter(result_path) as writer:
-            df_players.to_excel(writer, sheet_name="players")
-            df_entries.to_excel(writer, sheet_name="entries")
-            writer.save()
-        
-        task.status = 'download'
-        task.content = result_url
-        task.save()
-
-    except Exception as e:
-        if task is not None:
-            task.status = 'error'
-            task.content = f'There was a problem generating your export {e}'
-            task.save()
-        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-@shared_task
 def process_group_import_sheet(sheet_id, task_id):
     task = None
 
@@ -2887,8 +2896,35 @@ def get_field_lineup_outcomes(lineup, slate_id):
     except:
         outcomes = list([0.0 for i in range(0, 10000)])
     
-    models.SlateFieldOutcome.objects.create(
+    dst_label = 'DST'
+    if slate.site == 'fanduel':
+        dst_label = 'D'
+    elif slate.site == 'yahoo':
+        dst_label = 'DEF'
+
+    rbs = players.filter(slate_player__site_pos='RB')
+    wrs = players.filter(slate_player__site_pos='WR')
+    tes = players.filter(slate_player__site_pos='TE')
+
+    if rbs.count() > 2:
+        flex = rbs[2]
+    elif wrs.count() > 3:
+        flex = wrs[3]
+    else:
+        flex = tes[1]
+
+    models.SlateFieldLineup.objects.create(
         slate=slate,
+        username=lineup[0],
+        qb=players.get(slate_player__site_pos='QB'),
+        rb1=rbs[0],
+        rb2=rbs[1],
+        wr1=wrs[0],
+        wr2=wrs[1],
+        wr3=wrs[2],
+        te=tes[0],
+        flex=flex,
+        dst=players.get(slate_player__site_pos=dst_label),
         sim_scores=outcomes
     )
 

@@ -660,6 +660,7 @@ class SlateAdmin(admin.ModelAdmin):
     actions = [
         'process_slates', 
         'get_field_lineup_outcomes',
+        'export_field',
         'export_player_outcomes',
         'analyze_projections',
         'export_game_sims',
@@ -882,7 +883,7 @@ class SlateAdmin(admin.ModelAdmin):
     def get_field_lineup_outcomes(self, request, queryset):
         jobs = []
         for slate in queryset:
-            slate.field_outcomes.all().delete()
+            slate.field_lineups.all().delete()
 
             if slate.site == 'yahoo':
                 contests = yahoo_models.Contest.objects.filter(slate_week=slate.week.num, slate_year=slate.week.slate_year)
@@ -951,6 +952,36 @@ class SlateAdmin(admin.ModelAdmin):
             messages.WARNING,
             'Your exports are being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your exports are ready.')
     export_player_outcomes.short_description = 'Export player outcomes from selected slates'
+
+    def export_field(self, request, queryset):
+        jobs = []
+
+        for slate in queryset:
+            result_file = f'field-outcomes-{slate}.csv'
+            result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+            os.makedirs(result_path, exist_ok=True)
+            result_path = os.path.join(result_path, result_file)
+            result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+            jobs.append(
+                tasks.export_field_outcomes.si(
+                    slate.id,
+                    result_path,
+                    result_url,
+                    BackgroundTask.objects.create(
+                        name=f'Export Field Outcomes for {slate}',
+                        user=request.user
+                    ).id
+                )
+            )
+
+        group(jobs)()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your exports are being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your exports are ready.')
+    export_field.short_description = 'Export field lineups from selected contest'
 
 
 @admin.register(models.SlatePlayerActualsSheet)
@@ -1830,11 +1861,6 @@ class SlateFieldLineupAdmin(admin.ModelAdmin):
     def get_dst(self, obj):
         return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.dst.get_team_color(), obj.dst))
     get_dst.short_description = 'DST'
-
-
-@admin.register(models.SlateFieldOutcome)
-class SlateFieldOutcomeAdmin(admin.ModelAdmin):
-    pass
 
 
 @admin.register(models.SlateBuildStack)
@@ -3268,36 +3294,6 @@ class ContestAdmin(admin.ModelAdmin):
     inlines = [
         ContestPrizeInline
     ]
-    actions = [
-        'export_field'
-    ]
-
-    def export_field(self, request, queryset):
-        if queryset.count() > 1:
-            return
-        
-        contest = queryset[0]
-
-        task = BackgroundTask()
-        task.name = f'Export Field Lineups for {contest.slate} - {contest.name}'
-        task.user = request.user
-        task.save()
-
-        now = datetime.datetime.now()
-        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
-        result_file = f'Field Lineups Export {timestamp}.xlsx'
-        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
-        os.makedirs(result_path, exist_ok=True)
-        result_path = os.path.join(result_path, result_file)
-        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
-
-        tasks.export_field_for_contest.delay(contest.id, result_path, result_url, task.id)
-
-        messages.add_message(
-            request,
-            messages.WARNING,
-            'Your export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
-    export_field.short_description = 'Export lineups from selected contest'
 
 
 @admin.register(models.CeilingProjectionRangeMapping)
