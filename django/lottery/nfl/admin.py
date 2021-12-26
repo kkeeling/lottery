@@ -497,6 +497,7 @@ class AliasAdmin(admin.ModelAdmin):
         'fd_name',
         'rts_name',
         'etr_name',
+        'yahoo_name',
     )
     search_fields = (
         'dk_name',
