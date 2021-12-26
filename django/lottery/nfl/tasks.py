@@ -2187,6 +2187,10 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
 
             for row in csv_reader:
                 player_name = row[headers.column_player_name].strip()
+
+                if player_name is None:
+                    continue
+                
                 if row[headers.column_team] == 'JAX':
                     team = 'JAC'
                 elif row[headers.column_team] == 'LA':
