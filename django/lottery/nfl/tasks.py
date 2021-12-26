@@ -2298,7 +2298,14 @@ def handle_base_projections(chained_results, slate_id, task_id):
                 try:
                     ao_projection = ao_projections.get(slate_player=slate_player)
                 except models.SlatePlayerRawProjection.DoesNotExist:
-                    ao_projection = None
+                    rg_projections = models.SlatePlayerRawProjection.objects.filter(
+                        slate_player=slate_player,
+                        projection_site='rg'
+                    )
+                    if rg_projections.count() > 0:
+                        ao_projection = rg_projections[0]
+                    else:
+                        ao_projection = None
 
                 projection.projection = raw_projection.projection
                 projection.balanced_projection = raw_projection.projection
