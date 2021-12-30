@@ -605,6 +605,24 @@ class Slate(models.Model):
             projection.ceiling_zscore = ceiling_zscores[index] if ceiling_zscores is not None else 0.0
             projection.save()        
 
+    def flatten_base_projections(self):
+        for projection in SlatePlayerProjection.objects.filter(slate_player__slate=self, projection__gte=2).iterator():
+            try:
+                mapping = CeilingProjectionRangeMapping.objects.get(
+                    min_projection__lte=projection.projection,
+                    max_projection__gte=projection.projection
+                )
+
+                if self.site == 'yahoo':
+                    projection.projection = projection.salary * float(mapping.yh_value_to_assign)
+                    projection.value = mapping.yh_value_to_assign
+                else:
+                    projection.projection = projection.salary / 1000 * float(mapping.value_to_assign)
+                    projection.value = mapping.value_to_assign
+                projection.save()
+            except:
+                traceback.print_exc()
+
     def sim_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Sim</a>',
             reverse_lazy("admin:admin_slate_simulate", args=[self.pk])
@@ -2008,7 +2026,7 @@ class SlateBuild(models.Model):
         )
 
     def execute_build(self, user):
-        self.total_lineups = SlateBuildStack.objects.filter(build=self).aggregate(total=Sum('count')).get('total')
+        # self.total_lineups = SlateBuildStack.objects.filter(build=self).aggregate(total=Sum('count')).get('total')
         self.stacks.all().update(lineups_created=False)
         
         self.status = 'running'

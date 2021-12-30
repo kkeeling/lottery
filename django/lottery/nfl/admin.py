@@ -660,6 +660,7 @@ class SlateAdmin(admin.ModelAdmin):
     )
     actions = [
         'process_slates', 
+        'flatten_projections',
         'get_field_lineup_outcomes',
         'export_field',
         'export_player_outcomes',
@@ -807,6 +808,28 @@ class SlateAdmin(admin.ModelAdmin):
         for slate in queryset:
             self.process_slate(request, slate)
     process_slates.short_description = '(Re)Process selected slates'
+
+    def flatten_projections(self, request, queryset):
+        jobs = []
+
+        for slate in queryset:
+            jobs.append(
+                tasks.flatten_base_projections.s(
+                    slate.id,
+                    BackgroundTask.objects.create(
+                        name=f'Flatten projections for {slate}',
+                        user=request.user
+                    ).id
+                )
+            )
+
+        group(jobs)()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Flattening base projections')
+    flatten_projections.short_description = 'Flatten base projections for selected slates'
 
     def find_games(self, request, queryset):
         for slate in queryset:

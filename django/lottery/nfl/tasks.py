@@ -291,6 +291,36 @@ def simulate_game(game_id, task_id):
 
 
 @shared_task
+def flatten_base_projections(slate_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+
+        slate = models.Slate.objects.get(id=slate_id)
+        slate.flatten_base_projections()
+
+        task.status = 'success'
+        task.content = 'Projections flattened'
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem flattening projections: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def prepare_projections_for_build(build_id, task_id):
     task = None
 
@@ -2190,7 +2220,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
 
                 if player_name is None:
                     continue
-                
+
                 if row[headers.column_team] == 'JAX':
                     team = 'JAC'
                 elif row[headers.column_team] == 'LA':
