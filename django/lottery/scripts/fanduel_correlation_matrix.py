@@ -103,7 +103,7 @@ def find_qbs(qb=None):
             slate_game__isnull=False,
             slate__is_main_slate=True,
             fantasy_points__isnull=False,
-            fantasy_points__gte=20.0
+            fantasy_points__gte=25.0
         ).select_related('projection').annotate(proj=F('projection__projection'))
     else:
         qbs = models.SlatePlayer.objects.filter(
