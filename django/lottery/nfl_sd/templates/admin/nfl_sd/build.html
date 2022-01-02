@@ -1,0 +1,120 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_static admin_list %}
+{% load slate_build %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style type="text/css">
+header {
+    text-align: center;
+}
+.table { display:table; }
+.row   { display:table-row; }
+.cell  { display:table-cell; border:1px solid black; padding:3px; width:110px; }
+.exposure {
+    display: inline-block;
+    margin-right: 20px;
+}
+.action {
+    display: inline-block;
+    margin-right: 20px;
+}
+.value  { width:50px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <header class="header">
+        <h1>{{ build.slate.week }}</h1>
+        <h2>Status: {{ build.status }}
+        <h2>Progress: {{ build.pct_complete|to_percent:2 }}
+    </header>
+    <section class="dashboard-section">
+        <div class="action">{{ build.build_button }}</div>
+        <div class="action">{{ build.speed_test_button }}</div>
+    </section>
+    <section class="dashboard-section">
+        <h1>RB Matrix</h1>
+        {% rb_matrix build %}
+    </section>
+    <section class="dashboard-section">
+        <div class='exposure'>
+            <h1>QB Exposures</h1>
+            <div class="table">
+                <div class="row">
+                    <div class="cell">QB</div>
+                    <div class="cell value">Proj</div>
+                    <div class="cell value">OP</div>
+                    <div class="cell value">Exp</div>
+                </div>
+                {% for qb in qbs %}
+                <div class="row">
+                    <div class="cell">{{ qb.name }}</div>
+                    <div class="cell value">{{ qb.projection }}</div>
+                    <div class="cell value">{{ qb.ownership_projection|to_percent:2 }}</div>
+                    <div class="cell value">{{ qb.exposure|to_percent:2 }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class='exposure'>
+            <h1>WR Exposures</h1>
+            <div class="table">
+                <div class="row">
+                    <div class="cell">WR</div>
+                    <div class="cell value">Proj</div>
+                    <div class="cell value">OP</div>
+                    <div class="cell value">Exp</div>
+                </div>
+                {% for wr in wrs %}
+                <div class="row">
+                    <div class="cell">{{ wr.name }}</div>
+                    <div class="cell value">{{ wr.projection }}</div>
+                    <div class="cell value">{{ wr.ownership_projection|to_percent:2 }}</div>
+                    <div class="cell value">{{ wr.exposure|to_percent:2 }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class='exposure'>
+            <h1>TE Exposures</h1>
+            <div class="table">
+                <div class="row">
+                    <div class="cell">TE</div>
+                    <div class="cell value">Proj</div>
+                    <div class="cell value">OP</div>
+                    <div class="cell value">Exp</div>
+                </div>
+                {% for te in tes %}
+                <div class="row">
+                    <div class="cell">{{ te.name }}</div>
+                    <div class="cell value">{{ te.projection }}</div>
+                    <div class="cell value">{{ te.ownership_projection|to_percent:2 }}</div>
+                    <div class="cell value">{{ te.exposure|to_percent:2 }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class='exposure'>
+            <h1>DST Exposures</h1>
+            <div class="table">
+                <div class="row">
+                    <div class="cell">DST</div>
+                    <div class="cell value">Proj</div>
+                    <div class="cell value">OP</div>
+                    <div class="cell value">Exp</div>
+                </div>
+                {% for dst in dsts %}
+                <div class="row">
+                    <div class="cell">{{ dst.name }}</div>
+                    <div class="cell value">{{ dst.projection }}</div>
+                    <div class="cell value">{{ dst.ownership_projection|to_percent:2 }}</div>
+                    <div class="cell value">{{ dst.exposure|to_percent:2 }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
