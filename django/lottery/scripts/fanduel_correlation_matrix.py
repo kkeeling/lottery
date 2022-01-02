@@ -11,6 +11,7 @@ from nfl import models
 
 def run():
     qbs = find_qbs()
+    print(f'there are {qbs.count()} qbs')
     matrix = []
 
     for index, qb in enumerate(qbs):
@@ -84,7 +85,7 @@ def run():
     ])
 
     r = v.corr(method='pearson')
-    r.to_csv(f'data/r.csv')
+    r.to_csv(f'data/fd_r_prime.csv')
 
 
 def find_qbs(qb=None):
@@ -97,10 +98,12 @@ def find_qbs(qb=None):
         qbs = models.SlatePlayer.objects.filter(
             slate__site='fanduel',
             site_pos='QB',
-            projection__projection__gt=9.9,
-            fantasy_points__gt=4.9,
+            # projection__projection__gt=9.9,
+            # fantasy_points__gt=4.9,
             slate_game__isnull=False,
-            slate__is_main_slate=True
+            slate__is_main_slate=True,
+            fantasy_points__isnull=False,
+            fantasy_points__gte=20.0
         ).select_related('projection').annotate(proj=F('projection__projection'))
     else:
         qbs = models.SlatePlayer.objects.filter(
