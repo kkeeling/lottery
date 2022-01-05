@@ -1305,6 +1305,7 @@ class SlateBuildConfig(models.Model):
     ev_cutoff = models.DecimalField(max_digits=9, decimal_places=2, default=0.0)
     std_cutoff = models.DecimalField(max_digits=9, decimal_places=2, default=0.0)
     lineup_multiplier = models.SmallIntegerField(default=5)
+    lineup_pool_per_stack = models.SmallIntegerField(default=100)
     optimize_with_ceilings = models.BooleanField(default=False)
     qb_low_owned_threshold = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
     qb_high_owned_threshold = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
@@ -2653,7 +2654,7 @@ class SlateBuildStack(models.Model):
                 self.build.projections.all(),
                 self.build.slate.teams,
                 self.build.configuration,
-                self.count,
+                self.build.configuration.lineup_pool_per_stack,
                 groups=self.build.groups.filter(active=True)
             )
 
@@ -2700,7 +2701,11 @@ class SlateBuildStack(models.Model):
                 if self.build.configuration.use_simulation:
                     lineup.simulate()
 
-            self.times_used = count
+            # clean stack lineups
+            ordered_lineups = SlateBuildLineup.objects.filter(build=self.build, stack=self).order_by(f'-{self.build.configuration.lineup_removal_by}')
+            ordered_lineups.filter(id__in=ordered_lineups.values_list('pk', flat=True)[int(self.count):]).delete()
+
+            self.times_used = ordered_lineups.count()
             self.lineups_created = True
             self.save()
         except Exception as exc:

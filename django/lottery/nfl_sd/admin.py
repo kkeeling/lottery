@@ -1351,11 +1351,11 @@ class SlateBuildAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         my_urls = [
-            path('slatebuild-build/<int:pk>/', self.build, name="admin_slatebuild_build"),
-            path('slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_slatebuild_export"),
-            path('slatebuild-prepare-projections/<int:pk>/', self.prepare_projections, name="admin_slatebuild_prepare_projections"),
-            path('slatebuild-prepare-construction/<int:pk>/', self.prepare_construction, name="admin_slatebuild_prepare_construction"),
-            path('slatebuild-flatten_exposures/<int:pk>/', self.flatten_exposures, name="admin_slatebuild_flatten_exposure"),
+            path('nfl_sd-slatebuild-build/<int:pk>/', self.build, name="nfl_sd_admin_slatebuild_build"),
+            path('nfl_sd-slatebuild-export/<int:pk>/', self.export_for_upload, name="nfl_sd_admin_slatebuild_export"),
+            path('nfl_sd-slatebuild-prepare-projections/<int:pk>/', self.prepare_projections, name="nfl_sd_admin_slatebuild_prepare_projections"),
+            path('nfl_sd-slatebuild-prepare-construction/<int:pk>/', self.prepare_construction, name="nfl_sd_admin_slatebuild_prepare_construction"),
+            path('nfl_sd-slatebuild-flatten_exposures/<int:pk>/', self.flatten_exposures, name="nfl_sd_admin_slatebuild_flatten_exposure"),
         ]
         return my_urls + urls
     
