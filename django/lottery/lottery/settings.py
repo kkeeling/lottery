@@ -85,6 +85,7 @@ INSTALLED_APPS = (
     'fanduel',
     'yahoo',
     'nfl_sd',
+    'tennis',
 )
 
 MIDDLEWARE = (

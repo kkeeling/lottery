@@ -425,7 +425,7 @@ class SlateAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         my_urls = [
-            path('slate-simulate/<int:pk>/', self.simulate, name="admin_slate_simulate"),
+            path('nfl-sd-slate-simulate/<int:pk>/', self.simulate, name="admin_nfl_sd_slate_simulate"),
         ]
         return my_urls + urls
 
