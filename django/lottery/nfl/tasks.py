@@ -333,8 +333,8 @@ def prepare_projections_for_build(build_id, task_id):
 
         chain(
             update_projections_for_build.s(build_id),
-            find_in_play_for_build.s(build_id),
-            find_stack_only_for_build.s(build_id),
+            # find_in_play_for_build.s(build_id),
+            # find_stack_only_for_build.s(build_id),
             prepare_projections_for_build_complete.s(build_id, task.id)
         )()
         

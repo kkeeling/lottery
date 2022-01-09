@@ -1778,16 +1778,16 @@ class SlateBuild(models.Model):
         self.analyze_projections()
 
         # find players that are in-play
-        for projection in self.projections.all():
-            projection.find_in_play()
+        # for projection in self.projections.all():
+            # projection.find_in_play()
             # projection.set_rb_group_value()
         
         # find stack-only players
-        self.find_stack_only()
+        # self.find_stack_only()
 
         self.calc_projections_ready()
 
-        self.get_target_score()
+        # self.get_target_score()
 
     def get_target_score(self):
         top_projected_lineup = optimize.optimize(
@@ -1826,11 +1826,11 @@ class SlateBuild(models.Model):
                     else:
                         projection.balanced_value = round(float(projection.balanced_projection)/(player.salary/1000.0), 2)
                     projection.adjusted_opportunity = player.projection.adjusted_opportunity
-                    projection.rb_group = 0
-                    projection.in_play = False
-                    projection.stack_only = False
-                    projection.qb_stack_only = False
-                    projection.opp_qb_stack_only = False
+                    # projection.rb_group = 0
+                    # projection.in_play = False
+                    # projection.stack_only = False
+                    # projection.qb_stack_only = False
+                    # projection.opp_qb_stack_only = False
 
                     if projection.position == 'DST' or projection.position == 'D' or projection.position == 'DEF':
                         projection.max_exposure = self.configuration.max_dst_exposure * 100
