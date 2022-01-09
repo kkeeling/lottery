@@ -496,23 +496,23 @@ class SlateAdmin(admin.ModelAdmin):
 
         slate = get_object_or_404(models.Slate, pk=pk)
 
-        slate_match = slate.matches.all()[3]
-        tasks.simulate_match.delay(
-            slate_match.id,
-            BackgroundTask.objects.create(
-                name=f'Simulate {slate_match}',
-                user=request.user
-            ).id
-        )
-        # group([
-        #     tasks.simulate_match.si(
-        #         slate_match.id,
-        #         BackgroundTask.objects.create(
-        #             name=f'Simulate {slate_match}',
-        #             user=request.user
-        #         ).id
-        #     ) for slate_match in slate.matches.all()
-        # ])()
+        # slate_match = slate.matches.all()[4]
+        # tasks.simulate_match.delay(
+        #     slate_match.id,
+        #     BackgroundTask.objects.create(
+        #         name=f'Simulate {slate_match}',
+        #         user=request.user
+        #     ).id
+        # )
+        group([
+            tasks.simulate_match.si(
+                slate_match.id,
+                BackgroundTask.objects.create(
+                    name=f'Simulate {slate_match}',
+                    user=request.user
+                ).id
+            ) for slate_match in slate.matches.all()
+        ])()
 
         messages.add_message(
             request,

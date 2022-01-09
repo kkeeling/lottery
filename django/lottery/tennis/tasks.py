@@ -779,13 +779,38 @@ def simulate_match(match_id, task_id):
         p1 = player_1.full_name
         p2 = player_2.full_name
 
+        p1_1st_pct = player_1.get_first_in_rate()
+        p2_1st_pct = player_2.get_first_in_rate()
+        p1_1st_won = player_1.get_first_won_rate()
+        p2_1st_won = player_2.get_first_won_rate()
+        p1_2nd_won = player_1.get_second_won_rate()
+        p2_2nd_won = player_2.get_second_won_rate()
+        p1_break_pct = player_1.get_break_rate()
+        p2_break_pct = player_2.get_break_rate()
+        
+        p1_other = numpy.linalg.norm([
+            p1_1st_pct,
+            p1_1st_won,
+            p1_2nd_won,
+            p1_break_pct
+        ])
+        
+        p2_other = numpy.linalg.norm([
+            p2_1st_pct,
+            p2_1st_won,
+            p2_2nd_won,
+            p2_break_pct
+        ])
+
         a_prime = player_1.get_return_points_rate()
         b_prime = player_2.get_return_points_rate()
         a_diff = ((a_prime/avg_return_point_rate) - 1) * .75
         b_diff = ((b_prime/avg_return_point_rate) - 1) * .75
 
-        a = player_1.get_serve_points_rate() * (1 + (b_diff * -1))
-        b = player_2.get_serve_points_rate() * (1 + (a_diff * -1))
+        # a = player_1.get_serve_points_rate() * (1 + (b_diff * -1))
+        # b = player_2.get_serve_points_rate() * (1 + (a_diff * -1))
+        a = (player_1.get_serve_points_rate()/p1_other)# * (1 + (b_diff * -1))
+        b = (player_2.get_serve_points_rate()/p2_other)# * (1 + (a_diff * -1))
 
         p1_big_point = a
         p2_big_point = b
@@ -802,8 +827,8 @@ def simulate_match(match_id, task_id):
         p1_wins = 0
         p2_wins = 0
 
-        print(f'{p1} {a}')
-        print(f'{p2} {b}')
+        # print(f'{p1} {a}')
+        # print(f'{p2} {b}')
 
         for _ in range(0, 10000):
             completed_sets = []
@@ -851,7 +876,7 @@ def simulate_match(match_id, task_id):
             else:
                 p2_wins += 1
 
-        print(f'{p1} wins {p1_wins} times out of 10000.')
+        print(f'{p1} wins {p1_wins/100}%')
 
         task.status = 'success'
         task.content = f'Simulation of {slate_match} complete.'

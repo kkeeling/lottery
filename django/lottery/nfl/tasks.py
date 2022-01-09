@@ -2388,7 +2388,7 @@ def process_ownership_sheet(chained_results, sheet_id, task_id):
             )
 
             for row in csv_reader:
-                player_name = row[headers.column_player_name]
+                player_name = row[headers.column_player_name].strip()
                 if row[headers.column_team] == 'JAX':
                     team = 'JAC'
                 elif row[headers.column_team] == 'LA':

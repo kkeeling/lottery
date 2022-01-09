@@ -2886,6 +2886,7 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_awesemo_proj',
         'get_etr_proj',
         'get_tda_proj',
+        'get_median_sim_score',
         'get_exposure',
         'get_ownership_projection',
         'get_etr_ownership_projection',
@@ -3111,6 +3112,12 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
             return projs[0].projection
         return None
     get_rts_proj.short_description = 'RTS'
+
+    def get_median_sim_score(self, obj):
+        if obj.slate_player.projection.sim_scores and len(obj.slate_player.projection.sim_scores) > 0:
+            return numpy.median(obj.slate_player.projection.sim_scores)
+        return None
+    get_median_sim_score.short_description = 'sMU'
 
     def get_proj_percentile(self, obj):
         return '{:.2f}'.format(obj.proj_percentile * 100)
