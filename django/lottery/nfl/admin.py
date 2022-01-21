@@ -1554,7 +1554,7 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
 
 @admin.register(models.SlateBuildLineup)
 class SlateBuildLineupAdmin(admin.ModelAdmin):
-    list_per_page = 50
+    list_per_page = 25
     # paginator = NoCountPaginator
     list_display = (
         'stack',
