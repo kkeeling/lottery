@@ -296,12 +296,12 @@ def run():
     p2_break = player_2.get_return_points_rate()
 
 
-    best_of = 3
+    best_of = 5
     sets_to_win = math.ceil(best_of/2)
     p1_wins = 0
     p2_wins = 0
 
-    for _ in range(0, 1):
+    for _ in range(0, 10000):
         completed_sets = []
         S = 0
         gamesMatch = 0

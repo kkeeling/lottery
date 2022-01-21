@@ -499,6 +499,9 @@ def simulate_match(match_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         slate_match = models.SlateMatch.objects.get(id=match_id)
+        common_opponents = models.Player.objects.filter(
+            id__in=slate_match.common_opponents(slate_match.surface)
+        )
 
         def getBigPointProb(server):
             if server==p1:
@@ -578,6 +581,10 @@ def simulate_match(match_id, task_id):
                 # print(display_server+"-"+display_returner+"|"+str(completed)+"["+str(server_games)+":"+str(returner_games)+"]")
 
         def player_serve(server, returner, server_prob, returner_prob, gamesMatch, S, server_points_match, returner_points_match, server_games, returner_games, server_pointsGame, returner_pointsGame, completed_sets):
+            ace = False
+            double_fault = False
+            broken = False
+
             if isBigPoint(server_pointsGame, returner_pointsGame, False):
                 server_prob = getBigPointProb(server)
             if random() < server_prob:
@@ -586,15 +593,18 @@ def simulate_match(match_id, task_id):
                 server_pointsGame += 1
                 server_points_match += 1
 
-                # if server == p1 and random() < p1_ace:
-                #     print(f'{p1} ACES!!!')
-                # elif server == p2 and random() < p2_ace:
-                #     print(f'{p2} ACES!!!')
+                if (server == p1 and random() < p1_ace) or (server == p2 and random() < p2_ace):
+                    ace = True
             else:
                 # print(server+" ", end = "")
                 getScore(server_pointsGame, returner_pointsGame, server_games, returner_games, completed_sets, False)
                 returner_pointsGame += 1
                 returner_points_match += 1
+
+                if (server == p1 and random() < p1_df) or (server == p2 and random() < p2_df):
+                    double_fault = True
+            
+            # If this point ended a game, calculate game values
             if max(server_pointsGame, returner_pointsGame) >= 4 and abs(server_pointsGame - returner_pointsGame) > 1:
                 # print("\t", server + ":", str(server_pointsGame) + ",", returner + ":", returner_pointsGame, end = "")
                 if server_pointsGame > returner_pointsGame:
@@ -602,35 +612,54 @@ def simulate_match(match_id, task_id):
                     # print()
                 else:
                     returner_games += 1
-                    # print(" -- " + returner, "broke")
+                    broken = True
                 gamesMatch += 1
-                return server_games, returner_games, gamesMatch, S, server_points_match, returner_points_match, server_pointsGame, returner_pointsGame
+                return server_games, returner_games, gamesMatch, S, server_points_match, returner_points_match, server_pointsGame, returner_pointsGame, ace, double_fault, broken
 
-            return server_games, returner_games, gamesMatch, S, server_points_match, returner_points_match, server_pointsGame, returner_pointsGame
+            return server_games, returner_games, gamesMatch, S, server_points_match, returner_points_match, server_pointsGame, returner_pointsGame, ace, double_fault, broken
 
         def simulateSet(a, b, gamesMatch, S, pointsMatch1, pointsMatch2, completed_sets):
             S += 1
             gamesSet1 = 0
             gamesSet2 = 0
+            breaks1, breaks2 = 0, 0
+            aces1, aces2 = 0, 0
+            doubles1, doubles2 = 0, 0
             while (max(gamesSet1, gamesSet2) < 6 or abs(gamesSet1 - gamesSet2) < 2) and gamesSet1 + gamesSet2 < 12: #Conditions to play another Game in this Set
                 pointsGame1 = 0
                 pointsGame2 = 0
                 #player 1 serves
                 while gamesMatch % 2 == 0:
-                    gamesSet1, gamesSet2, gamesMatch, S, pointsMatch1, pointsMatch2, pointsGame1, pointsGame2 = player_serve(p1, p2, a, b, gamesMatch, S, pointsMatch1, pointsMatch2, gamesSet1, gamesSet2, pointsGame1, pointsGame2, completed_sets)
+                    gamesSet1, gamesSet2, gamesMatch, S, pointsMatch1, pointsMatch2, pointsGame1, pointsGame2, ace, double_fault, broken = player_serve(p1, p2, a, b, gamesMatch, S, pointsMatch1, pointsMatch2, gamesSet1, gamesSet2, pointsGame1, pointsGame2, completed_sets)
+                    if ace:
+                        aces1 += 1
+                    if double_fault:
+                        doubles1 += 1
+                    if broken:
+                        breaks2 += 1
+                    
                 pointsGame1 = 0
                 pointsGame2 = 0
                 #player 2 serves, but we also incorporate in logic to end the set
                 while gamesMatch % 2 == 1 and (max(gamesSet1, gamesSet2) < 6 or abs(gamesSet1 - gamesSet2) < 2) and gamesSet1 + gamesSet2 < 12:
-                    gamesSet2, gamesSet1, gamesMatch, S, pointsMatch2, pointsMatch1, pointsGame2, pointsGame1 = player_serve(p2, p1, b, a, gamesMatch, S, pointsMatch2, pointsMatch1, gamesSet2, gamesSet1, pointsGame2, pointsGame1, completed_sets)
+                    gamesSet2, gamesSet1, gamesMatch, S, pointsMatch2, pointsMatch1, pointsGame2, pointsGame1, ace, double_fault, broken = player_serve(p2, p1, b, a, gamesMatch, S, pointsMatch2, pointsMatch1, gamesSet2, gamesSet1, pointsGame2, pointsGame1, completed_sets)
+                    if ace:
+                        aces2 += 1
+                    if double_fault:
+                        doubles2 += 1
+                    if broken:
+                        breaks1 += 1
             #at 6 games all we go to a tie breaker
             # if gamesSet1 == 6 and gamesSet2 == 6:
             #     print("Set", S, "is 6-6 and going to a Tiebreaker.")
             
-            return gamesSet1, gamesSet2, gamesMatch, S, pointsMatch1, pointsMatch2
+            return gamesSet1, gamesSet2, gamesMatch, S, pointsMatch1, pointsMatch2, aces1, aces2, doubles1, doubles2, breaks1, breaks2
 
         def simulateTiebreaker(player1, player2, a, b, gamesMatch, pointsMatch1, pointsMatch2, completed_sets):
-            pointsTie1, pointsTie2 = 0, 0           
+            pointsTie1, pointsTie2 = 0, 0
+            aces1, aces2 = 0, 0
+            doubles1, doubles2 = 0, 0
+
             while max(pointsTie1, pointsTie2) < 7 or abs(pointsTie1 - pointsTie2) < 2:
                 #player 1 will server first
                 if gamesMatch % 2 == 0:
@@ -644,12 +673,15 @@ def simulate_match(match_id, task_id):
                             pointsTie1 += 1
                             pointsMatch1 += 1
 
-                            # if random() < p1_ace:
-                            #     print(f'{p1} ACES!!!')
+                            if random() < p1_ace:
+                                aces1 += 1
                         else:
                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
                             pointsTie2 += 1
                             pointsMatch2 += 1
+
+                            if random() < p1_df:
+                                doubles1 += 1
                         if max(pointsTie1, pointsTie2) >= 7 and abs(pointsTie1 - pointsTie2) > 1:
                             # print("\t", p1 + ":", str(pointsTie1) + ",", p2 + ":", pointsTie2)
                             gamesMatch += 1
@@ -664,12 +696,15 @@ def simulate_match(match_id, task_id):
                             pointsTie2 += 1
                             pointsMatch2 += 1
 
-                            # if random() < p2_ace:
-                            #     print(f'{p2} ACES!!!')
+                            if random() < p2_ace:
+                                aces2 += 1
                         else:
                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
                             pointsTie1 += 1
                             pointsMatch1 += 1
+
+                            if random() < p2_df:
+                                doubles2 += 1
                         if max(pointsTie1, pointsTie2) >= 7 and abs(pointsTie1 - pointsTie2) > 1:
                             # print("\t", p1 + ":", str(pointsTie1) + ",", p2 + ":", pointsTie2)
                             break
@@ -685,10 +720,16 @@ def simulate_match(match_id, task_id):
                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
                             pointsTie1 += 1
                             pointsMatch1 += 1
+
+                            if random() < p1_ace:
+                                aces1 += 1
                         else:
                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
                             pointsTie2 += 1
                             pointsMatch2 += 1
+
+                            if random() < p1_df:
+                                doubles1 += 1
                         # if max(pointsTie1, pointsTie2) >= 7 and abs(pointsTie1 - pointsTie2) > 1:
                         #     print("\t", p1 + ":", str(pointsTie1) + ",", p2 + ":", pointsTie2)
                         #     break 
@@ -701,15 +742,21 @@ def simulate_match(match_id, task_id):
                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
                             pointsTie2 += 1
                             pointsMatch2 += 1
+
+                            if random() < p2_ace:
+                                aces2 += 1
                         else:
                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
                             pointsTie1 += 1
                             pointsMatch1 += 1
+
+                            if random() < p2_df:
+                                doubles2 += 1
                         # if max(pointsTie1, pointsTie2) >= 7 and abs(pointsTie1 - pointsTie2) > 1:
                         #     print("\t", p1 + ":", str(pointsTie1) + ",", p2 + ":", pointsTie2)
                         #     break                             
             gamesMatch += 1
-            return pointsTie1, pointsTie2, gamesMatch, pointsMatch1, pointsMatch2
+            return pointsTie1, pointsTie2, gamesMatch, pointsMatch1, pointsMatch2, aces1, aces2, doubles1, doubles2
 
         def printSetMatchSummary(p1, p2, gamesSet1, gamesSet2, S, pointsTie1, pointsTie2, setsMatch1, setsMatch2):
             if gamesSet1 > gamesSet2:
@@ -736,29 +783,6 @@ def simulate_match(match_id, task_id):
                 # print(p2.upper(), "(" + str(b) + ")", "beat", p1, "(" + str(a) + ") by", setsMatch2, "Sets to", str(setsMatch1) + ".")
                 return p2
 
-        last_52_weeks = models.Match.objects.filter(
-            winner__tour='atp',
-            surface='Hard',
-            tourney_date__gte=datetime.date.today() - datetime.timedelta(weeks=52),
-            tourney_date__lte=datetime.date.today()
-        )
-        w_serve_points_data = last_52_weeks.exclude(
-            Q(Q(w_svpt=None) | Q(w_1stWon=None) | Q(w_2ndWon=None))
-        ).aggregate(
-            num_points=Sum('w_svpt'),
-            num_1stWon=Sum('w_1stWon'),
-            num_2ndWon=Sum('w_2ndWon')
-        )
-        l_serve_points_data = last_52_weeks.exclude(
-            Q(Q(l_svpt=None) | Q(l_1stWon=None) | Q(l_2ndWon=None))
-        ).aggregate(
-            num_points=Sum('l_svpt'),
-            num_1stWon=Sum('l_1stWon'),
-            num_2ndWon=Sum('l_2ndWon')
-        )
-        avg_serve_point_rate = round((w_serve_points_data.get('num_1stWon') + w_serve_points_data.get('num_2ndWon') + l_serve_points_data.get('num_1stWon') + l_serve_points_data.get('num_2ndWon')) / (w_serve_points_data.get('num_points') + l_serve_points_data.get('num_points')), 4)
-        avg_return_point_rate = 1 - avg_serve_point_rate
-
         #initialize player one and two
         #a is ps1 and b is ps2
         #p1_big_point and p2_big_point are the probability
@@ -779,56 +803,58 @@ def simulate_match(match_id, task_id):
         p1 = player_1.full_name
         p2 = player_2.full_name
 
-        p1_1st_pct = player_1.get_first_in_rate()
-        p2_1st_pct = player_2.get_first_in_rate()
-        p1_1st_won = player_1.get_first_won_rate()
-        p2_1st_won = player_2.get_first_won_rate()
-        p1_2nd_won = player_1.get_second_won_rate()
-        p2_2nd_won = player_2.get_second_won_rate()
-        p1_break_pct = player_1.get_break_rate()
-        p2_break_pct = player_2.get_break_rate()
-        
-        p1_other = numpy.linalg.norm([
-            p1_1st_pct,
-            p1_1st_won,
-            p1_2nd_won,
-            p1_break_pct
-        ])
-        
-        p2_other = numpy.linalg.norm([
-            p2_1st_pct,
-            p2_1st_won,
-            p2_2nd_won,
-            p2_break_pct
-        ])
+        if common_opponents.count() >= 3:
+            a_points_won = [
+                player_1.get_points_won_rate(
+                    vs_opponent=common_opponent,
+                    timeframe_in_weeks=52*2,
+                    on_surface=slate_match.surface
+                ) for common_opponent in common_opponents        
+            ]
+            b_points_won = [
+                player_2.get_points_won_rate(
+                    vs_opponent=common_opponent,
+                    timeframe_in_weeks=52*2,
+                    on_surface=slate_match.surface
+                ) for common_opponent in common_opponents        
+            ]
 
-        a_prime = player_1.get_return_points_rate()
-        b_prime = player_2.get_return_points_rate()
-        a_diff = ((a_prime/avg_return_point_rate) - 1) * .75
-        b_diff = ((b_prime/avg_return_point_rate) - 1) * .75
+            spw_a = [d.get('spw') for d in a_points_won if d is not None]
+            spw_b = [d.get('spw') for d in b_points_won if d is not None]
 
-        # a = player_1.get_serve_points_rate() * (1 + (b_diff * -1))
-        # b = player_2.get_serve_points_rate() * (1 + (a_diff * -1))
-        a = (player_1.get_serve_points_rate()/p1_other)# * (1 + (b_diff * -1))
-        b = (player_2.get_serve_points_rate()/p2_other)# * (1 + (a_diff * -1))
+            a = numpy.average(spw_a)
+            b = numpy.average(spw_b)
+
+            p1_ace = player_1.get_ace_pct()
+            p2_ace = player_2.get_ace_pct()
+            p1_df = player_1.get_df_pct()
+            p2_df = player_2.get_df_pct()
+        else:
+            a = player_1.get_points_won_rate(
+                timeframe_in_weeks=52*2,
+                on_surface=slate_match.surface
+            ).get('spw')
+            b = player_2.get_points_won_rate(
+                timeframe_in_weeks=52*2,
+                on_surface=slate_match.surface
+            ).get('spw')
+
+            p1_ace = player_1.get_ace_pct(timeframe=52*2)
+            p2_ace = player_2.get_ace_pct(timeframe=52*2)
+            p1_df = player_1.get_df_pct(timeframe=52*2)
+            p2_df = player_2.get_df_pct(timeframe=52*2)
 
         p1_big_point = a
         p2_big_point = b
-        p1_ace = player_1.get_ace_pct()
-        p2_ace = player_2.get_ace_pct()
-        p1_df = player_1.get_df_pct()
-        p2_df = player_2.get_df_pct()
-        p1_break = player_1.get_return_points_rate()
-        p2_break = player_2.get_return_points_rate()
 
-
-        best_of = 3
+        best_of = slate_match.best_of
         sets_to_win = math.ceil(best_of/2)
         p1_wins = 0
         p2_wins = 0
-
-        # print(f'{p1} {a}')
-        # print(f'{p2} {b}')
+        p1_scores = []
+        p2_scores = []
+        w_p1_scores = []
+        w_p2_scores = []
 
         for _ in range(0, 10000):
             completed_sets = []
@@ -840,23 +866,43 @@ def simulate_match(match_id, task_id):
             #for example, setsMatch1 is sets won by player1 and
             #setsMatch2 is sets won by player2
             pointsMatch1, pointsMatch2 = 0, 0
+            gamesMatch1, gamesMatch2 = 0, 0
             setsMatch1, setsMatch2 = 0, 0
             pointsTie1, pointsTie2 = 0, 0
             pointsGame1, pointsGame2 = 0, 0
-            breaks1, breaks2 = 0, 0
-            aces1, aces2 = 0, 0
-            doubles1, doubles2 = 0, 0
+            total_breaks1, total_breaks2 = 0, 0
+            total_aces1, total_aces2 = 0, 0
+            total_doubles1, total_doubles2 = 0, 0
+            clean_sets1, clean_sets2 = 0, 0
 
             while S < best_of and max(setsMatch1, setsMatch2) < sets_to_win:
-                gamesSet1, gamesSet2, gamesMatch, S, pointsMatch1, pointsMatch2 = simulateSet(a, b, gamesMatch, S, 
-                                                                                            pointsMatch1, pointsMatch2, 
-                                                                                            completed_sets)
+                gamesSet1, gamesSet2, gamesMatch, S, pointsMatch1, pointsMatch2, aces1, aces2, doubles1, doubles2, breaks1, breaks2 = simulateSet(a, b, gamesMatch, S, 
+                    pointsMatch1, pointsMatch2, 
+                    completed_sets
+                )
+                total_aces1 += aces1
+                total_aces2 += aces2
+                total_doubles1 += doubles1
+                total_doubles2 += doubles2
+                total_breaks1 += breaks1
+                total_breaks2 += breaks2
+
+                if gamesSet1 == 0:
+                    clean_sets2 += 1
+                elif gamesSet2 == 0:
+                    clean_sets1 += 1
+
                 # print()
                 if gamesSet1 == 6 and gamesSet2 == 6:
-                    pointsTie1, pointsTie2, gamesMatch, pointsMatch1, pointsMatch2 = simulateTiebreaker(p1, p2, a, b, 
-                                                                                                        gamesMatch, pointsMatch1, 
-                                                                                                        pointsMatch2, 
-                                                                                                        completed_sets)
+                    pointsTie1, pointsTie2, gamesMatch, pointsMatch1, pointsMatch2, aces1, aces2, doubles1, doubles2 = simulateTiebreaker(p1, p2, a, b, 
+                        gamesMatch, pointsMatch1, 
+                        pointsMatch2, 
+                        completed_sets
+                    )
+                    total_aces1 += aces1
+                    total_aces2 += aces2
+                    total_doubles1 += doubles1
+                    total_doubles2 += doubles2
                 
                 setsMatch1, setsMatch2 = printSetMatchSummary(p1, p2, gamesSet1, gamesSet2, 
                                                             S, pointsTie1, pointsTie2, 
@@ -870,13 +916,87 @@ def simulate_match(match_id, task_id):
                 else:
                     completed_sets.append([gamesSet1, gamesSet2])
 
+                gamesMatch1 += gamesSet1
+                gamesMatch2 += gamesSet2
+
+            scoring = models.SITE_SCORING.get(slate_match.slate.site).get(str(slate_match.best_of))
             winner = pointsMatchSummary(p1, p2, setsMatch1, setsMatch2, pointsMatch1, pointsMatch2)
+            
+            # print(scoring)
+            # print(f'gamesMatch1 = {gamesMatch1}')
+            # print(f'gamesMatch2 = {gamesMatch2}')
+            # print(f'setsMatch1 = {setsMatch1}')
+            # print(f'setsMatch2 = {setsMatch2}')
+            # print(f'total_aces1 = {total_aces1}')
+            # print(f'total_aces2 = {total_aces2}')
+            # print(f'total_doubles1 = {total_doubles1}')
+            # print(f'total_doubles2 = {total_doubles2}')
+            # print(f'total_breaks1 = {total_breaks1}')
+            # print(f'total_breaks2 = {total_breaks2}')
+
+            # base scoring
+            score1 = scoring.get('match_played') + (scoring.get('game_won') * gamesMatch1) + (scoring.get('game_lost') * gamesMatch2) + (scoring.get('set_won') * setsMatch1) + (scoring.get('set_lost') * setsMatch2) + (scoring.get('ace') * total_aces1) + (scoring.get('double_fault') * total_doubles1) + (scoring.get('break') * total_breaks1)
+            score2 = scoring.get('match_played') + (scoring.get('game_won') * gamesMatch2) + (scoring.get('game_lost') * gamesMatch1) + (scoring.get('set_won') * setsMatch2) + (scoring.get('set_lost') * setsMatch1) + (scoring.get('ace') * total_aces2) + (scoring.get('double_fault') * total_doubles2) + (scoring.get('break') * total_breaks2)
+
+            # winner scoring
             if winner == p1:
                 p1_wins += 1
+                score1 += scoring.get('match_won')
+
+                if setsMatch2 == 0:
+                    score1 += scoring.get('straight_sets')
             else:
                 p2_wins += 1
+                score2 += scoring.get('match_won')
 
-        print(f'{p1} wins {p1_wins/100}%')
+                if setsMatch1 == 0:
+                    score2 += scoring.get('straight_sets')
+                
+            # bonuses
+            score1 += scoring.get('clean_set') * clean_sets1
+            score2 += scoring.get('clean_set') * clean_sets2
+
+            if total_doubles1 == 0:
+                score1 += scoring.get('no_double_faults')
+            if total_doubles2 == 0:
+                score2 += scoring.get('no_double_faults')
+
+            if total_aces1 >= scoring.get('aces_threshold'):
+                score1 += scoring.get('aces')
+            if total_aces2 >= scoring.get('aces_threshold'):
+                score2 += scoring.get('aces')
+
+            p1_scores.append(score1)
+            p2_scores.append(score2)
+
+            if winner == p1:
+                w_p1_scores.append(score1)
+            else:
+                w_p2_scores.append(score2)
+
+        projection1 = models.SlatePlayerProjection.objects.get(
+            slate_player__slate=slate_match.slate,
+            slate_player__name=alias1.get_alias(slate_match.slate.site)
+        )
+        projection1.sim_scores = p1_scores
+        projection1.w_sim_scores = w_p1_scores
+        projection1.projection = numpy.median(p1_scores)
+        projection1.ceiling = numpy.percentile([float(i) for i in p1_scores], 90)
+        projection1.s75 = numpy.percentile([float(i) for i in p1_scores], 75)
+        projection1.sim_win_pct = p1_wins/10000
+        projection1.save()
+        
+        projection2 = models.SlatePlayerProjection.objects.get(
+            slate_player__slate=slate_match.slate,
+            slate_player__name=alias2.get_alias(slate_match.slate.site)
+        )
+        projection2.sim_scores = p2_scores
+        projection2.w_sim_scores = w_p2_scores
+        projection2.projection = numpy.median(p2_scores)
+        projection2.ceiling = numpy.percentile([float(i) for i in p2_scores], 90)
+        projection2.s75 = numpy.percentile([float(i) for i in p2_scores], 75)
+        projection2.sim_win_pct = p2_wins/10000
+        projection2.save()
 
         task.status = 'success'
         task.content = f'Simulation of {slate_match} complete.'
@@ -889,3 +1009,227 @@ def simulate_match(match_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def calculate_target_scores(slate_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
+        all_scores = numpy.array(
+            [
+                p.sim_scores for p in models.SlatePlayerProjection.objects.filter(
+                    slate_player__slate=slate
+                )
+            ]
+        )
+
+        n = 8
+        df_scores = pandas.DataFrame(all_scores, dtype=float)
+        top_scores = df_scores.max(axis = 0)
+        target_scores = [df_scores[c].nlargest(n).values[n-1] for c in df_scores.columns]
+
+        slate.top_score = numpy.mean(top_scores.to_list())
+        slate.target_score = numpy.mean(target_scores)
+        slate.save()
+        
+        task.status = 'success'
+        task.content = f'Target scores calculated'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem calculating target scores: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def build_lineups(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        build = models.SlateBuild.objects.get(id=build_id)
+        lineups = optimize.optimize(build.slate.site, models.SlatePlayerProjection.objects.filter(slate_player__slate=build.slate), build.configuration, build.total_lineups * build.configuration.lineup_multiplier)
+
+        for lineup in lineups:
+            if build.slate.site == 'draftkings':
+                lineup = models.SlateBuildLineup.objects.create(
+                    build=build,
+                    player_1=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[0].id, slate_player__slate=build.slate),
+                    player_2=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[1].id, slate_player__slate=build.slate),
+                    player_3=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[2].id, slate_player__slate=build.slate),
+                    player_4=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[3].id, slate_player__slate=build.slate),
+                    player_5=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[4].id, slate_player__slate=build.slate),
+                    player_6=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[5].id, slate_player__slate=build.slate),
+                    total_salary=lineup.salary_costs
+                )
+                # lineup = models.SlateBuildLineup.objects.create(
+                #     build=build,
+                #     player_1=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[0].name, slate_player__slate=build.slate),
+                #     player_2=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[1].name, slate_player__slate=build.slate),
+                #     player_3=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[2].name, slate_player__slate=build.slate),
+                #     player_4=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[3].name, slate_player__slate=build.slate),
+                #     player_5=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[4].name, slate_player__slate=build.slate),
+                #     player_6=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[5].name, slate_player__slate=build.slate),
+                #     total_salary=lineup.spent()
+                # )
+                lineup.implied_win_pct = lineup.player_1.implied_win_pct * lineup.player_2.implied_win_pct * lineup.player_3.implied_win_pct * lineup.player_4.implied_win_pct * lineup.player_5.implied_win_pct * lineup.player_6.implied_win_pct
+                lineup.save()
+
+                lineup.simulate()
+            else:
+                raise Exception(f'{build.slate.site} is not available for building yet.')
+        
+        task.status = 'success'
+        task.content = f'{build.lineups.all().count()} lineups created.'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem building lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def clean_lineups(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        build = models.SlateBuild.objects.get(id=build_id)
+
+        ordered_lineups = build.lineups.all().order_by(f'-{build.configuration.clean_lineups_by}')
+        ordered_lineups.filter(id__in=ordered_lineups.values_list('pk', flat=True)[int(build.total_lineups):]).delete()
+        
+        task.status = 'success'
+        task.content = 'Lineups cleaned.'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem cleaning lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def calculate_exposures(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        build = models.SlateBuild.objects.get(id=build_id)
+        players = models.SlatePlayerProjection.objects.filter(
+            slate_player__slate=build.slate
+        )
+
+        for player in players:
+            exposure, _ = models.SlateBuildPlayerExposure.objects.get_or_create(
+                build=build,
+                player=player
+            )
+            exposure.exposure = build.lineups.filter(
+                Q(
+                    Q(player_1=player) | 
+                    Q(player_2=player) | 
+                    Q(player_3=player) | 
+                    Q(player_4=player) | 
+                    Q(player_5=player) | 
+                    Q(player_6=player)
+                )
+            ).count() / build.lineups.all().count()
+            exposure.save()
+        
+        task.status = 'success'
+        task.content = 'Exposures calculated.'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem calculating exposures: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def export_build_for_upload(build_id, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        build = models.SlateBuild.objects.get(pk=build_id)
+
+        with open(result_path, 'w') as temp_csv:
+            build_writer = csv.writer(temp_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            build_writer.writerow(['P', 'P', 'P', 'P', 'P', 'P'])
+
+            lineups = build.lineups.all()
+
+            for lineup in lineups:
+                if build.slate.site == 'draftkings':
+                    row = [
+                        f'{lineup.player_1.name} ({lineup.player_1.slate_player.slate_player_id})',
+                        f'{lineup.player_2.name} ({lineup.player_2.slate_player.slate_player_id})',
+                        f'{lineup.player_3.name} ({lineup.player_3.slate_player.slate_player_id})',
+                        f'{lineup.player_4.name} ({lineup.player_4.slate_player.slate_player_id})',
+                        f'{lineup.player_5.name} ({lineup.player_5.slate_player.slate_player_id})',
+                        f'{lineup.player_6.name} ({lineup.player_6.slate_player.slate_player_id})'
+                    ]
+                else:
+                    raise Exception('{} is not a supported dfs site.'.format(build.slate.site)) 
+
+                build_writer.writerow(row)
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+

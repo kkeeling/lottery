@@ -1,14 +1,17 @@
 import csv
 import datetime
+import os
 import traceback
 
 import requests
 
 from celery import shared_task, chord, group, chain
 
+from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
-from django.db.models import Q
+from django.db.models import Q, F
+from django.db.models.aggregates import Avg
 from django.http import HttpResponse
 from django.shortcuts import redirect, get_object_or_404
 from django.urls import path
@@ -117,19 +120,18 @@ class SlateMatchInline(admin.TabularInline):
     extra = 0
     fields = (
         'match',
+        'surface',
+        'best_of',
+        'common_opponents'
     )
     readonly_fields = (
         'match',
+        'common_opponents'
     )
 
-
-# class SlatePlayerProjectionInline(admin.TabularInline):
-#     model = models.SlatePlayerProjection
-
-
-# class SlateBuildGroupPlayerInline(admin.TabularInline):
-#     model = models.SlateBuildGroupPlayer
-#     raw_id_fields = ['slate_player']
+    def common_opponents(self, obj):
+        return models.Player.objects.filter(id__in=obj.common_opponents(obj.surface)).count()
+    common_opponents.short_description = 'Common Opponents'
 
 
 @admin.register(models.Player)
@@ -217,19 +219,6 @@ class PlayerAdmin(admin.ModelAdmin):
             return '{}%'.format(round(rate*100.0, 2))
         return rate
     get_break_rate.short_description = 'brk'
-
-
-# @admin.register(models.RankingHistory)
-# class RankingHistoryAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'player',
-#         'ranking',
-#         'ranking_date',
-#     )
-
-#     list_filter = (
-#         'player__tour',
-#     )
 
 
 @admin.register(models.Match)
@@ -405,7 +394,7 @@ class SlateAdmin(admin.ModelAdmin):
     inlines = [
         SlateMatchInline
     ]
-    # actions = ['initialize', 'get_pinn_odds', 'simulate_slate']
+    actions = ['get_pinn_odds']
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -473,9 +462,26 @@ class SlateAdmin(admin.ModelAdmin):
     initialize.short_description = 'Initialize selected slates'
 
     def get_pinn_odds(self, request, queryset):
-        for slate in queryset:
-            slate.get_pinn_odds()
-    get_pinn_odds.short_description = 'Get odds for selected slates'
+        group(
+            [
+                chain(
+                    tasks.get_pinn_odds.si(
+                        BackgroundTask.objects.create(
+                            name='Get Pinnacle Odds',
+                            user=request.user
+                        ).id
+                    ),
+                    tasks.find_slate_matches.si(
+                        slate.id,
+                        BackgroundTask.objects.create(
+                            name='Find Slate matches',
+                            user=request.user
+                        ).id
+                    )
+                ) for slate in queryset
+            ]
+        )()
+    get_pinn_odds.short_description = 'Update odds for selected slates'
 
     def project_players(self, request, queryset):
         for slate in queryset:
@@ -495,16 +501,7 @@ class SlateAdmin(admin.ModelAdmin):
         )
 
         slate = get_object_or_404(models.Slate, pk=pk)
-
-        # slate_match = slate.matches.all()[4]
-        # tasks.simulate_match.delay(
-        #     slate_match.id,
-        #     BackgroundTask.objects.create(
-        #         name=f'Simulate {slate_match}',
-        #         user=request.user
-        #     ).id
-        # )
-        group([
+        chord([
             tasks.simulate_match.si(
                 slate_match.id,
                 BackgroundTask.objects.create(
@@ -512,7 +509,14 @@ class SlateAdmin(admin.ModelAdmin):
                     user=request.user
                 ).id
             ) for slate_match in slate.matches.all()
-        ])()
+        ], tasks.calculate_target_scores.si(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name=f'Calculate target scores for {slate}',
+                    user=request.user
+                ).id
+
+        ))()
 
         messages.add_message(
             request,
@@ -522,545 +526,259 @@ class SlateAdmin(admin.ModelAdmin):
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
 
-    def build(self, request, queryset):
-        for slate in queryset:
-            slate.build()
-    build.short_description = 'Build selected slates'
-
-    def find_in_play(self, request, queryset):
-        for slate in queryset:
-            slate.find_in_play()
-    find_in_play.short_description = 'Find in play for selected slate'
-
-
-# @admin.register(models.SlatePlayer)
-# class SlatePlayerAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'name',
-#         'slate',
-#         'salary',
-#         'surface',
-#         'well_known_player',
-#         'fantasy_points',
-#         'player',
-#         'withdrew',
-#         'is_replacement_player',
-#         'opponent',
-#         'times_used_in_sim',
-#     )
-#     list_editable = (
-#         'surface',
-#         'well_known_player',
-#         'fantasy_points',
-#         'opponent',
-#     )
-#     search_fields = ('name',)
-#     list_filter = (
-#         ('slate__name', DropdownFilter),
-#     )
-#     raw_id_fields = (
-#         'player', 
-#         'opponent',
-#     )
-#     actions = ['find_opponents', 'withdraw_player']
-#     inlines = [SlatePlayerProjectionInline]
-
-#     def find_opponents(self, request, queryset):
-#         for slate_player in queryset:
-#             slate_player.find_opponent()
-
-#     def withdraw_player(self, request, queryset):
-#         for slate_player in queryset:
-#             slate_player.withdraw_player()
-
-
-# @admin.register(models.SlatePlayerImportSheet)
-# class SlatePlayerImportSheetAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'slate',
-#     )
-#     actions = ['save_again']
-
-#     def save_again(self, request, queryset):
-#         for sheet in queryset:
-#             sheet.save()
-#     save_again.short_description = 'Re-import selected sheets'
-
-
-# class SlateBuildAdmin(admin.ModelAdmin):
-#     date_hierarchy = 'slate__datetime'
-#     list_display = (
-#         'created',
-#         'slate',
-#         'used_in_contests',
-#         'configuration',
-#         'total_lineups',
-#         'get_groups_link',
-#         'num_lineups_created',
-#         'get_lineups_link',
-#         'get_exposures_link',
-#         'avg_sal',
-#         'total_exposure',
-#         'field_avg_sal',
-#         'opt_avg_sal',
-#         'sugg_avg_sal',
-#         'tag',
-#         'notes'
-#     )
-#     list_editable = (
-#         'used_in_contests',
-#         'configuration',
-#         'total_lineups',
-#         'slate',
-#         'notes',
-#         'tag'
-#     )
-#     list_filter = (
-#         ('configuration', RelatedDropdownFilter),
-#         ('slate__name', DropdownFilter),
-#         'used_in_contests',
-#         'tag'
-#     )
-#     search_fields = ('slate__name',)
-#     actions = [
-#         'create_default_groups',
-#         'build', 
-#     ]
-
-#     def create_default_groups(self, request, queryset):
-#         for b in queryset:
-#             b.create_default_groups()
-#     create_default_groups.short_description = 'Create default groups for selected builds'
-
-#     def build(self, request, queryset):
-#         for b in queryset:
-#             b.build()
-#     build.short_description = 'Generate lineups for selected builds'
-
-#     def get_groups_link(self, obj):
-#         if obj.num_groups > 0:
-#             return mark_safe('<a href="/admin/tennis/slatebuildgroup/?build__id__exact={}">Groups</a>'.format(obj.id))
-#         return 'None'
-#     get_groups_link.short_description = 'Groups'
-
-#     def get_lineups_link(self, obj):
-#         if obj.num_lineups_created() > 0:
-#             return mark_safe('<a href="/admin/tennis/slatebuildlineup/?build__id__exact={}">Lineups</a>'.format(obj.id))
-#         return 'None'
-#     get_lineups_link.short_description = 'Lineups'
-
-#     def get_exposures_link(self, obj):
-#         if obj.num_lineups_created() > 0:
-#             return mark_safe('<a href="/admin/tennis/slateplayerbuildexposure/?build_id={}">Exp</a>'.format(obj.id))
-#         return 'None'
-#     get_exposures_link.short_description = 'Exp'
-# tagulous.admin.register(models.SlateBuild, SlateBuildAdmin)
-
-
-# @admin.register(models.SlateBuildGroup)
-# class SlateBuildGroupAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'name',
-#         'min_from_group',
-#         'max_from_group',
-#         'total_exposure',
-#         'num_players',
-#         'active',
-#     )
-#     list_editable = (
-#         'min_from_group',
-#         'max_from_group',
-#         'total_exposure',
-#         'active',
-#     )
-#     inlines = [
-#         SlateBuildGroupPlayerInline
-#     ]
-
-
-# @admin.register(models.SlatePlayerProjection)
-# class SlatePlayerProjectionAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'slate_player',
-#         'get_player_link',
-#         'opponent',
-#         'get_player_salary',
-#         'get_salary_value',
-#         'pinnacle_odds',
-#         'implied_win_pct',
-#         'spread',
-#         'get_rank',
-#         'get_num_matches',
-#         'get_ace_rate',
-#         'get_v_ace_rate',
-#         'get_opponent_v_ace_rate',
-#         'get_df_rate',
-#         'get_hold_rate',
-#         'get_opponent_hold_rate',
-#         'get_break_rate',
-#         'min_exposure_for_op',
-#         'max_exposure_for_op',
-#         'projected_exposure',
-#         'optimal_exposure',
-#         'suggested_exposure',
-#         'desired_exposure',
-#         'min_exposure',
-#         'max_exposure',
-#         'in_play',
-#         'lock',
-#         'get_default_group',
-#     )
-#     list_editable = (
-#         'pinnacle_odds',
-#         'implied_win_pct',
-#         'spread',
-#         'min_exposure_for_op',
-#         'max_exposure_for_op',
-#         'suggested_exposure',
-#         'desired_exposure',
-#         'min_exposure',
-#         'max_exposure',
-#         'in_play',
-#         'lock',
-#     )
-#     list_filter = (
-#         'slate_player__slate',
-#         'slate_player__player__tour',
-#         'in_play',
-#     )
-#     actions = ['calc_implied_win_pct', 'get_predictions', 'export_for_ml', 'find_in_play', 'calc_suggested_exp']
-
-#     def get_player_salary(self, obj):
-#         return obj.salary
-#     get_player_salary.short_description = 'salary'
-#     get_player_salary.admin_order_field = 'slate_player__salary'
-
-#     def get_player_link(self, obj):
-#         return mark_safe('<a href="/admin/tennis/match/?q={}">{}</a>'.format(obj.slate_player.player, obj.slate_player.player))
-#     get_player_link.short_description = 'Player'
-
-#     def get_salary_value(self, obj):
-#         return round(obj.slate_player.value, 2)
-#     get_salary_value.short_description = 'value'
-
-#     def get_prediction_r2(self, obj):
-#         PREDICTION_R2s = {
-#             '104': 0.1161,
-#             '52': 0.1038,
-#             '26': 0.1467,
-#             '13': 0.1731,
-#             '4': 0.2864,
-#             '2': 0.3477,
-#         }
-#         return PREDICTION_R2s[obj.slate_player.get_prediction_threshold()]
-#     get_prediction_r2.short_description = 'r^2'
-
-#     def get_num_matches(self, obj):
-#         return obj.slate_player.get_num_matches()
-#     get_num_matches.short_description = '#'
-
-#     def get_ace_rate(self, obj):
-#         return obj.slate_player.get_ace_rate()
-#     get_ace_rate.short_description = 'ace'
-
-#     def get_v_ace_rate(self, obj):
-#         return obj.slate_player.get_v_ace_rate()
-#     get_v_ace_rate.short_description = 'v_ace'
-
-#     def get_opponent_v_ace_rate(self, obj):
-#         return obj.slate_player.get_opponent_v_ace_rate()
-#     get_opponent_v_ace_rate.short_description = 'opp_v_ace'
-
-#     def get_df_rate(self, obj):
-#         return obj.slate_player.get_df_rate()
-#     get_df_rate.short_description = 'df'
-
-#     def get_hold_rate(self, obj):
-#         rate = obj.slate_player.get_hold_rate()
-#         if rate is not None:
-#             return '{}%'.format(round(rate*100.0, 2))
-#         return rate
-#     get_hold_rate.short_description = 'hld'
-
-#     def get_opponent_hold_rate(self, obj):
-#         rate = obj.slate_player.get_opponent_hold_rate()
-#         if rate is not None:
-#             return '{}%'.format(round(rate*100.0, 2))
-#         return rate
-#     get_opponent_hold_rate.short_description = 'opp_hld'
-
-#     def get_break_rate(self, obj):
-#         rate = obj.slate_player.get_break_rate()
-#         if rate is not None:
-#             return '{}%'.format(round(rate*100.0, 2))
-#         return rate
-#     get_break_rate.short_description = 'brk'
-
-#     def get_rank(self, obj):
-#         rank = obj.slate_player.get_rank()
-#         if rank is not None:
-#             return rank
-#         return None
-#     get_rank.short_description = 'rnk'
-
-#     def get_optimal_exposure(self, obj):
-#         if obj.slate_player.times_used_in_sim == 0 or obj.slate_player.slate.total_sim_lineups == 0:
-#             return None
-#         return '{:2f}'.format((obj.slate_player.times_used_in_sim / obj.slate_player.slate.total_sim_lineups) * 100)
-#     get_optimal_exposure.short_description = 'opt exp'
-
-#     def get_default_group(self, obj):
-#         groups = models.SlateBuildGroup.objects.filter(players__slate_player__projection=obj)
-#         if groups.count() > 0:
-#             return groups[0].name
-
-#         return None
-#     get_default_group.short_description = 'group'
-
-#     def calc_implied_win_pct(self, request, queryset):
-#         for projection in queryset:
-#             projection.calc_implied_win_pct()
-#     calc_implied_win_pct.short_description = 'Calculate implied win pct for selected players'
-
-#     def get_predictions(self, request, queryset):
-#         for projection in queryset:
-#             projection.get_projection_from_ml()
-#     get_predictions.short_description = 'Get predictions for selected players'
-
-#     def export_for_ml(self, request, queryset):
-#         response = HttpResponse(content_type='text/csv')
-#         response['Content-Disposition'] = 'attachment; filename=players.csv'
-
-#         writer = csv.writer(response, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-#         writer.writerow([
-#             'id',
-#             'w_ace_52',
-#             'w_v_ace_52',
-#             'w_df_52',
-#             'w_1stIn_52',
-#             'w_1stWon_52',
-#             'w_2ndWon_52',
-#             'w_hld_pct_52',
-#             'w_brk_pct_52',
-#             'l_ace_52',
-#             'l_v_ace_52',
-#             'l_def_52',
-#             'l_1stIn_52',
-#             'l_1stWon_52',
-#             'l_2ndWon_52',
-#             'l_hld_pct_52',
-#             'l_brk_pct_52'
-#         ])
-        
-#         for (index, projection) in enumerate(queryset):
-#             print('{} out of {}'.format(index+1, queryset.count()))
-#             try:
-#                 writer.writerow([
-#                     projection.slate_player.name,
-#                     projection.slate_player.get_ace_rate(),
-#                     projection.slate_player.get_v_ace_rate(),
-#                     projection.slate_player.get_df_rate(), 
-#                     projection.slate_player.get_first_in_rate(), 
-#                     projection.slate_player.get_first_won_rate(), 
-#                     projection.slate_player.get_second_won_rate(), 
-#                     projection.slate_player.get_hold_rate(), 
-#                     projection.slate_player.get_break_rate(), 
-#                     projection.slate_player.get_opponent_ace_rate(),
-#                     projection.slate_player.get_opponent_v_ace_rate(),
-#                     projection.slate_player.get_opponent_df_rate(), 
-#                     projection.slate_player.get_opponent_first_in_rate(), 
-#                     projection.slate_player.get_opponent_first_won_rate(), 
-#                     projection.slate_player.get_opponent_second_won_rate(), 
-#                     projection.slate_player.get_opponent_hold_rate(), 
-#                     projection.slate_player.get_opponent_break_rate()
-#                 ])
-#             except:
-#                 traceback.print_exc()
-        
-#         return response
-#     export_for_ml.short_description = 'Export selected players for machine learning'
-
-#     def find_in_play(self, request, queryset):
-#         for projection in queryset:
-#             projection.find_in_play()
-#     find_in_play.short_description = 'Find in play for selected players'
-
-#     def calc_suggested_exp(self, request, queryset):
-#         for projection in queryset:
-#             projection.calc_suggested_exposure()
-#     calc_suggested_exp.short_description = 'Calculate suggested exposure for selected players'
-
-
-# @admin.register(models.SlateSimulationLineup)
-# class SlateSimulationLineupAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'player_1',
-#         'player_2',
-#         'player_3',
-#         'player_4',
-#         'player_5',
-#         'player_6',
-#         'total_salary',
-#         'six_win_odds',
-#         'times_used'
-#     )
-
-#     search_fields = (
-#         'player_1__name',
-#         'player_2__name',
-#         'player_3__name',
-#         'player_4__name',
-#         'player_5__name',
-#         'player_6__name',
-#     )
-
-#     actions = [
-#         'export_for_upload'
-#     ]
-
-#     def export_for_upload(self, request, queryset):
-#         response = HttpResponse(content_type='text/csv')
-#         response['Content-Disposition'] = 'attachment; filename={}_upload.csv'.format(queryset[0].slate.name)
-
-#         build_writer = csv.writer(response, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-#         build_writer.writerow(['P', 'P', 'P', 'P', 'P', 'P'])
-
-#         for (index, lineup) in enumerate(queryset):
-#             row = [
-#                 '{1} ({0})'.format(lineup.player_1.slate_player_id, lineup.player_1.name),
-#                 '{1} ({0})'.format(lineup.player_2.slate_player_id, lineup.player_2.name),
-#                 '{1} ({0})'.format(lineup.player_3.slate_player_id, lineup.player_3.name),
-#                 '{1} ({0})'.format(lineup.player_4.slate_player_id, lineup.player_4.name),
-#                 '{1} ({0})'.format(lineup.player_5.slate_player_id, lineup.player_5.name),
-#                 '{1} ({0})'.format(lineup.player_6.slate_player_id, lineup.player_6.name),
-#             ]
-
-#             build_writer.writerow(row)
-#             print('{} of {} lineups complete'.format(index+1, queryset.count()))
-        
-#         return response
-#     export_for_upload.short_description = 'Export lineups for upload'
-
-
-# @admin.register(models.SlateBuildLineup)
-# class SlateBuildLineupAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'player_1',
-#         'player_2',
-#         'player_3',
-#         'player_4',
-#         'player_5',
-#         'player_6',
-#         'total_salary',
-#         'six_win_odds'
-#     )
-
-#     search_fields = (
-#         'player_1__name',
-#         'player_2__name',
-#         'player_3__name',
-#         'player_4__name',
-#         'player_5__name',
-#         'player_6__name',
-#     )
-
-#     actions = [
-#         'export_for_upload'
-#     ]
-
-#     def export_for_upload(self, request, queryset):
-#         response = HttpResponse(content_type='text/csv')
-#         response['Content-Disposition'] = 'attachment; filename={}_upload.csv'.format(queryset[0].build.slate.name)
-
-#         build_writer = csv.writer(response, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-#         build_writer.writerow(['P', 'P', 'P', 'P', 'P', 'P'])
-
-#         for (index, lineup) in enumerate(queryset):
-#             row = [
-#                 '{1} ({0})'.format(lineup.player_1.slate_player_id, lineup.player_1.name),
-#                 '{1} ({0})'.format(lineup.player_2.slate_player_id, lineup.player_2.name),
-#                 '{1} ({0})'.format(lineup.player_3.slate_player_id, lineup.player_3.name),
-#                 '{1} ({0})'.format(lineup.player_4.slate_player_id, lineup.player_4.name),
-#                 '{1} ({0})'.format(lineup.player_5.slate_player_id, lineup.player_5.name),
-#                 '{1} ({0})'.format(lineup.player_6.slate_player_id, lineup.player_6.name),
-#             ]
-
-#             build_writer.writerow(row)
-#             print('{} of {} lineups complete'.format(index+1, queryset.count()))
-        
-#         return response
-#     export_for_upload.short_description = 'Export lineups for upload'
-
-
-# @admin.register(models.SlatePlayerBuildExposure)
-# class SlatePlayerBuildExposureAdmin(admin.ModelAdmin):
-#     build = None
-#     list_display = (
-#         'name',
-#         'salary',
-#         'get_projection',
-#         'get_projected_exposure',
-#         'get_desired_exposure',
-#         'get_exposure'
-#     )
-
-#     def get_queryset(self, request):
-#         queryset = super().get_queryset(request)
-#         request.GET = request.GET.copy()
-#         build_id = request.GET.pop('build_id', None)
-        
-#         if build_id is not None:
-#             self.build = models.SlateBuild.objects.get(id=build_id[0])
-#             queryset = self.model.objects.filter(slate=self.build.slate, projection__in_play=True)
-        
-#         return queryset.order_by('-salary')
-
-#     def get_projection(self, obj):
-#         if obj.projection is None:
-#             return None
-#         return obj.projection.median_winning_projection
-#     get_projection.short_description = 'Proj'
-
-#     def get_desired_exposure(self, obj):
-#         return '{:.2f}%'.format(obj.projection.desired_exposure * 100)
-#     get_desired_exposure.short_description = 'Desired Exposure'
-
-#     def get_projected_exposure(self, obj):
-#         return '{:.2f}%'.format(obj.projection.projected_exposure * 100)
-#     get_projected_exposure.short_description = 'Proj Exposure'
-
-#     def get_exposure(self, obj):
-#         return '{:.2f}%'.format(self.build.get_exposure(obj)/self.build.num_lineups_created() * 100)
-#     get_exposure.short_description = 'Exposure'
-
-
-# @admin.register(models.PinnacleMatch)
-# class PinnacleMatchAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'event',
-#         'home_participant',
-#         'away_participant'
-#     )
-#     search_fields = (
-#         'event',
-#         'home_participant',
-#         'away_participant'
-#     )
-
-
-# @admin.register(models.PinnacleMatchOdds)
-# class PinnacleMatchOddsAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'match',
-#         'get_event',
-#         'create_at',
-#         'home_price',
-#         'away_price',
-#         'home_spread',
-#         'away_spread'
-#     )
-#     search_fields = (
-#         'match__event',
-#         'match__home_participant',
-#         'match__away_participant'
-#     )
+
+@admin.register(models.SlatePlayer)
+class SlatePlayerAdmin(admin.ModelAdmin):
+    list_display = (
+        'name',
+        'slate',
+        'salary',
+        'surface',
+        'fantasy_points',
+        'player',
+        'withdrew',
+        'is_replacement_player',
+        'opponent',
+    )
+    list_editable = (
+        'surface',
+        'opponent',
+    )
+    search_fields = ('name',)
+    list_filter = (
+        ('slate__name', DropdownFilter),
+    )
+    raw_id_fields = (
+        'player', 
+        'opponent',
+    )
+    actions = ['withdraw_player']
+
+    def withdraw_player(self, request, queryset):
+        for slate_player in queryset:
+            slate_player.withdraw_player()
+
+
+@admin.register(models.SlateBuild)
+class SlateBuildAdmin(admin.ModelAdmin):
+    date_hierarchy = 'slate__datetime'
+    list_display = (
+        'created',
+        'slate',
+        'used_in_contests',
+        'configuration',
+        'total_lineups',
+        'num_lineups_created',
+        'get_lineups_link',
+        'build_button',
+        'export_button',
+    )
+    list_editable = (
+        'used_in_contests',
+        'configuration',
+        'total_lineups',
+    )
+    list_filter = (
+        ('configuration', RelatedDropdownFilter),
+        ('slate__name', DropdownFilter),
+        'used_in_contests',
+    )
+    search_fields = ('slate__name',)
+
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('tennis-slatebuild-build/<int:pk>/', self.build, name="admin_tennis_slatebuild_build"),
+            path('tennis-slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_tennis_slatebuild_export"),
+        ]
+        return my_urls + urls
+
+    def create_default_groups(self, request, queryset):
+        for b in queryset:
+            b.create_default_groups()
+    create_default_groups.short_description = 'Create default groups for selected builds'
+
+    def build(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        build = models.SlateBuild.objects.get(pk=pk)
+        build.execute_build(request.user)
+        # tasks.execute_build.delay(build.id, request.user.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Building {build.total_lineups} lineups.'
+        )
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def export_for_upload(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        # Get the scenario to activate
+        build = get_object_or_404(models.SlateBuild, pk=pk)
+        if build.num_lineups_created() > 0:
+            task = BackgroundTask()
+            task.name = 'Export Build For Upload'
+            task.user = request.user
+            task.save()
+
+            now = datetime.datetime.now()
+            timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+            result_file = '{}-{}_upload.csv'.format(build.slate.name, timestamp)
+            result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+            os.makedirs(result_path, exist_ok=True)
+            result_path = os.path.join(result_path, result_file)
+            result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+            tasks.export_build_for_upload.delay(build.id, result_path, result_url, task.id)
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Your build export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
+        else:
+            self.message_user(request, 'Cannot export lineups for {}. No lineups exist.'.format(str(build)), level=messages.ERROR)
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def get_lineups_link(self, obj):
+        if obj.num_lineups_created() > 0:
+            return mark_safe('<a href="/admin/tennis/slatebuildlineup/?build__id__exact={}">Lineups</a>'.format(obj.id))
+        return 'None'
+    get_lineups_link.short_description = 'Lineups'
+
+
+@admin.register(models.SlatePlayerProjection)
+class SlatePlayerProjectionAdmin(admin.ModelAdmin):
+    list_display = (
+        'slate_player',
+        'slate_match',
+        'get_player_salary',
+        'get_salary_value',
+        'pinnacle_odds',
+        'implied_win_pct',
+        'spread',
+        'get_common_opponents',
+        'sim_win_pct',
+        'projection',
+        's75',
+        'ceiling',
+        'odds_for_target',
+        'in_play',
+        'min_exposure',
+        'max_exposure',
+        'get_exposure',
+    )
+    list_filter = (
+        'slate_player__slate',
+        'slate_player__player__tour',
+        'in_play',
+    )
+    list_editable = (
+        'in_play',
+        'min_exposure',
+        'max_exposure',
+    )
+
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        qs = qs.annotate(
+            exposure=Avg('exposures__exposure'), 
+        )
+
+        return qs
+
+    def get_player_salary(self, obj):
+        return obj.salary
+    get_player_salary.short_description = 'salary'
+    get_player_salary.admin_order_field = 'slate_player__salary'
+
+    def get_player_link(self, obj):
+        return mark_safe('<a href="/admin/tennis/match/?q={}">{}</a>'.format(obj.slate_player.player, obj.slate_player.player))
+    get_player_link.short_description = 'Player'
+
+    def get_salary_value(self, obj):
+        return round(obj.slate_player.value, 2)
+    get_salary_value.short_description = 'value'
+
+    def get_common_opponents(self, obj):
+        return obj.slate_match.common_opponents(obj.slate_match.surface, 52*2).size
+    get_common_opponents.short_description = 'comm opp'
+
+    def get_exposure(self, obj):
+        if obj.exposure is None:
+            return None
+        return '{:.2f}%'.format(float(obj.exposure) * 100.0)
+    get_exposure.short_description = 'Exp'
+    get_exposure.admin_order_field = 'exposure'
+
+
+@admin.register(models.SlateBuildLineup)
+class SlateBuildLineupAdmin(admin.ModelAdmin):
+    list_display = (
+        'player_1',
+        'player_2',
+        'player_3',
+        'player_4',
+        'player_5',
+        'player_6',
+        'total_salary',
+        'implied_win_pct',
+        'sim_win_pct',
+        'median',
+        's90',
+    )
+
+    search_fields = (
+        'player_1__name',
+        'player_2__name',
+        'player_3__name',
+        'player_4__name',
+        'player_5__name',
+        'player_6__name',
+    )
+
+
+@admin.register(models.PinnacleMatch)
+class PinnacleMatchAdmin(admin.ModelAdmin):
+    list_display = (
+        'event',
+        'home_participant',
+        'away_participant'
+    )
+    search_fields = (
+        'event',
+        'home_participant',
+        'away_participant'
+    )
+
+
+@admin.register(models.PinnacleMatchOdds)
+class PinnacleMatchOddsAdmin(admin.ModelAdmin):
+    list_display = (
+        'match',
+        'get_event',
+        'create_at',
+        'home_price',
+        'away_price',
+        'home_spread',
+        'away_spread'
+    )
+    search_fields = (
+        'match__event',
+        'match__home_participant',
+        'match__away_participant'
+    )

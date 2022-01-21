@@ -1449,7 +1449,7 @@ def build_complete(build_id, task_id):
         task = BackgroundTask.objects.get(id=task_id)
 
     build = models.SlateBuild.objects.get(id=build_id)
-    # build.clean_lineups()
+    build.clean_lineups()
     build.find_expected_lineup_order()
     build.pct_complete = 1.0
     build.status = 'complete'

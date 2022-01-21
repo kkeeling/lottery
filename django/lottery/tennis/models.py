@@ -10,6 +10,8 @@ import requests
 
 from statistics import mean
 
+from celery import chain
+from django.contrib.postgres.fields import ArrayField
 from django.db import models, signals
 from django.db.models import Q, Sum
 from django.db.models.signals import post_save
@@ -17,9 +19,8 @@ from django.utils.html import format_html
 from django.urls import reverse_lazy
 from django.dispatch import receiver
 
-from tagulous.models import SingleTagField
-
-from . import optimize
+from configuration.models import BackgroundTask
+from . import optimize, tasks
 
 
 SITE_OPTIONS = (
@@ -27,9 +28,52 @@ SITE_OPTIONS = (
     ('fanduel', 'Fanduel'),
 )
 
+SITE_SCORING = {
+    'draftkings': {
+        '3': {
+            'match_played': 30,
+            'game_won': 2.5,
+            'game_lost': -2.0,
+            'set_won': 6.0,
+            'set_lost': -3.0,
+            'match_won': 6.0,
+            'ace': 0.4,
+            'double_fault': -1.0,
+            'break': 0.75,
+            'clean_set': 4.0,
+            'straight_sets': 6.0,
+            'no_double_faults': 2.5,
+            'aces_threshold': 10,
+            'aces': 2.0
+        },
+        '5': {
+            'match_played': 30,
+            'game_won': 2.0,
+            'game_lost': -1.6,
+            'set_won': 5.0,
+            'set_lost': -2.5,
+            'match_won': 5.0,
+            'ace': 0.25,
+            'double_fault': -1.0,
+            'break': 0.5,
+            'clean_set': 2.5,
+            'straight_sets': 5.0,
+            'no_double_faults': 5.0,
+            'aces_threshold': 15,
+            'aces': 2.0
+        },
+    }
+}
 
 ODDS_SITES = (
     ('pinnacle', 'Pinnacle'),
+)
+
+
+SURFACE_CHOICES = (
+    ('Hard', 'Hard'),
+    ('Clay', 'Clay'),
+    ('Grass', 'Grass')
 )
 
 
@@ -538,6 +582,74 @@ class Player(models.Model):
         if ranking_history.count() > 0:
             return ranking_history[0].ranking
         return None
+
+    def get_points_won_rate(self, vs_opponent=None, timeframe_in_weeks=0, startingFrom=datetime.date.today(), on_surface='Hard'):
+        if timeframe_in_weeks == 0:
+            endDate = startingFrom - datetime.timedelta(years=5)
+        else:
+            endDate = startingFrom - datetime.timedelta(weeks=timeframe_in_weeks)
+        
+        winning_matches = self.winning_matches.filter(
+            tourney_date__lte=startingFrom,
+            tourney_date__gte=endDate,
+            surface=on_surface,
+            w_svpt__isnull=False,
+            w_svpt__gt=0,
+            l_svpt__isnull=False,
+            l_svpt__gt=0
+        ).exclude(
+           Q(Q(w_svpt=None) | Q(w_1stWon=None) | Q(w_2ndWon=None))
+        )
+        losing_matches = self.losing_matches.filter(
+            tourney_date__lte=startingFrom,
+            tourney_date__gte=endDate,
+            surface=on_surface,
+            w_svpt__isnull=False,
+            w_svpt__gt=0,
+            l_svpt__isnull=False,
+            l_svpt__gt=0
+        ).exclude(
+           Q(Q(l_svpt=None) | Q(l_1stWon=None) | Q(l_2ndWon=None))
+        )
+
+        if vs_opponent is not None:
+            winning_matches = winning_matches.filter(loser=vs_opponent)
+            losing_matches = losing_matches.filter(winner=vs_opponent)
+
+        w_points_data = winning_matches.aggregate(
+            sp=Sum('w_svpt'),
+            sp1w=Sum('w_1stWon'),
+            sp2w=Sum('w_2ndWon'),
+            rp=Sum('l_svpt'),
+            rp1w=Sum('l_1stWon'),
+            rp2w=Sum('l_2ndWon')
+        )
+        l_points_data = losing_matches.aggregate(
+            sp=Sum('l_svpt'),
+            sp1w=Sum('l_1stWon'),
+            sp2w=Sum('l_2ndWon'),
+            rp=Sum('w_svpt'),
+            rp1w=Sum('w_1stWon'),
+            rp2w=Sum('w_2ndWon')
+        )
+
+        if w_points_data.get('sp') is None and l_points_data.get('sp') is None:
+            return None
+        elif l_points_data.get('sp') is None:
+            spw = (w_points_data.get('sp1w') + w_points_data.get('sp2w')) / (w_points_data.get('sp'))
+            rpw = (w_points_data.get('rp1w') + w_points_data.get('rp2w')) / (w_points_data.get('rp'))
+        elif w_points_data.get('sp') is None:
+            spw = (l_points_data.get('sp1w') + l_points_data.get('sp2w')) / (l_points_data.get('sp'))
+            rpw = (l_points_data.get('rp1w') + l_points_data.get('rp2w')) / (l_points_data.get('rp'))
+        else:
+            spw = (w_points_data.get('sp1w') + w_points_data.get('sp2w') + l_points_data.get('sp1w') + l_points_data.get('sp2w')) / (w_points_data.get('sp') + l_points_data.get('sp'))
+            rpw = (w_points_data.get('rp1w') + w_points_data.get('rp2w') + l_points_data.get('rp1w') + l_points_data.get('rp2w')) / (w_points_data.get('rp') + l_points_data.get('rp'))
+
+        return {
+            'opponent': vs_opponent,
+            'spw': round(spw, 4),
+            'rpw': round(rpw, 4),
+        }
 
 
 class RankingHistory(models.Model):
@@ -1165,11 +1277,20 @@ class MissingAlias(models.Model):
 
 
 class SlateBuildConfig(models.Model):
+    OPTIMIZE_CHOICES = (
+        ('implied_win_pct', 'Implied Win %'),
+        ('sim_win_pct', 'Simulated Win %'),
+        ('projection', 'Median Projection'),
+        ('s90', 'Ceiling Projection'),
+    )
     name = models.CharField(max_length=255)
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='draftkings')
     randomness = models.DecimalField(decimal_places=2, max_digits=2, default=0.75)
     uniques = models.IntegerField(default=1)
     min_salary = models.IntegerField(default=0)
+    optimize_by = models.CharField(max_length=50, choices=OPTIMIZE_CHOICES, default='implied_win_pct')
+    lineup_multiplier = models.IntegerField(default=1)
+    clean_lineups_by = models.CharField(max_length=15, choices=OPTIMIZE_CHOICES, default='implied_win_pct')
 
     class Meta:
         verbose_name = 'Build Config'
@@ -1225,6 +1346,9 @@ class Slate(models.Model):
     is_main_slate = models.BooleanField(default=False)
     last_match_datetime = models.DateTimeField(blank=True, null=True)
     salaries = models.FileField(upload_to='uploads/salaries', blank=True, null=True)
+    entries = models.FileField(upload_to='uploads/entries', blank=True, null=True)
+    target_score = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Target')
+    top_score = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Top')
 
     class Meta:
         ordering = ['-name']
@@ -1241,6 +1365,7 @@ class Slate(models.Model):
         b = mean(ys) - m*mean(xs)
 
         return (m, b)
+        
 
     def is_pinn_player_in_slate(self, player):
         try:
@@ -1258,8 +1383,6 @@ class Slate(models.Model):
             return False
 
     def find_matches(self):
-        self.matches.all().delete()
-
         matches = PinnacleMatch.objects.filter(
             start_time__gte=self.datetime,
             start_time__lt=self.datetime + datetime.timedelta(hours=12) if self.last_match_datetime is None else self.last_match_datetime
@@ -1271,77 +1394,49 @@ class Slate(models.Model):
             player1 = match.home_participant
             player2 = match.away_participant
 
-            if self.is_pinn_player_in_slate(player1) or self.is_pinn_player_in_slate(player2):
-                SlateMatch.objects.create(
+            if self.is_pinn_player_in_slate(player1) and self.is_pinn_player_in_slate(player2):
+                slate_match, _ = SlateMatch.objects.get_or_create(
                     slate=self,
                     match=match
                 )
 
-    def create_projections(self):
-        for slate_player in self.players.all():
-            (projection, _) = SlatePlayerProjection.objects.get_or_create(
-                slate_player=slate_player
-            )
-            
-            match = slate_player.find_pinn_match()
-            if match is not None:
-                projection.pinnacle_odds = match.get_odds_for_player(slate_player.player)
-                projection.spread = match.get_spread_for_player(slate_player.player)
-                projection.calc_implied_win_pct()
+                print(player1)
+                alias = Alias.objects.get(pinn_name=player1)
+                slate_player1 = SlatePlayer.objects.get(
+                    slate=self,
+                    name=alias.get_alias(self.site)
+                )
+                projection1, _ = SlatePlayerProjection.objects.get_or_create(
+                    slate_player=slate_player1
+                )
+                projection1.slate_match = slate_match
+                pinnacle_odds = slate_match.match.get_odds_for_player(alias.player)
+                projection1.pinnacle_odds = pinnacle_odds
+                projection1.spread = slate_match.match.get_spread_for_player(alias.player)
+                if pinnacle_odds > 0:
+                    projection1.implied_win_pct = 100/(100+pinnacle_odds)
+                elif pinnacle_odds < 0:
+                    projection1.implied_win_pct = -pinnacle_odds/(-pinnacle_odds+100)
+                projection1.save()
 
-            print(projection, match)
-
-    def find_opponents(self):
-        for slate_player in self.players.all():
-            if slate_player.opponent is None:
-                slate_player.find_opponent()
-
-    def project_players(self):
-        for slate_player in self.players.all():
-            projection = slate_player.projection
-            projection.calc_implied_win_pct()
-
-        for slate_player in self.players.all():
-            projection = slate_player.projection
-            if projection.implied_win_pct > 0.0:
-                projection.get_projection_from_ml()
-
-    def project_ownership(self):
-        players = self.players.exclude(withdrew=True).exclude(is_replacement_player=True)
-        start = datetime.datetime.now()
-
-        num_lineups = 500 if players.count() < 40 else 1000
-
-        print('Building {} lineups...'.format(num_lineups))
-        op = optimize.optimize_for_ownership(players, num_lineups=num_lineups)
-
-        for id in op:
-            slate_player = SlatePlayer.objects.get(slate_player_id=id)
-            slate_player.projection.projected_exposure = op[id]/num_lineups
-            slate_player.projection.save()
-            
-        print('elapsed time:', datetime.datetime.now() - start)
-
-    def find_in_play(self):
-        projections = SlatePlayerProjection.objects.filter(
-            slate_player__slate=self).exclude(
-                slate_player__withdrew=True).exclude(
-                    slate_player__opponent=None)
-        total_exp = 0
-        for projection in projections:
-            projection.find_in_play()
-
-            if projection.in_play:
-                total_exp += projection.optimal_exposure
-
-    def create_build(self):
-        if self.builds.all().count() == 0:
-            SlateBuild.objects.create(
-                slate=self,
-                used_in_contests=True,
-                configuration=SlateBuildConfig.objects.get(id=1),
-                total_lineups=self.num_lineups
-            )
+                print(player2)
+                alias = Alias.objects.get(pinn_name=player2)
+                slate_player2 = SlatePlayer.objects.get(
+                    slate=self,
+                    name=alias.get_alias(self.site)
+                )
+                projection2, _ = SlatePlayerProjection.objects.get_or_create(
+                    slate_player=slate_player2
+                )
+                projection2.slate_match = slate_match
+                pinnacle_odds = slate_match.match.get_odds_for_player(alias.player)
+                projection2.pinnacle_odds = pinnacle_odds
+                projection2.spread = slate_match.match.get_spread_for_player(alias.player)
+                if pinnacle_odds > 0:
+                    projection2.implied_win_pct = 100/(100+pinnacle_odds)
+                elif pinnacle_odds < 0:
+                    projection2.implied_win_pct = -pinnacle_odds/(-pinnacle_odds+100)
+                projection2.save()
 
     def sim_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Sim</a>',
@@ -1353,6 +1448,8 @@ class Slate(models.Model):
 class SlateMatch(models.Model):
     slate = models.ForeignKey(Slate, related_name='matches', on_delete=models.CASCADE)
     match = models.ForeignKey(PinnacleMatch, related_name='slates', on_delete=models.CASCADE)
+    surface = models.CharField(max_length=255, default='Hard', choices=SURFACE_CHOICES)
+    best_of = models.IntegerField(choices=[(3, '3'), (5, '5')], default=3)
 
     class Meta:
         verbose_name = 'Match'
@@ -1361,13 +1458,36 @@ class SlateMatch(models.Model):
     def __str__(self):
         return '{}: {}'.format(str(self.slate), str(self.match))
 
+    def common_opponents(self, surface, timeframe_in_weeks=52):
+        alias1 = Alias.objects.get(pinn_name=self.match.home_participant)
+        alias2 = Alias.objects.get(pinn_name=self.match.away_participant)
+        startingFrom = datetime.date.today()
+        endDate = startingFrom - datetime.timedelta(weeks=timeframe_in_weeks)
+        
+        matches1 = Match.objects.filter(
+            Q(Q(winner=alias1.player) | Q(loser=alias1.player)),
+            surface=surface,
+            tourney_date__lte=startingFrom,
+            tourney_date__gte=endDate
+        )
+        matches2 = Match.objects.filter(
+            Q(Q(winner=alias2.player) | Q(loser=alias2.player)),
+            surface=surface,
+            tourney_date__lte=startingFrom,
+            tourney_date__gte=endDate
+        )
+
+        winners1 = list(matches1.values_list('winner', flat=True))
+        losers1 = list(matches1.values_list('loser', flat=True))
+        opponents1 = numpy.unique(winners1 + losers1)
+        winners2 = list(matches2.values_list('winner', flat=True))
+        losers2 = list(matches2.values_list('loser', flat=True))
+        opponents2 = numpy.unique(winners2 + losers2)
+
+        return numpy.intersect1d(opponents1, opponents2)
+
 
 class SlatePlayer(models.Model):
-    SURFACE_CHOICES = (
-        ('Hard', 'Hard'),
-        ('Clay', 'Clay'),
-        ('Grass', 'Grass')
-    )
     slate_player_id = models.CharField(max_length=255)
     slate = models.ForeignKey(Slate, related_name='players', on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
@@ -1707,11 +1827,20 @@ class SlatePlayer(models.Model):
 
 class SlatePlayerProjection(models.Model):
     slate_player = models.OneToOneField(SlatePlayer, related_name='projection', on_delete=models.CASCADE)
+    slate_match = models.ForeignKey(SlateMatch, related_name='projections', on_delete=models.CASCADE, null=True, blank=True)
     pinnacle_odds = models.IntegerField(default=0)
     implied_win_pct = models.DecimalField(max_digits=5, decimal_places=4, default=0.0000, verbose_name='iwin')
     game_total = models.DecimalField(max_digits=3, decimal_places=1, default=0.0, verbose_name='gt')
     spread = models.DecimalField(max_digits=3, decimal_places=1, default=0.0)
+    sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
+    w_sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
+    sim_win_pct = models.DecimalField(max_digits=5, decimal_places=4, default=0.0000, verbose_name='sim_win')
     projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Proj')
+    ceiling = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Ceil')
+    s75 = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='s75')
+    in_play = models.BooleanField(default=True)
+    min_exposure = models.DecimalField(max_digits=3, decimal_places=2, default=0.0, verbose_name='min')
+    max_exposure = models.DecimalField(max_digits=3, decimal_places=2, default=1.0, verbose_name='max')
 
     class Meta:
         verbose_name = 'Player Projection'
@@ -1732,6 +1861,31 @@ class SlatePlayerProjection(models.Model):
     @property
     def opponent(self):
         return self.slate_player.opponent
+        if self.build.lineups.all().count() > 0:
+            return self.build.lineups.filter(
+                Q(
+                    Q(qb=self) | 
+                    Q(rb1=self) | 
+                    Q(rb2=self) | 
+                    Q(wr1=self) | 
+                    Q(wr2=self) | 
+                    Q(wr3=self) | 
+                    Q(te=self) | 
+                    Q(flex=self) | 
+                    Q(dst=self)
+                )
+            ).count() / self.build.lineups.all().count()
+        return 0
+
+    @property
+    def odds_for_target(self):
+        target_score = self.slate_player.slate.target_score
+
+        if target_score is not None and target_score > 0.0:
+            a = numpy.asarray(self.w_sim_scores)
+            za = round((a > float(target_score)).sum()/a.size, ndigits=4)
+            return za
+        return None
 
     def calc_implied_win_pct(self):
         if self.pinnacle_odds > 0:
@@ -1761,41 +1915,32 @@ class SlateBuild(models.Model):
     def __str__(self):
         return '{} ({}) @ {}'.format(self.slate.name, self.configuration, self.created.replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime('%Y-%m-%d %H:%M'))
 
-    def build(self):
-        start = datetime.datetime.now()
-
+    def execute_build(self, user):
         self.lineups.all().delete()
-
-        players = self.slate.players.filter(withdrew=False, projection__in_play=True).order_by('projection__pinnacle_odds')
-
-        print('Building {} lineups...'.format(self.total_lineups))
-        lineups = optimize.optimize(players, self.configuration, self.groups.filter(active=True), num_lineups=self.total_lineups)
         
-        for (index, lineup) in enumerate(lineups):
-            player_ids = [p.id for p in lineup.players]
-
-            slate_lineup = SlateBuildLineup.objects.create(
-                build=self,
-                player_1=SlatePlayer.objects.get(slate_player_id=lineup.players[0].id, slate=self.slate),
-                player_2=SlatePlayer.objects.get(slate_player_id=lineup.players[1].id, slate=self.slate),
-                player_3=SlatePlayer.objects.get(slate_player_id=lineup.players[2].id, slate=self.slate),
-                player_4=SlatePlayer.objects.get(slate_player_id=lineup.players[3].id, slate=self.slate),
-                player_5=SlatePlayer.objects.get(slate_player_id=lineup.players[4].id, slate=self.slate),
-                player_6=SlatePlayer.objects.get(slate_player_id=lineup.players[5].id, slate=self.slate)
+        chain(
+            tasks.build_lineups.si(
+                self.id,
+                BackgroundTask.objects.create(
+                    name='Build Lineups',
+                    user=user
+                ).id
+            ),
+            tasks.clean_lineups.si(
+                self.id,
+                BackgroundTask.objects.create(
+                    name='Clean Lineups',
+                    user=user
+                ).id
+            ),
+            tasks.calculate_exposures.si(
+                self.id,
+                BackgroundTask.objects.create(
+                    name='Calculate Exposures',
+                    user=user
+                ).id
             )
-
-            slate_lineup.six_win_odds = numpy.prod([
-                slate_lineup.player_1.projection.implied_win_pct,
-                slate_lineup.player_2.projection.implied_win_pct,
-                slate_lineup.player_3.projection.implied_win_pct,
-                slate_lineup.player_4.projection.implied_win_pct,
-                slate_lineup.player_5.projection.implied_win_pct,
-                slate_lineup.player_6.projection.implied_win_pct,
-            ])
-            slate_lineup.total_salary = lineup.salary_costs
-            slate_lineup.save()
-            
-        print('elapsed time:', datetime.datetime.now() - start)
+        )()
 
     def num_lineups_created(self):
         return self.lineups.all().count()
@@ -1813,36 +1958,17 @@ class SlateBuild(models.Model):
             )
         ).count()
 
-
-class BuildPlayerProjection(models.Model):
-    build = models.ForeignKey(SlateBuild, related_name='projections', on_delete=models.CASCADE)
-    slate_player = models.OneToOneField(SlatePlayer, related_name='build_projection', on_delete=models.CASCADE)
-    pinnacle_odds = models.IntegerField(default=0)
-    implied_win_pct = models.DecimalField(max_digits=5, decimal_places=4, default=0.0000, verbose_name='iwin')
-    game_total = models.DecimalField(max_digits=3, decimal_places=1, default=0.0, verbose_name='gt')
-    spread = models.DecimalField(max_digits=3, decimal_places=1, default=0.0)
-    projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Proj')
-    in_play = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = 'Player Projection'
-        verbose_name_plural = 'Player Projections'
-        ordering = ['-slate_player__salary']
-
-    def __str__(self):
-        return '{}'.format(str(self.slate_player))
-
-    @property
-    def name(self):
-        return self.slate_player.name
-
-    @property
-    def salary(self):
-        return self.slate_player.salary
-
-    @property
-    def opponent(self):
-        return self.slate_player.opponent
+    def build_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Build</a>',
+            reverse_lazy("admin:admin_tennis_slatebuild_build", args=[self.pk])
+        )
+    build_button.short_description = ''
+    
+    def export_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #5b80b2; font-weight: bold; padding: 10px 15px;">Export</a>',
+            reverse_lazy("admin:admin_tennis_slatebuild_export", args=[self.pk])
+        )
+    export_button.short_description = ''
 
 
 class SlateBuildGroup(models.Model):
@@ -1878,80 +2004,50 @@ class SlateBuildGroupPlayer(models.Model):
         
 class SlateBuildLineup(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='lineups', on_delete=models.CASCADE)
-    player_1 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_1', on_delete=models.CASCADE)
-    player_2 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_2', on_delete=models.CASCADE)
-    player_3 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_3', on_delete=models.CASCADE)
-    player_4 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_4', on_delete=models.CASCADE)
-    player_5 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_5', on_delete=models.CASCADE)
-    player_6 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_6', on_delete=models.CASCADE)
+    player_1 = models.ForeignKey(SlatePlayerProjection, related_name='lineup_as_player_1', on_delete=models.CASCADE)
+    player_2 = models.ForeignKey(SlatePlayerProjection, related_name='lineup_as_player_2', on_delete=models.CASCADE)
+    player_3 = models.ForeignKey(SlatePlayerProjection, related_name='lineup_as_player_3', on_delete=models.CASCADE)
+    player_4 = models.ForeignKey(SlatePlayerProjection, related_name='lineup_as_player_4', on_delete=models.CASCADE)
+    player_5 = models.ForeignKey(SlatePlayerProjection, related_name='lineup_as_player_5', on_delete=models.CASCADE)
+    player_6 = models.ForeignKey(SlatePlayerProjection, related_name='lineup_as_player_6', on_delete=models.CASCADE)
     total_salary = models.IntegerField(default=0)
+    sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
+    implied_win_pct = models.DecimalField(max_digits=10, decimal_places=9, default=0.0000, verbose_name='iwin')
+    sim_win_pct = models.DecimalField(max_digits=10, decimal_places=9, default=0.0000, verbose_name='sim_win')
+    roi = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, db_index=True)
+    median = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    s75 = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    s90 = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    actual = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
 
     class Meta:
         verbose_name = 'Lineup'
         verbose_name_plural = 'Lineups'
 
+    @property
+    def players(self):
+        return [
+            self.player_1, 
+            self.player_2, 
+            self.player_3, 
+            self.player_4, 
+            self.player_5, 
+            self.player_6
+        ]
 
-def process_slate_player_sheet(sender, instance, **kwargs):
-    if instance.sheet_type == 'site':
-        if instance.slate.site == 'fanduel':
-            process_fanduel_slate_player_sheet(instance)
-        elif instance.slate.site == 'draftkings':
-            process_draftkings_slate_player_sheet(instance)
-        else:
-            raise Exception('{} is not a supported dfs site.'.format(instance.slate.site))
-    else:
-        raise Exception('{} is nto a valid sheet type.'.format(instance.sheet_type))
+    def get_percentile_sim_score(self, percentile):
+        return numpy.percentile(self.sim_scores, float(percentile))
+
+    def simulate(self):
+        self.sim_win_pct = self.player_1.sim_win_pct * self.player_2.sim_win_pct * self.player_3.sim_win_pct * self.player_4.sim_win_pct * self.player_5.sim_win_pct * self.player_6.sim_win_pct
+        self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, 10000)]
+        self.median = numpy.median(self.sim_scores)
+        self.s75 = self.get_percentile_sim_score(75)
+        self.s90 = self.get_percentile_sim_score(90)
+        self.save()
 
 
-def process_fanduel_slate_player_sheet(instance):
-    pass
-
-
-def process_draftkings_slate_player_sheet(instance):
-    with open(instance.sheet.url, mode='r') as players_file:
-        csv_reader = csv.reader(players_file, delimiter=',')
-        row_count = 0
-        missing_players = []
-
-        for row in csv_reader:
-            if row_count > 0:
-                player_id = row[3]
-                site_pos = row[4]
-                player_name = row[2].strip()
-                salary = row[5]
-                opponent_last_name = row[6].replace(row[7], '').replace('@', '')
-
-                alias = None
-
-                try:
-                    alias = Alias.objects.get(dk_name__iexact=player_name)
-                except Alias.DoesNotExist:
-                    missing_players.append(player_name)
-                
-                if alias is not None:
-                    try:
-                        slate_player = SlatePlayer.objects.get(
-                            slate_player_id=player_id,
-                            slate=instance.slate,
-                            name=alias.dk_name
-                        )
-                    except SlatePlayer.DoesNotExist:
-                        slate_player = SlatePlayer(
-                            slate_player_id=player_id,
-                            slate=instance.slate,
-                            name=alias.dk_name
-                        )
-
-                    slate_player.salary = salary
-                    slate_player.player = alias.player
-                    slate_player.save()
-                    
-                    print(slate_player)
-            row_count += 1
-
-        if len(missing_players) > 0:
-            print()
-            print('Missing players:')
-            for p in missing_players:
-                print(p)
-
+class SlateBuildPlayerExposure(models.Model):
+    build = models.ForeignKey(SlateBuild, related_name='exposures', on_delete=models.CASCADE)
+    player = models.ForeignKey(SlatePlayerProjection, related_name='exposures', on_delete=models.CASCADE)
+    exposure = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
