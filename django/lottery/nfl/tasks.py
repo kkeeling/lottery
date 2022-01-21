@@ -171,71 +171,103 @@ def simulate_game(game_id, task_id):
         home_qb = home_players.filter(slate_player__site_pos='QB').order_by('-projection', '-slate_player__salary')[0]
         home_rb1 = home_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[0]
         home_rb2 = home_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[1]
+        home_rb3 = home_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[2]
         home_wr1 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[0]
         home_wr2 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[1]
         home_wr3 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[2]
-        home_te = home_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[0]
+        home_wr4 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[3]
+        home_wr5 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[4]
+        home_te1 = home_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[0]
+        home_te2 = home_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[1]
         home_dst = home_players.filter(slate_player__site_pos=dst_label).order_by('-projection', '-slate_player__salary')[0]
 
         away_qb = away_players.filter(slate_player__site_pos='QB').order_by('-projection', '-slate_player__salary')[0]
         away_rb1 = away_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[0]
         away_rb2 = away_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[1]
+        away_rb3 = away_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[2]
         away_wr1 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[0]
         away_wr2 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[1]
         away_wr3 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[2]
-        away_te = away_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[0]
+        away_wr4 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[3]
+        away_wr5 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[4]
+        away_te1 = away_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[0]
+        away_te2 = away_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[1]
         away_dst = away_players.filter(slate_player__site_pos=dst_label).order_by('-projection', '-slate_player__salary')[0]
 
         home_qb_rv = scipy.stats.gamma((float(home_qb.projection)/float(home_qb.stdev))**2, scale=(float(home_qb.stdev)**2)/float(home_qb.projection))
         home_rb1_rv = scipy.stats.gamma((float(home_rb1.projection)/float(home_rb1.stdev))**2, scale=(float(home_rb1.stdev)**2)/float(home_rb1.projection))
         home_rb2_rv = scipy.stats.gamma((float(home_rb2.projection)/float(home_rb2.stdev))**2, scale=(float(home_rb2.stdev)**2)/float(home_rb2.projection))
+        home_rb3_rv = scipy.stats.gamma((float(home_rb3.projection)/float(home_rb3.stdev))**2, scale=(float(home_rb3.stdev)**2)/float(home_rb3.projection))
         home_wr1_rv = scipy.stats.gamma((float(home_wr1.projection)/float(home_wr1.stdev))**2, scale=(float(home_wr1.stdev)**2)/float(home_wr1.projection))
         home_wr2_rv = scipy.stats.gamma((float(home_wr2.projection)/float(home_wr2.stdev))**2, scale=(float(home_wr2.stdev)**2)/float(home_wr2.projection))
         home_wr3_rv = scipy.stats.gamma((float(home_wr3.projection)/float(home_wr3.stdev))**2, scale=(float(home_wr3.stdev)**2)/float(home_wr3.projection))
-        home_te_rv = scipy.stats.gamma((float(home_te.projection)/float(home_te.stdev))**2, scale=(float(home_te.stdev)**2)/float(home_te.projection))
+        home_wr4_rv = scipy.stats.gamma((float(home_wr4.projection)/float(home_wr4.stdev))**2, scale=(float(home_wr4.stdev)**2)/float(home_wr4.projection))
+        home_wr5_rv = scipy.stats.gamma((float(home_wr5.projection)/float(home_wr5.stdev))**2, scale=(float(home_wr5.stdev)**2)/float(home_wr5.projection))
+        home_te1_rv = scipy.stats.gamma((float(home_te1.projection)/float(home_te1.stdev))**2, scale=(float(home_te1.stdev)**2)/float(home_te1.projection))
+        home_te2_rv = scipy.stats.gamma((float(home_te2.projection)/float(home_te2.stdev))**2, scale=(float(home_te2.stdev)**2)/float(home_te2.projection))
         home_dst_rv = scipy.stats.gamma((float(home_dst.projection)/float(home_dst.stdev))**2, scale=(float(home_dst.stdev)**2)/float(home_dst.projection))
         away_qb_rv = scipy.stats.gamma((float(away_qb.projection)/float(away_qb.stdev))**2, scale=(float(away_qb.stdev)**2)/float(away_qb.projection))
         away_rb1_rv = scipy.stats.gamma((float(away_rb1.projection)/float(away_rb1.stdev))**2, scale=(float(away_rb1.stdev)**2)/float(away_rb1.projection))
         away_rb2_rv = scipy.stats.gamma((float(away_rb2.projection)/float(away_rb2.stdev))**2, scale=(float(away_rb2.stdev)**2)/float(away_rb2.projection))
+        away_rb3_rv = scipy.stats.gamma((float(away_rb3.projection)/float(away_rb3.stdev))**2, scale=(float(away_rb3.stdev)**2)/float(away_rb3.projection))
         away_wr1_rv = scipy.stats.gamma((float(away_wr1.projection)/float(away_wr1.stdev))**2, scale=(float(away_wr1.stdev)**2)/float(away_wr1.projection))
         away_wr2_rv = scipy.stats.gamma((float(away_wr2.projection)/float(away_wr2.stdev))**2, scale=(float(away_wr2.stdev)**2)/float(away_wr2.projection))
         away_wr3_rv = scipy.stats.gamma((float(away_wr3.projection)/float(away_wr3.stdev))**2, scale=(float(away_wr3.stdev)**2)/float(away_wr3.projection))
-        away_te_rv = scipy.stats.gamma((float(away_te.projection)/float(away_te.stdev))**2, scale=(float(away_te.stdev)**2)/float(away_te.projection))
+        away_wr4_rv = scipy.stats.gamma((float(away_wr4.projection)/float(away_wr4.stdev))**2, scale=(float(away_wr4.stdev)**2)/float(away_wr4.projection))
+        away_wr5_rv = scipy.stats.gamma((float(away_wr5.projection)/float(away_wr5.stdev))**2, scale=(float(away_wr5.stdev)**2)/float(away_wr5.projection))
+        away_te1_rv = scipy.stats.gamma((float(away_te1.projection)/float(away_te1.stdev))**2, scale=(float(away_te1.stdev)**2)/float(away_te1.projection))
+        away_te2_rv = scipy.stats.gamma((float(away_te2.projection)/float(away_te2.stdev))**2, scale=(float(away_te2.stdev)**2)/float(away_te2.projection))
         away_dst_rv = scipy.stats.gamma((float(away_dst.projection)/float(away_dst.stdev))**2, scale=(float(away_dst.stdev)**2)/float(away_dst.projection))
 
         rand_home_qb = home_qb_rv.ppf(rand_U[:, 0])
         rand_home_rb1 = home_rb1_rv.ppf(rand_U[:, 1])
         rand_home_rb2 = home_rb2_rv.ppf(rand_U[:, 2])
-        rand_home_wr1 = home_wr1_rv.ppf(rand_U[:, 3])
-        rand_home_wr2 = home_wr2_rv.ppf(rand_U[:, 4])
-        rand_home_wr3 = home_wr3_rv.ppf(rand_U[:, 5])
-        rand_home_te = home_te_rv.ppf(rand_U[:, 6])
-        rand_home_dst = home_dst_rv.ppf(rand_U[:, 7])
-        rand_away_qb = away_qb_rv.ppf(rand_U[:, 8])
-        rand_away_rb1 = away_rb1_rv.ppf(rand_U[:, 9])
-        rand_away_rb2 = away_rb2_rv.ppf(rand_U[:, 10])
-        rand_away_wr1 = away_wr1_rv.ppf(rand_U[:, 11])
-        rand_away_wr2 = away_wr2_rv.ppf(rand_U[:, 12])
-        rand_away_wr3 = away_wr3_rv.ppf(rand_U[:, 13])
-        rand_away_te = away_te_rv.ppf(rand_U[:, 14])
-        rand_away_dst = away_dst_rv.ppf(rand_U[:, 15])
+        rand_home_rb3 = home_rb3_rv.ppf(rand_U[:, 3])
+        rand_home_wr1 = home_wr1_rv.ppf(rand_U[:, 4])
+        rand_home_wr2 = home_wr2_rv.ppf(rand_U[:, 5])
+        rand_home_wr3 = home_wr3_rv.ppf(rand_U[:, 6])
+        rand_home_wr4 = home_wr4_rv.ppf(rand_U[:, 7])
+        rand_home_wr5 = home_wr5_rv.ppf(rand_U[:, 8])
+        rand_home_te1 = home_te1_rv.ppf(rand_U[:, 9])
+        rand_home_te2 = home_te2_rv.ppf(rand_U[:, 10])
+        rand_home_dst = home_dst_rv.ppf(rand_U[:, 11])
+        rand_away_qb = away_qb_rv.ppf(rand_U[:, 12])
+        rand_away_rb1 = away_rb1_rv.ppf(rand_U[:, 13])
+        rand_away_rb2 = away_rb2_rv.ppf(rand_U[:, 14])
+        rand_away_rb3 = away_rb3_rv.ppf(rand_U[:, 15])
+        rand_away_wr1 = away_wr1_rv.ppf(rand_U[:, 16])
+        rand_away_wr2 = away_wr2_rv.ppf(rand_U[:, 17])
+        rand_away_wr3 = away_wr3_rv.ppf(rand_U[:, 18])
+        rand_away_wr4 = away_wr4_rv.ppf(rand_U[:, 19])
+        rand_away_wr5 = away_wr5_rv.ppf(rand_U[:, 20])
+        rand_away_te1 = away_te1_rv.ppf(rand_U[:, 21])
+        rand_away_te2 = away_te2_rv.ppf(rand_U[:, 22])
+        rand_away_dst = away_dst_rv.ppf(rand_U[:, 23])
 
         df_scores = pandas.DataFrame([
             rand_home_qb,
             rand_home_rb1,
             rand_home_rb2,
+            rand_home_rb3,
             rand_home_wr1,
             rand_home_wr2,
             rand_home_wr3,
-            rand_home_te,
+            rand_home_wr4,
+            rand_home_wr5,
+            rand_home_te1,
+            rand_home_te2,
             rand_home_dst,
             rand_away_qb,
             rand_away_rb1,
             rand_away_rb2,
+            rand_away_rb3,
             rand_away_wr1,
             rand_away_wr2,
             rand_away_wr3,
-            rand_away_te,
+            rand_away_wr4,
+            rand_away_wr5,
+            rand_away_te1,
+            rand_away_te2,
             rand_away_dst,
         ])
 
@@ -249,14 +281,22 @@ def simulate_game(game_id, task_id):
         home_rb1.save()
         home_rb2.sim_scores = numpy.round(rand_home_rb2, 2).tolist()
         home_rb2.save()
+        home_rb3.sim_scores = numpy.round(rand_home_rb3, 2).tolist()
+        home_rb3.save()
         home_wr1.sim_scores = numpy.round(rand_home_wr1, 2).tolist()
         home_wr1.save()
         home_wr2.sim_scores = numpy.round(rand_home_wr2, 2).tolist()
         home_wr2.save()
         home_wr3.sim_scores = numpy.round(rand_home_wr3, 2).tolist()
         home_wr3.save()
-        home_te.sim_scores = numpy.round(rand_home_te, 2).tolist()
-        home_te.save()
+        home_wr4.sim_scores = numpy.round(rand_home_wr4, 2).tolist()
+        home_wr4.save()
+        home_wr5.sim_scores = numpy.round(rand_home_wr5, 2).tolist()
+        home_wr5.save()
+        home_te1.sim_scores = numpy.round(rand_home_te1, 2).tolist()
+        home_te1.save()
+        home_te2.sim_scores = numpy.round(rand_home_te2, 2).tolist()
+        home_te2.save()
         home_dst.sim_scores = numpy.round(rand_home_dst, 2).tolist()
         home_dst.save()
         away_qb.sim_scores = numpy.round(rand_away_qb, 2).tolist()
@@ -265,14 +305,22 @@ def simulate_game(game_id, task_id):
         away_rb1.save()
         away_rb2.sim_scores = numpy.round(rand_away_rb2, 2).tolist()
         away_rb2.save()
+        away_rb3.sim_scores = numpy.round(rand_away_rb3, 2).tolist()
+        away_rb3.save()
         away_wr1.sim_scores = numpy.round(rand_away_wr1, 2).tolist()
         away_wr1.save()
         away_wr2.sim_scores = numpy.round(rand_away_wr2, 2).tolist()
         away_wr2.save()
         away_wr3.sim_scores = numpy.round(rand_away_wr3, 2).tolist()
         away_wr3.save()
-        away_te.sim_scores = numpy.round(rand_away_te, 2).tolist()
-        away_te.save()
+        away_wr4.sim_scores = numpy.round(rand_away_wr4, 2).tolist()
+        away_wr4.save()
+        away_wr5.sim_scores = numpy.round(rand_away_wr5, 2).tolist()
+        away_wr5.save()
+        away_te1.sim_scores = numpy.round(rand_away_te1, 2).tolist()
+        away_te1.save()
+        away_te2.sim_scores = numpy.round(rand_away_te2, 2).tolist()
+        away_te2.save()
         away_dst.sim_scores = numpy.round(rand_away_dst, 2).tolist()
         away_dst.save()
 
