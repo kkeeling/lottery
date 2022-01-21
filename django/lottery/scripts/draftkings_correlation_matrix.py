@@ -14,14 +14,14 @@ def run():
     matrix = []
 
     for index, qb in enumerate(qbs):
-        rbs = find_players(qb, 'RB', 2)
-        if rbs.count() < 2:
+        rbs = find_players(qb, 'RB', 3)
+        if rbs.count() < 3:
             continue
-        wrs = find_players(qb, 'WR', 3)
-        if wrs.count() < 3:
+        wrs = find_players(qb, 'WR', 5)
+        if wrs.count() < 5:
             continue
-        tes = find_players(qb, 'TE', 1)
-        if tes.count() < 1:
+        tes = find_players(qb, 'TE', 2)
+        if tes.count() < 2:
             continue
         dsts = find_players(qb, 'DST', 1)
         if dsts.count() < 1:
@@ -30,14 +30,14 @@ def run():
         o_qbs = find_qbs(qb)
         if o_qbs.count() < 1:
             continue
-        o_rbs = find_players(qb, 'RB', 2, find_opponent=True)
-        if o_rbs.count() < 2:
+        o_rbs = find_players(qb, 'RB', 3, find_opponent=True)
+        if o_rbs.count() < 3:
             continue
-        o_wrs = find_players(qb, 'WR', 3, find_opponent=True)
-        if o_wrs.count() < 3:
+        o_wrs = find_players(qb, 'WR', 5, find_opponent=True)
+        if o_wrs.count() < 5:
             continue
-        o_tes = find_players(qb, 'TE', 1, find_opponent=True)
-        if o_tes.count() < 1:
+        o_tes = find_players(qb, 'TE', 2, find_opponent=True)
+        if o_tes.count() < 2:
             continue
         o_dsts = find_players(qb, 'DST', 1, find_opponent=True)
         if o_dsts.count() < 1:
@@ -68,18 +68,26 @@ def run():
         'qb',
         'rb1',
         'rb2',
+        'rb3',
         'wr1',
         'wr2',
         'wr3',
-        'te',
+        'wr4',
+        'wr5',
+        'te1',
+        'te2',
         'dst',
         'opp qb',
         'opp rb1',
         'opp rb2',
+        'opp rb3',
         'opp wr1',
         'opp wr2',
         'opp wr3',
-        'opp te',
+        'opp wr4',
+        'opp wr5',
+        'opp te1',
+        'opp te2',
         'opp dst',
     ])
 
