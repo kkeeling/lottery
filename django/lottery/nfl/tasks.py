@@ -270,6 +270,8 @@ def simulate_game(game_id, task_id):
             rand_away_te2,
             rand_away_dst,
         ])
+        print(game)
+        print(df_scores)
 
         game.game_sim = json.dumps(df_scores.to_json())
         game.save()
