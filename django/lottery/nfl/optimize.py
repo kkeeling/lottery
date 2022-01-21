@@ -383,44 +383,45 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
             else:
                 optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
     elif site == 'draftkings':
-        if config.game_stack_size == 3:
-            if config.use_mini_stacks:
-                if stack.player_2 is not None:
-                    if 'RB' not in config.flex_positions:
-                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettingsMax3PerTeam)
-                    elif 'TE' not in config.flex_positions:
-                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettingsMax3PerTeam)
-                    else:
-                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsNFLSettingsMax3PerTeam)
-                else:
-                    if 'RB' not in config.flex_positions:
-                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettingsMax2PerTeam)
-                    elif 'TE' not in config.flex_positions:
-                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettingsMax2PerTeam)
-                    else:
-                        optimizer = LineupOptimizer(optimizer_settings.DraftKingsNFLSettingsMax2PerTeam)
-            else:
-                if 'RB' not in config.flex_positions:
-                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettings)
-                elif 'TE' not in config.flex_positions:
-                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettings)
-                else:
-                    optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
-        elif config.game_stack_size == 4:
-            if config.use_mini_stacks:
-                if 'RB' not in config.flex_positions:
-                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettingsMax3PerTeamMax5Games)
-                elif 'TE' not in config.flex_positions:
-                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettingsMax3PerTeamMax5Games)
-                else:
-                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsNFLSettingsMax3PerTeamMax5Games)
-            else:
-                if 'RB' not in config.flex_positions:
-                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettings)
-                elif 'TE' not in config.flex_positions:
-                    optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettings)
-                else:
-                    optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
+        optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
+        # if config.game_stack_size == 3:
+        #     if config.use_mini_stacks:
+        #         if stack.player_2 is not None:
+        #             if 'RB' not in config.flex_positions:
+        #                 optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettingsMax3PerTeam)
+        #             elif 'TE' not in config.flex_positions:
+        #                 optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettingsMax3PerTeam)
+        #             else:
+        #                 optimizer = LineupOptimizer(optimizer_settings.DraftKingsNFLSettingsMax3PerTeam)
+        #         else:
+        #             if 'RB' not in config.flex_positions:
+        #                 optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettingsMax2PerTeam)
+        #             elif 'TE' not in config.flex_positions:
+        #                 optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettingsMax2PerTeam)
+        #             else:
+        #                 optimizer = LineupOptimizer(optimizer_settings.DraftKingsNFLSettingsMax2PerTeam)
+        #     else:
+        #         if 'RB' not in config.flex_positions:
+        #             optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettings)
+        #         elif 'TE' not in config.flex_positions:
+        #             optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettings)
+        #         else:
+        #             optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
+        # elif config.game_stack_size == 4:
+        #     if config.use_mini_stacks:
+        #         if 'RB' not in config.flex_positions:
+        #             optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettingsMax3PerTeamMax5Games)
+        #         elif 'TE' not in config.flex_positions:
+        #             optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettingsMax3PerTeamMax5Games)
+        #         else:
+        #             optimizer = LineupOptimizer(optimizer_settings.DraftKingsNFLSettingsMax3PerTeamMax5Games)
+        #     else:
+        #         if 'RB' not in config.flex_positions:
+        #             optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoRBFlexSettings)
+        #         elif 'TE' not in config.flex_positions:
+        #             optimizer = LineupOptimizer(optimizer_settings.DraftKingsFootballNoTEFlexSettings)
+        #         else:
+        #             optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
     elif site == 'yahoo':
         if config.game_stack_size == 3:
             if config.use_mini_stacks:
