@@ -2702,10 +2702,10 @@ class SlateBuildStack(models.Model):
                     lineup.simulate()
 
             # clean stack lineups
-            # ordered_lineups = SlateBuildLineup.objects.filter(build=self.build, stack=self).order_by(f'-{self.build.configuration.lineup_removal_by}')
-            # ordered_lineups.filter(id__in=ordered_lineups.values_list('pk', flat=True)[int(self.count):]).delete()
+            ordered_lineups = SlateBuildLineup.objects.filter(build=self.build, stack=self).order_by(f'-{self.build.configuration.lineup_removal_by}')
+            ordered_lineups.filter(id__in=ordered_lineups.values_list('pk', flat=True)[int(self.count):]).delete()
 
-            # self.times_used = ordered_lineups.count()
+            self.times_used = ordered_lineups.count()
             self.lineups_created = True
             self.save()
         except Exception as exc:

@@ -1088,8 +1088,8 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
     total_stack_projection = models.SlateBuildStack.objects.filter(build=build, qb=qb).aggregate(total_projection=Sum('projection')).get('total_projection')
     for stack in models.SlateBuildStack.objects.filter(build=build, qb=qb):
         print(stack, stack.projection/total_stack_projection, round(stack.projection/total_stack_projection * qb_lineup_count, 0))
-        # stack.count = round(max(stack.projection/total_stack_projection * qb_lineup_count, 1), 0)
-        stack.count = 20
+        stack.count = round(max(stack.projection/total_stack_projection * qb_lineup_count, 1), 0)
+        # stack.count = 20
         stack.save()
 
 
@@ -1499,7 +1499,7 @@ def build_complete(build_id, task_id):
         task = BackgroundTask.objects.get(id=task_id)
 
     build = models.SlateBuild.objects.get(id=build_id)
-    build.clean_lineups()
+    # build.clean_lineups()
     build.find_expected_lineup_order()
     build.pct_complete = 1.0
     build.status = 'complete'
