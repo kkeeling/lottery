@@ -455,6 +455,31 @@ class TrackAdmin(admin.ModelAdmin):
         'track_name',
         'track_type'
     )
+    actions = [
+        'export'
+    ]
+
+    def export(self, request, queryset):
+        task = BackgroundTask()
+        task.name = 'Export Track Data'
+        task.user = request.user
+        task.save()
+
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file = f'tracks-{timestamp}_upload.csv'
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+        tasks.export_tracks.delay(list(queryset.values_list('track_id', flat=True)), result_path, result_url, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue while you\'re waiting. A new message will appear here once your export is ready.')
+    export.short_description = 'Export selected tracks'
 
 
 @admin.register(models.Race)

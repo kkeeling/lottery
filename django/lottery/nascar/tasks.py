@@ -53,6 +53,8 @@ def lock_task(key, timeout=None):
             lock.release()
 
 
+# Updating Nascar Data
+
 @shared_task
 def update_driver_list():
     try:
@@ -245,6 +247,37 @@ def update_lap_data_for_race(race_id, race_year=2022):
                 )
             except:
                 pass
+
+
+# Exports
+
+@shared_task
+def export_tracks(track_ids, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        tracks = models.Track.objects.filter(track_id__in=track_ids)
+        df_tracks = pandas.DataFrame.from_records(tracks.values())
+        df_tracks.to_csv(result_path)
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a exporting track data: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 # @shared_task
 # def update_matches_from_ta(tour, year):
