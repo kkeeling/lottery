@@ -467,7 +467,7 @@ class TrackAdmin(admin.ModelAdmin):
 
         now = datetime.datetime.now()
         timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
-        result_file = f'tracks-{timestamp}_upload.csv'
+        result_file = f'tracks-{timestamp}.csv'
         result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
         os.makedirs(result_path, exist_ok=True)
         result_path = os.path.join(result_path, result_file)
@@ -507,6 +507,126 @@ class RaceAdmin(admin.ModelAdmin):
         RaceInfractionInline,
     ]
 
+@admin.register(models.RaceSim)
+class RaceSimAdmin(admin.ModelAdmin):
+    list_display = (
+        'pk',
+        'race',
+        'iterations',
+        'export_template_button',
+        'sim_button',
+    )
+    list_editable = (
+        'iterations',
+    )
+    raw_id_fields = (
+        'race',
+    )
+    inlines = [
+    ]
+    actions = ['simulate_races']
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.process_sim(request, obj)
+
+    def process_sim(self, request, sim):
+        if bool(sim.input_file):
+            tasks.process_sim_input_file.delay(
+                sim.id,
+                BackgroundTask.objects.create(
+                    name='Processing sim input file',
+                    user=request.user
+                ).id
+            )
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Your sim input file is being processed. You may continue while you\'re waiting. A new message will appear here once the slate is ready.')
+
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('nascar-race-template/<int:pk>/', self.export_template, name="nascar_admin_slate_template"),
+            path('nascar-race-simulate/<int:pk>/', self.simulate, name="nascar_admin_slate_simulate"),
+        ]
+        return my_urls + urls
+
+    def export_template(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        sim = get_object_or_404(models.RaceSim, pk=pk)
+
+        task = BackgroundTask()
+        task.name = 'Export Sim Template'
+        task.user = request.user
+        task.save()
+
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file = f'sim_template-{sim.race}-{timestamp}.csv'
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+        tasks.export_sim_template.delay(sim.id, result_path, result_url, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue while you\'re waiting. A new message will appear here once your export is ready.')
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def simulate(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        sim = get_object_or_404(models.RaceSim, pk=pk)
+        tasks.execute_sim.delay(
+            sim.id,
+            BackgroundTask.objects.create(
+                name=f'Simulate {sim.race}',
+                user=request.user
+            ).id
+        )
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Simulating player outcomes for {sim.race}'
+        )
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def simulate_races(self, request, queryset):
+        jobs = [
+            tasks.execute_sim.si(
+                sim.id,
+                BackgroundTask.objects.create(
+                    name=f'Simulate {sim.race}',
+                    user=request.user
+                ).id
+            ) for sim in queryset
+        ]
+        group(jobs)()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Simulating player outcomes for {queryset.count()} races'
+        )
 
 # @admin.register(models.SlateBuildConfig)
 # class ConfigAdmin(admin.ModelAdmin):

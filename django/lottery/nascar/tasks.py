@@ -22,8 +22,8 @@ from contextlib import contextmanager
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.messages.api import success
-from django.db.models.aggregates import Count, Sum
-from django.db.models import Q, F
+from django.db.models.aggregates import Count, Sum, Avg
+from django.db.models import Q, F, ExpressionWrapper, FloatField
 from django.db import transaction
 
 from configuration.models import BackgroundTask
@@ -273,7 +273,125 @@ def export_tracks(track_ids, result_path, result_url, task_id):
     except Exception as e:
         if task is not None:
             task.status = 'error'
-            task.content = f'There was a exporting track data: {e}'
+            task.content = f'There was an error exporting track data: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def export_sim_template(sim_id, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        race_sim = models.RaceSim.objects.get(id=sim_id)
+        prior_races = models.Race.objects.filter(
+            series=race_sim.race.series,
+            race_date__lt=race_sim.race.race_date
+        ).exclude(
+            track__track_type=3
+        )
+
+        drivers = race_sim.get_drivers().all().annotate(
+            num_races=Count('driver__results__race', filter=Q(driver__results__race__in=prior_races), distinct=True),
+            num_finish=Count('driver__results__race', filter=Q(driver__results__race__in=prior_races, driver__results__finishing_status='Running'), distinct=True),
+            num_crashes=Count('driver__results__race', filter=Q(Q(driver__results__race__in=prior_races, driver__results__finishing_status='Accident')|Q(driver__results__race__in=prior_races, driver__results__finishing_status='DVP')), distinct=True),
+            num_mech=F('num_races') - F('num_finish') - F('num_crashes'),
+            num_penalty=Count('driver__infractions__race', filter=Q(driver__infractions__race__in=prior_races, driver__infractions__lap__gt=0), distinct=True)
+        ).order_by('starting_position')
+
+        df_drivers = pandas.DataFrame.from_records(drivers.values(
+            'driver__nascar_driver_id',
+            'driver__full_name',
+            'driver__badge',
+            'driver__team',
+            'starting_position',
+            'num_races',
+            'num_finish',
+            'num_crashes',
+            'num_mech',
+            'num_penalty',
+        ))
+        df_drivers['crash_rate'] = df_drivers['num_crashes']/df_drivers['num_races']
+        df_drivers['mech_rate'] = df_drivers['num_mech']/df_drivers['num_races']
+        df_drivers['penalty_rate'] = df_drivers['num_penalty']/df_drivers['num_races']
+        df_drivers['best_sr'] = ''
+        df_drivers['worst_sr'] = ''
+
+        df_drivers = df_drivers.drop(columns=['num_finish', 'num_crashes', 'num_mech', 'num_penalty'])
+        df_drivers.to_csv(result_path)
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error exporting track data: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+# Sims
+
+@shared_task
+def process_sim_input_file(sim_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        race_sim = models.RaceSim.objects.get(id=sim_id)
+
+        task.status = 'success'
+        task.content = f'{race_sim} inputs processed.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error processing inputs for this sim: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def execute_sim(sim_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        race_sim = models.RaceSim.objects.get(id=sim_id)
+
+        task.status = 'success'
+        task.content = f'{race_sim} complete.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error simulating this race: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))

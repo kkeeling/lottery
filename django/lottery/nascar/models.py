@@ -62,6 +62,8 @@ TRACK_TYPES = (
 # )
 
 
+# Aliases
+
 class Alias(models.Model):
     dk_name = models.CharField(max_length=255, null=True, blank=True)
     fd_name = models.CharField(max_length=255, null=True, blank=True)
@@ -183,6 +185,8 @@ class MissingAlias(models.Model):
     create_new_alias_button.short_description = ''
 
 
+# Nascar Data
+
 class Driver(models.Model):
     nascar_driver_id = models.IntegerField(primary_key=True)
     driver_id = models.BigIntegerField(null=True, blank=True)
@@ -279,7 +283,49 @@ class RaceDriverLap(models.Model):
 
     def __str__(self):
         return f'{self.driver} Lap {self.lap}'
-        
+
+
+# Simulations
+
+class RaceSim(models.Model):
+    race = models.ForeignKey(Race, related_name='sims', on_delete=models.CASCADE)
+    iterations = models.IntegerField(default=10000)
+    input_file = models.FileField(upload_to='uploads/sim_input_files', blank=True, null=True)
+
+    def __str__(self):
+        return f'{self.race} Sim {self.id}'
+
+    def get_drivers(self):
+        return self.race.results.all()
+
+    def export_template_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #f5dd5d; font-weight: bold; padding: 10px 15px;">Template</a>',
+            reverse_lazy("admin:nascar_admin_slate_template", args=[self.pk])
+        )
+    export_template_button.short_description = ''
+
+    def sim_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Run</a>',
+            reverse_lazy("admin:nascar_admin_slate_simulate", args=[self.pk])
+        )
+    sim_button.short_description = ''
+
+
+class RaceSimDriver(models.Model):
+    sim = models.ForeignKey(RaceSim, related_name='outcomes', on_delete=models.CASCADE)
+    driver = models.ForeignKey(Driver, related_name='outcomes', on_delete=models.CASCADE)
+    best_fp = models.IntegerField(default=0)
+    worst_fp = models.IntegerField(default=0)
+    crash_rate = models.FloatField(default=0.0)
+    mech_rate = models.FloatField(default=0.0)
+    infraction_rate = models.FloatField(default=0.0)
+    fp_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
+    ll_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
+    fl_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
+
+    def __str__(self):
+        return f'{self.driver}'
+
 
 # class SlateBuildConfig(models.Model):
 #     OPTIMIZE_CHOICES = (
