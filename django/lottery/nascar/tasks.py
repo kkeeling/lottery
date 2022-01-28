@@ -356,6 +356,32 @@ def process_sim_input_file(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         race_sim = models.RaceSim.objects.get(id=sim_id)
+        models.RaceSimDriver.objects.filter(sim=race_sim).delete()
+
+        with open(race_sim.input_file.path, mode='r') as input_file:
+            csv_reader = csv.DictReader(input_file)
+
+            for row in csv_reader:
+                driver_id = row['driver__nascar_driver_id']
+                starting_position = row['starting_position']
+                crash_rate = row['crash_rate']
+                mech_rate = row['mech_rate']
+                penalty_rate = row['penalty_rate']
+                best_sr = row['best_sr']
+                worst_sr = row['worst_sr']
+
+                driver = models.Driver.objects.get(nascar_driver_id=driver_id)
+
+                models.RaceSimDriver.objects.create(
+                    sim=race_sim,
+                    driver=driver,
+                    starting_position=starting_position,
+                    best_speed_rank=best_sr,
+                    worst_speed_rank=worst_sr,
+                    crash_rate=crash_rate,
+                    mech_rate=mech_rate,
+                    infraction_rate=penalty_rate
+                )
 
         task.status = 'success'
         task.content = f'{race_sim} inputs processed.'

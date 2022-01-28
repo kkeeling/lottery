@@ -188,6 +188,20 @@ class RaceInfractionInline(admin.TabularInline):
         'notes',
     )
 
+
+class RaceSimDriverInline(admin.TabularInline):
+    model = models.RaceSimDriver
+    extra = 0
+    fields = (
+        'driver',
+        'starting_position',
+        'best_speed_rank',
+        'worst_speed_rank',
+        'crash_rate',
+        'mech_rate',
+        'infraction_rate',
+    )
+
 # @admin.register(models.Player)
 # class PlayerAdmin(admin.ModelAdmin):
 #     list_display = (
@@ -523,6 +537,7 @@ class RaceSimAdmin(admin.ModelAdmin):
         'race',
     )
     inlines = [
+        RaceSimDriverInline
     ]
     actions = ['simulate_races']
 

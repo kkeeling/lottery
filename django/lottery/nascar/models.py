@@ -314,8 +314,9 @@ class RaceSim(models.Model):
 class RaceSimDriver(models.Model):
     sim = models.ForeignKey(RaceSim, related_name='outcomes', on_delete=models.CASCADE)
     driver = models.ForeignKey(Driver, related_name='outcomes', on_delete=models.CASCADE)
-    best_fp = models.IntegerField(default=0)
-    worst_fp = models.IntegerField(default=0)
+    starting_position = models.IntegerField(default=0)
+    best_speed_rank = models.IntegerField(default=0)
+    worst_speed_rank = models.IntegerField(default=0)
     crash_rate = models.FloatField(default=0.0)
     mech_rate = models.FloatField(default=0.0)
     infraction_rate = models.FloatField(default=0.0)
