@@ -23,7 +23,7 @@ def run():
         tes = find_players(qb, 'TE', 2)
         if tes.count() < 2:
             continue
-        dsts = find_players(qb, 'DST', 1)
+        dsts = find_players(qb, 'D', 1)
         if dsts.count() < 1:
             continue
 
@@ -39,7 +39,7 @@ def run():
         o_tes = find_players(qb, 'TE', 2, find_opponent=True)
         if o_tes.count() < 2:
             continue
-        o_dsts = find_players(qb, 'DST', 1, find_opponent=True)
+        o_dsts = find_players(qb, 'D', 1, find_opponent=True)
         if o_dsts.count() < 1:
             continue
 
@@ -101,7 +101,7 @@ def run():
 
     r = v.corr(method='pearson')
     print(r)
-    r.to_csv(f'data/dk_r.csv')
+    r.to_csv(f'data/r.csv')
 
 
 def find_qbs(qb=None):
