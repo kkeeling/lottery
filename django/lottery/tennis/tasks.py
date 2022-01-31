@@ -1055,6 +1055,50 @@ def calculate_target_scores(slate_id, task_id):
 
 
 @shared_task
+def calculate_slate_structure(slate_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
+        all_scores = numpy.array(
+            [
+                [p.name, p.is_underdog()] + p.sim_scores for p in models.SlatePlayerProjection.objects.filter(
+                    slate_player__slate=slate
+                )
+            ]
+        )
+
+        n = 8
+        df_scores = pandas.DataFrame(all_scores)
+        print(df_scores)
+        # top_scores = df_scores.max(axis = 0)
+        # target_scores = [df_scores[c].nlargest(n).values[n-1] for c in df_scores.columns]
+
+        # slate.top_score = numpy.mean(top_scores.to_list())
+        # slate.target_score = numpy.mean(target_scores)
+        # slate.save()
+        
+        task.status = 'success'
+        task.content = f'Slate structure calculated'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem calculating slate structure: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def build_lineups(build_id, task_id):
     task = None
 

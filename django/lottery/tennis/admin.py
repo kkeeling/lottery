@@ -509,13 +509,20 @@ class SlateAdmin(admin.ModelAdmin):
                     user=request.user
                 ).id
             ) for slate_match in slate.matches.all()
-        ], tasks.calculate_target_scores.si(
+        ], chain([
+            tasks.calculate_target_scores.si(
                 slate.id,
                 BackgroundTask.objects.create(
                     name=f'Calculate target scores for {slate}',
                     user=request.user
-                ).id
-
+                ).id),
+            tasks.calculate_slate_structure.si(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name=f'Calculate structure for {slate}',
+                    user=request.user
+                ).id)
+            ]
         ))()
 
         messages.add_message(

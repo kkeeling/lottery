@@ -132,6 +132,10 @@ def update_race_list(race_year=2022):
                 race.qualifying_date = datetime.datetime.strptime(r.get('qualifying_date'), '%Y-%m-%dT%H:%M:%S')
                 race.scheduled_distance = r.get('scheduled_distance')
                 race.scheduled_laps = r.get('scheduled_laps')
+                race.stage_1_laps = r.get('stage_1_laps')
+                race.stage_2_laps = r.get('stage_2_laps')
+                race.stage_3_laps = r.get('stage_3_laps')
+                race.stage_4_laps = r.get('stage_4_laps') if r.get('stage_4_laps') is not None else 0
                 race.save()
         
         race_result_tasks = [
@@ -409,6 +413,11 @@ def execute_sim(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         race_sim = models.RaceSim.objects.get(id=sim_id)
+        drivers = race_sim.outcomes.all()
+
+        for stage in range(1, race_sim.race.num_stages() + 1):
+            num_laps = race_sim.race.get_laps_for_stage(stage)
+            print(f'Stage {stage}: {num_laps} laps')
 
         task.status = 'success'
         task.content = f'{race_sim} complete.'

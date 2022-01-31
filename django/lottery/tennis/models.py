@@ -1894,6 +1894,8 @@ class SlatePlayerProjection(models.Model):
             self.implied_win_pct = -self.pinnacle_odds/(-self.pinnacle_odds+100)
         self.save()
 
+    def is_underdog(self):
+        return self.implied_win_pct <= 0.4499999
 
 class SlateBuild(models.Model):
     slate = models.ForeignKey(Slate, related_name='builds', on_delete=models.CASCADE)

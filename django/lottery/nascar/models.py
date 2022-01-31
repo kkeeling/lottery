@@ -224,6 +224,10 @@ class Race(models.Model):
     qualifying_date = models.DateTimeField(null=True, blank=True)
     scheduled_distance = models.IntegerField(default=0)
     scheduled_laps = models.IntegerField(default=0)
+    stage_1_laps = models.IntegerField(default=0)
+    stage_2_laps = models.IntegerField(default=0)
+    stage_3_laps = models.IntegerField(default=0)
+    stage_4_laps = models.IntegerField(default=0)
     num_cars = models.IntegerField(default=0)
     num_lead_changes = models.IntegerField(default=0)
     num_leaders = models.IntegerField(default=0)
@@ -232,6 +236,28 @@ class Race(models.Model):
 
     def __str__(self):
         return f'{self.race_name}'
+
+    def num_stages(self):
+        if self.stage_4_laps > 0:
+            return 4
+        elif self.stage_3_laps > 0:
+            return 3
+        elif self.stage_2_laps > 0:
+            return 2
+        elif self.stage_1_laps > 0:
+            return 1
+        return 0
+
+    def get_laps_for_stage(self, stage=1):
+        if stage == 1:
+            return self.stage_1_laps
+        elif stage == 2:
+            return self.stage_2_laps
+        elif stage == 3:
+            return self.stage_3_laps
+        elif stage == 4:
+            return self.stage_4_laps
+        return 0
 
 
 class RaceResult(models.Model):
