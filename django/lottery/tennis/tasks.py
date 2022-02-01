@@ -1067,23 +1067,10 @@ def calculate_slate_structure(slate_id, task_id):
 
         # Task implementation goes here
         slate = models.Slate.objects.get(id=slate_id)
-        all_scores = numpy.array(
-            [
-                [p.name, p.is_underdog()] + p.sim_scores for p in models.SlatePlayerProjection.objects.filter(
-                    slate_player__slate=slate
-                )
-            ]
-        )
-
-        n = 8
-        df_scores = pandas.DataFrame(all_scores)
-        print(df_scores)
-        # top_scores = df_scores.max(axis = 0)
-        # target_scores = [df_scores[c].nlargest(n).values[n-1] for c in df_scores.columns]
-
-        # slate.top_score = numpy.mean(top_scores.to_list())
-        # slate.target_score = numpy.mean(target_scores)
-        # slate.save()
+        chord(
+            [find_optimal_for_sim.s(slate.id, i) for i in range(0, 10000)],
+            complile_sim_optimals.s()
+        )()
         
         task.status = 'success'
         task.content = f'Slate structure calculated'
@@ -1097,6 +1084,21 @@ def calculate_slate_structure(slate_id, task_id):
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
+
+@shared_task
+def find_optimal_for_sim(slate_id, sim_iteration):
+    slate = models.Slate.objects.get(id=slate_id)
+    optimal = optimize.find_optimal_from_sims(
+        slate.site,
+        models.SlatePlayerProjection.objects.filter(slate_player__slate=slate),
+        sim_iteration=sim_iteration
+    )
+    return [p.id for p in optimal.players]
+
+
+@shared_task
+def complile_sim_optimals(results):
+    pass
 
 @shared_task
 def build_lineups(build_id, task_id):

@@ -4,13 +4,41 @@ from collections import namedtuple
 from pydfs_lineup_optimizer import Site, Sport, Player, get_optimizer, exceptions
 from pydfs_lineup_optimizer.solvers.mip_solver import MIPSolver
 
-# from draftfast import rules
-# from draftfast.optimize import run_multi
-# from draftfast.orm import Player
+from draftfast import rules
+from draftfast.optimize import run_multi
+from draftfast.orm import Player
 # from draftfast.csv_parse import salary_download
 
 
 GameInfo = namedtuple('GameInfo', ['home_team', 'away_team', 'starts_at', 'game_started'])
+
+
+def find_optimal_from_sims(site, projections, sim_iteration=0):
+    if site == 'draftkings':
+        optimizer = get_optimizer(Site.DRAFTKINGS, Sport.TENNIS)
+    else:
+        raise Exception('{} is not a supported dfs site.'.format(site))
+
+    players_list = get_player_list(
+        projections, 
+        sim_iteration=sim_iteration
+    )
+    optimizer.load_players(players_list)
+
+    lineups = []
+
+    try:
+        optimized_lineups = optimizer.optimize(
+            n=1,
+            randomness=False
+        )
+
+        for lineup in optimized_lineups:
+            lineups.append(lineup)
+    except exceptions.LineupOptimizerException:
+        print('Cannot generate more lineups')
+
+    return lineups
 
 
 # def optimize(site, projections, config, num_lineups=150):
@@ -71,10 +99,15 @@ def optimize(site, projections, config, num_lineups=150):
     return lineups
 
 
-def get_player_list(projections, config):
+def get_player_list(projections, config=None, sim_iteration=None):
     '''
     Returns the player list on which to optimize
     '''
+    if config is None and sim_iteration is None:
+        raise Exception('At least one of config or sim_iteration must be not null')
+    elif config is not None and sim_iteration is not None:
+        raise Exception('Only one of config or sim_iteration may be not null')
+
     player_list = []
 
     for player in projections.filter(in_play=True):
@@ -103,14 +136,18 @@ def get_player_list(projections, config):
         )
 
         fppg = None
-        if config.optimize_by == 'implied_win_pct':
-            fppg = numpy.average([float(player.implied_win_pct), float(player.implied_win_pct), float(player.implied_win_pct), float(player.sim_win_pct)]) * 100
-        elif config.optimize_by == 'sim_win_pct':
-            fppg = player.sim_win_pct * 100
-        elif config.optimize_by == 'projection':
-            fppg = player.projection
+
+        if config is not None:
+            if config.optimize_by == 'implied_win_pct':
+                fppg = numpy.average([float(player.implied_win_pct), float(player.implied_win_pct), float(player.implied_win_pct), float(player.sim_win_pct)]) * 100
+            elif config.optimize_by == 'sim_win_pct':
+                fppg = player.sim_win_pct * 100
+            elif config.optimize_by == 'projection':
+                fppg = player.projection
+            else:
+                fppg = player.ceiling
         else:
-            fppg = player.ceiling
+            fppg = player.sim_scores[sim_iteration]
 
         player = Player(
             player.slate_player.slate_player_id,
@@ -121,10 +158,10 @@ def get_player_list(projections, config):
             player.slate_player.salary,
             float(fppg),
             game_info=game_info,
-            min_deviation=-float(config.randomness) if config.randomness > 0.0 else None,
-            max_deviation=float(config.randomness) if config.randomness > 0.0 else None,
-            min_exposure=float(player.min_exposure),
-            max_exposure=float(player.max_exposure),
+            min_deviation=-float(config.randomness) if sim_iteration is None and config.randomness > 0.0 else None,
+            max_deviation=float(config.randomness) if sim_iteration is None and config.randomness > 0.0 else None,
+            min_exposure=float(player.min_exposure) if sim_iteration is None else None,
+            max_exposure=float(player.max_exposure) if sim_iteration is None else None
         )
 
         player_list.append(player)
