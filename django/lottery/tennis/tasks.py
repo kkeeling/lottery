@@ -336,7 +336,24 @@ def get_pinn_odds(task_id):
         update_time = datetime.datetime.now()
         matchup_url = 'https://guest.api.arcadia.pinnacle.com/0.1/sports/33/matchups'
         odds_url = 'https://guest.api.arcadia.pinnacle.com/0.1/sports/33/markets/straight?primaryOnly=false'
-        response = requests.get(matchup_url, headers={'x-api-key': 'CmX2KcMrXuFmNg6YFbmTxE0y9CIrOi0R'})
+        headers = {
+            'authority': 'guest.api.arcadia.pinnacle.com',
+            'pragma': 'no-cache',
+            'cache-control': 'no-cache',
+            'accept': 'application/json',
+            'x-device-uuid': '00f06d96-7d7dd505-45d4f32f-23672660',
+            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.99 Safari/537.36',
+            'x-api-key': 'CmX2KcMrXuFmNg6YFbmTxE0y9CIrOi0R',
+            'content-type': 'application/json',
+            'sec-gpc': '1',
+            'origin': 'https://www.pinnacle.com',
+            'sec-fetch-site': 'same-site',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-dest': 'empty',
+            'referer': 'https://www.pinnacle.com/',
+            'accept-language': 'en-US,en;q=0.9',
+        }        
+        response = requests.get(matchup_url, headers=headers)
         
         matchups = response.json()
         for matchup in matchups:
@@ -352,7 +369,7 @@ def get_pinn_odds(task_id):
                         start_time=datetime.datetime.strptime(matchup.get('startTime'), '%Y-%m-%dT%H:%M:%SZ')
                     )
 
-        response = requests.get(odds_url, headers={'x-api-key': 'CmX2KcMrXuFmNg6YFbmTxE0y9CIrOi0R'})
+        response = requests.get(odds_url, headers=headers)
         odds_list = response.json()
         for odds in odds_list:
             if odds.get('type') == 'moneyline' and odds.get('period') == 0:
