@@ -1,0 +1,1 @@
+[{"model": "nfl_sd.slate", "pk": 4, "fields": {"week": 120, "site": "draftkings", "game": 5229230, "game_sim": null, "is_complete": false, "num_contest_entries": 470500, "salaries_sheet_type": "site", "salaries": "uploads/salaries/DKSalaries_-_2022-02-11T070333.283.csv", "fc_actuals_sheet": ""}}]
