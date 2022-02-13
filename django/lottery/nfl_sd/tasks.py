@@ -423,7 +423,7 @@ def build_lineups_for_captain(build_id, projection_ids, captain_id, task_id):
             build.slate.site,
             projections,
             build.configuration,
-            min(contest.max_entrants * captain.ownership_projection / 2, 5000)
+            contest.max_entrants * captain.ownership_projection
         )
 
         count = 0
