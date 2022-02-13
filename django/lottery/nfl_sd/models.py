@@ -1044,8 +1044,7 @@ class SlateBuild(models.Model):
         self.lineups.all().delete()
 
         jobs = []
-        for captain in self.projections.filter(slate_player__roster_position=self.slate.captain_label, projection__gt=3.0):
-            print(captain)
+        for captain in self.projections.filter(slate_player__roster_position=self.slate.captain_label, ownership_projection__gt=0.0):
             jobs.append(tasks.build_lineups_for_captain.si(
                 self.id,
                 list(self.projections.filter(
