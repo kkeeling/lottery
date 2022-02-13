@@ -763,34 +763,34 @@ def prepare_projections_for_build_complete(build_id, task_id):
 #                 lineup.save()
 
 
-# @shared_task
-# def clean_lineups(build_id, task_id=None):
-#     task = None
+@shared_task
+def clean_lineups(build_id, task_id=None):
+    task = None
 
-#     try:
-#         if task_id is not None:
-#             try:
-#                 task = BackgroundTask.objects.get(id=task_id)
-#             except BackgroundTask.DoesNotExist:
-#                 time.sleep(0.2)
-#                 task = BackgroundTask.objects.get(id=task_id)
+    try:
+        if task_id is not None:
+            try:
+                task = BackgroundTask.objects.get(id=task_id)
+            except BackgroundTask.DoesNotExist:
+                time.sleep(0.2)
+                task = BackgroundTask.objects.get(id=task_id)
 
-#         build = models.SlateBuild.objects.get(id=build_id)
-#         build.clean_lineups()
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.clean_lineups()
 
-#         if task is not None:
-#             task.status = 'success'
-#             task.content = 'Lineups cleaned.'
-#             task.save()
+        if task is not None:
+            task.status = 'success'
+            task.content = 'Lineups cleaned.'
+            task.save()
 
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was a problem cleaning lineups: {e}'
-#             task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem cleaning lineups: {e}'
+            task.save()
 
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 # @shared_task

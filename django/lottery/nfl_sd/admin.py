@@ -69,6 +69,31 @@ class ProjectionFilter(SimpleListFilter):
         return queryset.filter(projection__gte=float(self.value()))
 
 
+class LineupDuplicatedFilter(SimpleListFilter):
+    title = 'duplicated' # or use _('country') for translated title
+    parameter_name = 'duplicated'
+
+    def lookups(self, request, model_admin):
+        return (
+            (10, '10 or less'),
+            (20, '20 or less'),
+            (30, '30 or less'),
+            (40, '40 or less'),
+            (50, '50 or less'),
+            (60, '60 or less'),
+            (70, '70 or less'),
+            (80, '80 or less'),
+            (90, '90 or less'),
+            (100, '100 or less'),
+            (101, 'more than 100'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() is None:
+            return queryset
+        return queryset.filter(duplicated__lte=float(self.value()))
+
+
 # Forms
 
 
@@ -998,6 +1023,10 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'flex3__slate_player__name',
         'flex4__slate_player__name',
         'flex5__slate_player__name',
+    )
+
+    list_filter = (
+        LineupDuplicatedFilter,
     )
 
     def get_queryset(self, request):
