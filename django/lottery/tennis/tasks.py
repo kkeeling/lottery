@@ -819,50 +819,75 @@ def simulate_match(match_id, task_id):
         player_2 = alias2.player
         p1 = player_1.full_name
         p2 = player_2.full_name
+        projection1 = slate_match.projections.get(slate_player__player=player_1)
+        projection2 = slate_match.projections.get(slate_player__player=player_2)
 
-        if common_opponents.count() >= 3:
-            a_points_won = [
-                player_1.get_points_won_rate(
-                    vs_opponent=common_opponent,
-                    timeframe_in_weeks=52*2,
-                    on_surface=slate_match.surface
-                ) for common_opponent in common_opponents        
-            ]
-            b_points_won = [
-                player_2.get_points_won_rate(
-                    vs_opponent=common_opponent,
-                    timeframe_in_weeks=52*2,
-                    on_surface=slate_match.surface
-                ) for common_opponent in common_opponents        
-            ]
+        # if common_opponents.count() >= 3:
+        #     a_points_won = [
+        #         player_1.get_points_won_rate(
+        #             vs_opponent=common_opponent,
+        #             timeframe_in_weeks=52*2,
+        #             on_surface=slate_match.surface
+        #         ) for common_opponent in common_opponents        
+        #     ]
+        #     b_points_won = [
+        #         player_2.get_points_won_rate(
+        #             vs_opponent=common_opponent,
+        #             timeframe_in_weeks=52*2,
+        #             on_surface=slate_match.surface
+        #         ) for common_opponent in common_opponents        
+        #     ]
 
-            spw_a = [d.get('spw') for d in a_points_won if d is not None]
-            spw_b = [d.get('spw') for d in b_points_won if d is not None]
+        #     spw_a = [d.get('spw') for d in a_points_won if d is not None]
+        #     spw_b = [d.get('spw') for d in b_points_won if d is not None]
 
-            a = numpy.average(spw_a)
-            b = numpy.average(spw_b)
+        #     a = numpy.average(spw_a)
+        #     b = numpy.average(spw_b)
 
-            p1_ace = player_1.get_ace_pct()
-            p2_ace = player_2.get_ace_pct()
-            p1_df = player_1.get_df_pct()
-            p2_df = player_2.get_df_pct()
-        else:
-            a = player_1.get_points_won_rate(
-                timeframe_in_weeks=52*2,
-                on_surface=slate_match.surface
-            ).get('spw')
-            b = player_2.get_points_won_rate(
-                timeframe_in_weeks=52*2,
-                on_surface=slate_match.surface
-            ).get('spw')
+        #     p1_ace = player_1.get_ace_pct()
+        #     p2_ace = player_2.get_ace_pct()
+        #     p1_df = player_1.get_df_pct()
+        #     p2_df = player_2.get_df_pct()
+        # else:
+        #     data_a = player_1.get_points_won_rate(
+        #         timeframe_in_weeks=52*2,
+        #         on_surface=slate_match.surface
+        #     )
 
-            p1_ace = player_1.get_ace_pct(timeframe=52*2)
-            p2_ace = player_2.get_ace_pct(timeframe=52*2)
-            p1_df = player_1.get_df_pct(timeframe=52*2)
-            p2_df = player_2.get_df_pct(timeframe=52*2)
+        #     if data_a is None:
+        #         data_a = player_1.get_points_won_rate(
+        #         timeframe_in_weeks=52*2,
+        #         on_surface=slate_match.surface
+        #     )
 
+        #     data_b = player_2.get_points_won_rate(
+        #         timeframe_in_weeks=52*2,
+        #         on_surface=slate_match.surface
+        #     )
+
+        #     if data_b is None:
+        #         data_b = player_2.get_points_won_rate(
+        #             timeframe_in_weeks=52*2,
+        #             on_surface=slate_match.surface
+        #         )
+
+        #     a = data_a.get('spw')
+        #     b = data_b.get('spw')
+
+        #     p1_ace = player_1.get_ace_pct(timeframe=52*2, on_surface=slate_match.surface)
+        #     p2_ace = player_2.get_ace_pct(timeframe=52*2, on_surface=slate_match.surface)
+        #     p1_df = player_1.get_df_pct(timeframe=52*2, on_surface=slate_match.surface)
+        #     p2_df = player_2.get_df_pct(timeframe=52*2, on_surface=slate_match.surface)
+
+        a = projection1.spw_rate
+        b = projection2.spw_rate
         p1_big_point = a
         p2_big_point = b
+
+        p1_ace = projection1.ace_rate
+        p2_ace = projection2.ace_rate
+        p1_df = projection1.df_rate
+        p2_df = projection2.df_rate
 
         best_of = slate_match.best_of
         sets_to_win = math.ceil(best_of/2)
@@ -1086,12 +1111,8 @@ def calculate_slate_structure(slate_id, task_id):
         slate = models.Slate.objects.get(id=slate_id)
         chord(
             [find_optimal_for_sim.s(slate.id, i) for i in range(0, 10000)],
-            complile_sim_optimals.s()
+            complile_sim_optimals.s(slate_id, task_id)
         )()
-        
-        task.status = 'success'
-        task.content = f'Slate structure calculated'
-        task.save()
     except Exception as e:
         if task is not None:
             task.status = 'error'
@@ -1109,13 +1130,86 @@ def find_optimal_for_sim(slate_id, sim_iteration):
         slate.site,
         models.SlatePlayerProjection.objects.filter(slate_player__slate=slate),
         sim_iteration=sim_iteration
-    )
+    )[0]
     return [p.id for p in optimal.players]
 
 
 @shared_task
-def complile_sim_optimals(results):
-    pass
+def complile_sim_optimals(results, slate_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
+        df_opt = pandas.DataFrame(results)
+        
+        # s_0 = df_opt[0].value_counts()
+        # s_1 = df_opt[1].value_counts()
+        # s_2 = df_opt[2].value_counts()
+        # s_3 = df_opt[3].value_counts()
+        # s_4 = df_opt[4].value_counts()
+        # s_5 = df_opt[5].value_counts()
+        
+        # print(s_0)
+        # print(s_1)
+        # print(s_2)
+        # print(s_3)
+        # print(s_4)
+        # print(s_5)
+
+        for projection in models.SlatePlayerProjection.objects.filter(slate_player__slate=slate):
+            count = 0
+            try:
+                count += df_opt[0].value_counts()[projection.slate_player.slate_player_id]
+            except KeyError:
+                pass
+
+            try:
+                count += df_opt[1].value_counts()[projection.slate_player.slate_player_id]
+            except KeyError:
+                pass
+
+            try:
+                count += df_opt[2].value_counts()[projection.slate_player.slate_player_id]
+            except KeyError:
+                pass
+
+            try:
+                count += df_opt[3].value_counts()[projection.slate_player.slate_player_id]
+            except KeyError:
+                pass
+
+            try:
+                count += df_opt[4].value_counts()[projection.slate_player.slate_player_id]
+            except KeyError:
+                pass
+
+            try:
+                count += df_opt[5].value_counts()[projection.slate_player.slate_player_id]
+            except KeyError:
+                pass
+
+            print(f'{projection.slate_player}: {count}')
+            projection.optimal_exposure = count / 10000
+            projection.save()
+                
+        task.status = 'success'
+        task.content = f'Slate structure calculated'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem calculating slate structure: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 @shared_task
 def build_lineups(build_id, task_id):

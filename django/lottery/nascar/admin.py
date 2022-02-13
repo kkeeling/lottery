@@ -202,6 +202,31 @@ class RaceSimDriverInline(admin.TabularInline):
         'infraction_rate',
     )
 
+
+class RaceSimDamageProfileInline(admin.TabularInline):
+    model = models.RaceSimDamageProfile
+    extra = 0
+    fields = (
+        'name',
+        'min_cars_involved',
+        'max_cars_involved',
+        'prob_no_damage',
+        'prob_minor_damage',
+        'prob_medium_damage',
+        'prob_dnf',
+    )
+
+
+class RaceSimPenaltyProfileInline(admin.TabularInline):
+    model = models.RaceSimPenaltyProfile
+    extra = 0
+    fields = (
+        'stage',
+        'is_green',
+        'floor_impact',
+        'ceiling_impact',
+    )
+
 # @admin.register(models.Player)
 # class PlayerAdmin(admin.ModelAdmin):
 #     list_display = (
@@ -521,6 +546,26 @@ class RaceAdmin(admin.ModelAdmin):
         RaceInfractionInline,
     ]
 
+
+@admin.register(models.RaceDriverLap)
+class RaceDriverLapAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'race',
+        'driver',
+        'lap',
+        'lap_time',
+        'lap_speed',
+        'running_pos',
+    )
+    search_fields = (
+        'race__race_name',
+        'driver',
+    )
+    list_filter = (
+        ('race', RelatedDropdownFilter),
+    )
+
 @admin.register(models.RaceSim)
 class RaceSimAdmin(admin.ModelAdmin):
     list_display = (
@@ -537,6 +582,8 @@ class RaceSimAdmin(admin.ModelAdmin):
         'race',
     )
     inlines = [
+        RaceSimDamageProfileInline,
+        RaceSimPenaltyProfileInline,
         RaceSimDriverInline
     ]
     actions = ['simulate_races']

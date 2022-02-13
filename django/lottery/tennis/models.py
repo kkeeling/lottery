@@ -1366,7 +1366,6 @@ class Slate(models.Model):
 
         return (m, b)
         
-
     def is_pinn_player_in_slate(self, player):
         try:
             alias = Alias.objects.get(pinn_name=player)
@@ -1400,6 +1399,10 @@ class Slate(models.Model):
                     match=match
                 )
 
+                common_opponents = Player.objects.filter(
+                    id__in=slate_match.common_opponents(slate_match.surface)
+                )
+
                 print(player1)
                 alias = Alias.objects.get(pinn_name=player1)
                 slate_player1 = SlatePlayer.objects.get(
@@ -1413,10 +1416,12 @@ class Slate(models.Model):
                 pinnacle_odds = slate_match.match.get_odds_for_player(alias.player)
                 projection1.pinnacle_odds = pinnacle_odds
                 projection1.spread = slate_match.match.get_spread_for_player(alias.player)
+                
                 if pinnacle_odds > 0:
                     projection1.implied_win_pct = 100/(100+pinnacle_odds)
                 elif pinnacle_odds < 0:
                     projection1.implied_win_pct = -pinnacle_odds/(-pinnacle_odds+100)
+
                 projection1.save()
 
                 print(player2)
@@ -1432,11 +1437,190 @@ class Slate(models.Model):
                 pinnacle_odds = slate_match.match.get_odds_for_player(alias.player)
                 projection2.pinnacle_odds = pinnacle_odds
                 projection2.spread = slate_match.match.get_spread_for_player(alias.player)
+                
                 if pinnacle_odds > 0:
                     projection2.implied_win_pct = 100/(100+pinnacle_odds)
                 elif pinnacle_odds < 0:
                     projection2.implied_win_pct = -pinnacle_odds/(-pinnacle_odds+100)
+
                 projection2.save()
+
+                # data for sims
+                if common_opponents.count() >= 3:
+                    a_points_won = [
+                        slate_player1.player.get_points_won_rate(
+                            vs_opponent=common_opponent,
+                            timeframe_in_weeks=52*2,
+                            on_surface=slate_match.surface
+                        ) for common_opponent in common_opponents        
+                    ]
+                    b_points_won = [
+                        slate_player2.player.get_points_won_rate(
+                            vs_opponent=common_opponent,
+                            timeframe_in_weeks=52*2,
+                            on_surface=slate_match.surface
+                        ) for common_opponent in common_opponents        
+                    ]
+
+                    spw_a = [d.get('spw') for d in a_points_won if d is not None]
+                    spw_b = [d.get('spw') for d in b_points_won if d is not None]
+                    rpw_a = [d.get('rpw') for d in a_points_won if d is not None]
+                    rpw_b = [d.get('rpw') for d in b_points_won if d is not None]
+
+                    a = numpy.average(spw_a)
+                    b = numpy.average(spw_b)
+                    a_r = numpy.average(rpw_a)
+                    b_r = numpy.average(rpw_b)
+                else:
+                    data_a = slate_player1.player.get_points_won_rate(
+                        timeframe_in_weeks=52,
+                        on_surface=slate_match.surface
+                    )
+
+                    if data_a is None:
+                        data_a = slate_player1.player.get_points_won_rate(
+                        timeframe_in_weeks=52*2,
+                        on_surface=slate_match.surface
+                    )
+
+                    if data_a is None:
+                        data_a = slate_player1.player.get_points_won_rate(
+                        timeframe_in_weeks=52*3,
+                        on_surface=slate_match.surface
+                    )
+
+                    if data_a is None:
+                        data_a = slate_player1.player.get_points_won_rate(
+                        timeframe_in_weeks=52*.5
+                    )
+
+                    if data_a is None:
+                        data_a = slate_player1.player.get_points_won_rate(
+                        timeframe_in_weeks=52
+                    )
+
+                    if data_a is None:
+                        data_a = slate_player1.player.get_points_won_rate(
+                        timeframe_in_weeks=52*2
+                    )
+
+                    a = data_a.get('spw')
+                    a_r = data_a.get('rpw')
+
+                    data_b = slate_player2.player.get_points_won_rate(
+                        timeframe_in_weeks=52,
+                        on_surface=slate_match.surface
+                    )
+
+                    if data_b is None:
+                        data_b = slate_player2.player.get_points_won_rate(
+                            timeframe_in_weeks=52*2,
+                            on_surface=slate_match.surface
+                        )
+
+                    if data_b is None:
+                        data_b = slate_player2.player.get_points_won_rate(
+                        timeframe_in_weeks=52*3,
+                        on_surface=slate_match.surface
+                    )
+
+                    if data_b is None:
+                        data_b = slate_player2.player.get_points_won_rate(
+                        timeframe_in_weeks=52*.5
+                    )
+
+                    if data_b is None:
+                        data_b = slate_player2.player.get_points_won_rate(
+                        timeframe_in_weeks=52
+                    )
+
+                    if data_b is None:
+                        data_b = slate_player2.player.get_points_won_rate(
+                        timeframe_in_weeks=52*2
+                    )
+
+                    b = data_b.get('spw')
+                    b_r = data_b.get('rpw')
+
+                p1_ace = slate_player1.player.get_ace_pct(timeframe=52, on_surface=slate_match.surface)
+                if p1_ace is None:
+                    p1_ace = slate_player1.player.get_ace_pct(timeframe=52*2, on_surface=slate_match.surface)
+                if p1_ace is None:
+                    p1_ace = slate_player1.player.get_ace_pct(timeframe=52*3, on_surface=slate_match.surface)
+                if p1_ace is None:
+                    p1_ace = slate_player1.player.get_ace_pct(timeframe=52*.5)
+                if p1_ace is None:
+                    p1_ace = slate_player1.player.get_ace_pct(timeframe=52)
+                if p1_ace is None:
+                    p1_ace = slate_player1.player.get_ace_pct(timeframe=52*2)
+                    
+                p2_ace = slate_player2.player.get_ace_pct(timeframe=52, on_surface=slate_match.surface)
+                if p2_ace is None:
+                    p2_ace = slate_player2.player.get_ace_pct(timeframe=52*2, on_surface=slate_match.surface)
+                if p2_ace is None:
+                    p2_ace = slate_player2.player.get_ace_pct(timeframe=52*3, on_surface=slate_match.surface)
+                if p2_ace is None:
+                    p2_ace = slate_player2.player.get_ace_pct(timeframe=52*.5)
+                if p2_ace is None:
+                    p2_ace = slate_player2.player.get_ace_pct(timeframe=52)
+                if p2_ace is None:
+                    p2_ace = slate_player2.player.get_ace_pct(timeframe=52*2)
+
+                p1_df = slate_player1.player.get_df_pct(timeframe=52, on_surface=slate_match.surface)
+                if p1_df is None:
+                    p1_df = slate_player1.player.get_df_pct(timeframe=52*2, on_surface=slate_match.surface)
+                if p1_df is None:
+                    p1_df = slate_player1.player.get_df_pct(timeframe=52*3, on_surface=slate_match.surface)
+                if p1_df is None:
+                    p1_df = slate_player1.player.get_df_pct(timeframe=52*.5)
+                if p1_df is None:
+                    p1_df = slate_player1.player.get_df_pct(timeframe=52)
+                if p1_df is None:
+                    p1_df = slate_player1.player.get_df_pct(timeframe=52*2)
+
+                p2_df = slate_player2.player.get_df_pct(timeframe=52, on_surface=slate_match.surface)
+                if p2_df is None:
+                    p2_df = slate_player2.player.get_df_pct(timeframe=52*2, on_surface=slate_match.surface)
+                if p2_df is None:
+                    p2_df = slate_player2.player.get_df_pct(timeframe=52*3, on_surface=slate_match.surface)
+                if p2_df is None:
+                    p2_df = slate_player2.player.get_df_pct(timeframe=52*.5)
+                if p2_df is None:
+                    p2_df = slate_player2.player.get_df_pct(timeframe=52)
+                if p2_df is None:
+                    p2_df = slate_player2.player.get_df_pct(timeframe=52*2)
+
+                if projection1.spw_rate == 0.0:
+                    projection1.spw_rate = a
+                    projection1.save()
+
+                if projection1.rpw_rate == 0.0:
+                    projection1.rpw_rate = a_r
+                    projection1.save()
+
+                if projection1.ace_rate == 0.0:
+                    projection1.ace_rate = p1_ace
+                    projection1.save()
+
+                if projection1.df_rate == 0.0:
+                    projection1.df_rate = p1_df
+                    projection1.save()
+
+                if projection2.spw_rate == 0.0:
+                    projection2.spw_rate = b
+                    projection2.save()
+
+                if projection2.rpw_rate == 0.0:
+                    projection2.rpw_rate = b_r
+                    projection2.save()
+
+                if projection2.ace_rate == 0.0:
+                    projection2.ace_rate = p2_ace
+                    projection2.save()
+
+                if projection2.df_rate == 0.0:
+                    projection2.df_rate = p2_df
+                    projection2.save()
 
     def sim_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Sim</a>',
@@ -1832,12 +2016,17 @@ class SlatePlayerProjection(models.Model):
     implied_win_pct = models.DecimalField(max_digits=5, decimal_places=4, default=0.0000, verbose_name='iwin')
     game_total = models.DecimalField(max_digits=3, decimal_places=1, default=0.0, verbose_name='gt')
     spread = models.DecimalField(max_digits=3, decimal_places=1, default=0.0)
+    spw_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
+    rpw_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
+    ace_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
+    df_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
     w_sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
     sim_win_pct = models.DecimalField(max_digits=5, decimal_places=4, default=0.0000, verbose_name='sim_win')
     projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Proj')
     ceiling = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Ceil')
     s75 = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='s75')
+    optimal_exposure = models.DecimalField(max_digits=3, decimal_places=2, default=0.0, verbose_name='opt')
     in_play = models.BooleanField(default=True)
     min_exposure = models.DecimalField(max_digits=3, decimal_places=2, default=0.0, verbose_name='min')
     max_exposure = models.DecimalField(max_digits=3, decimal_places=2, default=1.0, verbose_name='max')
@@ -1887,6 +2076,14 @@ class SlatePlayerProjection(models.Model):
             return za
         return None
 
+    @property
+    def odds_for_target_value(self):
+        oft = self.odds_for_target
+
+        if oft is None:
+            return None
+        return (self.salary / 100) / oft
+
     def calc_implied_win_pct(self):
         if self.pinnacle_odds > 0:
             self.implied_win_pct = 100/(100+self.pinnacle_odds)
@@ -1896,6 +2093,7 @@ class SlatePlayerProjection(models.Model):
 
     def is_underdog(self):
         return self.implied_win_pct <= 0.4499999
+
 
 class SlateBuild(models.Model):
     slate = models.ForeignKey(Slate, related_name='builds', on_delete=models.CASCADE)

@@ -1,0 +1,92 @@
+,race_name,series,restrictor_plate,scheduled_distance,scheduled_laps,num_infractions,num_cautions_segments
+0,DAYTONA 500,1,True,500,200,17,7
+1,Pennzoil 400 presented by Jiffy Lube,1,False,400,267,11,6
+2,Dixie Vodka 400,1,False,400,267,4,6
+3,Instacart 500,1,False,312,312,7,7
+4,Folds of Honor QuikTrip 500,1,False,500,325,7,5
+5,Goodyear 400,1,False,400,293,4,6
+6,Coca-Cola 600,1,False,600,400,2,4
+7,Food City Dirt Race,1,False,125,250,11,10
+8,Quaker State 400 presented by Walmart,1,False,400,260,8,4
+9,Blue-Emu Maximum Pain Relief 500,1,False,263,500,11,15
+10,O’Reilly Auto Parts 253 At DAYTONA,1,False,253,70,2,8
+11,GEICO 500,1,True,500,188,16,7
+12,Pocono Organics CBD 325,1,False,325,130,13,8
+13,Explore the Pocono Mountains 350,1,False,350,140,9,4
+14,Buschy McBusch Race 400,1,False,400,267,10,7
+15,Foxwoods Resort Casino 301,1,False,318,301,7,6
+16,FireKeepers Casino 400,1,False,400,200,8,6
+17,EchoPark Texas Grand Prix,1,False,231,68,5,6
+18,Drydene 400,1,False,400,400,12,7
+19,Ally 400,1,False,399,300,16,11
+20,Coke Zero Sugar 400,1,True,400,160,24,8
+21,TOYOTA OWNERS 400,1,False,300,400,3,5
+22,Bass Pro Shops Night Race,1,False,266,500,11,8
+23,Toyota / Save Mart 350,1,False,226,90,6,8
+24,Autotrader EchoPark Automotive 500,1,False,501,334,39,11
+25,Jockey Made in America 250 Presented by Kwik Trip,1,False,250,62,1,4
+26,Xfinity 500,1,False,263,500,8,15
+27,Go Bowling at The Glen,1,False,220,90,2,4
+28,Verizon 200 at the Brickyard,1,False,200,82,11,6
+29,Cook Out Southern 500,1,False,501,367,16,11
+30,Federated Auto Parts 400 Salute to First Responders,1,False,300,400,3,5
+31,South Point 400,1,False,400,267,13,4
+32,YellaWood 500,1,True,500,188,11,5
+33,Bank of America ROVAL 400,1,False,252,109,4,9
+34,Hollywood Casino 400,1,False,400,267,12,7
+35,NASCAR Cup Series Championship,1,False,312,312,4,9
+36,Beef. It's What's For Dinner. 300,2,True,300,120,23,9
+37,Super Start Batteries 188 At DAYTONA Presented by O’Reilly,2,False,188,52,8,7
+38,Contender Boats 250,2,False,250,167,11,8
+39,Alsco Uniforms 300,2,False,300,200,17,8
+40,Call 811 Before You Dig 200 presented by Arizona 811,2,False,200,200,6,11
+41,EchoPark 250,2,False,308,163,19,7
+42,Cook Out 250,2,False,131,250,8,12
+43,Ag-Pro 300,2,True,300,113,7,4
+44,Steakhouse Elite 200,2,False,199,147,17,9
+45,Drydene 200,2,False,200,200,10,7
+46,Pit Boss 250,2,True,157,46,6,4
+47,Alsco Uniforms 300,2,False,300,200,21,10
+48,B&L Transport 170 at Mid-Ohio,2,False,169,75,4,7
+49,Alsco Uniforms 250 Powered by Cheddar’s Scratch Kitchen,2,False,250,167,10,10
+50,Tennessee Lottery 250,2,False,250,188,9,8
+51,Pocono Green 225 Recycled by J.P. Mascaro & Sons,2,False,225,90,7,6
+52,Henry 180,2,False,182,45,3,7
+53,Credit Karma Money 250,2,False,251,163,17,10
+54,Ambetter Get Vaccinated 200,2,False,211,200,4,5
+55,Skrewball Peanut Butter Whiskey 200,2,False,200,82,4,8
+56,Pennzoil 150 at the Brickyard,2,False,151,62,9,5
+57,New Holland 250,2,False,250,125,20,9
+58,Wawa 250,2,True,250,100,11,7
+59,Sport Clips Haircuts VFW Help A Hero 200,2,False,200,147,8,8
+60,Go Bowling 250 ,2,False,187,250,9,9
+61,Food City 300,2,False,159,300,5,10
+62,Alsco Uniforms 302,2,False,302,201,13,6
+63,Sparks 300 at Talladega,2,True,300,113,8,5
+64,Drive for the Cure 250 presented by Blue Cross Blue Shield of North Carolina,2,False,155,67,7,7
+65,Andy’s Frozen Custard 335,2,False,300,200,15,10
+66,Kansas Lottery 300,2,False,300,200,20,10
+67,Dead On Tools 250,2,False,131,250,19,13
+68,NASCAR Xfinity Series Championship,2,False,200,200,6,10
+69,NextEra Energy 250,3,True,250,100,26,10
+70,BrakeBest Brake Pads 159 At DAYTONA Presented by O’Reilly,3,False,159,44,9,10
+71,Bucked Up 200,3,False,201,134,24,9
+72,Fr8Auctions 200,3,False,200,130,7,3
+73,Pinty's Truck Race on Dirt,3,False,75,150,7,12
+74,ToyotaCare 250,3,False,187,250,10,11
+75,Wise Power 200,3,False,200,134,6,5
+76,LiftKits4Less.com 200,3,False,200,147,26,12
+77,Toyota Tundra 225,3,False,140,41,3,2
+78,North Carolina Education Lottery 200,3,False,200,134,14,5
+79,SpeedyCash.com 220,3,False,220,147,6,6
+80,Rackley Roofing 200,3,False,199,150,4,5
+81,CRC Brakleen 150 ,3,False,150,60,12,4
+82,Corn Belt 150 Presented by Premier Chevy Dealers,3,False,75,150,9,14
+83,United Rentals 176,3,False,176,72,6,5
+84,Toyota 200 presented by CK Power,3,False,200,160,12,8
+85,In It To Win It 200,3,False,200,147,12,8
+86,UNOH 200 presented by Ohio Logistics,3,True,106,200,18,11
+87,Victoria’s Voice Foundation 200 Presented by Westgate Resorts,3,False,201,134,22,10
+88,Chevrolet Silverado 250,3,True,250,94,17,6
+89,United Rentals 200,3,False,105,200,20,14
+90,Lucas Oil 150,3,False,150,150,7,4

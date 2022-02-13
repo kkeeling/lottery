@@ -115,19 +115,30 @@ class RankingHistoryInline(admin.TabularInline):
     model = models.RankingHistory
 
 
+class PinnacleMatchOddsInline(admin.TabularInline):
+    model = models.PinnacleMatchOdds
+    extra = 0
+
+
 class SlateMatchInline(admin.TabularInline):
     model = models.SlateMatch
     extra = 0
     fields = (
         'match',
+        'get_event',
         'surface',
         'best_of',
         'common_opponents'
     )
     readonly_fields = (
         'match',
+        'get_event',
         'common_opponents'
     )
+
+    def get_event(self, obj):
+        return obj.match.event
+    get_event.short_description = 'event'
 
     def common_opponents(self, obj):
         return models.Player.objects.filter(id__in=obj.common_opponents(obj.surface)).count()
@@ -394,7 +405,10 @@ class SlateAdmin(admin.ModelAdmin):
     inlines = [
         SlateMatchInline
     ]
-    actions = ['get_pinn_odds']
+    actions = [
+        'get_pinn_odds',
+        'calculate_slate_structure'
+    ]
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -493,6 +507,23 @@ class SlateAdmin(admin.ModelAdmin):
             slate.project_ownership()
     project_ownership.short_description = 'Project ownership for selected slates'
 
+    def calculate_slate_structure(self, request, queryset):
+        group([
+            tasks.calculate_slate_structure.si(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name=f'Calculate structure for {slate}',
+                    user=request.user
+                ).id) for slate in queryset
+        ])()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Calculating slate structures'
+        )
+    calculate_slate_structure.short_description = 'Calculate slate structure for selected slates'
+
     def simulate(self, request, pk):
         context = dict(
            # Include common variables for rendering the admin template.
@@ -509,21 +540,13 @@ class SlateAdmin(admin.ModelAdmin):
                     user=request.user
                 ).id
             ) for slate_match in slate.matches.all()
-        ], chain([
-            tasks.calculate_target_scores.si(
+        ], tasks.calculate_target_scores.si(
                 slate.id,
                 BackgroundTask.objects.create(
                     name=f'Calculate target scores for {slate}',
                     user=request.user
-                ).id),
-            tasks.calculate_slate_structure.si(
-                slate.id,
-                BackgroundTask.objects.create(
-                    name=f'Calculate structure for {slate}',
-                    user=request.user
-                ).id)
-            ]
-        ))()
+            ).id)
+        )()
 
         messages.add_message(
             request,
@@ -675,15 +698,21 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_salary',
         'get_salary_value',
         'pinnacle_odds',
-        'implied_win_pct',
         'spread',
         'get_common_opponents',
+        'spw_rate',
+        'rpw_rate',
+        'ace_rate',
+        'df_rate',
+        'implied_win_pct',
         'sim_win_pct',
         'projection',
         's75',
         'ceiling',
         'odds_for_target',
+        'get_odds_for_target_value',
         'in_play',
+        'optimal_exposure',
         'min_exposure',
         'max_exposure',
         'get_exposure',
@@ -694,6 +723,10 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'in_play',
     )
     list_editable = (
+        'spw_rate',
+        'rpw_rate',
+        'ace_rate',
+        'df_rate',
         'in_play',
         'min_exposure',
         'max_exposure',
@@ -722,8 +755,15 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_salary_value.short_description = 'value'
 
     def get_common_opponents(self, obj):
-        return obj.slate_match.common_opponents(obj.slate_match.surface, 52*2).size
+        return obj.slate_match.common_opponents(obj.slate_match.surface, 52).size
     get_common_opponents.short_description = 'comm opp'
+
+    def get_odds_for_target_value(self, obj):
+        if obj.odds_for_target_value is None:
+            return None
+        return '{:.2f}'.format(obj.odds_for_target_value)
+    get_odds_for_target_value.short_description = 'otv'
+    get_odds_for_target_value.admin_sort_field = 'odds_for_targe_value'
 
     def get_exposure(self, obj):
         if obj.exposure is None:
@@ -764,13 +804,17 @@ class PinnacleMatchAdmin(admin.ModelAdmin):
     list_display = (
         'event',
         'home_participant',
-        'away_participant'
+        'away_participant',
+        'start_time',
     )
     search_fields = (
         'event',
         'home_participant',
         'away_participant'
     )
+    inlines = [
+        PinnacleMatchOddsInline
+    ]
 
 
 @admin.register(models.PinnacleMatchOdds)

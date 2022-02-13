@@ -4,9 +4,9 @@ from collections import namedtuple
 from pydfs_lineup_optimizer import Site, Sport, Player, get_optimizer, exceptions
 from pydfs_lineup_optimizer.solvers.mip_solver import MIPSolver
 
-from draftfast import rules
-from draftfast.optimize import run_multi
-from draftfast.orm import Player
+# from draftfast import rules
+# from draftfast.optimize import run_multi
+# from draftfast.orm import Player
 # from draftfast.csv_parse import salary_download
 
 
@@ -110,7 +110,10 @@ def get_player_list(projections, config=None, sim_iteration=None):
 
     player_list = []
 
-    for player in projections.filter(in_play=True):
+    if config is not None:
+        projections = projections.filter(in_play=True)
+
+    for player in projections:
         if ' ' in player.slate_player.name:
             first = player.slate_player.name.split(' ')[0]
             last = player.slate_player.name.split(' ')[-1]

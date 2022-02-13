@@ -19,7 +19,7 @@ else
         echo "Bootstrapping tools..."
         rm -rf venv
         python3 -m venv venv
-        source ./venv/bin/activate && pip install -r requirements.txt && pip install --upgrade pip
+        source ./venv/bin/activate && pip3.9 install -r requirements.txt && pip3.9 install --upgrade pip
         echo "Tools successfully bootstrapped!"
     else
         source ./venv/bin/activate && inv $1 $2 $3

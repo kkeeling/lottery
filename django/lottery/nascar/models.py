@@ -210,7 +210,7 @@ class Track(models.Model):
 
     def __str__(self):
         return f'{self.track_name}'
-
+    
 
 class Race(models.Model):
     race_id = models.BigIntegerField(primary_key=True, db_index=True, unique=True)
@@ -317,12 +317,31 @@ class RaceSim(models.Model):
     race = models.ForeignKey(Race, related_name='sims', on_delete=models.CASCADE)
     iterations = models.IntegerField(default=10000)
     input_file = models.FileField(upload_to='uploads/sim_input_files', blank=True, null=True)
+    
+    # profile data
+    early_stage_caution_mean = models.FloatField(default=1.0)
+    early_stage_caution_prob_debris = models.FloatField(default=0.1)
+    early_stage_caution_prob_accident_small = models.FloatField(default=0.4)
+    early_stage_caution_prob_accident_medium = models.FloatField(default=0.2)
+    early_stage_caution_prob_accident_major = models.FloatField(default=0.3)
+
+    final_stage_caution_mean = models.FloatField(default=3.0)
+    final_stage_caution_prob_debris = models.FloatField(default=0.1)
+    final_stage_caution_prob_accident_small = models.FloatField(default=0.4)
+    final_stage_caution_prob_accident_medium = models.FloatField(default=0.2)
+    final_stage_caution_prob_accident_major = models.FloatField(default=0.3)
 
     def __str__(self):
         return f'{self.race} Sim {self.id}'
 
     def get_drivers(self):
         return self.race.results.all()
+
+    def get_damage_profile(self, num_cars):
+        return self.damage_profiles.get(
+            min_cars_involved__lte=num_cars,
+            max_cars_involved__gte=num_cars
+        )
 
     def export_template_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #f5dd5d; font-weight: bold; padding: 10px 15px;">Template</a>',
@@ -335,6 +354,34 @@ class RaceSim(models.Model):
             reverse_lazy("admin:nascar_admin_slate_simulate", args=[self.pk])
         )
     sim_button.short_description = ''
+
+
+class RaceSimDamageProfile(models.Model):
+    sim = models.ForeignKey(RaceSim, related_name='damage_profiles', on_delete=models.CASCADE)
+    name = models.CharField(max_length=100, default='Small Accident')
+    min_cars_involved = models.IntegerField(default=0)
+    max_cars_involved = models.IntegerField(default=0)
+    prob_no_damage = models.FloatField(default=0.05)
+    prob_minor_damage = models.FloatField(default=0.1)
+    prob_medium_damage = models.FloatField(default=0.1)
+    prob_dnf = models.FloatField(default=0.75)
+
+    def __str__(self):
+        return f'Damage Profile {self.min_cars_involved} - {self.max_cars_involved} cars'
+
+
+class RaceSimPenaltyProfile(models.Model):
+    sim = models.ForeignKey(RaceSim, related_name='penalty_profiles', on_delete=models.CASCADE)
+    stage = models.IntegerField(default=0)
+    is_green = models.BooleanField(default=False)
+    floor_impact = models.FloatField(default=0.0)
+    ceiling_impact = models.FloatField(default=0.0)
+
+    def __str__(self):
+        return f'Penalty Profile: Stage {self.stage} - {self.get_flag_color()} cars'
+
+    def get_flag_color(self):
+        return 'Green' if self.is_green else 'Yellow'
 
 
 class RaceSimDriver(models.Model):

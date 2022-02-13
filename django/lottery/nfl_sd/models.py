@@ -75,6 +75,13 @@ RANK_BY_CHOICES = (
     ('s90', 'Ceiling'),
 )
 
+ROSTER_POSITIONS = (
+    ('CPT', 'Captain'),
+    ('MVP', 'MVP'),
+    ('FLEX', 'Flex'),
+    ('UTIL', 'Util'),
+)
+
 GREAT_BUILD_CASH_THRESHOLD = 0.3
 
 
@@ -276,25 +283,25 @@ class MissingAlias(models.Model):
     
     def choose_alias_1_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px; width:100px">{}</a>',
-            reverse_lazy("admin:admin_choose_alias", args=[self.pk, self.alias_1.pk]), str(self.alias_1)
+            reverse_lazy("admin:admin_nflsd_choose_alias", args=[self.pk, self.alias_1.pk]), str(self.alias_1)
         )
     choose_alias_1_button.short_description = ''
     
     def choose_alias_2_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px; width:100px">{}</a>',
-            reverse_lazy("admin:admin_choose_alias", args=[self.pk, self.alias_2.pk]), str(self.alias_2)
+            reverse_lazy("admin:admin_nflsd_choose_alias", args=[self.pk, self.alias_2.pk]), str(self.alias_2)
         )
     choose_alias_2_button.short_description = ''
     
     def choose_alias_3_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px; width:100px">{}</a>',
-            reverse_lazy("admin:admin_choose_alias", args=[self.pk, self.alias_3.pk]), str(self.alias_3)
+            reverse_lazy("admin:admin_nflsd_choose_alias", args=[self.pk, self.alias_3.pk]), str(self.alias_3)
         )
     choose_alias_3_button.short_description = ''
     
     def create_new_alias_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px; width:100px">Add New</a>',
-            reverse_lazy("admin:admin_choose_alias", args=[self.pk, 0])
+            reverse_lazy("admin:admin_nflsd_choose_alias", args=[self.pk, 0])
         )
     create_new_alias_button.short_description = ''
 
@@ -402,12 +409,12 @@ class Game(models.Model):
 
 
 class Slate(models.Model):
-    datetime = models.DateTimeField(null=True, blank=True)
-    end_datetime = models.DateTimeField(null=True, blank=True)
-    name = models.CharField(max_length=255, verbose_name='Slate', null=True, blank=True)
     week = models.ForeignKey(Week, related_name='slates', verbose_name='Week', on_delete=models.SET_NULL, null=True, blank=True)
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
+    game = models.ForeignKey(Game, related_name='slates', on_delete=models.CASCADE, null=True, blank=True)
+    game_sim = models.TextField(null=True, blank=True)
     is_complete = models.BooleanField(default=False)
+    num_contest_entries = models.IntegerField(default=10000)
 
     salaries_sheet_type = models.CharField(max_length=255, choices=SHEET_TYPES, default='site')
     salaries = models.FileField(upload_to='uploads/salaries', blank=True, null=True)
@@ -415,10 +422,28 @@ class Slate(models.Model):
     fc_actuals_sheet = models.FileField(verbose_name='FC Actuals CSV', upload_to='uploads/actuals', blank=True, null=True)
 
     class Meta:
-        ordering = ['-name']
+        ordering = ['-week__slate_year', '-week__num']
 
     def __str__(self):
-        return '{}'.format(self.name) if self.name is not None else '{}'.format(self.datetime)
+        return f'{self.week} - {self.game} ({self.site})'
+
+    @property
+    def captain_label(self):
+        if self.site == 'draftkings':
+            return 'CPT'
+        else:
+            raise Exception(f'{self.site} is not supported.')
+
+    @property
+    def flex_label(self):
+        if self.site == 'draftkings':
+            return 'FLEX'
+        else:
+            raise Exception(f'{self.site} is not supported.')
+
+    @property
+    def name(self):
+        return f'{self}'
 
     @property
     def teams(self):
@@ -429,19 +454,34 @@ class Slate(models.Model):
         return home_teams + away_teams
 
     @property
-    def available_projections(self):
-        return list(self.projections.all().values_list('projection_site', flat=True))
+    def game_total(self):
+        return self.game.game_total
 
     @property
-    def aux_projections(self):
-        return list(self.projections.filter(is_primary=False).values_list('projection_site', flat=True))
+    def home_spread(self):
+        return self.game.home_spread
+
+    @property
+    def away_spread(self):
+        return self.game.away_spread
+
+    @property
+    def home_team_total(self):
+        return self.game.home_implied
+
+    @property
+    def away_team_total(self):
+        return self.game.away_implied
+
+    def get_home_players(self):
+        return self.players.filter(team=self.game.home_team)
+
+    def get_away_players(self):
+        return self.players.filter(team=self.game.away_team)
+
 
     def get_projections(self):
         return SlatePlayerProjection.objects.filter(slate_player__slate=self)
-
-    def num_games(self):
-        return self.games.all().count()
-    num_games.short_description = '# games'
 
     def num_contests(self):
         return self.contests.all().count()
@@ -508,44 +548,9 @@ class Slate(models.Model):
 
     def sim_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Sim</a>',
-            reverse_lazy("admin:admin_slate_simulate", args=[self.pk])
+            reverse_lazy("admin:admin_nfl_sd_slate_simulate", args=[self.pk])
         )
     sim_button.short_description = ''
-
-
-class SlateGame(models.Model):
-    slate = models.ForeignKey(Slate, related_name='games', on_delete=models.CASCADE)
-    game = models.ForeignKey(Game, related_name='slates', on_delete=models.CASCADE)
-    zscore = models.DecimalField('Z-Score', max_digits=6, decimal_places=4, default=0.0000)
-    game_sim = models.TextField(null=True, blank=True)
-
-    class Meta:
-        verbose_name = 'Game'
-        verbose_name_plural = 'Games'
-
-    def __str__(self):
-        return '{}: {}'.format(str(self.slate), str(self.game))
-
-    def game_total(self):
-        return self.game.game_total
-
-    def home_spread(self):
-        return self.game.home_spread
-
-    def away_spread(self):
-        return self.game.away_spread
-
-    def home_team_total(self):
-        return self.game.home_implied
-
-    def away_team_total(self):
-        return self.game.away_implied
-
-    def get_home_players(self):
-        return self.slate.players.filter(team=self.game.home_team)
-
-    def get_away_players(self):
-        return self.slate.players.filter(team=self.game.away_team)
 
 
 class Contest(models.Model):
@@ -614,12 +619,11 @@ class SlatePlayer(models.Model):
     player_id = models.CharField(max_length=255, null=True, blank=True)
     slate = models.ForeignKey(Slate, related_name='players', on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
-    salary = models.IntegerField()
-    site_pos = models.CharField(max_length=5)
-    team = models.CharField(max_length=4)
+    salary = models.IntegerField(default=0)
+    site_pos = models.CharField(max_length=5, default='QB')
+    roster_position = models.CharField(max_length=5, default='FLEX')
+    team = models.CharField(max_length=4, blank=True, null=True)
     fantasy_points = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
-    game = models.CharField(max_length=10)
-    slate_game = models.ForeignKey(SlateGame, related_name='players', on_delete=models.SET_NULL, blank=True, null=True)
     ownership = models.DecimalField(decimal_places=4, max_digits=6, null=True, blank=True)
 
     def __str__(self):
@@ -629,48 +633,21 @@ class SlatePlayer(models.Model):
 
     @property
     def team_total(self):
-        game = self.get_slate_game()
-
-        if game == None:
-            return None
-        
-        return game.game.home_implied if self.team == game.game.home_team else game.game.away_implied
+        return self.slate.game.home_implied if self.team == self.slate.game.home_team else self.slate.game.away_implied
 
     @property
     def game_total(self):
-        game = self.get_slate_game()
-
-        if game == None:
-            return None
-        
-        return game.game.game_total
+        return self.slate.game.game_total
 
     @property
     def spread(self):
-        game = self.get_slate_game()
-
-        if game == None:
-            return None
-        
-        return game.game.home_spread if self.team == game.game.home_team else game.game.away_spread
+        return self.slate.game.home_spread if self.team == self.slate.game.home_team else self.slate.game.away_spread
 
     def get_team_color(self):
         return settings.TEAM_COLORS[self.team]
 
     def get_opponent(self):
-        slate_game = self.get_slate_game()
-        if slate_game is None:
-            return None
-        return slate_game.game.home_team if slate_game.game.away_team == self.team else slate_game.game.away_team
-
-    def get_slate_game(self):
-        games = self.slate.games.filter(
-            Q(Q(game__home_team=self.team) | Q(game__away_team=self.team))
-        )
-
-        if games.count() > 0:
-            return games[0]
-        return None
+        return self.slate.game.home_team if self.slate.game.away_team == self.team else self.slate.game.away_team
 
     class Meta:
         ordering = ['-salary', 'name']
@@ -680,14 +657,9 @@ class SlatePlayerProjection(models.Model):
     slate_player = models.OneToOneField(SlatePlayer, related_name='projection', on_delete=models.CASCADE)
     projection = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Proj')
     floor = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Flr')
-    zscore = models.DecimalField('Z-Score', max_digits=6, decimal_places=4, default=0.0000)
     ceiling = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Ceil')
-    ceiling_zscore = models.DecimalField('Ceiling Z-Score', max_digits=6, decimal_places=4, default=0.0000)
     stdev = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Stdev')
-    cpt_ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
-    flex_ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
-    adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')
-    ao_zscore = models.DecimalField('Z-Score', max_digits=6, decimal_places=4, default=0.0000)
+    ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
     value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
 
@@ -745,6 +717,9 @@ class SlatePlayerProjection(models.Model):
     def get_opponent(self):
         return self.slate_player.get_opponent()
 
+    def get_percentile_sim_score(self, percentile):
+        return numpy.percentile(self.sim_scores, decimal.Decimal(percentile))
+
 
 class SlatePlayerRawProjection(models.Model):
     slate_player = models.ForeignKey(SlatePlayer, related_name='raw_projections', on_delete=models.CASCADE)
@@ -753,8 +728,7 @@ class SlatePlayerRawProjection(models.Model):
     floor = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Flr')
     ceiling = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Ceil')
     stdev = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='Stdev')
-    cpt_ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
-    flex_ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
+    ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
     adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, default=0.0, verbose_name='AO')
     ao_zscore = models.DecimalField('Z-Score', max_digits=6, decimal_places=4, default=0.0000)
     value = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
@@ -914,6 +888,7 @@ class SheetColumnHeaders(models.Model):
     column_rec_projection = models.CharField(max_length=50, blank=True, null=True)
     column_own_projection = models.CharField(max_length=50, blank=True, null=True)
     column_ownership = models.CharField(max_length=50, blank=True, null=True)
+    column_captain_ownership = models.CharField(max_length=50, blank=True, null=True)
     column_score = models.CharField(max_length=50, blank=True, null=True)
 
     class Meta:
@@ -962,7 +937,6 @@ class GroupImportSheet(models.Model):
 
 # Builds
 
-
 class SlateBuild(models.Model):
     # References
     slate = models.ForeignKey(Slate, related_name='builds', on_delete=models.CASCADE)
@@ -971,26 +945,13 @@ class SlateBuild(models.Model):
     created = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     used_in_contests = models.BooleanField(default=False, verbose_name='Used')
     configuration = models.ForeignKey(SlateBuildConfig, related_name='builds', verbose_name='CFG', on_delete=models.SET_NULL, null=True)
-    in_play_criteria = models.ForeignKey(PlayerSelectionCriteria, on_delete=models.SET_NULL, related_name='builds', verbose_name='IPC', null=True, blank=True)
     lineup_start_number = models.IntegerField(default=1)
     total_lineups = models.PositiveIntegerField(verbose_name='total', default=0)
-
-    # Build analysis
-    top_score = models.DecimalField(verbose_name='top', decimal_places=2, max_digits=5, blank=True, null=True)
-    total_optimals = models.PositiveIntegerField('#opt', default=0, blank=True, null=True)
-    total_cashes = models.PositiveIntegerField(verbose_name='cashes', blank=True, null=True)
-    total_one_pct = models.PositiveIntegerField(verbose_name='1%', blank=True, null=True)
-    total_half_pct = models.PositiveIntegerField(verbose_name='0.5%', blank=True, null=True)
-    great_build = models.BooleanField(verbose_name='gb', default=False)
-    binked = models.BooleanField(verbose_name='bink', help_text='Finished 1st, 2nd, or 3rd', default=False)
-    notes = models.TextField(blank=True, null=True)
 
     # Build Status
     status = models.CharField(max_length=25, choices=BUILD_STATUS, default='not_started')
     projections_ready = models.BooleanField(default=False)
-    construction_ready = models.BooleanField(default=False)
     pct_complete = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
-    optimals_pct_complete = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     error_message = models.TextField(blank=True, null=True)
     elapsed_time = models.DurationField(default=datetime.timedelta())
 
@@ -999,21 +960,13 @@ class SlateBuild(models.Model):
         verbose_name_plural = 'Slate Builds'
 
     def __str__(self):
-        return '{} ({}) @ {}'.format(self.slate.name, self.configuration, self.created.replace(tzinfo=datetime.timezone.utc).astimezone(tz=None).strftime('%Y-%m-%d %H:%M'))
+        return f'{self.slate} Build {self.id}'
 
     @property
     def ready(self):
-        return self.projections_ready and self.construction_ready
-
-    def num_in_play(self, pos):
-        return self.projections.filter(slate_player__site_pos=pos, in_play=True).count()
+        return self.projections_ready
 
     def reset(self):
-        self.clear_analysis()
-
-        for stack in self.stacks.all():
-            stack.reset()
-
         self.status = 'not_started'
         self.error_message = None
         self.pct_complete = 0.0
@@ -1021,34 +974,9 @@ class SlateBuild(models.Model):
         self.save()
 
         self.calc_projections_ready()
-        self.calc_construction_ready()
-
-    def clear_analysis(self):
-        self.top_score = None
-        self.total_optimals = 0.0
-        self.total_cashes = None
-        self.total_one_pct = None
-        self.total_half_pct = None
-        self.great_build = False
-        self.binked = False        
 
     def calc_projections_ready(self):
         self.projections_ready = self.projections.all().count() >= self.slate.num_projected_players()
-        self.save()
-
-    def calc_construction_ready(self):
-        groups_ready = False
-        if self.lineup_construction is None:
-            groups_ready = True
-        else:
-            group_rules = self.lineup_construction.group_rules.all()
-            groups = SlateBuildGroup.objects.filter(
-                build=self
-            )
-            groups_ready = groups.count() >= group_rules.count()
-
-        stacks_ready = self.stacks.all().count() >= self.stack_cutoff * 0.90
-        self.construction_ready = groups_ready and stacks_ready
         self.save()
 
     def prepare_projections(self):
@@ -1093,12 +1021,6 @@ class SlateBuild(models.Model):
                     else:
                         projection.value = round(float(projection.projection)/(player.salary/1000.0), 2)
                     projection.ownership_projection = player.projection.ownership_projection
-                    projection.balanced_projection = projection.projection if self.configuration.optimize_with_ceilings else player.projection.balanced_projection
-                    if self.slate.site == 'yahoo':
-                        projection.balanced_value = round(float(projection.balanced_projection)/float(player.salary), 2)
-                    else:
-                        projection.balanced_value = round(float(projection.balanced_projection)/(player.salary/1000.0), 2)
-                    projection.adjusted_opportunity = player.projection.adjusted_opportunity
                     projection.in_play = False
 
                     projection.save()
@@ -1113,50 +1035,35 @@ class SlateBuild(models.Model):
                 except BuildPlayerProjection.DoesNotExist:
                     pass
 
-    def flatten_exposure(self):
-        for projection in self.projections.filter(projection__gte=5):
-            mapping = CeilingProjectionRangeMapping.objects.get(
-                min_projection__lte=projection.projection,
-                max_projection__gte=projection.projection
-            )
-
-            if self.slate.site == 'yahoo':
-                projection.balanced_projection = projection.salary * float(mapping.yh_value_to_assign)
-                projection.balanced_value = mapping.yh_value_to_assign
-            else:
-                projection.balanced_projection = projection.salary / 1000 * float(mapping.value_to_assign)
-                projection.balanced_value = mapping.value_to_assign
-            projection.save()
-
     def execute_build(self, user):
         self.status = 'running'
         self.error_message = None
         self.pct_complete = 0.0
         self.save()
 
-        # task = BackgroundTask()
-        # task.name = 'Build Lineups'
-        # task.user = user
-        # task.save()
+        self.lineups.all().delete()
 
-        # chain(tasks.monitor_build.s(self.id), tasks.build_complete.si(self.id, task.id))()
+        jobs = []
+        for captain in self.projections.filter(slate_player__roster_position=self.slate.captain_label, projection__gt=3.0):
+            print(captain)
+            jobs.append(tasks.build_lineups_for_captain.si(
+                self.id,
+                list(self.projections.filter(
+                    Q(Q(slate_player__roster_position=self.slate.flex_label) | Q(id=captain.id))
+                ).exclude(
+                    slate_player__roster_position=self.slate.flex_label,
+                    slate_player__name=captain.slate_player.name
+                ).exclude(
+                    slate_player__projection__sim_scores=None
+                ).values_list('id', flat=True)),
+                captain.id,
+                BackgroundTask.objects.create(
+                    name=f'Build lineups for {captain}',
+                    user=user
+                ).id
+            ))
 
-        # last_qb = None
-        # stacks = self.stacks.filter(count__gt=0).order_by('-qb__projection', 'qb__slate_player', 'build_order')
-        # jobs = []
-        # for stack in stacks:
-        #     qb = stack.qb.id
-        #     num_qb_stacks = self.stacks.filter(qb__id=qb).count()
-        #     if last_qb is None or qb != last_qb:
-        #         lineup_number = 1
-        #     else:
-        #         lineup_number += 1
-
-        #     jobs.append(tasks.build_lineups_for_stack.s(stack.id, lineup_number, num_qb_stacks))
-
-        #     last_qb = qb
-
-        # group(jobs)()
+        group(jobs)()
 
     def analyze_lineups(self):
         group([
@@ -1218,50 +1125,6 @@ class SlateBuild(models.Model):
     def num_lineups_created(self):
         return self.lineups.all().count()
     num_lineups_created.short_description = 'created'
-    
-    def num_stacks_created(self):
-        return self.stacks.all().count()
-    
-    def num_groups_created(self):
-        return self.groups.all().count()
-
-    def get_actual_scores(self):
-        contest = self.slate.contests.all()[0]
-
-        top_score = 0
-        total_cashes = 0
-        total_one_pct = 0
-        total_half_pct = 0
-        binked = False
-        great_build = False
-
-        for stack in self.stacks.all():
-            stack.calc_actual_score()
-
-        for lineup in self.lineups.all():
-            score = lineup.calc_actual_score()
-            top_score = max(top_score, score)
-            if score >= contest.mincash_score:
-                total_cashes += 1
-            if score >= contest.one_pct_score:
-                total_one_pct += 1
-            if score >= contest.half_pct_score:
-                total_half_pct += 1
-            if score >= contest.winning_score:
-                binked = True
-            if score >= contest.great_score:
-                great_build = True
-
-        self.top_score = top_score
-        self.total_cashes = total_cashes
-        self.total_one_pct = total_one_pct
-        self.total_half_pct = total_half_pct
-        self.great_build = great_build
-        self.binked = binked
-        self.save()
-
-    def num_actuals_created(self):
-        return self.actuals.all().count()
 
     def get_exposure(self, slate_player):
         return self.lineups.filter(
@@ -1277,83 +1140,27 @@ class SlateBuild(models.Model):
                 Q(dst__slate_player__id=slate_player.id)
             )
         ).count()
-
-    def build_optimals(self):
-        self.actuals.all().delete()
-        self.total_optimals = 0
-        self.optimals_pct_complete = 0.0
-        self.save()
-        
-        self.stacks.all().update(optimals_created=False)
-
-        tasks.monitor_build_optimals.delay(self.id)
-
-        for stack in self.stacks.filter(count__gt=0):
-            tasks.build_optimals_for_stack.delay(stack.id)
-
-    def analyze_optimals(self):
-        pass
-        # if self.slate.contests.count() > 0:
-        #     contest = self.slate.contests.get(outcomes_sheet__isnull=False)
-        #     optimals = self.actuals.all().order_by('id')
-        #     optimals.update(ev=0, mean=0, std=0)
-
-        #     tasks.analyze_lineups_page(self.id, contest.id, list(optimals.values_list('id', flat=True)), True)
-
-    def top_optimal_score(self):
-        return self.actuals.all().aggregate(top_score=Max('actual')).get('top_score')
-    top_optimal_score.short_description = 'Top Opt'
-    
-    def balance_rbs_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Balance RBs</a>',
-            reverse_lazy("admin:admin_slatebuild_balance_rbs", args=[self.pk])
-        )
-    balance_rbs_button.short_description = ''
-    
-    def speed_test_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Test</a>',
-            reverse_lazy("admin:admin_slatebuild_speed_test", args=[self.pk])
-        )
-    speed_test_button.short_description = ''
-
-    def sim_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Sim</a>',
-            reverse_lazy("admin:admin_slatebuild_simulate", args=[self.pk])
-        )
-    sim_button.short_description = ''
     
     def prepare_projections_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #a41515; font-weight: bold; padding: 10px 15px;">Prep Proj</a>',
-            reverse_lazy("admin:admin_slatebuild_prepare_projections", args=[self.pk])
+            reverse_lazy("admin:admin_nflsd_slatebuild_prepare_projections", args=[self.pk])
         )
     prepare_projections_button.short_description = ''
-    
-    def flatten_exposure_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #a41515; font-weight: bold; padding: 10px 15px;">Flat</a>',
-            reverse_lazy("admin:admin_slatebuild_flatten_exposure", args=[self.pk])
-        )
-    flatten_exposure_button.short_description = ''
-    
-    def simulate_stacks_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #f5dd5d; font-weight: bold; padding: 10px 15px;">Sim Stacks</a>',
-            reverse_lazy("admin:admin_slatebuild_sim_stacks", args=[self.pk])
-        )
-    simulate_stacks_button.short_description = ''
 
     def build_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Build</a>',
-            reverse_lazy("admin:admin_slatebuild_build", args=[self.pk])
+            reverse_lazy("admin:admin_nflsd_slatebuild_build", args=[self.pk])
         )
     build_button.short_description = ''
     
     def export_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #5b80b2; font-weight: bold; padding: 10px 15px;">Export</a>',
-            reverse_lazy("admin:admin_slatebuild_export", args=[self.pk])
+            reverse_lazy("admin:admin_nflsd_slatebuild_export", args=[self.pk])
         )
     export_button.short_description = ''
     
     def view_page_button(self):
-        return format_html('<a href="/admin/nfl/buildplayerprojection/?build_id={}" class="link" style="color: #ffffff; background-color: #bf3030; font-weight: bold; padding: 10px 15px;">Proj</a>',
+        return format_html('<a href="/admin/nfl_sd/buildplayerprojection/?build_id={}" class="link" style="color: #ffffff; background-color: #bf3030; font-weight: bold; padding: 10px 15px;">Proj</a>',
             self.pk)
     view_page_button.short_description = ''
 
@@ -1362,12 +1169,8 @@ class BuildPlayerProjection(models.Model):
     build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)
     slate_player = models.ForeignKey(SlatePlayer, db_index=True, related_name='build_projections', on_delete=models.CASCADE)
     projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Proj')
-    cpt_ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
-    flex_ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
-    adjusted_opportunity = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='AO')
+    ownership_projection = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name='Own')
     value = models.DecimalField('V', max_digits=5, decimal_places=2, default=0.0, db_index=True)
-    balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=7, decimal_places=4, default=0.0)
-    balanced_value = models.DecimalField('BV', max_digits=7, decimal_places=4, default=0.0, db_index=True)
     in_play = models.BooleanField(default=True, db_index=True)
     min_exposure = models.IntegerField('Min', default=0)
     max_exposure = models.IntegerField('Max', default=100)
@@ -1380,6 +1183,10 @@ class BuildPlayerProjection(models.Model):
 
     def __str__(self):
         return f'${self.salary} {self.name}'
+
+    @property
+    def available_projections(self):
+        return SlatePlayerRawProjection.objects.filter(slate_player=self.slate_player)
 
     @property
     def name(self):
@@ -1398,6 +1205,10 @@ class BuildPlayerProjection(models.Model):
         return self.slate_player.site_pos
 
     @property
+    def roster_position(self):
+        return self.slate_player.roster_position
+
+    @property
     def position_rank(self):
         rank = self.build.projections.filter(
             slate_player__site_pos=self.slate_player.site_pos,
@@ -1410,15 +1221,12 @@ class BuildPlayerProjection(models.Model):
         if self.build.lineups.all().count() > 0:
             return self.build.lineups.filter(
                 Q(
-                    Q(qb=self) | 
-                    Q(rb1=self) | 
-                    Q(rb2=self) | 
-                    Q(wr1=self) | 
-                    Q(wr2=self) | 
-                    Q(wr3=self) | 
-                    Q(te=self) | 
-                    Q(flex=self) | 
-                    Q(dst=self)
+                    Q(cpt=self) | 
+                    Q(flex1=self) | 
+                    Q(flex2=self) | 
+                    Q(flex3=self) | 
+                    Q(flex4=self) | 
+                    Q(flex5=self)
                 )
             ).count() / self.build.lineups.all().count()
         return 0
@@ -1437,19 +1245,7 @@ class BuildPlayerProjection(models.Model):
 
     @property
     def game(self):
-        return self.slate_player.slate_game
-
-    @property
-    def zscore(self):
-        if self.slate_player.projection and self.slate_player.projection.zscore:
-            return self.slate_player.projection.zscore
-        return None
-
-    @property
-    def ao_zscore(self):
-        if self.slate_player.projection and self.slate_player.projection.ao_zscore:
-            return self.slate_player.projection.ao_zscore
-        return None
+        return self.slate_player.slate.game
 
     @property
     def sim_scores(self):
@@ -1507,6 +1303,8 @@ class SlateBuildLineup(models.Model):
     flex5 = models.ForeignKey(BuildPlayerProjection, db_index=True, related_name='flex5', on_delete=models.CASCADE, null=True, blank=True)
     salary = models.PositiveIntegerField(db_index=True)
     projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True)
+    ownership_projection = models.DecimalField(max_digits=10, decimal_places=9, default=0.0)
+    duplicated = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     roi = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, db_index=True)
     mean = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
     median = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
@@ -1539,6 +1337,9 @@ class SlateBuildLineup(models.Model):
         self.save()
 
         return score        
+
+    def get_percentile_sim_score(self, percentile):
+        return numpy.percentile(self.sim_scores, float(percentile))
 
     def simulate(self):
         self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, 10000)]
