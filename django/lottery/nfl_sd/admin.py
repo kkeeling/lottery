@@ -1027,6 +1027,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
 
     list_filter = (
         LineupDuplicatedFilter,
+        'cpt',
     )
 
     def get_queryset(self, request):
