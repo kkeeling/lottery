@@ -195,11 +195,14 @@ class RaceSimDriverInline(admin.TabularInline):
     fields = (
         'driver',
         'starting_position',
-        'best_speed_rank',
-        'worst_speed_rank',
+        'speed_min',
+        'speed_max',
+        'best_possible_speed',
+        'worst_possible_speed',
         'crash_rate',
         'mech_rate',
         'infraction_rate',
+        'strategy_factor'
     )
 
 
@@ -225,6 +228,17 @@ class RaceSimPenaltyProfileInline(admin.TabularInline):
         'is_green',
         'floor_impact',
         'ceiling_impact',
+    )
+
+
+class RaceSimLapsLedInline(admin.TabularInline):
+    model = models.RaceSimLapsLedProfile
+    extra = 0
+    fields = (
+        'stage',
+        'default_eligible_drivers',
+        'per_caution_eligible_drivers',
+        'max_eligible_drivers',
     )
 
 # @admin.register(models.Player)
@@ -584,6 +598,7 @@ class RaceSimAdmin(admin.ModelAdmin):
     inlines = [
         RaceSimDamageProfileInline,
         RaceSimPenaltyProfileInline,
+        RaceSimLapsLedInline,
         RaceSimDriverInline
     ]
     actions = ['simulate_races']

@@ -196,6 +196,7 @@ class Driver(models.Model):
     badge = models.CharField(max_length=5, null=True)
     badge_image = models.URLField(null=True)
     manufacturer_image = models.URLField(null=True)
+    manufacturer = models.CharField(max_length=100, null=True)
     team = models.CharField(max_length=100, null=True)
     driver_image = models.URLField(null=True)
 
@@ -318,7 +319,7 @@ class RaceSim(models.Model):
     iterations = models.IntegerField(default=10000)
     input_file = models.FileField(upload_to='uploads/sim_input_files', blank=True, null=True)
     
-    # profile data
+    # caution data
     early_stage_caution_mean = models.FloatField(default=1.0)
     early_stage_caution_prob_debris = models.FloatField(default=0.1)
     early_stage_caution_prob_accident_small = models.FloatField(default=0.4)
@@ -331,6 +332,10 @@ class RaceSim(models.Model):
     final_stage_caution_prob_accident_medium = models.FloatField(default=0.2)
     final_stage_caution_prob_accident_major = models.FloatField(default=0.3)
 
+    # variance data
+    track_variance = models.FloatField(default=0.1)
+    track_variance_late_restart = models.FloatField(default=0.1)
+
     def __str__(self):
         return f'{self.race} Sim {self.id}'
 
@@ -341,6 +346,12 @@ class RaceSim(models.Model):
         return self.damage_profiles.get(
             min_cars_involved__lte=num_cars,
             max_cars_involved__gte=num_cars
+        )
+
+    def get_penalty_profile(self, stage, is_green):
+        return self.penalty_profiles.get(
+            stage=stage,
+            is_green=is_green
         )
 
     def export_template_button(self):
@@ -383,16 +394,30 @@ class RaceSimPenaltyProfile(models.Model):
     def get_flag_color(self):
         return 'Green' if self.is_green else 'Yellow'
 
+class RaceSimLapsLedProfile(models.Model):
+    sim = models.ForeignKey(RaceSim, related_name='ll_profiles', on_delete=models.CASCADE)
+    stage = models.IntegerField(default=0)
+    default_eligible_drivers = models.IntegerField(default=5)
+    per_caution_eligible_drivers = models.IntegerField(default=2)
+    max_eligible_drivers = models.IntegerField(default=2)
+
+    def __str__(self):
+        return f'Laps Led Profile: Stage {self.stage}'
+
 
 class RaceSimDriver(models.Model):
     sim = models.ForeignKey(RaceSim, related_name='outcomes', on_delete=models.CASCADE)
     driver = models.ForeignKey(Driver, related_name='outcomes', on_delete=models.CASCADE)
     starting_position = models.IntegerField(default=0)
-    best_speed_rank = models.IntegerField(default=0)
-    worst_speed_rank = models.IntegerField(default=0)
+    speed_min = models.IntegerField(default=1)
+    speed_max = models.IntegerField(default=5)
+    best_possible_speed = models.IntegerField(default=1)
+    worst_possible_speed = models.IntegerField(default=5)
     crash_rate = models.FloatField(default=0.0)
     mech_rate = models.FloatField(default=0.0)
     infraction_rate = models.FloatField(default=0.0)
+    strategy_factor = models.FloatField(default=0.0)
+
     fp_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
     ll_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
     fl_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)

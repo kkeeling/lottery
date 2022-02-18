@@ -1023,8 +1023,8 @@ def simulate_match(match_id, task_id):
         projection1.sim_scores = p1_scores
         projection1.w_sim_scores = w_p1_scores
         projection1.projection = numpy.median(p1_scores)
-        projection1.ceiling = numpy.percentile([float(i) for i in p1_scores], 90)
-        projection1.s75 = numpy.percentile([float(i) for i in p1_scores], 75)
+        projection1.ceiling = numpy.percentile([float(i) for i in w_p1_scores], 90)
+        projection1.s75 = numpy.percentile([float(i) for i in w_p1_scores], 75)
         projection1.sim_win_pct = p1_wins/10000
         projection1.save()
         
@@ -1035,8 +1035,8 @@ def simulate_match(match_id, task_id):
         projection2.sim_scores = p2_scores
         projection2.w_sim_scores = w_p2_scores
         projection2.projection = numpy.median(p2_scores)
-        projection2.ceiling = numpy.percentile([float(i) for i in p2_scores], 90)
-        projection2.s75 = numpy.percentile([float(i) for i in p2_scores], 75)
+        projection2.ceiling = numpy.percentile([float(i) for i in w_p2_scores], 90)
+        projection2.s75 = numpy.percentile([float(i) for i in w_p2_scores], 75)
         projection2.sim_win_pct = p2_wins/10000
         projection2.save()
 

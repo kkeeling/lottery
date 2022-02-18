@@ -1504,8 +1504,12 @@ class Slate(models.Model):
                         timeframe_in_weeks=52*2
                     )
 
-                    a = data_a.get('spw')
-                    a_r = data_a.get('rpw')
+                    if data_a is None:
+                        a = 0.0
+                        a_r = 0.0
+                    else:
+                        a = data_a.get('spw')
+                        a_r = data_a.get('rpw')
 
                     data_b = slate_player2.player.get_points_won_rate(
                         timeframe_in_weeks=52,
@@ -1539,8 +1543,12 @@ class Slate(models.Model):
                         timeframe_in_weeks=52*2
                     )
 
-                    b = data_b.get('spw')
-                    b_r = data_b.get('rpw')
+                    if data_b is None:
+                        b = 0.0
+                        b_r = 0.0
+                    else:
+                        b = data_b.get('spw')
+                        b_r = data_b.get('rpw')
 
                 p1_ace = slate_player1.player.get_ace_pct(timeframe=52, on_surface=slate_match.surface)
                 if p1_ace is None:
@@ -1599,11 +1607,11 @@ class Slate(models.Model):
                     projection1.save()
 
                 if projection1.ace_rate == 0.0:
-                    projection1.ace_rate = p1_ace
+                    projection1.ace_rate = p1_ace if p1_ace is not None else 0.0
                     projection1.save()
 
                 if projection1.df_rate == 0.0:
-                    projection1.df_rate = p1_df
+                    projection1.df_rate = p1_df if p1_df is not None else 0.0
                     projection1.save()
 
                 if projection2.spw_rate == 0.0:
@@ -1615,11 +1623,11 @@ class Slate(models.Model):
                     projection2.save()
 
                 if projection2.ace_rate == 0.0:
-                    projection2.ace_rate = p2_ace
+                    projection2.ace_rate = p2_ace if p2_ace is not None else 0.0
                     projection2.save()
 
                 if projection2.df_rate == 0.0:
-                    projection2.df_rate = p2_df
+                    projection2.df_rate = p2_df if p2_df is not None else 0.0
                     projection2.save()
 
     def sim_button(self):
