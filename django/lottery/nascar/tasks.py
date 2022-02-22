@@ -444,8 +444,9 @@ def execute_sim(sim_id, task_id):
             time.sleep(0.2)
             task = BackgroundTask.objects.get(id=task_id)
 
+        race_sim = models.RaceSim.objects.get(id=sim_id)
         chord([
-            execute_sim_iteration.si(sim_id) for _ in range(0, 100)
+            execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
         ], sim_execution_complete.s(sim_id, task_id))()
 
     except Exception as e:
