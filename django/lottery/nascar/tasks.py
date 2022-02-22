@@ -444,384 +444,414 @@ def execute_sim(sim_id, task_id):
             time.sleep(0.2)
             task = BackgroundTask.objects.get(id=task_id)
 
-        race_sim = models.RaceSim.objects.get(id=sim_id)
-        drivers = race_sim.outcomes.all().order_by('starting_position')
-        crash_rate_sum = drivers.aggregate(crash_rate_sum=Sum('crash_rate')).get('crash_rate_sum')
-        
-        if race_sim.race.series == 1:
-            pit_penalty_mean = 1.09375
-        elif race_sim.race.series == 2:
-            pit_penalty_mean = 1.366071429
+        chord([
+            execute_sim_iteration.si(sim_id) for _ in range(0, 100)
+        ], sim_execution_complete.s(sim_id, task_id))()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error simulating this race: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def execute_sim_iteration(sim_id):
+    race_sim = models.RaceSim.objects.get(id=sim_id)
+    drivers = race_sim.outcomes.all().order_by('starting_position')
+    crash_rate_sum = drivers.aggregate(crash_rate_sum=Sum('crash_rate')).get('crash_rate_sum')
+    
+    if race_sim.race.series == 1:
+        pit_penalty_mean = 1.09375
+    elif race_sim.race.series == 2:
+        pit_penalty_mean = 1.366071429
+    else:
+        pit_penalty_mean = 1.421052632
+    
+    # for n in range(1, race_sim.iterations+1):
+    race_drivers = list(drivers.values_list('driver__nascar_driver_id', flat=True))  # tracks drivers still in race
+    driver_ids = list(drivers.values_list('driver__nascar_driver_id', flat=True))
+    driver_names = list(drivers.values_list('driver__full_name', flat=True))
+    driver_starting_positions = list(drivers.values_list('starting_position', flat=True))
+    driver_strategy = list(drivers.values_list('strategy_factor', flat=True))
+
+    driver_dnfs = [None for driver in drivers]
+    driver_sp_mins = list(drivers.values_list('speed_min', flat=True))
+    driver_sp_maxes = list(drivers.values_list('speed_max', flat=True))
+    driver_bp_sp_mins = list(drivers.values_list('best_possible_speed', flat=True))
+    # driver_bp_sp_maxes = list(drivers.values_list('worst_possible_speed', flat=True))
+    driver_s1_penalties = [None for driver in drivers]
+    driver_s1_ranks = [None for driver in drivers]
+    driver_s1_mins = [None for driver in drivers]
+    driver_s1_maxes = [None for driver in drivers]
+    driver_s2_penalties = [None for driver in drivers]
+    driver_s2_ranks = [None for driver in drivers]
+    driver_s2_mins = [None for driver in drivers]
+    driver_s2_maxes = [None for driver in drivers]
+    driver_s3_penalties = [None for driver in drivers]
+    driver_s3_ranks = [None for driver in drivers]
+    driver_s3_mins = [None for driver in drivers]
+    driver_s3_maxes = [None for driver in drivers]
+
+    if race_sim.race.num_stages() > 3:
+        driver_s4_penalties = [None for driver in drivers]
+        driver_s4_ranks = [None for driver in drivers]
+
+    minor_damage_drivers = []
+    medium_damage_drivers = []
+    dnf_drivers = []
+
+    stage_1_green_penalty_drivers = []
+    stage_1_yellow_penalty_drivers = []
+    stage_2_green_penalty_drivers = []
+    stage_2_yellow_penalty_drivers = []
+    stage_3_green_penalty_drivers = []
+    stage_3_yellow_penalty_drivers = []
+    stage_4_green_penalty_drivers = []
+    stage_4_yellow_penalty_drivers = []
+
+    late_caution = False
+    total_cautions = 0
+
+    for stage in range(1, race_sim.race.num_stages() + 1):
+        num_laps = race_sim.race.get_laps_for_stage(stage)
+        # print(f'Stage {stage}: {num_laps} laps')
+
+        # Find # of cautions & caution type thresholds
+
+        if stage < race_sim.race.num_stages():
+            num_cautions = scipy.stats.poisson.rvs(race_sim.early_stage_caution_mean)
+
+            debris_caution_cutoff = race_sim.early_stage_caution_prob_debris
+            accident_small_caution_cutoff = race_sim.early_stage_caution_prob_accident_small
+            accident_medium_caution_cutoff = race_sim.early_stage_caution_prob_accident_medium
+            accident_major_caution_cutoff = race_sim.early_stage_caution_prob_accident_major
         else:
-            pit_penalty_mean = 1.421052632
-        
-        for n in range(1, race_sim.iterations+1):
-            race_drivers = list(drivers.values_list('driver__nascar_driver_id', flat=True))  # tracks drivers still in race
-            driver_ids = list(drivers.values_list('driver__nascar_driver_id', flat=True))
-            driver_names = list(drivers.values_list('driver__full_name', flat=True))
-            driver_starting_positions = list(drivers.values_list('starting_position', flat=True))
-            driver_strategy = list(drivers.values_list('strategy_factor', flat=True))
+            num_cautions = scipy.stats.poisson.rvs(race_sim.final_stage_caution_mean)
 
-            driver_dnfs = [None for driver in drivers]
-            driver_sp_mins = list(drivers.values_list('speed_min', flat=True))
-            driver_sp_maxes = list(drivers.values_list('speed_max', flat=True))
-            driver_bp_sp_mins = list(drivers.values_list('best_possible_speed', flat=True))
-            # driver_bp_sp_maxes = list(drivers.values_list('worst_possible_speed', flat=True))
-            driver_s1_penalties = [None for driver in drivers]
-            driver_s1_ranks = [None for driver in drivers]
-            driver_s1_mins = [None for driver in drivers]
-            driver_s1_maxes = [None for driver in drivers]
-            driver_s2_penalties = [None for driver in drivers]
-            driver_s2_ranks = [None for driver in drivers]
-            driver_s2_mins = [None for driver in drivers]
-            driver_s2_maxes = [None for driver in drivers]
-            driver_s3_penalties = [None for driver in drivers]
-            driver_s3_ranks = [None for driver in drivers]
-            driver_s3_mins = [None for driver in drivers]
-            driver_s3_maxes = [None for driver in drivers]
+            debris_caution_cutoff = race_sim.final_stage_caution_prob_debris
+            accident_small_caution_cutoff = race_sim.final_stage_caution_prob_accident_small
+            accident_medium_caution_cutoff = race_sim.final_stage_caution_prob_accident_medium
+            accident_major_caution_cutoff = race_sim.final_stage_caution_prob_accident_major
 
-            if race_sim.race.num_stages() > 3:
-                driver_s4_penalties = [None for driver in drivers]
-                driver_s4_ranks = [None for driver in drivers]
+        total_cautions += num_cautions
+        # print(f'  There are {num_cautions} cautions.')
+        # For each caution, assign damage
 
-            minor_damage_drivers = []
-            medium_damage_drivers = []
-            dnf_drivers = []
-
-            stage_1_green_penalty_drivers = []
-            stage_1_yellow_penalty_drivers = []
-            stage_2_green_penalty_drivers = []
-            stage_2_yellow_penalty_drivers = []
-            stage_3_green_penalty_drivers = []
-            stage_3_yellow_penalty_drivers = []
-            stage_4_green_penalty_drivers = []
-            stage_4_yellow_penalty_drivers = []
-
-            late_caution = False
-            total_cautions = 0
-
-            for stage in range(1, race_sim.race.num_stages() + 1):
-                num_laps = race_sim.race.get_laps_for_stage(stage)
-                print(f'Stage {stage}: {num_laps} laps')
-
-                # Find # of cautions & caution type thresholds
-
-                if stage < race_sim.race.num_stages():
-                    num_cautions = scipy.stats.poisson.rvs(race_sim.early_stage_caution_mean)
-
-                    debris_caution_cutoff = race_sim.early_stage_caution_prob_debris
-                    accident_small_caution_cutoff = race_sim.early_stage_caution_prob_accident_small
-                    accident_medium_caution_cutoff = race_sim.early_stage_caution_prob_accident_medium
-                    accident_major_caution_cutoff = race_sim.early_stage_caution_prob_accident_major
-                else:
-                    num_cautions = scipy.stats.poisson.rvs(race_sim.final_stage_caution_mean)
-
-                    debris_caution_cutoff = race_sim.final_stage_caution_prob_debris
-                    accident_small_caution_cutoff = race_sim.final_stage_caution_prob_accident_small
-                    accident_medium_caution_cutoff = race_sim.final_stage_caution_prob_accident_medium
-                    accident_major_caution_cutoff = race_sim.final_stage_caution_prob_accident_major
-
-                total_cautions += num_cautions
-                # print(f'  There are {num_cautions} cautions.')
-                # For each caution, assign damage
-
-                for caution in range(0, num_cautions):
-                    c_val = random()
-                    if c_val <= debris_caution_cutoff:
-                        min_cars = -1
-                        max_cars = 0
-                    elif c_val <= debris_caution_cutoff + accident_small_caution_cutoff:
-                        min_cars = min(1, len(race_drivers))
-                        max_cars = min(2, len(race_drivers))
-                    elif c_val <= debris_caution_cutoff + accident_small_caution_cutoff + accident_medium_caution_cutoff:
-                        min_cars = min(3, len(race_drivers))
-                        max_cars = min(6, len(race_drivers))
-                    else:
-                        min_cars = min(7, len(race_drivers))
-                        max_cars = min(21, len(race_drivers))
-
-                    num_cars = max(math.ceil(uniform(min_cars - 1, max_cars)), 0)
-                    # print(f'Caution {caution + 1}: {num_cars} involved.')
-
-                    # assign damage
-                    involved_cars = []
-                    for _ in range(0, num_cars):
-                        # create probabilty pool for wreck involvement based on remaining race drivers
-                        crash_pool = [] 
-                        for driver in drivers.filter(driver__nascar_driver_id__in=race_drivers):
-                            n = round((driver.crash_rate / crash_rate_sum) * 100)
-                            for _ in range(0, n):
-                                crash_pool.append(driver)
-                        involved_car_index = round(uniform(0, len(crash_pool)-1))
-                        involved_car = crash_pool[involved_car_index]
-
-                        while involved_car.id in involved_cars:
-                            involved_car_index = round(uniform(0, len(crash_pool)-1))
-                            involved_car = crash_pool[involved_car_index]
-
-                        involved_cars.append(involved_car.id)
-
-                        # assign damage using no damage (0), minor damage (1), damage (2), and DNF (3) percentages based on the caution type (small, medium, major)
-                        damage_profile = race_sim.get_damage_profile(num_cars)
-                        
-                        damage_options = [0 for _ in range(0, int(damage_profile.prob_no_damage * 100))]
-                        damage_options += [1 for _ in range(0, int(damage_profile.prob_minor_damage * 100))]
-                        damage_options += [2 for _ in range(0, int(damage_profile.prob_medium_damage * 100))]
-                        damage_options += [3 for _ in range(0, int(damage_profile.prob_dnf * 100))]
-
-                        damage_index = round(uniform(0, len(damage_options)-1))
-                        damage_value = damage_options[damage_index]
-
-                        if damage_value == 0:
-                            # print(f'{involved_car} [{involved_car.id}] takes no damage')
-                            pass
-                        elif damage_value == 1:
-                            print(f'{involved_car} [{involved_car.id}] takes minor damage')
-                            minor_damage_drivers.append(involved_car)
-                        elif damage_value == 2:
-                            print(f'{involved_car} [{involved_car.id}] takes medium damage')
-                            medium_damage_drivers.append(involved_car)
-                        else:
-                            # print(f'{involved_car} [{involved_car.id}] is out of the race')
-                            race_drivers = list(filter((involved_car.id).__ne__, race_drivers))
-                            dnf_drivers.append(involved_car)
-
-                # assign penalties based on number of cautions
-                if num_cautions == 0:
-                    num_penalties = scipy.stats.poisson.rvs(pit_penalty_mean)
-                    # print(f'There are {num_penalties} penalties')
-
-                    # all penalties are green flag
-                    for _ in range(0, num_penalties):
-                        penalized_driver = race_drivers[round(uniform(0, len(race_drivers)-1))]
-                        # print(f'{drivers.get(driver__nascar_driver_id=penalized_driver)} had a green flag penalty')
-
-                        if stage == 1:
-                            stage_1_green_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-                        elif stage == 2:
-                            stage_2_green_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-                        elif stage == 3:
-                            stage_3_green_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-                        else:
-                            stage_4_green_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-                else:
-                    # generate penalties for each caution
-                    for _ in range(0, num_cautions):
-                        num_penalties = scipy.stats.poisson.rvs(pit_penalty_mean)
-                        # print(f'There are {num_penalties} penalties')
-
-                        # all penalties are yellow flag
-                        for _ in range(0, num_penalties):
-                            penalized_driver = race_drivers[round(uniform(0, len(race_drivers)-1))]
-                            # print(f'{drivers.get(driver__nascar_driver_id=penalized_driver)} had a yellow flag penalty')
-
-                            if stage == 1:
-                                stage_1_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-                            elif stage == 2:
-                                stage_2_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-                            elif stage == 3:
-                                stage_3_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-                            else:
-                                stage_4_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-
-                if stage < race_sim.race.num_stages():
-                    # add stage caution penalties
-                    num_penalties = scipy.stats.poisson.rvs(pit_penalty_mean)
-                    # print(f'There are {num_penalties} end of stage penalties')
-                    
-                    for _ in range(0, num_penalties):
-                        penalized_driver = race_drivers[round(uniform(0, len(race_drivers)-1))]
-                        # print(f'{drivers.get(driver__nascar_driver_id=penalized_driver)} had a yellow flag penalty')
-
-                        if stage == 1:
-                            stage_1_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-                        elif stage == 2:
-                            stage_2_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-                        elif stage == 3:
-                            stage_3_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-                        else:
-                            stage_4_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
-
-                # Update dnfs, penalties, and speed after each stage
-                speed = []
-                for index, driver in enumerate(drivers):
-                    if driver in dnf_drivers:
-                        if driver_dnfs[index] is None:  # make sure driver didn't dnf in previous stage
-                            # Did driver DNF?
-                            driver_dnfs[index] = stage
-                        speed.append(9999*(race_sim.race.num_stages()-driver_dnfs[index]+1)+index)  # DNFs always fall to the bottom, but keep them in order stage to stage
-                    else:
-                        # Assign speed
-                        if stage == 1:
-                            # Did driver have a penalty?
-                            if driver in stage_1_green_penalty_drivers:
-                                driver_s1_penalties[index] = 'G'
-                            elif driver in stage_1_yellow_penalty_drivers:
-                                driver_s1_penalties[index] = 'Y'
-
-                            flr = driver.speed_min
-                            ceil = driver.speed_max
-                        elif stage == 2:
-                            # Did driver have a penalty?
-                            if driver in stage_2_green_penalty_drivers:
-                                driver_s2_penalties[index] = 'G'
-                            elif driver in stage_2_yellow_penalty_drivers:
-                                driver_s2_penalties[index] = 'Y'
-
-                            flr = driver_s1_mins[index]
-                            ceil = driver_s1_maxes[index]
-                        elif stage == 3:
-                            # Did driver have a penalty?
-                            if driver in stage_3_green_penalty_drivers:
-                                driver_s3_penalties[index] = 'G'
-                            elif driver in stage_3_yellow_penalty_drivers:
-                                driver_s3_penalties[index] = 'Y'
-
-                            flr = driver_s2_mins[index]
-                            ceil = driver_s2_maxes[index]
-                        elif stage == 4:
-                    # Did driver have a penalty?
-                            if driver in stage_4_green_penalty_drivers:
-                                driver_s4_penalties[index] = 'G'
-                            elif driver in stage_4_yellow_penalty_drivers:
-                                driver_s4_penalties[index] = 'Y'
-
-                            flr = driver_s3_mins[index]
-                            ceil = driver_s3_maxes[index]
-
-                        # Did driver take damage
-                        if driver in medium_damage_drivers:
-                            flr = 40
-                            ceil = 20
-                        elif driver in minor_damage_drivers:
-                            flr += 10
-
-                        mu = numpy.average([flr, ceil])
-                        stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
-                        d_sr = numpy.random.normal(mu, stdev, 1)[0] + random()
-                        speed.append(d_sr)
-
-                # Update speed rank after each stage
-                if stage == 1:
-                    # rank speed
-                    driver_s1_ranks = scipy.stats.rankdata(speed, method='ordinal')
-                    driver_s1_mins = [max(driver_s1_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
-                    driver_s1_maxes = [driver_s1_ranks[i] + 5 for i, d in enumerate(drivers)]
-                elif stage == 2:
-                    # rank speed
-                    driver_s2_ranks = scipy.stats.rankdata(speed, method='ordinal')
-                    driver_s2_mins = [max(driver_s2_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
-                    driver_s2_maxes = [driver_s2_ranks[i] + 5 for i, d in enumerate(drivers)]
-                elif stage == 3:
-                    # rank speed
-                    driver_s3_ranks = scipy.stats.rankdata(speed, method='ordinal')
-                    driver_s3_mins = [max(driver_s3_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
-                    driver_s3_maxes = [driver_s3_ranks[i] + 5 for i, d in enumerate(drivers)]
-                elif stage == 4:
-                    # rank speed
-                    driver_s4_ranks = scipy.stats.rankdata(speed, method='ordinal')
-                    driver_s4_mins = [max(driver_s4_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
-                    driver_s4_maxes = [driver_s4_ranks[i] + 5 for i, d in enumerate(drivers)]
-
-                # Was there a late caution
-                if stage == race_sim.race.num_stages():
-                    val = random()
-                    if num_cautions == 1:
-                        late_caution = val < 0.50
-                    elif num_cautions == 2:
-                        late_caution = val < 0.75
-                    elif num_cautions >= 3:
-                        late_caution = True
-
-            # print('Assign FP:')
-            print(f'Total Cautions = {total_cautions}')
-            if late_caution:
-                print('There was a late caution')
-                race_variance = race_sim.track_variance_late_restart
+        for caution in range(0, num_cautions):
+            c_val = random()
+            if c_val <= debris_caution_cutoff:
+                min_cars = -1
+                max_cars = 0
+            elif c_val <= debris_caution_cutoff + accident_small_caution_cutoff:
+                min_cars = min(1, len(race_drivers))
+                max_cars = min(2, len(race_drivers))
+            elif c_val <= debris_caution_cutoff + accident_small_caution_cutoff + accident_medium_caution_cutoff:
+                min_cars = min(3, len(race_drivers))
+                max_cars = min(6, len(race_drivers))
             else:
-                race_variance = race_sim.track_variance
+                min_cars = min(7, len(race_drivers))
+                max_cars = min(21, len(race_drivers))
+
+            num_cars = max(math.ceil(uniform(min_cars - 1, max_cars)), 0)
+            # print(f'Caution {caution + 1}: {num_cars} involved.')
+
+            # assign damage
+            involved_cars = []
+            for _ in range(0, num_cars):
+                # create probabilty pool for wreck involvement based on remaining race drivers
+                crash_pool = [] 
+                for driver in drivers.filter(driver__nascar_driver_id__in=race_drivers):
+                    n = round((driver.crash_rate / crash_rate_sum) * 100)
+                    for _ in range(0, n):
+                        crash_pool.append(driver)
+                involved_car_index = round(uniform(0, len(crash_pool)-1))
+                involved_car = crash_pool[involved_car_index]
+
+                while involved_car.id in involved_cars:
+                    involved_car_index = round(uniform(0, len(crash_pool)-1))
+                    involved_car = crash_pool[involved_car_index]
+
+                involved_cars.append(involved_car.id)
+
+                # assign damage using no damage (0), minor damage (1), damage (2), and DNF (3) percentages based on the caution type (small, medium, major)
+                damage_profile = race_sim.get_damage_profile(num_cars)
                 
-            if total_cautions <= 7:
-                race_variance += 0
-            elif total_cautions <= 10:
-                race_variance += 1
-            elif total_cautions <= 13:
-                race_variance += 2
-            elif total_cautions >= 14:
-                race_variance += 3
+                damage_options = [0 for _ in range(0, int(damage_profile.prob_no_damage * 100))]
+                damage_options += [1 for _ in range(0, int(damage_profile.prob_minor_damage * 100))]
+                damage_options += [2 for _ in range(0, int(damage_profile.prob_medium_damage * 100))]
+                damage_options += [3 for _ in range(0, int(damage_profile.prob_dnf * 100))]
 
-            final_ranks = driver_s3_ranks if race_sim.race.num_stages() == 3 else driver_s4_ranks
-            fp_vals = []
-            for index, final_sp in enumerate(final_ranks):
-                flr = final_sp - race_variance - driver_strategy[index]
-                ceil = final_sp + race_variance + driver_strategy[index]
+                damage_index = round(uniform(0, len(damage_options)-1))
+                damage_value = damage_options[damage_index]
 
-                driver = drivers[index]
-                if driver_dnfs[index] is not None:
-                    # DNF drivers stay where they are
-                    fp_vals.append(speed[index])  # DNFs always fall to the bottom, but keep them in order stage to stage
+                if damage_value == 0:
+                    # print(f'{involved_car} [{involved_car.id}] takes no damage')
+                    pass
+                elif damage_value == 1:
+                    # print(f'{involved_car} [{involved_car.id}] takes minor damage')
+                    minor_damage_drivers.append(involved_car)
+                elif damage_value == 2:
+                    # print(f'{involved_car} [{involved_car.id}] takes medium damage')
+                    medium_damage_drivers.append(involved_car)
                 else:
+                    # print(f'{involved_car} [{involved_car.id}] is out of the race')
+                    race_drivers = list(filter((involved_car.id).__ne__, race_drivers))
+                    dnf_drivers.append(involved_car)
+
+        # assign penalties based on number of cautions
+        if num_cautions == 0:
+            num_penalties = scipy.stats.poisson.rvs(pit_penalty_mean)
+            # print(f'There are {num_penalties} penalties')
+
+            # all penalties are green flag
+            for _ in range(0, num_penalties):
+                penalized_driver = race_drivers[round(uniform(0, len(race_drivers)-1))]
+                # print(f'{drivers.get(driver__nascar_driver_id=penalized_driver)} had a green flag penalty')
+
+                if stage == 1:
+                    stage_1_green_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+                elif stage == 2:
+                    stage_2_green_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+                elif stage == 3:
+                    stage_3_green_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+                else:
+                    stage_4_green_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+        else:
+            # generate penalties for each caution
+            for _ in range(0, num_cautions):
+                num_penalties = scipy.stats.poisson.rvs(pit_penalty_mean)
+                # print(f'There are {num_penalties} penalties')
+
+                # all penalties are yellow flag
+                for _ in range(0, num_penalties):
+                    penalized_driver = race_drivers[round(uniform(0, len(race_drivers)-1))]
+                    # print(f'{drivers.get(driver__nascar_driver_id=penalized_driver)} had a yellow flag penalty')
+
+                    if stage == 1:
+                        stage_1_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+                    elif stage == 2:
+                        stage_2_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+                    elif stage == 3:
+                        stage_3_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+                    else:
+                        stage_4_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+
+        if stage < race_sim.race.num_stages():
+            # add stage caution penalties
+            num_penalties = scipy.stats.poisson.rvs(pit_penalty_mean)
+            # print(f'There are {num_penalties} end of stage penalties')
+            
+            for _ in range(0, num_penalties):
+                penalized_driver = race_drivers[round(uniform(0, len(race_drivers)-1))]
+                # print(f'{drivers.get(driver__nascar_driver_id=penalized_driver)} had a yellow flag penalty')
+
+                if stage == 1:
+                    stage_1_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+                elif stage == 2:
+                    stage_2_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+                elif stage == 3:
+                    stage_3_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+                else:
+                    stage_4_yellow_penalty_drivers.append(drivers.get(driver__nascar_driver_id=penalized_driver))
+
+        # Update dnfs, penalties, and speed after each stage
+        speed = []
+        for index, driver in enumerate(drivers):
+            if driver in dnf_drivers:
+                if driver_dnfs[index] is None:  # make sure driver didn't dnf in previous stage
+                    # Did driver DNF?
+                    driver_dnfs[index] = stage
+                speed.append(9999*(race_sim.race.num_stages()-driver_dnfs[index]+1)+index)  # DNFs always fall to the bottom, but keep them in order stage to stage
+            else:
+                # Assign speed
+                if stage == 1:
+                    # Did driver have a penalty?
                     if driver in stage_1_green_penalty_drivers:
-                        ceil += race_sim.get_penalty_profile(1, True).floor_impact
-                        flr += race_sim.get_penalty_profile(1, True).ceiling_impact
-                    if driver in stage_1_yellow_penalty_drivers:
-                        ceil += race_sim.get_penalty_profile(1, False).floor_impact
-                        flr += race_sim.get_penalty_profile(1, False).ceiling_impact
+                        driver_s1_penalties[index] = 'G'
+                    elif driver in stage_1_yellow_penalty_drivers:
+                        driver_s1_penalties[index] = 'Y'
+
+                    flr = driver.speed_min
+                    ceil = driver.speed_max
+                elif stage == 2:
+                    # Did driver have a penalty?
                     if driver in stage_2_green_penalty_drivers:
-                        ceil += race_sim.get_penalty_profile(2, True).floor_impact
-                        flr += race_sim.get_penalty_profile(2, True).ceiling_impact
-                    if driver in stage_2_yellow_penalty_drivers:
-                        ceil += race_sim.get_penalty_profile(2, False).floor_impact
-                        flr += race_sim.get_penalty_profile(2, False).ceiling_impact
+                        driver_s2_penalties[index] = 'G'
+                    elif driver in stage_2_yellow_penalty_drivers:
+                        driver_s2_penalties[index] = 'Y'
+
+                    flr = driver_s1_mins[index]
+                    ceil = driver_s1_maxes[index]
+                elif stage == 3:
+                    # Did driver have a penalty?
                     if driver in stage_3_green_penalty_drivers:
-                        ceil += race_sim.get_penalty_profile(3, True).floor_impact
-                        flr += race_sim.get_penalty_profile(3, True).ceiling_impact
-                    if driver in stage_3_yellow_penalty_drivers:
-                        ceil += race_sim.get_penalty_profile(3, False).floor_impact
-                        flr += race_sim.get_penalty_profile(3, False).ceiling_impact
+                        driver_s3_penalties[index] = 'G'
+                    elif driver in stage_3_yellow_penalty_drivers:
+                        driver_s3_penalties[index] = 'Y'
+
+                    flr = driver_s2_mins[index]
+                    ceil = driver_s2_maxes[index]
+                elif stage == 4:
+            # Did driver have a penalty?
                     if driver in stage_4_green_penalty_drivers:
-                        ceil += race_sim.get_penalty_profile(4, True).floor_impact
-                        flr += race_sim.get_penalty_profile(4, True).ceiling_impact
-                    if driver in stage_4_yellow_penalty_drivers:
-                        ceil += race_sim.get_penalty_profile(4, False).floor_impact
-                        flr += race_sim.get_penalty_profile(4, False).ceiling_impact
-                
-                    mu = numpy.average([flr, ceil])
-                    stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
-                    fp_vals.append(numpy.random.normal(mu, stdev, 1)[0] + random())
-            fp_ranks = scipy.stats.rankdata(fp_vals, method='ordinal')
+                        driver_s4_penalties[index] = 'G'
+                    elif driver in stage_4_yellow_penalty_drivers:
+                        driver_s4_penalties[index] = 'Y'
 
-            df_race = pandas.DataFrame({
-                'driver_id': driver_ids,
-                'driver': driver_names,
-                'sp': driver_starting_positions,
-                'speed_min': driver_sp_mins,
-                'speed_max': driver_sp_maxes,
-                'best_possible': driver_bp_sp_mins,
-                # 'worst_possible': driver_bp_sp_maxes,
-                'dnf': driver_dnfs,
-                's1_penalty': driver_s1_penalties,
-                's1_rank': driver_s1_ranks,
-                's1_min': driver_s1_mins,
-                's1_max': driver_s1_maxes,
-                's2_penalty': driver_s2_penalties,
-                's2_rank': driver_s2_ranks,
-                's2_min': driver_s2_mins,
-                's2_max': driver_s2_maxes,
-                's3_penalty': driver_s3_penalties,
-                's3_rank': driver_s3_ranks,
-            })
+                    flr = driver_s3_mins[index]
+                    ceil = driver_s3_maxes[index]
 
-            if race_sim.race.num_stages() > 3:
-                df_race['s3_min'] = driver_s3_mins
-                df_race['s3_max'] = driver_s3_maxes
-                df_race['s4_penalty'] = driver_s4_penalties
-                df_race['s4_rank'] = driver_s4_ranks
+                # Did driver take damage
+                if driver in medium_damage_drivers:
+                    flr = 40
+                    ceil = 20
+                elif driver in minor_damage_drivers:
+                    flr += 10
 
-            df_race['fp'] = fp_ranks
+                mu = numpy.average([flr, ceil])
+                stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
+                d_sr = numpy.random.normal(mu, stdev, 1)[0] + random()
+                speed.append(d_sr)
 
-            print(df_race)
-            df_race.to_csv('data/race.csv')
+        # Update speed rank after each stage
+        if stage == 1:
+            # rank speed
+            driver_s1_ranks = scipy.stats.rankdata(speed, method='ordinal')
+            driver_s1_mins = [max(driver_s1_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
+            driver_s1_maxes = [driver_s1_ranks[i] + 5 for i, d in enumerate(drivers)]
+        elif stage == 2:
+            # rank speed
+            driver_s2_ranks = scipy.stats.rankdata(speed, method='ordinal')
+            driver_s2_mins = [max(driver_s2_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
+            driver_s2_maxes = [driver_s2_ranks[i] + 5 for i, d in enumerate(drivers)]
+        elif stage == 3:
+            # rank speed
+            driver_s3_ranks = scipy.stats.rankdata(speed, method='ordinal')
+            driver_s3_mins = [max(driver_s3_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
+            driver_s3_maxes = [driver_s3_ranks[i] + 5 for i, d in enumerate(drivers)]
+        elif stage == 4:
+            # rank speed
+            driver_s4_ranks = scipy.stats.rankdata(speed, method='ordinal')
+            driver_s4_mins = [max(driver_s4_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
+            driver_s4_maxes = [driver_s4_ranks[i] + 5 for i, d in enumerate(drivers)]
+
+        # Was there a late caution
+        if stage == race_sim.race.num_stages():
+            val = random()
+            if num_cautions == 1:
+                late_caution = val < 0.50
+            elif num_cautions == 2:
+                late_caution = val < 0.75
+            elif num_cautions >= 3:
+                late_caution = True
+
+    # print('Assign FP:')
+    # print(f'Total Cautions = {total_cautions}')
+    if late_caution:
+        # print('There was a late caution')
+        race_variance = race_sim.track_variance_late_restart
+    else:
+        race_variance = race_sim.track_variance
+        
+    if total_cautions <= 7:
+        race_variance += 0
+    elif total_cautions <= 10:
+        race_variance += 1
+    elif total_cautions <= 13:
+        race_variance += 2
+    elif total_cautions >= 14:
+        race_variance += 3
+
+    final_ranks = driver_s3_ranks if race_sim.race.num_stages() == 3 else driver_s4_ranks
+    fp_vals = []
+    for index, final_sp in enumerate(final_ranks):
+        flr = final_sp - race_variance - driver_strategy[index]
+        ceil = final_sp + race_variance + driver_strategy[index]
+
+        driver = drivers[index]
+        if driver_dnfs[index] is not None:
+            # DNF drivers stay where they are
+            fp_vals.append(speed[index])  # DNFs always fall to the bottom, but keep them in order stage to stage
+        else:
+            if driver in stage_1_green_penalty_drivers:
+                ceil += race_sim.get_penalty_profile(1, True).floor_impact
+                flr += race_sim.get_penalty_profile(1, True).ceiling_impact
+            if driver in stage_1_yellow_penalty_drivers:
+                ceil += race_sim.get_penalty_profile(1, False).floor_impact
+                flr += race_sim.get_penalty_profile(1, False).ceiling_impact
+            if driver in stage_2_green_penalty_drivers:
+                ceil += race_sim.get_penalty_profile(2, True).floor_impact
+                flr += race_sim.get_penalty_profile(2, True).ceiling_impact
+            if driver in stage_2_yellow_penalty_drivers:
+                ceil += race_sim.get_penalty_profile(2, False).floor_impact
+                flr += race_sim.get_penalty_profile(2, False).ceiling_impact
+            if driver in stage_3_green_penalty_drivers:
+                ceil += race_sim.get_penalty_profile(3, True).floor_impact
+                flr += race_sim.get_penalty_profile(3, True).ceiling_impact
+            if driver in stage_3_yellow_penalty_drivers:
+                ceil += race_sim.get_penalty_profile(3, False).floor_impact
+                flr += race_sim.get_penalty_profile(3, False).ceiling_impact
+            if driver in stage_4_green_penalty_drivers:
+                ceil += race_sim.get_penalty_profile(4, True).floor_impact
+                flr += race_sim.get_penalty_profile(4, True).ceiling_impact
+            if driver in stage_4_yellow_penalty_drivers:
+                ceil += race_sim.get_penalty_profile(4, False).floor_impact
+                flr += race_sim.get_penalty_profile(4, False).ceiling_impact
+        
+            mu = numpy.average([flr, ceil])
+            stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
+            fp_vals.append(numpy.random.normal(mu, stdev, 1)[0] + random())
+    fp_ranks = scipy.stats.rankdata(fp_vals, method='ordinal')
+
+    df_race = pandas.DataFrame({
+        'driver_id': driver_ids,
+        'driver': driver_names,
+        'sp': driver_starting_positions,
+        'speed_min': driver_sp_mins,
+        'speed_max': driver_sp_maxes,
+        'best_possible': driver_bp_sp_mins,
+        # 'worst_possible': driver_bp_sp_maxes,
+        'dnf': driver_dnfs,
+        's1_penalty': driver_s1_penalties,
+        's1_rank': driver_s1_ranks,
+        's1_min': driver_s1_mins,
+        's1_max': driver_s1_maxes,
+        's2_penalty': driver_s2_penalties,
+        's2_rank': driver_s2_ranks,
+        's2_min': driver_s2_mins,
+        's2_max': driver_s2_maxes,
+        's3_penalty': driver_s3_penalties,
+        's3_rank': driver_s3_ranks,
+    })
+
+    if race_sim.race.num_stages() > 3:
+        df_race['s3_min'] = driver_s3_mins
+        df_race['s3_max'] = driver_s3_maxes
+        df_race['s4_penalty'] = driver_s4_penalties
+        df_race['s4_rank'] = driver_s4_ranks
+
+    df_race['fp'] = fp_ranks
+
+    # print(df_race)
+    # df_race.to_csv('data/race.csv')
+
+
+@shared_task
+def sim_execution_complete(results, sim_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        
+        race_sim = models.RaceSim.objects.get(id=sim_id)
 
         task.status = 'success'
         task.content = f'{race_sim} complete.'
