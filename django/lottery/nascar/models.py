@@ -1,6 +1,7 @@
 import csv
 import datetime
 import difflib
+from email.policy import default
 import math
 from pyexpat import model
 from django.db.models.fields import related
@@ -421,6 +422,10 @@ class RaceSimDriver(models.Model):
     fp_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
     ll_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
     fl_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
+
+    avg_fp = models.FloatField(default=0.0)
+    avg_ll = models.FloatField(default=0.0)
+    avg_fl = models.FloatField(default=0.0)
 
     def __str__(self):
         return f'{self.driver}'

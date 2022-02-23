@@ -1,5 +1,6 @@
 import csv
 import datetime
+import numpy
 import os
 import traceback
 
@@ -202,7 +203,11 @@ class RaceSimDriverInline(admin.TabularInline):
         'crash_rate',
         'mech_rate',
         'infraction_rate',
-        'strategy_factor'
+        'strategy_factor',
+        'avg_fp'
+    )
+    read_only_fields = (
+        'avg_fp',
     )
 
 

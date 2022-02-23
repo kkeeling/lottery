@@ -462,7 +462,7 @@ def execute_sim(sim_id, task_id):
 @shared_task
 def execute_sim_iteration(sim_id):
     race_sim = models.RaceSim.objects.get(id=sim_id)
-    drivers = race_sim.outcomes.all().order_by('starting_position')
+    drivers = race_sim.outcomes.all().order_by('starting_position', 'id')
     crash_rate_sum = drivers.aggregate(crash_rate_sum=Sum('crash_rate')).get('crash_rate_sum')
     
     if race_sim.race.series == 1:
@@ -840,6 +840,12 @@ def execute_sim_iteration(sim_id):
     # print(df_race)
     # df_race.to_csv('data/race.csv')
 
+    return {
+        'fp': fp_ranks.tolist(),
+        'll': None,
+        'fl': None
+    }
+
 
 @shared_task
 def sim_execution_complete(results, sim_id, task_id):
@@ -853,6 +859,18 @@ def sim_execution_complete(results, sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
+        drivers = race_sim.outcomes.all().order_by('starting_position', 'id')
+        
+        driver_ids = list(drivers.values_list('driver__nascar_driver_id', flat=True))
+        driver_names = list(drivers.values_list('driver__full_name', flat=True))
+
+        fp_list = [obj.get('fp') for obj in results]
+
+        df_fp = pandas.DataFrame(fp_list, columns=driver_ids)
+        for driver in drivers:
+            driver.fp_outcomes = df_fp[driver.driver.nascar_driver_id].tolist()
+            driver.avg_fp = numpy.average(driver.fp_outcomes)
+            driver.save()
 
         task.status = 'success'
         task.content = f'{race_sim} complete.'
