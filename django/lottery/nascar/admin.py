@@ -606,7 +606,7 @@ class RaceSimAdmin(admin.ModelAdmin):
         RaceSimLapsLedInline,
         RaceSimDriverInline
     ]
-    actions = ['simulate_races']
+    actions = ['export_fp_results']
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -709,6 +709,32 @@ class RaceSimAdmin(admin.ModelAdmin):
             messages.WARNING,
             f'Simulating player outcomes for {queryset.count()} races'
         )
+
+    def export_fp_results(self, request, queryset):
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+
+        jobs = [
+            tasks.export_fp_results.si(
+                sim.id,
+                os.path.join(os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username), f'finishing-position-{sim.race}-{timestamp}.csv'),
+                '/media/temp/{}/{}'.format(request.user.username, f'finishing-position-{sim.race}-{timestamp}.csv'),
+                BackgroundTask.objects.create(
+                    name=f'Export FP for {sim.race}',
+                    user=request.user
+                ).id
+            ) for sim in queryset
+        ]
+        group(jobs)()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Export FP outcomes for {queryset.count()} races'
+        )
+    export_fp_results.short_description = 'Export FP Results for selected sim'
 
 # @admin.register(models.SlateBuildConfig)
 # class ConfigAdmin(admin.ModelAdmin):

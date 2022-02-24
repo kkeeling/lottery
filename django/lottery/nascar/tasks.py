@@ -885,6 +885,44 @@ def sim_execution_complete(results, sim_id, task_id):
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
+
+@shared_task
+def export_fp_results(sim_id, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        race_sim = models.RaceSim.objects.get(id=sim_id)
+        df_fp = pandas.DataFrame([d.fp_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+
+        fp_list = []
+        for fp in range(1, race_sim.outcomes.count()+1):
+            fp_list.append(
+                [df_fp[d.driver.full_name].value_counts()[fp] if fp in df_fp[d.driver.full_name].value_counts() else 0 for d in race_sim.outcomes.all().order_by('starting_position')]
+            )
+        
+        df_results = pandas.DataFrame(fp_list, index=range(1, race_sim.outcomes.count()+1), columns=list(race_sim.outcomes.all().order_by('starting_position').values_list('driver__full_name', flat=True)))
+        df_results.to_csv(result_path)
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error exporting FP results: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
 # @shared_task
 # def update_matches_from_ta(tour, year):
 #     if tour == 'atp':
