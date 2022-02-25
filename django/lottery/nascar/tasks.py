@@ -14,7 +14,7 @@ import time
 import traceback
 import uuid
 
-from random import random, uniform
+from random import random, uniform, randrange
 
 from celery import shared_task, chord, group, chain
 from contextlib import contextmanager
@@ -488,18 +488,22 @@ def execute_sim_iteration(sim_id):
     driver_s1_ranks = [None for driver in drivers]
     driver_s1_mins = [None for driver in drivers]
     driver_s1_maxes = [None for driver in drivers]
+    driver_s1_fl = [0 for driver in drivers]
     driver_s2_penalties = [None for driver in drivers]
     driver_s2_ranks = [None for driver in drivers]
     driver_s2_mins = [None for driver in drivers]
     driver_s2_maxes = [None for driver in drivers]
+    driver_s2_fl = [0 for driver in drivers]
     driver_s3_penalties = [None for driver in drivers]
     driver_s3_ranks = [None for driver in drivers]
     driver_s3_mins = [None for driver in drivers]
     driver_s3_maxes = [None for driver in drivers]
+    driver_s3_fl = [0 for driver in drivers]
 
     if race_sim.race.num_stages() > 3:
         driver_s4_penalties = [None for driver in drivers]
         driver_s4_ranks = [None for driver in drivers]
+        driver_s4_fl = [0 for driver in drivers]
 
     minor_damage_drivers = []
     medium_damage_drivers = []
@@ -718,27 +722,160 @@ def execute_sim_iteration(sim_id):
                 d_sr = numpy.random.normal(mu, stdev, 1)[0] + random()
                 speed.append(d_sr)
 
-        # Update speed rank after each stage
+        # Update speed rank and assign FL/LL after each stage
         if stage == 1:
+            print('stage 1')
             # rank speed
             driver_s1_ranks = scipy.stats.rankdata(speed, method='ordinal')
             driver_s1_mins = [max(driver_s1_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
             driver_s1_maxes = [driver_s1_ranks[i] + 5 for i, d in enumerate(drivers)]
+
+            stage_laps = race_sim.race.stage_1_laps
+            caution_laps = int(num_cautions * race_sim.laps_per_caution)
+            fl_laps = stage_laps - caution_laps
+            fl_vals = [max(int(randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100), 1)/100 * fl_laps), 1) for p in race_sim.fl_profiles.all().order_by('-pct_laps_led_min')]
+
+            fl_laps_remaining = fl_laps
+            fl_laps_assigned = []
+            for index, flp in enumerate(race_sim.fl_profiles.all().order_by('-pct_laps_led_min')):
+                # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
+                fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+                while fl_index in fl_laps_assigned:  # only assign FL to drivers that haven't gotten any yet this stage
+                    fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+
+                sp_index = int(numpy.where(driver_s1_ranks == fl_index)[0][0])
+                # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_vals[index]}')
+                driver_s1_fl[sp_index] = fl_vals[index]
+                fl_laps_assigned.append(fl_index)
+
+                fl_laps_remaining -= fl_vals[index]
+                
+            # there may be remaining FL, assign using lowest profile
+            flp = race_sim.fl_profiles.all().order_by('-pct_laps_led_min').last()
+            while fl_laps_remaining > 0:
+                # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
+                fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+                sp_index = int(numpy.where(driver_s1_ranks == fl_index)[0][0])
+                fl_val = max(int(randrange(int(flp.pct_laps_led_min*100), int(flp.pct_laps_led_max*100), 1)/100 * fl_laps), 1)
+                # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
+                driver_s1_fl[sp_index] += fl_val
+                fl_laps_assigned.append(fl_index)
+
+                fl_laps_remaining -= fl_val
         elif stage == 2:
             # rank speed
             driver_s2_ranks = scipy.stats.rankdata(speed, method='ordinal')
             driver_s2_mins = [max(driver_s2_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
             driver_s2_maxes = [driver_s2_ranks[i] + 5 for i, d in enumerate(drivers)]
+
+            stage_laps = race_sim.race.stage_2_laps
+            caution_laps = int(num_cautions * race_sim.laps_per_caution)
+            fl_laps = stage_laps - caution_laps
+            fl_vals = [max(int(randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100), 1)/100 * fl_laps), 1) for p in race_sim.fl_profiles.all().order_by('-pct_laps_led_min')]
+
+            fl_laps_remaining = fl_laps
+            fl_laps_assigned = []
+            for index, flp in enumerate(race_sim.fl_profiles.all().order_by('-pct_laps_led_min')):
+                # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
+                fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+                while fl_index in fl_laps_assigned:  # only assign FL to drivers that haven't gotten any yet this stage
+                    fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+
+                sp_index = int(numpy.where(driver_s2_ranks == fl_index)[0][0])
+                # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_vals[index]}')
+                driver_s2_fl[sp_index] = fl_vals[index]
+                fl_laps_assigned.append(fl_index)
+
+                fl_laps_remaining -= fl_vals[index]
+                
+            # there may be remaining FL, assign using lowest profile
+            flp = race_sim.fl_profiles.all().order_by('-pct_laps_led_min').last()
+            while fl_laps_remaining > 0:
+                # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
+                fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+                sp_index = int(numpy.where(driver_s2_ranks == fl_index)[0][0])
+                fl_val = max(int(randrange(int(flp.pct_laps_led_min*100), int(flp.pct_laps_led_max*100), 1)/100 * fl_laps), 1)
+                # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
+                driver_s2_fl[sp_index] += fl_val
+                fl_laps_assigned.append(fl_index)
+
+                fl_laps_remaining -= fl_val
         elif stage == 3:
             # rank speed
             driver_s3_ranks = scipy.stats.rankdata(speed, method='ordinal')
             driver_s3_mins = [max(driver_s3_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
             driver_s3_maxes = [driver_s3_ranks[i] + 5 for i, d in enumerate(drivers)]
+
+            stage_laps = race_sim.race.stage_3_laps
+            caution_laps = int(num_cautions * race_sim.laps_per_caution)
+            fl_laps = stage_laps - caution_laps
+            fl_vals = [max(int(randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100), 1)/100 * fl_laps), 1) for p in race_sim.fl_profiles.all().order_by('-pct_laps_led_min')]
+
+            fl_laps_remaining = fl_laps
+            fl_laps_assigned = []
+            for index, flp in enumerate(race_sim.fl_profiles.all().order_by('-pct_laps_led_min')):
+                # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
+                fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+                while fl_index in fl_laps_assigned:  # only assign FL to drivers that haven't gotten any yet this stage
+                    fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+
+                sp_index = int(numpy.where(driver_s3_ranks == fl_index)[0][0])
+                # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_vals[index]}')
+                driver_s3_fl[sp_index] = fl_vals[index]
+                fl_laps_assigned.append(fl_index)
+
+                fl_laps_remaining -= fl_vals[index]
+                
+            # there may be remaining FL, assign using lowest profile
+            flp = race_sim.fl_profiles.all().order_by('-pct_laps_led_min').last()
+            while fl_laps_remaining > 0:
+                # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
+                fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+                sp_index = int(numpy.where(driver_s3_ranks == fl_index)[0][0])
+                fl_val = max(int(randrange(int(flp.pct_laps_led_min*100), int(flp.pct_laps_led_max*100), 1)/100 * fl_laps), 1)
+                # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
+                driver_s3_fl[sp_index] += fl_val
+                fl_laps_assigned.append(fl_index)
+
+                fl_laps_remaining -= fl_val
         elif stage == 4:
             # rank speed
             driver_s4_ranks = scipy.stats.rankdata(speed, method='ordinal')
             driver_s4_mins = [max(driver_s4_ranks[i] - 5, d.best_possible_speed) for i, d in enumerate(drivers)]
             driver_s4_maxes = [driver_s4_ranks[i] + 5 for i, d in enumerate(drivers)]
+
+            stage_laps = race_sim.race.stage_4_laps
+            caution_laps = int(num_cautions * race_sim.laps_per_caution)
+            fl_laps = stage_laps - caution_laps
+            fl_vals = [max(int(randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100), 1)/100 * fl_laps), 1) for p in race_sim.fl_profiles.all().order_by('-pct_laps_led_min')]
+
+            fl_laps_remaining = fl_laps
+            fl_laps_assigned = []
+            for index, flp in enumerate(race_sim.fl_profiles.all().order_by('-pct_laps_led_min')):
+                # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
+                fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+                while fl_index in fl_laps_assigned:  # only assign FL to drivers that haven't gotten any yet this stage
+                    fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+
+                sp_index = int(numpy.where(driver_s4_ranks == fl_index)[0][0])
+                # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_vals[index]}')
+                driver_s4_fl[sp_index] = fl_vals[index]
+                fl_laps_assigned.append(fl_index)
+
+                fl_laps_remaining -= fl_vals[index]
+                
+            # there may be remaining FL, assign using lowest profile
+            flp = race_sim.fl_profiles.all().order_by('-pct_laps_led_min').last()
+            while fl_laps_remaining > 0:
+                # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
+                fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+                sp_index = int(numpy.where(driver_s4_ranks == fl_index)[0][0])
+                fl_val = max(int(randrange(int(flp.pct_laps_led_min*100), int(flp.pct_laps_led_max*100), 1)/100 * fl_laps), 1)
+                # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
+                driver_s4_fl[sp_index] += fl_val
+                fl_laps_assigned.append(fl_index)
+
+                fl_laps_remaining -= fl_val
 
         # Was there a late caution
         if stage == race_sim.race.num_stages():
@@ -819,14 +956,17 @@ def execute_sim_iteration(sim_id):
         'dnf': driver_dnfs,
         's1_penalty': driver_s1_penalties,
         's1_rank': driver_s1_ranks,
+        's1_fl': driver_s1_fl,
         's1_min': driver_s1_mins,
         's1_max': driver_s1_maxes,
         's2_penalty': driver_s2_penalties,
         's2_rank': driver_s2_ranks,
+        's2_fl': driver_s2_fl,
         's2_min': driver_s2_mins,
         's2_max': driver_s2_maxes,
         's3_penalty': driver_s3_penalties,
         's3_rank': driver_s3_ranks,
+        's3_fl': driver_s3_fl,
     })
 
     if race_sim.race.num_stages() > 3:
@@ -837,8 +977,8 @@ def execute_sim_iteration(sim_id):
 
     df_race['fp'] = fp_ranks
 
-    # print(df_race)
-    # df_race.to_csv('data/race.csv')
+    print(df_race)
+    df_race.to_csv('data/race.csv')
 
     return {
         'fp': fp_ranks.tolist(),

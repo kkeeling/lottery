@@ -321,6 +321,8 @@ class RaceSim(models.Model):
     input_file = models.FileField(upload_to='uploads/sim_input_files', blank=True, null=True)
     
     # caution data
+    laps_per_caution = models.FloatField(default=0.0)
+
     early_stage_caution_mean = models.FloatField(default=1.0)
     early_stage_caution_prob_debris = models.FloatField(default=0.1)
     early_stage_caution_prob_accident_small = models.FloatField(default=0.4)
@@ -395,6 +397,18 @@ class RaceSimPenaltyProfile(models.Model):
     def get_flag_color(self):
         return 'Green' if self.is_green else 'Yellow'
 
+
+class RaceSimFastestLapsProfile(models.Model):
+    sim = models.ForeignKey(RaceSim, related_name='fl_profiles', on_delete=models.CASCADE)
+    pct_laps_led_min = models.FloatField(default=0.0)
+    pct_laps_led_max = models.FloatField(default=1.0)
+    eligible_speed_min = models.IntegerField(default=1)
+    eligible_speed_max = models.IntegerField(default=1)
+
+    def __str__(self):
+        return f'Fastest Laps Profile: {self.pct_laps_led_max * 100}% - {self.pct_laps_led_min * 100}%'
+
+
 class RaceSimLapsLedProfile(models.Model):
     sim = models.ForeignKey(RaceSim, related_name='ll_profiles', on_delete=models.CASCADE)
     stage = models.IntegerField(default=0)
@@ -430,6 +444,11 @@ class RaceSimDriver(models.Model):
     def __str__(self):
         return f'{self.driver}'
 
+    def get_teammates(self):
+        return RaceSimDriver.objects.filter(
+            sim=self.sim,
+            driver__team=self.driver.team
+        ).exclude(id=self.id)
 
 # class SlateBuildConfig(models.Model):
 #     OPTIMIZE_CHOICES = (

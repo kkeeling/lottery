@@ -246,6 +246,17 @@ class RaceSimLapsLedInline(admin.TabularInline):
         'max_eligible_drivers',
     )
 
+
+class RaceSimFastestLapsInline(admin.TabularInline):
+    model = models.RaceSimFastestLapsProfile
+    extra = 0
+    fields = (
+        'pct_laps_led_min',
+        'pct_laps_led_max',
+        'eligible_speed_min',
+        'eligible_speed_max',
+    )
+
 # @admin.register(models.Player)
 # class PlayerAdmin(admin.ModelAdmin):
 #     list_display = (
@@ -603,6 +614,7 @@ class RaceSimAdmin(admin.ModelAdmin):
     inlines = [
         RaceSimDamageProfileInline,
         RaceSimPenaltyProfileInline,
+        RaceSimFastestLapsInline,
         RaceSimLapsLedInline,
         RaceSimDriverInline
     ]
