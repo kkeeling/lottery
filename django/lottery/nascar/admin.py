@@ -204,10 +204,12 @@ class RaceSimDriverInline(admin.TabularInline):
         'mech_rate',
         'infraction_rate',
         'strategy_factor',
-        'avg_fp'
+        'avg_fp',
+        'avg_fl'
     )
     read_only_fields = (
         'avg_fp',
+        'avg_fl'
     )
 
 
