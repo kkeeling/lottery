@@ -246,6 +246,7 @@ class MatchAdmin(admin.ModelAdmin):
         'winner',
         'loser',
         'score',
+        # 'get_svpt_w',
         'winner_dk_points',
         'loser_dk_points',
     )
@@ -264,6 +265,19 @@ class MatchAdmin(admin.ModelAdmin):
         'winner_name',
         'loser_name'
     )
+
+    # def get_queryset(self, request):
+    #     qs= super().get_queryset(request)
+
+    #     qs.annotate(
+    #         sv_pt_w=(F('w_1stWon') + F('w_2ndWon'))/F('w_svpt')
+    #     )
+
+    #     return qs
+
+    # def get_svpt_w(self, obj):
+    #     return obj.sv_pt_w
+    # get_svpt_w.short_description = 'w_svpt'
 
 
 @admin.register(models.Alias)
@@ -311,7 +325,7 @@ class MissingAliasAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         my_urls = [
-            path('alias-choose/<int:pk>/<int:chosen_alias_pk>/', self.choose_alias, name="admin_choose_alias"),
+            path('tennis-alias-choose/<int:pk>/<int:chosen_alias_pk>/', self.choose_alias, name="admin_tennis_choose_alias"),
         ]
         return my_urls + urls
 

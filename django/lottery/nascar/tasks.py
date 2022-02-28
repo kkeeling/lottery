@@ -509,6 +509,7 @@ def execute_sim_iteration(sim_id):
         # driver_s4_fl = [0 for driver in drivers]
 
     driver_fl = [0 for driver in drivers]
+    driver_ll = [0 for driver in drivers]
 
     minor_damage_drivers = []
     medium_damage_drivers = []
@@ -1010,6 +1011,37 @@ def execute_sim_iteration(sim_id):
 
         fl_laps_remaining -= fl_val
 
+    # Assign laps led
+    ll_laps = race_sim.race.scheduled_laps
+    ll_vals = [max(int(randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100), 1)/100 * ll_laps), 1) for p in race_sim.ll_profiles.all().order_by('-pct_laps_led_min')]
+
+    ll_laps_remaining = ll_laps
+    ll_laps_assigned = []
+    for index, llp in enumerate(race_sim.ll_profiles.all().order_by('-pct_laps_led_min')):
+        ll_index = randrange(llp.eligible_fl_min, llp.eligible_fl_max+1)
+        while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
+            ll_index = randrange(llp.eligible_fl_min, llp.eligible_fl_max+1)
+
+        sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
+        driver_ll[sp_index] = ll_vals[index]
+        ll_laps_assigned.append(ll_index)
+
+        ll_laps_remaining -= ll_vals[index]
+        
+    # there may be remaining LL, assign using lowest profile in tranches of 5
+    llp = race_sim.ll_profiles.all().order_by('-pct_laps_led_min').last()
+    while ll_laps_remaining > 0:
+        ll_index = randrange(1, 21)
+        while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
+            ll_index = randrange(1, 21)
+
+        sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
+        ll_val = randrange(4, 5)
+        driver_ll[sp_index] += ll_val
+        ll_laps_assigned.append(ll_index)
+
+        ll_laps_remaining -= ll_val
+
     df_race = pandas.DataFrame({
         'driver_id': driver_ids,
         'driver': driver_names,
@@ -1042,13 +1074,14 @@ def execute_sim_iteration(sim_id):
     df_race['sr'] = final_ranks
     df_race['fp'] = fp_ranks
     df_race['fl'] = driver_fl
+    df_race['ll'] = driver_ll
 
     # print(df_race)
     # df_race.to_csv('data/race.csv')
 
     return {
         'fp': fp_ranks.tolist(),
-        'll': None,
+        'll': driver_ll,
         'fl': driver_fl
     }
 
@@ -1072,14 +1105,18 @@ def sim_execution_complete(results, sim_id, task_id):
 
         fp_list = [obj.get('fp') for obj in results]
         fl_list = [obj.get('fl') for obj in results]
+        ll_list = [obj.get('ll') for obj in results]
 
         df_fp = pandas.DataFrame(fp_list, columns=driver_ids)
         df_fl = pandas.DataFrame(fl_list, columns=driver_ids)
+        df_ll = pandas.DataFrame(ll_list, columns=driver_ids)
         for driver in drivers:
             driver.fp_outcomes = df_fp[driver.driver.nascar_driver_id].tolist()
             driver.avg_fp = numpy.average(driver.fp_outcomes)
             driver.fl_outcomes = df_fl[driver.driver.nascar_driver_id].tolist()
             driver.avg_fl = numpy.average(driver.fl_outcomes)
+            driver.ll_outcomes = df_ll[driver.driver.nascar_driver_id].tolist()
+            driver.avg_ll = numpy.average(driver.ll_outcomes)
             driver.save()
 
         task.status = 'success'
@@ -1097,7 +1134,7 @@ def sim_execution_complete(results, sim_id, task_id):
 
 
 @shared_task
-def export_fp_results(sim_id, result_path, result_url, task_id):
+def export_results(sim_id, result_path, result_url, task_id):
     task = None
 
     try:
@@ -1108,6 +1145,8 @@ def export_fp_results(sim_id, result_path, result_url, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         race_sim = models.RaceSim.objects.get(id=sim_id)
+
+        # Finishing position raw outcomes and finishing position distribution
         df_fp = pandas.DataFrame([d.fp_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         fp_list = []
@@ -1115,9 +1154,22 @@ def export_fp_results(sim_id, result_path, result_url, task_id):
             fp_list.append(
                 [df_fp[d.driver.full_name].value_counts()[fp] if fp in df_fp[d.driver.full_name].value_counts() else 0 for d in race_sim.outcomes.all().order_by('starting_position')]
             )
-        
-        df_results = pandas.DataFrame(fp_list, index=range(1, race_sim.outcomes.count()+1), columns=list(race_sim.outcomes.all().order_by('starting_position').values_list('driver__full_name', flat=True)))
-        df_results.to_csv(result_path)
+        df_fp_results = pandas.DataFrame(fp_list, index=range(0, race_sim.outcomes.count()), columns=list(race_sim.outcomes.all().order_by('starting_position').values_list('driver__full_name', flat=True)))
+
+        # FL distribution
+        df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        print(df_fl)
+
+        # LL distribution
+        df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        print(df_ll)
+
+
+        with pandas.ExcelWriter(result_path) as writer:
+            df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
+            df_fp_results.to_excel(writer, sheet_name='Finishing Position Distribution')
+            df_fl.to_excel(writer, sheet_name='Fastest Laps Raw')
+            df_ll.to_excel(writer, sheet_name='Laps Led Raw')
 
         task.status = 'download'
         task.content = result_url
@@ -1132,6 +1184,70 @@ def export_fp_results(sim_id, result_path, result_url, task_id):
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
+
+def get_score(row, **kwargs):
+    if 'site' not in kwargs:
+        raise Exception('Must provide a site.')
+    site = kwargs.get('site')
+
+    if 'sp' not in kwargs:
+        raise Exception('Must provide sp')
+    sp = kwargs.get('sp')
+
+    fp = row.get('fp')
+    pd = fp - sp
+    fl = row.get('fl')
+    ll = row.get('ll')
+
+    return (models.SITE_SCORING.get(site).get('place_differential') * pd + models.SITE_SCORING.get(site).get('fastest_laps') * fl + models.SITE_SCORING.get(site).get('laps_led') * ll + models.SITE_SCORING.get(site).get('finishing_position').get(str(fp))) 
+
+
+@shared_task
+def process_build(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        build = models.SlateBuild.objects.get(id=build_id)
+
+        # create (or update) the projections
+        scoring = models.SITE_SCORING.get(build.slate.site)
+        for slate_player in build.slate.players.all():
+            projection, created = models.BuildPlayerProjection.objects.get_or_create(
+                slate_player=slate_player,
+                build=build
+            )
+            sim_driver = build.sim.outcomes.get(driver=slate_player.driver)
+            df_scores = pandas.DataFrame(data={
+                'fp': sim_driver.fp_outcomes,
+                'fl': sim_driver.fl_outcomes,
+                'll': sim_driver.ll_outcomes
+            })
+
+            projection.starting_position = sim_driver.starting_position
+            projection.sim_scores = df_scores.apply(get_score, axis=1, site=build.slate.site, sp=sim_driver.starting_position).to_list()
+            projection.projection = numpy.percentile(projection.sim_scores, float(50))
+            projection.ceiling = numpy.percentile(projection.sim_scores, float(90))
+            projection.s75 = numpy.percentile(projection.sim_scores, float(75))
+            projection.save()
+
+        task.status = 'success'
+        task.content = f'{build} processed.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error exporting FP results: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 # @shared_task
 # def update_matches_from_ta(tour, year):
@@ -1345,69 +1461,70 @@ def export_fp_results(sim_id, result_path, result_url, task_id):
 #         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-# @shared_task
-# def process_slate_players(slate_id, task_id):
-#     task = None
+@shared_task
+def process_slate_players(slate_id, task_id):
+    task = None
 
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
 
-#         # Task implementation goes here
-#         slate = models.Slate.objects.get(id=slate_id)
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
         
-#         with open(slate.salaries.path, mode='r') as salaries_file:
-#             csv_reader = csv.DictReader(salaries_file)
+        with open(slate.salaries.path, mode='r') as salaries_file:
+            csv_reader = csv.DictReader(salaries_file)
 
-#             success_count = 0
-#             missing_players = []
+            success_count = 0
+            missing_players = []
 
-#             for row in csv_reader:
-#                 if slate.site == 'draftkings':
-#                     player_id = row['ID']
-#                     player_name = row['Name']
-#                     player_salary = int(row['Salary'])
-#                 else:
-#                     raise Exception(f'{slate.site} is not supported yet.')
+            for row in csv_reader:
+                if slate.site == 'draftkings':
+                    player_id = row['ID']
+                    player_name = row['Name']
+                    player_salary = int(row['Salary'])
+                else:
+                    raise Exception(f'{slate.site} is not supported yet.')
 
-#                 alias = models.Alias.find_alias(player_name, slate.site)
+                alias = models.Alias.find_alias(player_name, slate.site)
                 
-#                 if alias is not None:
-#                     try:
-#                         slate_player = models.SlatePlayer.objects.get(
-#                             slate=slate,
-#                             slate_player_id=player_id
-#                         )
-#                     except models.SlatePlayer.DoesNotExist:
-#                         slate_player = models.SlatePlayer(
-#                             slate=slate,
-#                             slate_player_id=player_id
-#                         )
+                if alias is not None:
+                    try:
+                        slate_player = models.SlatePlayer.objects.get(
+                            slate=slate,
+                            slate_player_id=player_id
+                        )
+                    except models.SlatePlayer.DoesNotExist:
+                        slate_player = models.SlatePlayer(
+                            slate=slate,
+                            slate_player_id=player_id
+                        )
 
-#                     slate_player.name = alias.get_alias(slate.site)
-#                     slate_player.salary = player_salary
-#                     slate_player.player = alias.player
-#                     slate_player.save()
+                    slate_player.name = alias.get_alias(slate.site)
+                    slate_player.salary = player_salary
+                    print(models.Driver.objects.filter(full_name=alias.get_alias('nascar')))
+                    slate_player.driver = models.Driver.objects.get(full_name=alias.get_alias('nascar'))
+                    slate_player.save()
 
-#                     success_count += 1
-#                 else:
-#                     missing_players.append(player_name)
+                    success_count += 1
+                else:
+                    missing_players.append(player_name)
 
-#         task.status = 'success'
-#         task.content = '{} players have been successfully added to {}.'.format(success_count, str(slate)) if len(missing_players) == 0 else '{} players have been successfully added to {}. {} players could not be identified.'.format(success_count, str(slate), len(missing_players))
-#         task.link = '/admin/tennis/missingalias/' if len(missing_players) > 0 else None
-#         task.save()
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was a problem processing slate players: {e}'
-#             task.save()
+        task.status = 'success'
+        task.content = '{} players have been successfully added to {}.'.format(success_count, str(slate)) if len(missing_players) == 0 else '{} players have been successfully added to {}. {} players could not be identified.'.format(success_count, str(slate), len(missing_players))
+        task.link = '/admin/nascar/missingalias/' if len(missing_players) > 0 else None
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem processing slate players: {e}'
+            task.save()
 
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 # @shared_task

@@ -205,11 +205,13 @@ class RaceSimDriverInline(admin.TabularInline):
         'infraction_rate',
         'strategy_factor',
         'avg_fp',
-        'avg_fl'
+        'avg_fl',
+        'avg_ll',
     )
     read_only_fields = (
         'avg_fp',
-        'avg_fl'
+        'avg_fl',
+        'avg_ll',
     )
 
 
@@ -242,10 +244,10 @@ class RaceSimLapsLedInline(admin.TabularInline):
     model = models.RaceSimLapsLedProfile
     extra = 0
     fields = (
-        'stage',
-        'default_eligible_drivers',
-        'per_caution_eligible_drivers',
-        'max_eligible_drivers',
+        'pct_laps_led_min',
+        'pct_laps_led_max',
+        'eligible_fl_min',
+        'eligible_fl_max',
     )
 
 
@@ -620,7 +622,7 @@ class RaceSimAdmin(admin.ModelAdmin):
         RaceSimLapsLedInline,
         RaceSimDriverInline
     ]
-    actions = ['export_fp_results']
+    actions = ['export_results']
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -724,17 +726,17 @@ class RaceSimAdmin(admin.ModelAdmin):
             f'Simulating player outcomes for {queryset.count()} races'
         )
 
-    def export_fp_results(self, request, queryset):
+    def export_results(self, request, queryset):
         now = datetime.datetime.now()
         timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
         result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
         os.makedirs(result_path, exist_ok=True)
 
         jobs = [
-            tasks.export_fp_results.si(
+            tasks.export_results.si(
                 sim.id,
-                os.path.join(os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username), f'finishing-position-{sim.race}-{timestamp}.csv'),
-                '/media/temp/{}/{}'.format(request.user.username, f'finishing-position-{sim.race}-{timestamp}.csv'),
+                os.path.join(os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username), f'{sim.race} (Sim ID {sim.id}) - {timestamp}.xlsx'),
+                '/media/temp/{}/{}'.format(request.user.username, f'{sim.race} (Sim ID {sim.id}) - {timestamp}.xlsx'),
                 BackgroundTask.objects.create(
                     name=f'Export FP for {sim.race}',
                     user=request.user
@@ -748,82 +750,63 @@ class RaceSimAdmin(admin.ModelAdmin):
             messages.WARNING,
             f'Export FP outcomes for {queryset.count()} races'
         )
-    export_fp_results.short_description = 'Export FP Results for selected sim'
+    export_results.short_description = 'Export Results for selected sim'
 
-# @admin.register(models.SlateBuildConfig)
-# class ConfigAdmin(admin.ModelAdmin):
-#     list_display = [
-#         'name',
-#         'site',
-#         'randomness',
-#         'uniques',
-#         'min_salary',
-#     ]
+@admin.register(models.SlateBuildConfig)
+class ConfigAdmin(admin.ModelAdmin):
+    list_display = [
+        'name',
+        'site',
+        'randomness',
+        'uniques',
+        'min_salary',
+        'optimize_by_percentile',
+        'lineup_multiplier',
+        'clean_by_percentile',
+    ]
 
-#     list_filter = [
-#         'site',
-#         'randomness',
-#         'uniques',
-#         'min_salary',
-#     ]
+    list_filter = [
+        'site',
+    ]
 
 
-# @admin.register(models.Slate)
-# class SlateAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'datetime',
-#         'name',
-#         'last_match_datetime',
-#         'site',
-#         'is_main_slate',
-#         'get_players_link',
-#         'get_projections_link',
-#         'get_builds_link',
-#         'sim_button',
-#     )
-#     list_editable = (
-#         'name',
-#         'site',
-#         'is_main_slate',
-#         'last_match_datetime',
-#     )
-#     inlines = [
-#         SlateMatchInline
-#     ]
-#     actions = ['get_pinn_odds']
+@admin.register(models.Slate)
+class SlateAdmin(admin.ModelAdmin):
+    list_display = (
+        'datetime',
+        'name',
+        'race',
+        'site',
+        'get_players_link',
+        'get_builds_link',
+    )
+    raw_id_fields = (
+        'race',
+    )
+    # list_editable = (
+    #     'name',
+    #     'site',
+    # )
 
-#     def save_model(self, request, obj, form, change):
-#         super().save_model(request, obj, form, change)
-#         self.process_slate(request, obj)
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.process_slate(request, obj)
 
-#     def process_slate(self, request, slate):
-#         chain(
-#             tasks.get_pinn_odds.si(
-#                 BackgroundTask.objects.create(
-#                     name='Update pinnacle odds',
-#                     user=request.user
-#                 ).id
-#             ),
-#             tasks.process_slate_players.si(
-#                 slate.id,
-#                 BackgroundTask.objects.create(
-#                     name='Process slate players',
-#                     user=request.user
-#                 ).id
-#             ),
-#             tasks.find_slate_matches.si(
-#                 slate.id,
-#                 BackgroundTask.objects.create(
-#                     name='Find matches for slate',
-#                     user=request.user
-#                 ).id
-#             )
-#         )()
+    def process_slate(self, request, slate):
+        chain(
+            tasks.process_slate_players.si(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name='Process slate players',
+                    user=request.user
+                ).id
+            )
+        )()
 
-#         messages.add_message(
-#             request,
-#             messages.WARNING,
-#             'Your slate is being processed. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the slate is ready.')
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your slate is being processed. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the slate is ready.')
 
 #     def get_urls(self):
 #         urls = super().get_urls()
@@ -832,23 +815,17 @@ class RaceSimAdmin(admin.ModelAdmin):
 #         ]
 #         return my_urls + urls
 
-#     def get_players_link(self, obj):
-#         if obj.players.all().count() > 0:
-#             return mark_safe('<a href="/admin/tennis/slateplayer/?slate__id={}">Players</a>'.format(obj.id))
-#         return 'None'
-#     get_players_link.short_description = 'Players'
+    def get_players_link(self, obj):
+        if obj.players.all().count() > 0:
+            return mark_safe('<a href="/admin/nascar/slateplayer/?slate__id={}">Players</a>'.format(obj.id))
+        return 'None'
+    get_players_link.short_description = 'Players'
 
-#     def get_projections_link(self, obj):
-#         if obj.players.all().count() > 0:
-#             return mark_safe('<a href="/admin/tennis/slateplayerprojection/?slate_player__slate__id={}">Projections</a>'.format(obj.id))
-#         return 'None'
-#     get_projections_link.short_description = 'Projections'
-
-#     def get_builds_link(self, obj):
-#         if obj.players.all().count() > 0:
-#             return mark_safe('<a href="/admin/tennis/slatebuild/?slate__id={}">Builds</a>'.format(obj.id))
-#         return 'None'
-#     get_builds_link.short_description = 'Builds'
+    def get_builds_link(self, obj):
+        if obj.players.all().count() > 0:
+            return mark_safe('<a href="/admin/nascar/slatebuild/?slate__id={}">Builds</a>'.format(obj.id))
+        return 'None'
+    get_builds_link.short_description = 'Builds'
 
 #     def initialize(self, request, queryset):
 #         for slate in queryset:
@@ -923,203 +900,197 @@ class RaceSimAdmin(admin.ModelAdmin):
 #         return redirect(request.META.get('HTTP_REFERER'), context=context)
 
 
-# @admin.register(models.SlatePlayer)
-# class SlatePlayerAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'name',
-#         'slate',
-#         'salary',
-#         'surface',
-#         'fantasy_points',
-#         'player',
-#         'withdrew',
-#         'is_replacement_player',
-#         'opponent',
-#     )
-#     list_editable = (
-#         'surface',
-#         'opponent',
-#     )
-#     search_fields = ('name',)
-#     list_filter = (
-#         ('slate__name', DropdownFilter),
-#     )
-#     raw_id_fields = (
-#         'player', 
-#         'opponent',
-#     )
-#     actions = ['withdraw_player']
-
-#     def withdraw_player(self, request, queryset):
-#         for slate_player in queryset:
-#             slate_player.withdraw_player()
+@admin.register(models.SlatePlayer)
+class SlatePlayerAdmin(admin.ModelAdmin):
+    list_display = (
+        'name',
+        'salary',
+        'fantasy_points',
+    )
+    search_fields = ('name',)
+    list_filter = (
+        ('slate__name', DropdownFilter),
+    )
+    raw_id_fields = (
+        'driver', 
+    )
 
 
-# @admin.register(models.SlateBuild)
-# class SlateBuildAdmin(admin.ModelAdmin):
-#     date_hierarchy = 'slate__datetime'
-#     list_display = (
-#         'created',
-#         'slate',
-#         'used_in_contests',
-#         'configuration',
-#         'total_lineups',
-#         'num_lineups_created',
-#         'get_lineups_link',
-#         'build_button',
-#         'export_button',
-#     )
-#     list_editable = (
-#         'used_in_contests',
-#         'configuration',
-#         'total_lineups',
-#     )
-#     list_filter = (
-#         ('configuration', RelatedDropdownFilter),
-#         ('slate__name', DropdownFilter),
-#         'used_in_contests',
-#     )
-#     search_fields = ('slate__name',)
+@admin.register(models.SlateBuild)
+class SlateBuildAdmin(admin.ModelAdmin):
+    date_hierarchy = 'slate__datetime'
+    list_display = (
+        'created',
+        'slate',
+        'sim',
+        'used_in_contests',
+        'configuration',
+        'get_projections_link',
+        'total_lineups',
+        'num_lineups_created',
+        'get_lineups_link',
+        'build_button',
+        'export_button',
+    )
+    list_editable = (
+        'used_in_contests',
+        'configuration',
+        'total_lineups',
+    )
+    list_filter = (
+        ('slate__name', DropdownFilter),
+    )
+    raw_id_fields = (
+        'slate',
+        'sim',
+        'configuration',
+    )
+    search_fields = ('slate__name',)
 
-#     def get_urls(self):
-#         urls = super().get_urls()
-#         my_urls = [
-#             path('tennis-slatebuild-build/<int:pk>/', self.build, name="admin_tennis_slatebuild_build"),
-#             path('tennis-slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_tennis_slatebuild_export"),
-#         ]
-#         return my_urls + urls
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('nascar-slatebuild-build/<int:pk>/', self.build, name="admin_nascar_slatebuild_build"),
+            path('nascar-slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_nascar_slatebuild_export"),
+        ]
+        return my_urls + urls
 
-#     def create_default_groups(self, request, queryset):
-#         for b in queryset:
-#             b.create_default_groups()
-#     create_default_groups.short_description = 'Create default groups for selected builds'
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.process_build(request, obj)
 
-#     def build(self, request, pk):
-#         context = dict(
-#            # Include common variables for rendering the admin template.
-#            self.admin_site.each_context(request),
-#            # Anything else you want in the context...
-#         )
+    def process_build(self, request, build):
+        chain(
+            tasks.process_build.si(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Process Build',
+                    user=request.user
+                ).id
+            )
+        )()
 
-#         build = models.SlateBuild.objects.get(pk=pk)
-#         build.execute_build(request.user)
-#         # tasks.execute_build.delay(build.id, request.user.id)
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your build is being initialized. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the slate is ready.')
 
-#         messages.add_message(
-#             request,
-#             messages.WARNING,
-#             f'Building {build.total_lineups} lineups.'
-#         )
+    def build(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
 
-#         # redirect or TemplateResponse(request, "sometemplate.html", context)
-#         return redirect(request.META.get('HTTP_REFERER'), context=context)
+        build = models.SlateBuild.objects.get(pk=pk)
+        build.execute_build(request.user)
 
-#     def export_for_upload(self, request, pk):
-#         context = dict(
-#            # Include common variables for rendering the admin template.
-#            self.admin_site.each_context(request),
-#            # Anything else you want in the context...
-#         )
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Building {build.total_lineups} lineups.'
+        )
 
-#         # Get the scenario to activate
-#         build = get_object_or_404(models.SlateBuild, pk=pk)
-#         if build.num_lineups_created() > 0:
-#             task = BackgroundTask()
-#             task.name = 'Export Build For Upload'
-#             task.user = request.user
-#             task.save()
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
 
-#             now = datetime.datetime.now()
-#             timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
-#             result_file = '{}-{}_upload.csv'.format(build.slate.name, timestamp)
-#             result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
-#             os.makedirs(result_path, exist_ok=True)
-#             result_path = os.path.join(result_path, result_file)
-#             result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+    def export_for_upload(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
 
-#             tasks.export_build_for_upload.delay(build.id, result_path, result_url, task.id)
+        # Get the scenario to activate
+        build = get_object_or_404(models.SlateBuild, pk=pk)
+        # if build.num_lineups_created() > 0:
+        #     task = BackgroundTask()
+        #     task.name = 'Export Build For Upload'
+        #     task.user = request.user
+        #     task.save()
 
-#             messages.add_message(
-#                 request,
-#                 messages.WARNING,
-#                 'Your build export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
-#         else:
-#             self.message_user(request, 'Cannot export lineups for {}. No lineups exist.'.format(str(build)), level=messages.ERROR)
+        #     now = datetime.datetime.now()
+        #     timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        #     result_file = '{}-{}_upload.csv'.format(build.slate.name, timestamp)
+        #     result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        #     os.makedirs(result_path, exist_ok=True)
+        #     result_path = os.path.join(result_path, result_file)
+        #     result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
-#         # redirect or TemplateResponse(request, "sometemplate.html", context)
-#         return redirect(request.META.get('HTTP_REFERER'), context=context)
+        #     tasks.export_build_for_upload.delay(build.id, result_path, result_url, task.id)
 
-#     def get_lineups_link(self, obj):
-#         if obj.num_lineups_created() > 0:
-#             return mark_safe('<a href="/admin/tennis/slatebuildlineup/?build__id__exact={}">Lineups</a>'.format(obj.id))
-#         return 'None'
-#     get_lineups_link.short_description = 'Lineups'
+        #     messages.add_message(
+        #         request,
+        #         messages.WARNING,
+        #         'Your build export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
+        # else:
+        #     self.message_user(request, 'Cannot export lineups for {}. No lineups exist.'.format(str(build)), level=messages.ERROR)
 
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
 
-# @admin.register(models.SlatePlayerProjection)
-# class SlatePlayerProjectionAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'slate_player',
-#         'slate_match',
-#         'get_player_salary',
-#         'get_salary_value',
-#         'pinnacle_odds',
-#         'implied_win_pct',
-#         'spread',
-#         'get_common_opponents',
-#         'sim_win_pct',
-#         'projection',
-#         's75',
-#         'ceiling',
-#         'odds_for_target',
-#         'in_play',
-#         'min_exposure',
-#         'max_exposure',
-#         'get_exposure',
-#     )
-#     list_filter = (
-#         'slate_player__slate',
-#         'slate_player__player__tour',
-#         'in_play',
-#     )
-#     list_editable = (
-#         'in_play',
-#         'min_exposure',
-#         'max_exposure',
-#     )
+    def get_projections_link(self, obj):
+        if obj.projections.all().count() > 0:
+            return mark_safe('<a href="/admin/nascar/buildplayerprojection/?build__id__exact={}">Projections</a>'.format(obj.id))
+        return 'None'
+    get_projections_link.short_description = 'Projections'
+
+    def get_lineups_link(self, obj):
+        if obj.num_lineups_created() > 0:
+            return mark_safe('<a href="/admin/nascar/slatebuildlineup/?build__id__exact={}">Lineups</a>'.format(obj.id))
+        return 'None'
+    get_lineups_link.short_description = 'Lineups'
 
 
-#     def get_queryset(self, request):
-#         qs = super().get_queryset(request)
-#         qs = qs.annotate(
-#             exposure=Avg('exposures__exposure'), 
-#         )
+@admin.register(models.BuildPlayerProjection)
+class BuildPlayerProjectionAdmin(admin.ModelAdmin):
+    list_display = (
+        'slate_player',
+        'get_player_salary',
+        'starting_position',
+        # 'get_salary_value',
+        'projection',
+        's75',
+        'ceiling',
+        'in_play',
+        'min_exposure',
+        'max_exposure',
+        # 'get_exposure',
+    )
+    list_filter = (
+        'slate_player__slate',
+        'in_play',
+    )
+    list_editable = (
+        'in_play',
+        'min_exposure',
+        'max_exposure',
+    )
 
-#         return qs
 
-#     def get_player_salary(self, obj):
-#         return obj.salary
-#     get_player_salary.short_description = 'salary'
-#     get_player_salary.admin_order_field = 'slate_player__salary'
+    # def get_queryset(self, request):
+    #     qs = super().get_queryset(request)
+    #     qs = qs.annotate(
+    #         exposure=Avg('exposures__exposure'), 
+    #     )
 
-#     def get_player_link(self, obj):
-#         return mark_safe('<a href="/admin/tennis/match/?q={}">{}</a>'.format(obj.slate_player.player, obj.slate_player.player))
-#     get_player_link.short_description = 'Player'
+    #     return qs
 
-#     def get_salary_value(self, obj):
-#         return round(obj.slate_player.value, 2)
-#     get_salary_value.short_description = 'value'
+    def get_player_salary(self, obj):
+        return f'${obj.salary}'
+    get_player_salary.short_description = 'salary'
+    get_player_salary.admin_order_field = 'slate_player__salary'
 
-#     def get_common_opponents(self, obj):
-#         return obj.slate_match.common_opponents(obj.slate_match.surface, 52*2).size
-#     get_common_opponents.short_description = 'comm opp'
+    # def get_salary_value(self, obj):
+    #     return round(obj.slate_player.value, 2)
+    # get_salary_value.short_description = 'value'
 
-#     def get_exposure(self, obj):
-#         if obj.exposure is None:
-#             return None
-#         return '{:.2f}%'.format(float(obj.exposure) * 100.0)
-#     get_exposure.short_description = 'Exp'
-#     get_exposure.admin_order_field = 'exposure'
+    # def get_exposure(self, obj):
+    #     if obj.exposure is None:
+    #         return None
+    #     return '{:.2f}%'.format(float(obj.exposure) * 100.0)
+    # get_exposure.short_description = 'Exp'
+    # get_exposure.admin_order_field = 'exposure'
 
 
 # @admin.register(models.SlateBuildLineup)
