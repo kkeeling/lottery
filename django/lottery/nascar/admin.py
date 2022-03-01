@@ -196,6 +196,8 @@ class RaceSimDriverInline(admin.TabularInline):
     fields = (
         'driver',
         'starting_position',
+        'dk_salary',
+        'fd_salary',
         'speed_min',
         'speed_max',
         'best_possible_speed',

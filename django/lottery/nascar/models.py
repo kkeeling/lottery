@@ -369,6 +369,8 @@ class RaceSim(models.Model):
     race = models.ForeignKey(Race, related_name='sims', on_delete=models.CASCADE)
     iterations = models.IntegerField(default=10000)
     input_file = models.FileField(upload_to='uploads/sim_input_files', blank=True, null=True)
+    dk_salaries = models.FileField(upload_to='uploads/dk_salaries', blank=True, null=True)
+    fd_salaries = models.FileField(upload_to='uploads/fd_salaries', blank=True, null=True)
     
     # caution data
     laps_per_caution = models.FloatField(default=0.0)
@@ -473,6 +475,8 @@ class RaceSimLapsLedProfile(models.Model):
 class RaceSimDriver(models.Model):
     sim = models.ForeignKey(RaceSim, related_name='outcomes', on_delete=models.CASCADE)
     driver = models.ForeignKey(Driver, related_name='outcomes', on_delete=models.CASCADE)
+    dk_salary = models.IntegerField(default=0)
+    fd_salary = models.IntegerField(default=0)
     starting_position = models.IntegerField(default=0)
     speed_min = models.IntegerField(default=1)
     speed_max = models.IntegerField(default=5)
@@ -499,6 +503,13 @@ class RaceSimDriver(models.Model):
             sim=self.sim,
             driver__team=self.driver.team
         ).exclude(id=self.id)
+
+    def get_scores(self, site):
+        sp = self.starting_position
+
+        count = min(min(len(self.fp_outcomes), len(self.ll_outcomes)), len(self.fl_outcomes))
+
+        return [(SITE_SCORING.get(site).get('place_differential') * (self.fp_outcomes[index] - sp) + SITE_SCORING.get(site).get('fastest_laps') * self.fl_outcomes[index] + SITE_SCORING.get(site).get('laps_led') * self.ll_outcomes[index] + SITE_SCORING.get(site).get('finishing_position').get(str(self.fp_outcomes[index]))) for index in range(0, count)]
 
 
 # DFS Slates

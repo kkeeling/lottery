@@ -384,6 +384,14 @@ def process_sim_input_file(sim_id, task_id):
         race_sim = models.RaceSim.objects.get(id=sim_id)
         models.RaceSimDriver.objects.filter(sim=race_sim).delete()
 
+        dk_salaries = None
+        fd_salaries = None
+
+        if bool(race_sim.dk_salaries):
+            dk_salaries = pandas.read_csv(race_sim.dk_salaries.path, usecols= ['Name','Salary'], index_col='Name')
+        if bool(race_sim.fd_salaries):
+            fd_salaries = pandas.read_csv(race_sim.fd_salaries.path, header=None, sep='\n')
+
         with open(race_sim.input_file.path, mode='r') as input_file:
             csv_reader = csv.DictReader(input_file)
 
@@ -400,11 +408,17 @@ def process_sim_input_file(sim_id, task_id):
                 worst_possible_speed = row['worst_possible_speed']
 
                 driver = models.Driver.objects.get(nascar_driver_id=driver_id)
+                alias = models.Alias.find_alias(driver.full_name, 'nascar')
+
+                dk_salary = dk_salaries.loc[[alias.dk_name]]['Salary'] if dk_salaries is not None else 0.0
+                fd_salary = fd_salaries.loc[[alias.fd_name]] if fd_salaries is not None else 0.0
 
                 models.RaceSimDriver.objects.create(
                     sim=race_sim,
                     driver=driver,
                     starting_position=starting_position,
+                    dk_salary=dk_salary,
+                    fd_salary=fd_salary,
                     speed_min=speed_min,
                     speed_max=speed_max,
                     best_possible_speed=best_possible_speed,
@@ -432,6 +446,7 @@ def process_sim_input_file(sim_id, task_id):
 def get_speed_min(driver, current_speed_rank):
     speed_delta = 10
     speed_min = max(current_speed_rank - 5, driver.best_possible_speed)
+
 
 @shared_task
 def execute_sim(sim_id, task_id):
@@ -1158,11 +1173,20 @@ def export_results(sim_id, result_path, result_url, task_id):
 
         # FL distribution
         df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
-        print(df_fl)
 
         # LL distribution
         df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
-        print(df_ll)
+
+        # DK
+        df_dk = pandas.DataFrame(data={
+            'sal': [d.dk_salary for d in race_sim.outcomes.all()],
+            'start': [d.starting_position for d in race_sim.outcomes.all()],
+            '50p': [numpy.percentile(d.get_scores('draftkings'), float(50)) for d in race_sim.outcomes.all()],
+            '60p': [numpy.percentile(d.get_scores('draftkings'), float(60)) for d in race_sim.outcomes.all()],
+            '70p': [numpy.percentile(d.get_scores('draftkings'), float(70)) for d in race_sim.outcomes.all()],
+            '80p': [numpy.percentile(d.get_scores('draftkings'), float(80)) for d in race_sim.outcomes.all()],
+            '90p': [numpy.percentile(d.get_scores('draftkings'), float(90)) for d in race_sim.outcomes.all()],
+        }, index=[d.driver.full_name for d in race_sim.outcomes.all()])
 
 
         with pandas.ExcelWriter(result_path) as writer:
@@ -1170,6 +1194,7 @@ def export_results(sim_id, result_path, result_url, task_id):
             df_fp_results.to_excel(writer, sheet_name='Finishing Position Distribution')
             df_fl.to_excel(writer, sheet_name='Fastest Laps Raw')
             df_ll.to_excel(writer, sheet_name='Laps Led Raw')
+            df_dk.to_excel(writer, sheet_name='DK')
 
         task.status = 'download'
         task.content = result_url
@@ -1216,7 +1241,6 @@ def process_build(build_id, task_id):
         build = models.SlateBuild.objects.get(id=build_id)
 
         # create (or update) the projections
-        scoring = models.SITE_SCORING.get(build.slate.site)
         for slate_player in build.slate.players.all():
             projection, created = models.BuildPlayerProjection.objects.get_or_create(
                 slate_player=slate_player,
