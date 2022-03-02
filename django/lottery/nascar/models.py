@@ -452,13 +452,15 @@ class RaceSimPenaltyProfile(models.Model):
 
 class RaceSimFastestLapsProfile(models.Model):
     sim = models.ForeignKey(RaceSim, related_name='fl_profiles', on_delete=models.CASCADE)
-    pct_laps_led_min = models.FloatField(default=0.0)
-    pct_laps_led_max = models.FloatField(default=1.0)
+    pct_fastest_laps_min = models.FloatField(default=0.0)
+    pct_fastest_laps_max = models.FloatField(default=1.0)
+    cum_fastest_laps_min = models.FloatField(default=0.0)
+    cum_fastest_laps_max = models.FloatField(default=1.0)
     eligible_speed_min = models.IntegerField(default=1)
     eligible_speed_max = models.IntegerField(default=1)
 
     def __str__(self):
-        return f'Fastest Laps Profile: {self.pct_laps_led_max * 100}% - {self.pct_laps_led_min * 100}%'
+        return f'Fastest Laps Profile: {self.pct_fastest_laps_min * 100}% - {self.pct_fastest_laps_max * 100}%'
 
 
 class RaceSimLapsLedProfile(models.Model):

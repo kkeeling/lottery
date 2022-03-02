@@ -259,8 +259,10 @@ class RaceSimFastestLapsInline(admin.TabularInline):
     model = models.RaceSimFastestLapsProfile
     extra = 0
     fields = (
-        'pct_laps_led_min',
-        'pct_laps_led_max',
+        'pct_fastest_laps_min',
+        'pct_fastest_laps_max',
+        'cum_fastest_laps_min',
+        'cum_fastest_laps_max',
         'eligible_speed_min',
         'eligible_speed_max',
     )
