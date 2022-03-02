@@ -465,11 +465,13 @@ class RaceSimLapsLedProfile(models.Model):
     sim = models.ForeignKey(RaceSim, related_name='ll_profiles', on_delete=models.CASCADE)
     pct_laps_led_min = models.FloatField(default=0.0)
     pct_laps_led_max = models.FloatField(default=1.0)
+    cum_laps_led_min = models.FloatField(default=0.0)
+    cum_laps_led_max = models.FloatField(default=1.0)
     eligible_fl_min = models.IntegerField(default=1)
     eligible_fl_max = models.IntegerField(default=1)
 
     def __str__(self):
-        return f'Laps Led Profile: {self.pct_laps_led_max * 100}% - {self.pct_laps_led_min * 100}%'
+        return f'Laps Led Profile: {self.pct_laps_led_min * 100}% - {self.pct_laps_led_max * 100}%'
 
 
 class RaceSimDriver(models.Model):

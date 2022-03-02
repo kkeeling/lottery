@@ -1028,33 +1028,57 @@ def execute_sim_iteration(sim_id):
 
     # Assign laps led
     ll_laps = race_sim.race.scheduled_laps
-    ll_vals = [max(int(randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100), 1)/100 * ll_laps), 1) for p in race_sim.ll_profiles.all().order_by('-pct_laps_led_min')]
+    # ll_vals = [max(int(randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100), 1)/100 * ll_laps), 1) for p in race_sim.ll_profiles.all().order_by('-pct_laps_led_min')]
+    
+    ll_vals = []
+    cum = 0
+    for p in race_sim.ll_profiles.all().order_by('-pct_laps_led_min'):
+        pct = randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100)+1, 1) if p.pct_laps_led_min < p.pct_laps_led_max else int(p.pct_laps_led_min*100)
+        cum_min = int(p.cum_laps_led_min * 100)
+        cum_max = int(p.cum_laps_led_max * 100)
+
+        # print(f'p = {p}; pct = {pct}; cum = {cum}')
+        while cum + pct < cum_min or cum + pct > cum_max:
+            pct = randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100)+1, 1)
+            # print(f'p = {p}; pct = {pct}; cum = {cum}')
+        
+        cum += pct
+        v = max(int((pct/100) * ll_laps), 1)
+        ll_vals.append(v)
+
+        if cum >= 100:  # if we run out before we get to the last profile
+            break
 
     ll_laps_remaining = ll_laps
     ll_laps_assigned = []
-    for index, llp in enumerate(race_sim.ll_profiles.all().order_by('-pct_laps_led_min')):
+    profiles = list(race_sim.ll_profiles.all().order_by('-pct_laps_led_min'))
+    for index, ll_val in enumerate(ll_vals):
+    # for index, llp in enumerate(race_sim.ll_profiles.all().order_by('-pct_laps_led_min')):
+        llp = profiles[index]
         ll_index = randrange(llp.eligible_fl_min, llp.eligible_fl_max+1)
+        # print(f'index = {index}; llp = {llp}; ll_val = {ll_val}; ll_index = {ll_index}')
         while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
             ll_index = randrange(llp.eligible_fl_min, llp.eligible_fl_max+1)
 
         sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
-        driver_ll[sp_index] = ll_vals[index]
+        driver_ll[sp_index] = ll_val # ll_vals[index]
         ll_laps_assigned.append(ll_index)
 
-        ll_laps_remaining -= ll_vals[index]
+        ll_laps_remaining -= ll_val # ll_vals[index]
         
     # there may be remaining LL, assign using lowest profile in tranches of 5
     llp = race_sim.ll_profiles.all().order_by('-pct_laps_led_min').last()
     while ll_laps_remaining > 0:
         ll_index = randrange(1, 21)
-        while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
-            ll_index = randrange(1, 21)
+        # while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
+        #     ll_index = randrange(1, 21)
 
         sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
-        ll_val = randrange(4, 5)
+        ll_val = max(ll_laps_remaining, 5)
         driver_ll[sp_index] += ll_val
         ll_laps_assigned.append(ll_index)
 
+        # print(driver_ll)
         ll_laps_remaining -= ll_val
 
     df_race = pandas.DataFrame({

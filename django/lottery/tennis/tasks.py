@@ -879,7 +879,18 @@ def simulate_match(match_id, task_id):
         #     p1_df = player_1.get_df_pct(timeframe=52*2, on_surface=slate_match.surface)
         #     p2_df = player_2.get_df_pct(timeframe=52*2, on_surface=slate_match.surface)
 
+        a_flr = float(projection1.spw_rate) - 0.1 if player_1.tour == 'wta' else float(projection1.spw_rate) - 0.03
+        a_ceil = float(projection1.spw_rate) + 0.1 if player_1.tour == 'wta' else float(projection1.spw_rate) + 0.03
+        a_mu = float(projection1.spw_rate)
+        a_stdev = numpy.std([a_mu, a_ceil, a_flr], dtype=numpy.float64)
+        # a = numpy.random.normal(a_mu, a_stdev, 1)[0]
         a = projection1.spw_rate
+
+        b_flr = float(projection2.spw_rate) - 0.1 if player_2.tour == 'wta' else float(projection2.spw_rate) - 0.03
+        b_ceil = float(projection2.spw_rate) + 0.1 if player_2.tour == 'wta' else float(projection2.spw_rate) + 0.03
+        b_mu = float(projection2.spw_rate)
+        b_stdev = numpy.std([b_mu, b_ceil, b_flr], dtype=numpy.float64)
+        # b = numpy.random.normal(b_mu, b_stdev, 1)[0]
         b = projection2.spw_rate
         p1_big_point = a
         p2_big_point = b
@@ -918,7 +929,7 @@ def simulate_match(match_id, task_id):
             clean_sets1, clean_sets2 = 0, 0
 
             while S < best_of and max(setsMatch1, setsMatch2) < sets_to_win:
-                gamesSet1, gamesSet2, gamesMatch, S, pointsMatch1, pointsMatch2, aces1, aces2, doubles1, doubles2, breaks1, breaks2 = simulateSet(a, b, gamesMatch, S, 
+                gamesSet1, gamesSet2, gamesMatch, S, pointsMatch1, pointsMatch2, aces1, aces2, doubles1, doubles2, breaks1, breaks2 = simulateSet(numpy.random.normal(a_mu, a_stdev, 1)[0], numpy.random.normal(b_mu, b_stdev, 1)[0], gamesMatch, S, 
                     pointsMatch1, pointsMatch2, 
                     completed_sets
                 )

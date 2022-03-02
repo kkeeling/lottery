@@ -248,6 +248,8 @@ class RaceSimLapsLedInline(admin.TabularInline):
     fields = (
         'pct_laps_led_min',
         'pct_laps_led_max',
+        'cum_laps_led_min',
+        'cum_laps_led_max',
         'eligible_fl_min',
         'eligible_fl_max',
     )
