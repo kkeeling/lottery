@@ -1009,28 +1009,28 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
         # Get the scenario to activate
         build = get_object_or_404(models.SlateBuild, pk=pk)
-        # if build.num_lineups_created() > 0:
-        #     task = BackgroundTask()
-        #     task.name = 'Export Build For Upload'
-        #     task.user = request.user
-        #     task.save()
+        if build.num_lineups_created() > 0:
+            task = BackgroundTask()
+            task.name = 'Export Build For Upload'
+            task.user = request.user
+            task.save()
 
-        #     now = datetime.datetime.now()
-        #     timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
-        #     result_file = '{}-{}_upload.csv'.format(build.slate.name, timestamp)
-        #     result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
-        #     os.makedirs(result_path, exist_ok=True)
-        #     result_path = os.path.join(result_path, result_file)
-        #     result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+            now = datetime.datetime.now()
+            timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+            result_file = '{}-{}_upload.csv'.format(build.slate.name, timestamp)
+            result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+            os.makedirs(result_path, exist_ok=True)
+            result_path = os.path.join(result_path, result_file)
+            result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
-        #     tasks.export_build_for_upload.delay(build.id, result_path, result_url, task.id)
+            tasks.export_build_for_upload.delay(build.id, result_path, result_url, task.id)
 
-        #     messages.add_message(
-        #         request,
-        #         messages.WARNING,
-        #         'Your build export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
-        # else:
-        #     self.message_user(request, 'Cannot export lineups for {}. No lineups exist.'.format(str(build)), level=messages.ERROR)
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Your build export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
+        else:
+            self.message_user(request, 'Cannot export lineups for {}. No lineups exist.'.format(str(build)), level=messages.ERROR)
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
@@ -1099,30 +1099,30 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     # get_exposure.admin_order_field = 'exposure'
 
 
-# @admin.register(models.SlateBuildLineup)
-# class SlateBuildLineupAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'player_1',
-#         'player_2',
-#         'player_3',
-#         'player_4',
-#         'player_5',
-#         'player_6',
-#         'total_salary',
-#         'implied_win_pct',
-#         'sim_win_pct',
-#         'median',
-#         's90',
-#     )
+@admin.register(models.SlateBuildLineup)
+class SlateBuildLineupAdmin(admin.ModelAdmin):
+    list_display = (
+        'player_1',
+        'player_2',
+        'player_3',
+        'player_4',
+        'player_5',
+        'player_6',
+        'total_salary',
+        'median',
+        's75',
+        's90',
+        'sort_proj',
+    )
 
-#     search_fields = (
-#         'player_1__name',
-#         'player_2__name',
-#         'player_3__name',
-#         'player_4__name',
-#         'player_5__name',
-#         'player_6__name',
-#     )
+    search_fields = (
+        'player_1__name',
+        'player_2__name',
+        'player_3__name',
+        'player_4__name',
+        'player_5__name',
+        'player_6__name',
+    )
 
 
 # @admin.register(models.PinnacleMatch)

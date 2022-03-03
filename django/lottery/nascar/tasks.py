@@ -1269,7 +1269,7 @@ def get_score(row, **kwargs):
     fl = row.get('fl')
     ll = row.get('ll')
 
-    return (models.SITE_SCORING.get(site).get('place_differential') * pd + models.SITE_SCORING.get(site).get('fastest_laps') * fl + models.SITE_SCORING.get(site).get('laps_led') * ll + models.SITE_SCORING.get(site).get('finishing_position').get(str(fp))) 
+    return float(models.SITE_SCORING.get(site).get('place_differential') * pd + models.SITE_SCORING.get(site).get('fastest_laps') * fl + models.SITE_SCORING.get(site).get('laps_led') * ll + models.SITE_SCORING.get(site).get('finishing_position').get(str(fp))) 
 
 
 @shared_task
@@ -1312,7 +1312,7 @@ def process_build(build_id, task_id):
     except Exception as e:
         if task is not None:
             task.status = 'error'
-            task.content = f'There was an error exporting FP results: {e}'
+            task.content = f'There was an error processing your buyiuld: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
@@ -2163,91 +2163,86 @@ def process_slate_players(slate_id, task_id):
 #         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-# @shared_task
-# def build_lineups(build_id, task_id):
-#     task = None
+@shared_task
+def build_lineups(build_id, task_id):
+    task = None
 
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
 
-#         # Task implementation goes here
-#         build = models.SlateBuild.objects.get(id=build_id)
-#         lineups = optimize.optimize(build.slate.site, models.SlatePlayerProjection.objects.filter(slate_player__slate=build.slate), build.configuration, build.total_lineups * build.configuration.lineup_multiplier)
+        # Task implementation goes here
+        build = models.SlateBuild.objects.get(id=build_id)
+        # lineups = optimize.generateRandomLineups(
+        #     build.projections.all(),
+        #     1000,
+        #     6,
+        #     60000
+        # )
+        lineups = optimize.optimize(build.slate.site, build.projections.filter(in_play=True), build.configuration, build.total_lineups)
 
-#         for lineup in lineups:
-#             if build.slate.site == 'draftkings':
-#                 lineup = models.SlateBuildLineup.objects.create(
-#                     build=build,
-#                     player_1=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[0].id, slate_player__slate=build.slate),
-#                     player_2=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[1].id, slate_player__slate=build.slate),
-#                     player_3=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[2].id, slate_player__slate=build.slate),
-#                     player_4=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[3].id, slate_player__slate=build.slate),
-#                     player_5=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[4].id, slate_player__slate=build.slate),
-#                     player_6=models.SlatePlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[5].id, slate_player__slate=build.slate),
-#                     total_salary=lineup.salary_costs
-#                 )
-#                 # lineup = models.SlateBuildLineup.objects.create(
-#                 #     build=build,
-#                 #     player_1=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[0].name, slate_player__slate=build.slate),
-#                 #     player_2=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[1].name, slate_player__slate=build.slate),
-#                 #     player_3=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[2].name, slate_player__slate=build.slate),
-#                 #     player_4=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[3].name, slate_player__slate=build.slate),
-#                 #     player_5=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[4].name, slate_player__slate=build.slate),
-#                 #     player_6=models.SlatePlayerProjection.objects.get(slate_player__name=lineup.players[5].name, slate_player__slate=build.slate),
-#                 #     total_salary=lineup.spent()
-#                 # )
-#                 lineup.implied_win_pct = lineup.player_1.implied_win_pct * lineup.player_2.implied_win_pct * lineup.player_3.implied_win_pct * lineup.player_4.implied_win_pct * lineup.player_5.implied_win_pct * lineup.player_6.implied_win_pct
-#                 lineup.save()
+        for lineup in lineups:
+            if build.slate.site == 'draftkings':
+                lineup = models.SlateBuildLineup.objects.create(
+                    build=build,
+                    player_1=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[0].id, slate_player__slate=build.slate),
+                    player_2=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[1].id, slate_player__slate=build.slate),
+                    player_3=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[2].id, slate_player__slate=build.slate),
+                    player_4=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[3].id, slate_player__slate=build.slate),
+                    player_5=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[4].id, slate_player__slate=build.slate),
+                    player_6=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[5].id, slate_player__slate=build.slate),
+                    total_salary=lineup.salary_costs
+                )
+                lineup.save()
 
-#                 lineup.simulate()
-#             else:
-#                 raise Exception(f'{build.slate.site} is not available for building yet.')
+                lineup.simulate()
+            else:
+                raise Exception(f'{build.slate.site} is not available for building yet.')
         
-#         task.status = 'success'
-#         task.content = f'{build.lineups.all().count()} lineups created.'
-#         task.save()
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was a problem building lineups: {e}'
-#             task.save()
+        task.status = 'success'
+        task.content = f'{len(lineups)} lineups created.'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem building lineups: {e}'
+            task.save()
 
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-# @shared_task
-# def clean_lineups(build_id, task_id):
-#     task = None
+@shared_task
+def clean_lineups(build_id, task_id):
+    task = None
 
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
 
-#         # Task implementation goes here
-#         build = models.SlateBuild.objects.get(id=build_id)
+        # Task implementation goes here
+        build = models.SlateBuild.objects.get(id=build_id)
 
-#         ordered_lineups = build.lineups.all().order_by(f'-{build.configuration.clean_lineups_by}')
-#         ordered_lineups.filter(id__in=ordered_lineups.values_list('pk', flat=True)[int(build.total_lineups):]).delete()
+        ordered_lineups = build.lineups.all().order_by('-sort_proj')
+        ordered_lineups.filter(id__in=ordered_lineups.values_list('pk', flat=True)[int(build.total_lineups):]).delete()
         
-#         task.status = 'success'
-#         task.content = 'Lineups cleaned.'
-#         task.save()
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was a problem cleaning lineups: {e}'
-#             task.save()
+        task.status = 'success'
+        task.content = 'Lineups cleaned.'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem cleaning lineups: {e}'
+            task.save()
 
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 # @shared_task
@@ -2297,48 +2292,48 @@ def process_slate_players(slate_id, task_id):
 #         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-# @shared_task
-# def export_build_for_upload(build_id, result_path, result_url, task_id):
-#     task = None
+@shared_task
+def export_build_for_upload(build_id, result_path, result_url, task_id):
+    task = None
 
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
-#         build = models.SlateBuild.objects.get(pk=build_id)
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        build = models.SlateBuild.objects.get(pk=build_id)
 
-#         with open(result_path, 'w') as temp_csv:
-#             build_writer = csv.writer(temp_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-#             build_writer.writerow(['P', 'P', 'P', 'P', 'P', 'P'])
+        with open(result_path, 'w') as temp_csv:
+            build_writer = csv.writer(temp_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            build_writer.writerow(['D', 'D', 'D', 'D', 'D', 'D'])
 
-#             lineups = build.lineups.all()
+            lineups = build.lineups.all()
 
-#             for lineup in lineups:
-#                 if build.slate.site == 'draftkings':
-#                     row = [
-#                         f'{lineup.player_1.name} ({lineup.player_1.slate_player.slate_player_id})',
-#                         f'{lineup.player_2.name} ({lineup.player_2.slate_player.slate_player_id})',
-#                         f'{lineup.player_3.name} ({lineup.player_3.slate_player.slate_player_id})',
-#                         f'{lineup.player_4.name} ({lineup.player_4.slate_player.slate_player_id})',
-#                         f'{lineup.player_5.name} ({lineup.player_5.slate_player.slate_player_id})',
-#                         f'{lineup.player_6.name} ({lineup.player_6.slate_player.slate_player_id})'
-#                     ]
-#                 else:
-#                     raise Exception('{} is not a supported dfs site.'.format(build.slate.site)) 
+            for lineup in lineups:
+                if build.slate.site == 'draftkings':
+                    row = [
+                        f'{lineup.player_1.name} ({lineup.player_1.slate_player.slate_player_id})',
+                        f'{lineup.player_2.name} ({lineup.player_2.slate_player.slate_player_id})',
+                        f'{lineup.player_3.name} ({lineup.player_3.slate_player.slate_player_id})',
+                        f'{lineup.player_4.name} ({lineup.player_4.slate_player.slate_player_id})',
+                        f'{lineup.player_5.name} ({lineup.player_5.slate_player.slate_player_id})',
+                        f'{lineup.player_6.name} ({lineup.player_6.slate_player.slate_player_id})'
+                    ]
+                else:
+                    raise Exception('{} is not a supported dfs site.'.format(build.slate.site)) 
 
-#                 build_writer.writerow(row)
+                build_writer.writerow(row)
 
-#         task.status = 'download'
-#         task.content = result_url
-#         task.save()
+        task.status = 'download'
+        task.content = result_url
+        task.save()
         
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was a problem generating your export {e}'
-#             task.save()
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 

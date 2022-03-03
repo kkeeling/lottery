@@ -76,7 +76,8 @@ SITE_SCORING = {
             '38': 3,
             '39': 2,
             '40': 1
-        }
+        },
+        'max_salary': 60000
     }
 }
 
@@ -585,29 +586,29 @@ class SlateBuild(models.Model):
     def execute_build(self, user):
         self.lineups.all().delete()
         
-        # chain(
-        #     tasks.build_lineups.si(
-        #         self.id,
-        #         BackgroundTask.objects.create(
-        #             name='Build Lineups',
-        #             user=user
-        #         ).id
-        #     ),
-        #     tasks.clean_lineups.si(
-        #         self.id,
-        #         BackgroundTask.objects.create(
-        #             name='Clean Lineups',
-        #             user=user
-        #         ).id
-        #     ),
-        #     tasks.calculate_exposures.si(
-        #         self.id,
-        #         BackgroundTask.objects.create(
-        #             name='Calculate Exposures',
-        #             user=user
-        #         ).id
-        #     )
-        # )()
+        chain(
+            tasks.build_lineups.si(
+                self.id,
+                BackgroundTask.objects.create(
+                    name='Build Lineups',
+                    user=user
+                ).id
+            ),
+            tasks.clean_lineups.si(
+                self.id,
+                BackgroundTask.objects.create(
+                    name='Clean Lineups',
+                    user=user
+                ).id
+            ),
+            # tasks.calculate_exposures.si(
+            #     self.id,
+            #     BackgroundTask.objects.create(
+            #         name='Calculate Exposures',
+            #         user=user
+            #     ).id
+            # )
+        )()
 
     def num_lineups_created(self):
         return self.lineups.all().count()
@@ -642,13 +643,13 @@ class BuildPlayerProjection(models.Model):
     build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)
     slate_player = models.ForeignKey(SlatePlayer, db_index=True, related_name='builds', on_delete=models.CASCADE)
     starting_position = models.IntegerField(default=0)
-    sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
-    projection = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Proj')
-    ceiling = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Ceil')
-    s75 = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='s75')
+    sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    projection = models.FloatField(db_index=True, default=0.0, verbose_name='Proj')
+    ceiling = models.FloatField(db_index=True, default=0.0, verbose_name='Ceil')
+    s75 = models.FloatField(db_index=True, default=0.0, verbose_name='s75')
     in_play = models.BooleanField(default=True)
-    min_exposure = models.DecimalField(max_digits=3, decimal_places=2, default=0.0, verbose_name='min')
-    max_exposure = models.DecimalField(max_digits=3, decimal_places=2, default=1.0, verbose_name='max')
+    min_exposure = models.FloatField(default=0.0, verbose_name='min')
+    max_exposure = models.FloatField(default=1.0, verbose_name='max')
 
     class Meta:
         verbose_name = 'Player Projection'
@@ -718,15 +719,17 @@ class SlateBuildLineup(models.Model):
     player_5 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_5', on_delete=models.CASCADE)
     player_6 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_6', on_delete=models.CASCADE, null=True, blank=True)
     total_salary = models.IntegerField(default=0)
-    sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
-    roi = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, db_index=True)
-    median = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
-    s75 = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
-    s90 = models.DecimalField(db_index=True, max_digits=10, decimal_places=2, default=0.0)
+    sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    roi = models.FloatField(default=0.0, db_index=True)
+    median = models.FloatField(db_index=True, default=0.0)
+    s75 = models.FloatField(db_index=True, default=0.0)
+    s90 = models.FloatField(db_index=True, default=0.0)
+    sort_proj = models.FloatField(db_index=True, default=0.0)
 
     class Meta:
         verbose_name = 'Lineup'
         verbose_name_plural = 'Lineups'
+        ordering = ['-sort_proj']
 
     @property
     def players(self):
@@ -743,9 +746,11 @@ class SlateBuildLineup(models.Model):
         return numpy.percentile(self.sim_scores, float(percentile))
 
     def simulate(self):
+        self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, self.build.sim.iterations)]
         self.median = numpy.median(self.sim_scores)
         self.s75 = self.get_percentile_sim_score(75)
         self.s90 = self.get_percentile_sim_score(90)
+        self.sort_proj = self.get_percentile_sim_score(self.build.configuration.clean_by_percentile)
         self.save()
 
 
