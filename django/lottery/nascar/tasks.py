@@ -501,30 +501,32 @@ def execute_sim_iteration(sim_id):
     # driver_bp_sp_maxes = list(drivers.values_list('worst_possible_speed', flat=True))
 
     driver_s1_penalties = [None for driver in drivers]
-    driver_s1_ranks = [None for driver in drivers]
-    driver_s1_mins = [None for driver in drivers]
-    driver_s1_maxes = [None for driver in drivers]
+    # driver_s1_ranks = [None for driver in drivers]
+    # driver_s1_mins = [None for driver in drivers]
+    # driver_s1_maxes = [None for driver in drivers]
     # driver_s1_fl = [0 for driver in drivers]
     
     driver_s2_penalties = [None for driver in drivers]
-    driver_s2_ranks = [None for driver in drivers]
-    driver_s2_mins = [None for driver in drivers]
-    driver_s2_maxes = [None for driver in drivers]
+    # driver_s2_ranks = [None for driver in drivers]
+    # driver_s2_mins = [None for driver in drivers]
+    # driver_s2_maxes = [None for driver in drivers]
     # driver_s2_fl = [0 for driver in drivers]
     
     driver_s3_penalties = [None for driver in drivers]
-    driver_s3_ranks = [None for driver in drivers]
-    driver_s3_mins = [None for driver in drivers]
-    driver_s3_maxes = [None for driver in drivers]
+    # driver_s3_ranks = [None for driver in drivers]
+    # driver_s3_mins = [None for driver in drivers]
+    # driver_s3_maxes = [None for driver in drivers]
     # driver_s3_fl = [0 for driver in drivers]
 
     if race_sim.race.num_stages() > 3:
         driver_s4_penalties = [None for driver in drivers]
-        driver_s4_ranks = [None for driver in drivers]
+        # driver_s4_ranks = [None for driver in drivers]
         # driver_s4_fl = [0 for driver in drivers]
 
     driver_fl = [0 for driver in drivers]
     driver_ll = [0 for driver in drivers]
+    driver_damage = [None for driver in drivers]
+    driver_penalty = [None for driver in drivers]
 
     minor_damage_drivers = []
     medium_damage_drivers = []
@@ -543,7 +545,7 @@ def execute_sim_iteration(sim_id):
     total_cautions = 0
 
     for stage in range(1, race_sim.race.num_stages() + 1):
-        num_laps = race_sim.race.get_laps_for_stage(stage)
+        # num_laps = race_sim.race.get_laps_for_stage(stage)
         # print(f'Stage {stage}: {num_laps} laps')
 
         # Find # of cautions & caution type thresholds
@@ -554,14 +556,14 @@ def execute_sim_iteration(sim_id):
             debris_caution_cutoff = race_sim.early_stage_caution_prob_debris
             accident_small_caution_cutoff = race_sim.early_stage_caution_prob_accident_small
             accident_medium_caution_cutoff = race_sim.early_stage_caution_prob_accident_medium
-            accident_major_caution_cutoff = race_sim.early_stage_caution_prob_accident_major
+            # accident_major_caution_cutoff = race_sim.early_stage_caution_prob_accident_major
         else:
             num_cautions = scipy.stats.poisson.rvs(race_sim.final_stage_caution_mean)
 
             debris_caution_cutoff = race_sim.final_stage_caution_prob_debris
             accident_small_caution_cutoff = race_sim.final_stage_caution_prob_accident_small
             accident_medium_caution_cutoff = race_sim.final_stage_caution_prob_accident_medium
-            accident_major_caution_cutoff = race_sim.final_stage_caution_prob_accident_major
+            # accident_major_caution_cutoff = race_sim.final_stage_caution_prob_accident_major
 
         total_cautions += num_cautions
         # print(f'  There are {num_cautions} cautions.')
@@ -614,6 +616,8 @@ def execute_sim_iteration(sim_id):
 
                 damage_index = round(uniform(0, len(damage_options)-1))
                 damage_value = damage_options[damage_index]
+                
+                driver_index = driver_ids.index(involved_car.driver.nascar_driver_id)
 
                 if damage_value == 0:
                     # print(f'{involved_car} [{involved_car.id}] takes no damage')
@@ -621,13 +625,16 @@ def execute_sim_iteration(sim_id):
                 elif damage_value == 1:
                     # print(f'{involved_car} [{involved_car.id}] takes minor damage')
                     minor_damage_drivers.append(involved_car)
+                    driver_damage[driver_index] = f'{stage}d'
                 elif damage_value == 2:
                     # print(f'{involved_car} [{involved_car.id}] takes medium damage')
                     medium_damage_drivers.append(involved_car)
+                    driver_damage[driver_index] = f'{stage}D'
                 else:
                     # print(f'{involved_car} [{involved_car.id}] is out of the race')
                     race_drivers = list(filter((involved_car.id).__ne__, race_drivers))
                     dnf_drivers.append(involved_car)
+                    driver_damage[driver_index] = f'{stage} DNF'
 
         # assign penalties based on number of cautions
         if num_cautions == 0:
@@ -699,8 +706,10 @@ def execute_sim_iteration(sim_id):
                     # Did driver have a penalty?
                     if driver in stage_1_green_penalty_drivers:
                         driver_s1_penalties[index] = 'G'
+                        driver_penalty[index] = '1G'
                     elif driver in stage_1_yellow_penalty_drivers:
                         driver_s1_penalties[index] = 'Y'
+                        driver_penalty[index] = '1Y'
 
                     # flr = driver.speed_min
                     # ceil = driver.speed_max
@@ -708,8 +717,10 @@ def execute_sim_iteration(sim_id):
                     # Did driver have a penalty?
                     if driver in stage_2_green_penalty_drivers:
                         driver_s2_penalties[index] = 'G'
+                        driver_penalty[index] = '2G'
                     elif driver in stage_2_yellow_penalty_drivers:
                         driver_s2_penalties[index] = 'Y'
+                        driver_penalty[index] = '2Y'
 
                     # flr = driver_s1_mins[index]
                     # ceil = driver_s1_maxes[index]
@@ -717,8 +728,10 @@ def execute_sim_iteration(sim_id):
                     # Did driver have a penalty?
                     if driver in stage_3_green_penalty_drivers:
                         driver_s3_penalties[index] = 'G'
+                        driver_penalty[index] = '3G'
                     elif driver in stage_3_yellow_penalty_drivers:
                         driver_s3_penalties[index] = 'Y'
+                        driver_penalty[index] = '3Y'
 
                     # flr = driver_s2_mins[index]
                     # ceil = driver_s2_maxes[index]
@@ -726,8 +739,10 @@ def execute_sim_iteration(sim_id):
             # Did driver have a penalty?
                     if driver in stage_4_green_penalty_drivers:
                         driver_s4_penalties[index] = 'G'
+                        driver_penalty[index] = '4G'
                     elif driver in stage_4_yellow_penalty_drivers:
                         driver_s4_penalties[index] = 'Y'
+                        driver_penalty[index] = '4Y'
 
                     # flr = driver_s3_mins[index]
                     # ceil = driver_s3_maxes[index]
@@ -920,14 +935,16 @@ def execute_sim_iteration(sim_id):
             
             # Did driver take damage
             if driver in medium_damage_drivers:
-                flr = 40
-                ceil = 20
+                flr = 20
+                ceil = 40
             elif driver in minor_damage_drivers:
-                flr += 10
+                ceil += 10
 
-            mu = numpy.average([flr, ceil])
-            stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
-            d_sr = numpy.random.normal(mu, stdev, 1)[0] + random()
+            # mu = numpy.average([flr, ceil])
+            # stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
+            # d_sr = numpy.random.normal(mu, stdev, 1)[0] + random()
+            d_sr = randrange(ceil, ceil+1) + random()
+            # print(f'{driver}, {d_sr}')
             speed.append(d_sr)
 
     # Rank final speed
@@ -1148,9 +1165,12 @@ def execute_sim_iteration(sim_id):
     # df_race.to_csv('data/race.csv')
 
     return {
+        'sr': final_ranks.tolist(),
         'fp': fp_ranks.tolist(),
         'll': driver_ll,
-        'fl': driver_fl
+        'fl': driver_fl,
+        'dam': driver_damage,
+        'pen': driver_penalty
     }
 
 
@@ -1171,20 +1191,29 @@ def sim_execution_complete(results, sim_id, task_id):
         driver_ids = list(drivers.values_list('driver__nascar_driver_id', flat=True))
         driver_names = list(drivers.values_list('driver__full_name', flat=True))
 
+        sr_list = [obj.get('sr') for obj in results]
         fp_list = [obj.get('fp') for obj in results]
         fl_list = [obj.get('fl') for obj in results]
         ll_list = [obj.get('ll') for obj in results]
+        dam_list = [obj.get('dam') for obj in results]
+        pen_list = [obj.get('pen') for obj in results]
 
+        df_sr = pandas.DataFrame(sr_list, columns=driver_ids)
         df_fp = pandas.DataFrame(fp_list, columns=driver_ids)
         df_fl = pandas.DataFrame(fl_list, columns=driver_ids)
         df_ll = pandas.DataFrame(ll_list, columns=driver_ids)
+        df_dam = pandas.DataFrame(dam_list, columns=driver_ids)
+        df_pen = pandas.DataFrame(pen_list, columns=driver_ids)
         for driver in drivers:
+            driver.sr_outcomes = df_sr[driver.driver.nascar_driver_id].tolist()
             driver.fp_outcomes = df_fp[driver.driver.nascar_driver_id].tolist()
             driver.avg_fp = numpy.average(driver.fp_outcomes)
             driver.fl_outcomes = df_fl[driver.driver.nascar_driver_id].tolist()
             driver.avg_fl = numpy.average(driver.fl_outcomes)
             driver.ll_outcomes = df_ll[driver.driver.nascar_driver_id].tolist()
             driver.avg_ll = numpy.average(driver.ll_outcomes)
+            driver.crash_outcomes = df_dam[driver.driver.nascar_driver_id].tolist()
+            driver.penalties_outcomes = df_pen[driver.driver.nascar_driver_id].tolist()
             driver.save()
 
         task.status = 'success'
@@ -1201,6 +1230,44 @@ def sim_execution_complete(results, sim_id, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
+# @shared_task
+# def find_driver_gto(sim_id, task_id):
+#     task = None
+
+#     try:
+#         try:
+#             task = BackgroundTask.objects.get(id=task_id)
+#         except BackgroundTask.DoesNotExist:
+#             time.sleep(0.2)
+#             task = BackgroundTask.objects.get(id=task_id)
+        
+#         race_sim = models.RaceSim.objects.get(id=sim_id)
+#         scores = [d.get_scores('draftkings') for d in race_sim.outcomes.all()]
+
+#         # DK
+#         df_dk = pandas.DataFrame(data={
+#             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
+#             'score': [d.get_scores('draftkings') for d in race_sim.outcomes.all()],
+#             '60p': [numpy.percentile(d.get_scores('draftkings'), float(60)) for d in race_sim.outcomes.all()],
+#             '70p': [numpy.percentile(d.get_scores('draftkings'), float(70)) for d in race_sim.outcomes.all()],
+#             '80p': [numpy.percentile(d.get_scores('draftkings'), float(80)) for d in race_sim.outcomes.all()],
+#             '90p': [numpy.percentile(d.get_scores('draftkings'), float(90)) for d in race_sim.outcomes.all()],
+#         }, index=[d.driver.full_name for d in race_sim.outcomes.all()])
+
+#         task.status = 'success'
+#         task.content = f'GTO for {race_sim} complete.'
+#         task.save()
+
+#     except Exception as e:
+#         if task is not None:
+#             task.status = 'error'
+#             task.content = f'There was an error finding driver GTO exposures: {e}'
+#             task.save()
+
+#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
 @shared_task
 def export_results(sim_id, result_path, result_url, task_id):
     task = None
@@ -1214,6 +1281,16 @@ def export_results(sim_id, result_path, result_url, task_id):
 
         race_sim = models.RaceSim.objects.get(id=sim_id)
 
+        # Speed rank raw outcomes and speed rank distribution
+        df_sr = pandas.DataFrame([d.sr_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+
+        sr_list = []
+        for sr in range(1, race_sim.outcomes.count()+1):
+            sr_list.append(
+                [df_sr[d.driver.full_name].value_counts()[sr] if sr in df_sr[d.driver.full_name].value_counts() else 0 for d in race_sim.outcomes.all().order_by('starting_position', 'id')]
+            )
+        df_sr_results = pandas.DataFrame(sr_list, index=range(0, race_sim.outcomes.count()), columns=list(race_sim.outcomes.all().order_by('starting_position', 'id').values_list('driver__full_name', flat=True)))
+
         # Finishing position raw outcomes and finishing position distribution
         df_fp = pandas.DataFrame([d.fp_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
@@ -1224,11 +1301,17 @@ def export_results(sim_id, result_path, result_url, task_id):
             )
         df_fp_results = pandas.DataFrame(fp_list, index=range(0, race_sim.outcomes.count()), columns=list(race_sim.outcomes.all().order_by('starting_position', 'id').values_list('driver__full_name', flat=True)))
 
-        # FL distribution
+        # FL outcomes
         df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
-        # LL distribution
+        # LL outcomes
         df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+
+        # crash outcomes
+        df_dam = pandas.DataFrame([d.crash_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+
+        # penalty outcomes
+        df_pen = pandas.DataFrame([d.penalty_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         # DK
         df_dk = pandas.DataFrame(data={
@@ -1242,10 +1325,14 @@ def export_results(sim_id, result_path, result_url, task_id):
         }, index=[d.driver.full_name for d in race_sim.outcomes.all()])
 
         with pandas.ExcelWriter(result_path) as writer:
+            df_sr.to_excel(writer, sheet_name='Speed Rank Raw')
+            df_sr_results.to_excel(writer, sheet_name='Speed Rank Distribution')
             df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
             df_fp_results.to_excel(writer, sheet_name='Finishing Position Distribution')
             df_fl.to_excel(writer, sheet_name='Fastest Laps Raw')
             df_ll.to_excel(writer, sheet_name='Laps Led Raw')
+            df_dam.to_excel(writer, sheet_name='Damage Raw')
+            df_pen.to_excel(writer, sheet_name='Penalty Raw')
             df_dk.to_excel(writer, sheet_name='DK')
 
         task.status = 'download'
@@ -1325,217 +1412,6 @@ def process_build(build_id, task_id):
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
-# @shared_task
-# def update_matches_from_ta(tour, year):
-#     if tour == 'atp':
-#         urls = ATP_MATCH_FILES
-#     else:
-#         urls = WTA_MATCH_FILES
-
-#     current_year = datetime.date.today().year
-#     file_index = len(urls) - (current_year - year) - 1
-
-#     print(f'Updating {tour} matches from {year} (index = {file_index})')
-
-#     url = urls[file_index]
-
-#     with requests.Session() as s:
-#         download = s.get(url)
-#         decoded_content = download.content.decode('latin-1')
-
-#         cr = csv.reader(decoded_content.splitlines(), delimiter=',')
-#         rows = list(cr)
-#         for index, row in enumerate(rows):
-#             if index == 0:
-#                 continue
-
-#             try:
-#                 tourney_date = datetime.datetime.strptime(row[5], '%Y%m%d').date()
-#             except:
-#                 continue
-            
-#             try:
-#                 match = models.Match.objects.get(
-#                     tourney_id=row[0],
-#                     winner=models.Player.objects.get(
-#                         player_id=row[7],
-#                         tour=tour
-#                     ),
-#                     loser=models.Player.objects.get(
-#                         player_id=row[15],
-#                         tour=tour
-#                     ),
-#                 )
-#             except models.Match.DoesNotExist:
-#                 match = models.Match.objects.create(
-#                     tourney_id=row[0],
-#                     winner=models.Player.objects.get(
-#                         player_id=row[7],
-#                         tour=tour
-#                     ),
-#                     loser=models.Player.objects.get(
-#                         player_id=row[15],
-#                         tour=tour
-#                     ),
-#                 )
-#             except models.Player.DoesNotExist:
-#                 continue
-
-#             match.tourney_name = row[1]
-#             match.surface = row[2]
-#             match.draw_size = None if row[3] is None or row[3] == '' else int(row[3])
-#             match.tourney_level = row[4]
-#             match.tourney_date = tourney_date
-#             match.match_num = None if row[6] is None or row[6] == '' else int(row[6])
-#             try:
-#                 match.winner_seed = None if row[8] is None or row[8] == '' else int(row[8])
-#             except:
-#                 pass
-#             match.winner_entry = row[9]
-#             match.winner_name = row[10]
-#             match.winner_hand = row[11]
-#             # match.winner_ht = None if row[12] is None or row[12] == '' else int(row[12])
-#             match.winner_ioc = row[13]
-#             match.winner_age = None if row[14] is None or row[14] == '' else float(row[14])
-#             try:
-#                 match.loser_seed = None if row[16] is None or row[16] == '' else int(row[16])
-#             except:
-#                 pass
-#             match.loser_entry = row[17]
-#             match.loser_name = row[18]
-#             match.loser_hand = row[19]
-#             # match.loser_ht = None if row[20] is None or row[20] == '' else int(row[20])
-#             match.loser_ioc = row[21]
-#             match.loser_age = None if row[22] is None or row[22] == '' else float(row[22])
-#             match.score = row[23]
-#             match.best_of = None if row[24] is None or row[24] == '' else int(row[24])
-#             match.round = row[25]
-#             match.minutes = None if row[26] is None or row[26] == '' else int(row[26])
-#             match.w_ace = None if row[27] is None or row[27] == '' else int(row[27])
-#             match.w_df = None if row[28] is None or row[28] == '' else int(row[28])
-#             match.w_svpt = None if row[29] is None or row[29] == '' else int(row[29])
-#             match.w_1stIn = None if row[30] is None or row[30] == '' else int(row[30])
-#             match.w_1stWon = None if row[31] is None or row[31] == '' else int(row[31])
-#             match.w_2ndWon = None if row[32] is None or row[32] == '' else int(row[32])
-#             match.w_SvGms = None if row[33] is None or row[33] == '' else int(row[33])
-#             match.w_bpSaved = None if row[34] is None or row[34] == '' else int(row[34])
-#             match.w_bpFaced = None if row[35] is None or row[35] == '' else int(row[35])
-#             match.l_ace = None if row[36] is None or row[36] == '' else int(row[36])
-#             match.l_df = None if row[37] is None or row[37] == '' else int(row[37])
-#             match.l_svpt = None if row[38] is None or row[38] == '' else int(row[38])
-#             match.l_1stIn = None if row[39] is None or row[39] == '' else int(row[39])
-#             match.l_1stWon = None if row[40] is None or row[40] == '' else int(row[40])
-#             match.l_2ndWon = None if row[41] is None or row[41] == '' else int(row[41])
-#             match.l_SvGms = None if row[42] is None or row[42] == '' else int(row[42])
-#             match.l_bpSaved = None if row[43] is None or row[43] == '' else int(row[43])
-#             match.l_bpFaced = None if row[44] is None or row[44] == '' else int(row[44])
-#             match.winner_rank = None if row[45] is None or row[45] == '' else int(row[45])
-#             match.winner_rank_points = None if row[46] is None or row[46] == '' else int(row[46])
-#             match.loser_rank = None if row[47] is None or row[47] == '' else int(row[47])
-#             match.loser_rank_points = None if row[48] is None or row[48] == '' else int(row[48])
-#             match.save()
-                
-#             print(match)
-
-
-# @shared_task
-# def get_pinn_odds(task_id):
-#     task = None
-
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
-#         update_time = datetime.datetime.now()
-#         matchup_url = 'https://guest.api.arcadia.pinnacle.com/0.1/sports/33/matchups'
-#         odds_url = 'https://guest.api.arcadia.pinnacle.com/0.1/sports/33/markets/straight?primaryOnly=false'
-#         response = requests.get(matchup_url, headers={'x-api-key': 'CmX2KcMrXuFmNg6YFbmTxE0y9CIrOi0R'})
-        
-#         matchups = response.json()
-#         for matchup in matchups:
-#             if matchup.get('parent') == None and 'special' not in matchup:
-#                 try:
-#                     match = models.PinnacleMatch.objects.get(id=matchup.get('id'))
-#                 except models.PinnacleMatch.DoesNotExist:
-#                     match = models.PinnacleMatch.objects.create(
-#                         id=matchup.get('id'),
-#                         event=matchup.get('league').get('name'),
-#                         home_participant=matchup.get('participants')[0].get('name'),
-#                         away_participant=matchup.get('participants')[1].get('name'),
-#                         start_time=datetime.datetime.strptime(matchup.get('startTime'), '%Y-%m-%dT%H:%M:%SZ')
-#                     )
-
-#         response = requests.get(odds_url, headers={'x-api-key': 'CmX2KcMrXuFmNg6YFbmTxE0y9CIrOi0R'})
-#         odds_list = response.json()
-#         for odds in odds_list:
-#             if odds.get('type') == 'moneyline' and odds.get('period') == 0:
-#                 try:
-#                     match = models.PinnacleMatch.objects.get(id=odds.get('matchupId'))
-#                     (pinnacle_odds, _) = models.PinnacleMatchOdds.objects.get_or_create(
-#                         match=match,
-#                         create_at=update_time
-#                     )
-#                     pinnacle_odds.home_price=odds.get('prices')[0].get('price')
-#                     pinnacle_odds.away_price=odds.get('prices')[1].get('price')
-#                     pinnacle_odds.save()
-#                 except models.PinnacleMatch.DoesNotExist:
-#                     pass
-#             elif odds.get('type') == 'spread' and odds.get('period') == 0:
-#                 try:
-#                     match = models.PinnacleMatch.objects.get(id=odds.get('matchupId'))
-#                     (pinnacle_odds, _) = models.PinnacleMatchOdds.objects.get_or_create(
-#                         match=match,
-#                         create_at=update_time
-#                     )
-#                     if pinnacle_odds.home_spread == 0.0:
-#                         pinnacle_odds.home_spread=odds.get('prices')[0].get('points')
-#                         pinnacle_odds.away_spread=odds.get('prices')[1].get('points')
-#                         pinnacle_odds.save()
-#                 except models.PinnacleMatch.DoesNotExist:
-#                     pass
-
-#         task.status = 'success'
-#         task.content = 'Pinnacle odds updated.'
-#         task.save()
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was a problem finding matches for slate: {e}'
-#             task.save()
-
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-# @shared_task
-# def find_slate_matches(slate_id, task_id):
-#     task = None
-
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
-
-#         # Task implementation goes here
-#         slate = models.Slate.objects.get(id=slate_id)
-#         slate.find_matches()
-
-#         task.status = 'success'
-#         task.content = f'{slate.matches.all().count()} matches found'
-#         task.save()
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was a problem finding matches for slate: {e}'
-#             task.save()
-
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
 
 @shared_task
 def process_slate_players(slate_id, task_id):
@@ -1601,573 +1477,6 @@ def process_slate_players(slate_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-# @shared_task
-# def simulate_match(match_id, task_id):
-#     task = None
-
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
-
-#         slate_match = models.SlateMatch.objects.get(id=match_id)
-#         common_opponents = models.Player.objects.filter(
-#             id__in=slate_match.common_opponents(slate_match.surface)
-#         )
-
-#         def getBigPointProb(server):
-#             if server==p1:
-#                 return p1_big_point
-#             elif server==p2:
-#                 return p2_big_point
-#             else:
-#                 print("Error")
-                
-#         def isBigPoint(server_points, returner_points, tiebreak):
-#             #server_next_point = server_points+1
-#             server_next_point = server_points
-#             #print(server_next_point)
-#             if tiebreak==False:
-#                 if server_next_point >= 3 and (server_next_point - returner_points) >= 1:
-#                     # print("game point")
-#                     return True
-#             else:
-#                 if server_next_point >= 6 and abs(server_next_point - returner_points) >= 1:
-#                     # print("set point")
-#                     return True
-
-#         def getScore(pointsServer, pointsReturner, server_games, returner_games, completed_sets, tiebreaker):
-#             in_game = ['15', '30', '40']
-#             extra = ['D', 'A']
-            
-#             display_server='0'
-#             display_returner='0'
-            
-#             if tiebreaker==False:
-#                 if pointsServer==0:
-#                     display_server='0'
-#                 elif pointsServer>0 and pointsServer<4:
-#                     display_server=in_game[pointsServer-1]
-#                 elif pointsServer>=4:
-#                     #clean_pointsServer = pointsServer-4
-#                     display_server = 'D'
-
-#                 if pointsReturner==0:
-#                     display_returner='0'
-#                 elif pointsReturner>0 and pointsReturner<4:
-#                     display_returner=in_game[pointsReturner-1]
-#                 elif pointsReturner>=4:
-#                     #clean_pointsReturner = pointsReturner-4
-#                     display_returner = 'D'
-                
-#                 if (pointsServer>=4 and pointsReturner<4) or (pointsServer<4 and pointsReturner>=4):
-#                     display_server='D'
-#                     display_returner='D'
-
-#                 if display_server=='D' and display_server=='D':
-#                     if pointsServer>pointsReturner:
-#                         display_server='A'
-#                     elif pointsReturner>pointsServer:
-#                         display_returner='A'
-
-#                 if (display_server=='A' and display_returner=='A') or (display_server=='40' and display_returner=='40'):
-#                     display_server = 'D'
-#                     display_returner = 'D'
-#                 if (display_server=='A' and display_returner=='40'):
-#                     display_server = 'A'
-#                     display_returner = 'D'
-#                 if (display_server=='40' and display_returner=='A'):
-#                     display_server = 'D'
-#                     display_returner = 'A'
-#             else:
-#                 display_server = str(pointsServer)
-#                 display_returner = str(pointsReturner)
-            
-#             if len(completed_sets)==0:
-#                 pass
-#                 # print(display_server+"-"+display_returner+"|"+"["+str(server_games)+"-"+str(returner_games)+"]")
-#             else:
-#                 completed = ""
-#                 for sets in completed_sets:
-#                     completed = completed+" "+str(sets[0])+":"+str(sets[1])
-#                 # print(display_server+"-"+display_returner+"|"+str(completed)+"["+str(server_games)+":"+str(returner_games)+"]")
-
-#         def player_serve(server, returner, server_prob, returner_prob, gamesMatch, S, server_points_match, returner_points_match, server_games, returner_games, server_pointsGame, returner_pointsGame, completed_sets):
-#             ace = False
-#             double_fault = False
-#             broken = False
-
-#             if isBigPoint(server_pointsGame, returner_pointsGame, False):
-#                 server_prob = getBigPointProb(server)
-#             if random() < server_prob:
-#                 # print(server+" ", end = "")
-#                 getScore(server_pointsGame, returner_pointsGame, server_games, returner_games, completed_sets, False)
-#                 server_pointsGame += 1
-#                 server_points_match += 1
-
-#                 if (server == p1 and random() < p1_ace) or (server == p2 and random() < p2_ace):
-#                     ace = True
-#             else:
-#                 # print(server+" ", end = "")
-#                 getScore(server_pointsGame, returner_pointsGame, server_games, returner_games, completed_sets, False)
-#                 returner_pointsGame += 1
-#                 returner_points_match += 1
-
-#                 if (server == p1 and random() < p1_df) or (server == p2 and random() < p2_df):
-#                     double_fault = True
-            
-#             # If this point ended a game, calculate game values
-#             if max(server_pointsGame, returner_pointsGame) >= 4 and abs(server_pointsGame - returner_pointsGame) > 1:
-#                 # print("\t", server + ":", str(server_pointsGame) + ",", returner + ":", returner_pointsGame, end = "")
-#                 if server_pointsGame > returner_pointsGame:
-#                     server_games += 1
-#                     # print()
-#                 else:
-#                     returner_games += 1
-#                     broken = True
-#                 gamesMatch += 1
-#                 return server_games, returner_games, gamesMatch, S, server_points_match, returner_points_match, server_pointsGame, returner_pointsGame, ace, double_fault, broken
-
-#             return server_games, returner_games, gamesMatch, S, server_points_match, returner_points_match, server_pointsGame, returner_pointsGame, ace, double_fault, broken
-
-#         def simulateSet(a, b, gamesMatch, S, pointsMatch1, pointsMatch2, completed_sets):
-#             S += 1
-#             gamesSet1 = 0
-#             gamesSet2 = 0
-#             breaks1, breaks2 = 0, 0
-#             aces1, aces2 = 0, 0
-#             doubles1, doubles2 = 0, 0
-#             while (max(gamesSet1, gamesSet2) < 6 or abs(gamesSet1 - gamesSet2) < 2) and gamesSet1 + gamesSet2 < 12: #Conditions to play another Game in this Set
-#                 pointsGame1 = 0
-#                 pointsGame2 = 0
-#                 #player 1 serves
-#                 while gamesMatch % 2 == 0:
-#                     gamesSet1, gamesSet2, gamesMatch, S, pointsMatch1, pointsMatch2, pointsGame1, pointsGame2, ace, double_fault, broken = player_serve(p1, p2, a, b, gamesMatch, S, pointsMatch1, pointsMatch2, gamesSet1, gamesSet2, pointsGame1, pointsGame2, completed_sets)
-#                     if ace:
-#                         aces1 += 1
-#                     if double_fault:
-#                         doubles1 += 1
-#                     if broken:
-#                         breaks2 += 1
-                    
-#                 pointsGame1 = 0
-#                 pointsGame2 = 0
-#                 #player 2 serves, but we also incorporate in logic to end the set
-#                 while gamesMatch % 2 == 1 and (max(gamesSet1, gamesSet2) < 6 or abs(gamesSet1 - gamesSet2) < 2) and gamesSet1 + gamesSet2 < 12:
-#                     gamesSet2, gamesSet1, gamesMatch, S, pointsMatch2, pointsMatch1, pointsGame2, pointsGame1, ace, double_fault, broken = player_serve(p2, p1, b, a, gamesMatch, S, pointsMatch2, pointsMatch1, gamesSet2, gamesSet1, pointsGame2, pointsGame1, completed_sets)
-#                     if ace:
-#                         aces2 += 1
-#                     if double_fault:
-#                         doubles2 += 1
-#                     if broken:
-#                         breaks1 += 1
-#             #at 6 games all we go to a tie breaker
-#             # if gamesSet1 == 6 and gamesSet2 == 6:
-#             #     print("Set", S, "is 6-6 and going to a Tiebreaker.")
-            
-#             return gamesSet1, gamesSet2, gamesMatch, S, pointsMatch1, pointsMatch2, aces1, aces2, doubles1, doubles2, breaks1, breaks2
-
-#         def simulateTiebreaker(player1, player2, a, b, gamesMatch, pointsMatch1, pointsMatch2, completed_sets):
-#             pointsTie1, pointsTie2 = 0, 0
-#             aces1, aces2 = 0, 0
-#             doubles1, doubles2 = 0, 0
-
-#             while max(pointsTie1, pointsTie2) < 7 or abs(pointsTie1 - pointsTie2) < 2:
-#                 #player 1 will server first
-#                 if gamesMatch % 2 == 0:
-#                     while (pointsTie1 + pointsTie2) % 4 == 0 or (pointsTie1 + pointsTie2) % 4 == 3:
-#                         server_prob = a
-#                         if isBigPoint(pointsTie1, pointsTie2, True):
-#                             server_prob=getBigPointProb(player1)
-#                         if random() < server_prob:
-#                             # print(player1+" ", end = "")
-#                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
-#                             pointsTie1 += 1
-#                             pointsMatch1 += 1
-
-#                             if random() < p1_ace:
-#                                 aces1 += 1
-#                         else:
-#                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
-#                             pointsTie2 += 1
-#                             pointsMatch2 += 1
-
-#                             if random() < p1_df:
-#                                 doubles1 += 1
-#                         if max(pointsTie1, pointsTie2) >= 7 and abs(pointsTie1 - pointsTie2) > 1:
-#                             # print("\t", p1 + ":", str(pointsTie1) + ",", p2 + ":", pointsTie2)
-#                             gamesMatch += 1
-#                             break 
-#                     while (max(pointsTie1, pointsTie2) < 7 or abs(pointsTie1 - pointsTie2) < 2) and ((pointsTie1 + pointsTie2) % 4 == 1 or (pointsTie1 + pointsTie2) % 4 == 2): # Conditions to continue Tiebreaker (race to 7, win by 2) and Player 2 serves (points 4N+1 and 4N+2)
-#                         server_prob = b
-#                         if isBigPoint(pointsTie2, pointsTie1, True):
-#                             server_prob=getBigPointProb(player2)
-#                         if random() < server_prob:
-#                             #print(player2+" ", end = "")
-#                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
-#                             pointsTie2 += 1
-#                             pointsMatch2 += 1
-
-#                             if random() < p2_ace:
-#                                 aces2 += 1
-#                         else:
-#                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
-#                             pointsTie1 += 1
-#                             pointsMatch1 += 1
-
-#                             if random() < p2_df:
-#                                 doubles2 += 1
-#                         if max(pointsTie1, pointsTie2) >= 7 and abs(pointsTie1 - pointsTie2) > 1:
-#                             # print("\t", p1 + ":", str(pointsTie1) + ",", p2 + ":", pointsTie2)
-#                             break
-                
-#                 #player 2 will server first
-#                 if gamesMatch % 2 == 1:
-#                     while (pointsTie1 + pointsTie2) % 4 == 1 or (pointsTie1 + pointsTie2) % 4 == 2:
-#                         server_prob =  a
-#                         if isBigPoint(pointsTie1, pointsTie2, True):
-#                             server_prob=getBigPointProb(player1)
-#                         if random() < server_prob:
-#                             #print(player1+" ", end = "")
-#                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
-#                             pointsTie1 += 1
-#                             pointsMatch1 += 1
-
-#                             if random() < p1_ace:
-#                                 aces1 += 1
-#                         else:
-#                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
-#                             pointsTie2 += 1
-#                             pointsMatch2 += 1
-
-#                             if random() < p1_df:
-#                                 doubles1 += 1
-#                         # if max(pointsTie1, pointsTie2) >= 7 and abs(pointsTie1 - pointsTie2) > 1:
-#                         #     print("\t", p1 + ":", str(pointsTie1) + ",", p2 + ":", pointsTie2)
-#                         #     break 
-#                     while (max(pointsTie2, pointsTie1) < 7 or abs(pointsTie1 - pointsTie2) < 2) and ((pointsTie1 + pointsTie2) % 4 == 0 or (pointsTie1 + pointsTie2) % 4 == 3): # Conditions to continue Tiebreaker (race to 7, win by 2) and Player 2 serves (points 4N and 4N+3)
-#                         server_prob =  b
-#                         if isBigPoint(pointsTie2, pointsTie1, True):
-#                             server_prob=getBigPointProb(player2)
-#                         if random() < server_prob:
-#                             #print(player2+" ", end = "")
-#                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
-#                             pointsTie2 += 1
-#                             pointsMatch2 += 1
-
-#                             if random() < p2_ace:
-#                                 aces2 += 1
-#                         else:
-#                             getScore(pointsTie1, pointsTie2, 6, 6, completed_sets, True)
-#                             pointsTie1 += 1
-#                             pointsMatch1 += 1
-
-#                             if random() < p2_df:
-#                                 doubles2 += 1
-#                         # if max(pointsTie1, pointsTie2) >= 7 and abs(pointsTie1 - pointsTie2) > 1:
-#                         #     print("\t", p1 + ":", str(pointsTie1) + ",", p2 + ":", pointsTie2)
-#                         #     break                             
-#             gamesMatch += 1
-#             return pointsTie1, pointsTie2, gamesMatch, pointsMatch1, pointsMatch2, aces1, aces2, doubles1, doubles2
-
-#         def printSetMatchSummary(p1, p2, gamesSet1, gamesSet2, S, pointsTie1, pointsTie2, setsMatch1, setsMatch2):
-#             if gamesSet1 > gamesSet2:
-#                 setsMatch1 += 1
-#                 # print(p1.upper(), "wins Set", str(S) + ":", gamesSet1, "games to", str(gamesSet2) + ".")
-#             elif gamesSet2 > gamesSet1:
-#                 setsMatch2 += 1
-#                 # print(p2.upper(), "wins Set", str(S) + ":", gamesSet2, "games to", str(gamesSet1) + ".")
-#             elif gamesSet1 == gamesSet2:
-#                 if pointsTie1 > pointsTie2:
-#                     setsMatch1 += 1
-#                     # print(p1.upper(), "wins Set", str(S) + ": 7 games to 6 (" + str(pointsTie1) + "-" + str(pointsTie2) + ").")
-#                 else:
-#                     setsMatch2 += 1
-#                     # print(p2.upper(), "wins Set", str(S) + ": 7 games to 6 (" + str(pointsTie2) + "-" + str(pointsTie1) + ").")
-#             # print("After", S, "Sets:", p1, str(setsMatch1) + ",", p2, str(setsMatch2) + ".\n")   
-#             return setsMatch1, setsMatch2
-
-#         def pointsMatchSummary(p1, p2, setsMatch1, setsMatch2, pointsMatch1, pointsMatch2):
-#             if setsMatch1 == sets_to_win:
-#                 # print(p1.upper(), "(" + str(a) + ")", "beat", p2, "(" + str(b) + ") by", setsMatch1, "Sets to", str(setsMatch2) + ".")
-#                 return p1
-#             else:
-#                 # print(p2.upper(), "(" + str(b) + ")", "beat", p1, "(" + str(a) + ") by", setsMatch2, "Sets to", str(setsMatch1) + ".")
-#                 return p2
-
-#         #initialize player one and two
-#         #a is ps1 and b is ps2
-#         #p1_big_point and p2_big_point are the probability
-#         #of p1 and p2 winning on a big point, respectively
-#         try:
-#             alias1 = models.Alias.objects.get(pinn_name=slate_match.match.home_participant)
-#         except models.Alias.DoesNotExist:
-#             print(f'{slate_match.home_participant} does not have an alias.')
-#             return
-#         try:
-#             alias2 = models.Alias.objects.get(pinn_name=slate_match.match.away_participant)
-#         except models.Alias.DoesNotExist:
-#             print(f'{slate_match.away_participant} does not have an alias.')
-#             return
-
-#         player_1 = alias1.player
-#         player_2 = alias2.player
-#         p1 = player_1.full_name
-#         p2 = player_2.full_name
-
-#         if common_opponents.count() >= 3:
-#             a_points_won = [
-#                 player_1.get_points_won_rate(
-#                     vs_opponent=common_opponent,
-#                     timeframe_in_weeks=52*2,
-#                     on_surface=slate_match.surface
-#                 ) for common_opponent in common_opponents        
-#             ]
-#             b_points_won = [
-#                 player_2.get_points_won_rate(
-#                     vs_opponent=common_opponent,
-#                     timeframe_in_weeks=52*2,
-#                     on_surface=slate_match.surface
-#                 ) for common_opponent in common_opponents        
-#             ]
-
-#             spw_a = [d.get('spw') for d in a_points_won if d is not None]
-#             spw_b = [d.get('spw') for d in b_points_won if d is not None]
-
-#             a = numpy.average(spw_a)
-#             b = numpy.average(spw_b)
-
-#             p1_ace = player_1.get_ace_pct()
-#             p2_ace = player_2.get_ace_pct()
-#             p1_df = player_1.get_df_pct()
-#             p2_df = player_2.get_df_pct()
-#         else:
-#             a = player_1.get_points_won_rate(
-#                 timeframe_in_weeks=52*2,
-#                 on_surface=slate_match.surface
-#             ).get('spw')
-#             b = player_2.get_points_won_rate(
-#                 timeframe_in_weeks=52*2,
-#                 on_surface=slate_match.surface
-#             ).get('spw')
-
-#             p1_ace = player_1.get_ace_pct(timeframe=52*2)
-#             p2_ace = player_2.get_ace_pct(timeframe=52*2)
-#             p1_df = player_1.get_df_pct(timeframe=52*2)
-#             p2_df = player_2.get_df_pct(timeframe=52*2)
-
-#         p1_big_point = a
-#         p2_big_point = b
-
-#         best_of = slate_match.best_of
-#         sets_to_win = math.ceil(best_of/2)
-#         p1_wins = 0
-#         p2_wins = 0
-#         p1_scores = []
-#         p2_scores = []
-#         w_p1_scores = []
-#         w_p2_scores = []
-
-#         for _ in range(0, 10000):
-#             completed_sets = []
-#             S = 0
-#             gamesMatch = 0
-
-#             #in all subscripted variables
-#             #the subscript refers to the player
-#             #for example, setsMatch1 is sets won by player1 and
-#             #setsMatch2 is sets won by player2
-#             pointsMatch1, pointsMatch2 = 0, 0
-#             gamesMatch1, gamesMatch2 = 0, 0
-#             setsMatch1, setsMatch2 = 0, 0
-#             pointsTie1, pointsTie2 = 0, 0
-#             pointsGame1, pointsGame2 = 0, 0
-#             total_breaks1, total_breaks2 = 0, 0
-#             total_aces1, total_aces2 = 0, 0
-#             total_doubles1, total_doubles2 = 0, 0
-#             clean_sets1, clean_sets2 = 0, 0
-
-#             while S < best_of and max(setsMatch1, setsMatch2) < sets_to_win:
-#                 gamesSet1, gamesSet2, gamesMatch, S, pointsMatch1, pointsMatch2, aces1, aces2, doubles1, doubles2, breaks1, breaks2 = simulateSet(a, b, gamesMatch, S, 
-#                     pointsMatch1, pointsMatch2, 
-#                     completed_sets
-#                 )
-#                 total_aces1 += aces1
-#                 total_aces2 += aces2
-#                 total_doubles1 += doubles1
-#                 total_doubles2 += doubles2
-#                 total_breaks1 += breaks1
-#                 total_breaks2 += breaks2
-
-#                 if gamesSet1 == 0:
-#                     clean_sets2 += 1
-#                 elif gamesSet2 == 0:
-#                     clean_sets1 += 1
-
-#                 # print()
-#                 if gamesSet1 == 6 and gamesSet2 == 6:
-#                     pointsTie1, pointsTie2, gamesMatch, pointsMatch1, pointsMatch2, aces1, aces2, doubles1, doubles2 = simulateTiebreaker(p1, p2, a, b, 
-#                         gamesMatch, pointsMatch1, 
-#                         pointsMatch2, 
-#                         completed_sets
-#                     )
-#                     total_aces1 += aces1
-#                     total_aces2 += aces2
-#                     total_doubles1 += doubles1
-#                     total_doubles2 += doubles2
-                
-#                 setsMatch1, setsMatch2 = printSetMatchSummary(p1, p2, gamesSet1, gamesSet2, 
-#                                                             S, pointsTie1, pointsTie2, 
-#                                                             setsMatch1, setsMatch2)
-                
-#                 if gamesSet1 == 6 and gamesSet2 == 6:
-#                     if pointsTie1 > pointsTie2:
-#                         completed_sets.append([gamesSet1+1, gamesSet2])
-#                     else:
-#                         completed_sets.append([gamesSet1, gamesSet2+1])
-#                 else:
-#                     completed_sets.append([gamesSet1, gamesSet2])
-
-#                 gamesMatch1 += gamesSet1
-#                 gamesMatch2 += gamesSet2
-
-#             scoring = models.SITE_SCORING.get(slate_match.slate.site).get(str(slate_match.best_of))
-#             winner = pointsMatchSummary(p1, p2, setsMatch1, setsMatch2, pointsMatch1, pointsMatch2)
-            
-#             # print(scoring)
-#             # print(f'gamesMatch1 = {gamesMatch1}')
-#             # print(f'gamesMatch2 = {gamesMatch2}')
-#             # print(f'setsMatch1 = {setsMatch1}')
-#             # print(f'setsMatch2 = {setsMatch2}')
-#             # print(f'total_aces1 = {total_aces1}')
-#             # print(f'total_aces2 = {total_aces2}')
-#             # print(f'total_doubles1 = {total_doubles1}')
-#             # print(f'total_doubles2 = {total_doubles2}')
-#             # print(f'total_breaks1 = {total_breaks1}')
-#             # print(f'total_breaks2 = {total_breaks2}')
-
-#             # base scoring
-#             score1 = scoring.get('match_played') + (scoring.get('game_won') * gamesMatch1) + (scoring.get('game_lost') * gamesMatch2) + (scoring.get('set_won') * setsMatch1) + (scoring.get('set_lost') * setsMatch2) + (scoring.get('ace') * total_aces1) + (scoring.get('double_fault') * total_doubles1) + (scoring.get('break') * total_breaks1)
-#             score2 = scoring.get('match_played') + (scoring.get('game_won') * gamesMatch2) + (scoring.get('game_lost') * gamesMatch1) + (scoring.get('set_won') * setsMatch2) + (scoring.get('set_lost') * setsMatch1) + (scoring.get('ace') * total_aces2) + (scoring.get('double_fault') * total_doubles2) + (scoring.get('break') * total_breaks2)
-
-#             # winner scoring
-#             if winner == p1:
-#                 p1_wins += 1
-#                 score1 += scoring.get('match_won')
-
-#                 if setsMatch2 == 0:
-#                     score1 += scoring.get('straight_sets')
-#             else:
-#                 p2_wins += 1
-#                 score2 += scoring.get('match_won')
-
-#                 if setsMatch1 == 0:
-#                     score2 += scoring.get('straight_sets')
-                
-#             # bonuses
-#             score1 += scoring.get('clean_set') * clean_sets1
-#             score2 += scoring.get('clean_set') * clean_sets2
-
-#             if total_doubles1 == 0:
-#                 score1 += scoring.get('no_double_faults')
-#             if total_doubles2 == 0:
-#                 score2 += scoring.get('no_double_faults')
-
-#             if total_aces1 >= scoring.get('aces_threshold'):
-#                 score1 += scoring.get('aces')
-#             if total_aces2 >= scoring.get('aces_threshold'):
-#                 score2 += scoring.get('aces')
-
-#             p1_scores.append(score1)
-#             p2_scores.append(score2)
-
-#             if winner == p1:
-#                 w_p1_scores.append(score1)
-#             else:
-#                 w_p2_scores.append(score2)
-
-#         projection1 = models.SlatePlayerProjection.objects.get(
-#             slate_player__slate=slate_match.slate,
-#             slate_player__name=alias1.get_alias(slate_match.slate.site)
-#         )
-#         projection1.sim_scores = p1_scores
-#         projection1.w_sim_scores = w_p1_scores
-#         projection1.projection = numpy.median(p1_scores)
-#         projection1.ceiling = numpy.percentile([float(i) for i in p1_scores], 90)
-#         projection1.s75 = numpy.percentile([float(i) for i in p1_scores], 75)
-#         projection1.sim_win_pct = p1_wins/10000
-#         projection1.save()
-        
-#         projection2 = models.SlatePlayerProjection.objects.get(
-#             slate_player__slate=slate_match.slate,
-#             slate_player__name=alias2.get_alias(slate_match.slate.site)
-#         )
-#         projection2.sim_scores = p2_scores
-#         projection2.w_sim_scores = w_p2_scores
-#         projection2.projection = numpy.median(p2_scores)
-#         projection2.ceiling = numpy.percentile([float(i) for i in p2_scores], 90)
-#         projection2.s75 = numpy.percentile([float(i) for i in p2_scores], 75)
-#         projection2.sim_win_pct = p2_wins/10000
-#         projection2.save()
-
-#         task.status = 'success'
-#         task.content = f'Simulation of {slate_match} complete.'
-#         task.save()
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was a problem simulating {slate_match}: {e}'
-#             task.save()
-
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-# @shared_task
-# def calculate_target_scores(slate_id, task_id):
-#     task = None
-
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
-
-#         # Task implementation goes here
-#         slate = models.Slate.objects.get(id=slate_id)
-#         all_scores = numpy.array(
-#             [
-#                 p.sim_scores for p in models.SlatePlayerProjection.objects.filter(
-#                     slate_player__slate=slate
-#                 )
-#             ]
-#         )
-
-#         n = 8
-#         df_scores = pandas.DataFrame(all_scores, dtype=float)
-#         top_scores = df_scores.max(axis = 0)
-#         target_scores = [df_scores[c].nlargest(n).values[n-1] for c in df_scores.columns]
-
-#         slate.top_score = numpy.mean(top_scores.to_list())
-#         slate.target_score = numpy.mean(target_scores)
-#         slate.save()
-        
-#         task.status = 'success'
-#         task.content = f'Target scores calculated'
-#         task.save()
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was a problem calculating target scores: {e}'
-#             task.save()
-
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task

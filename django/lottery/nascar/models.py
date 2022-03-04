@@ -492,9 +492,12 @@ class RaceSimDriver(models.Model):
     infraction_rate = models.FloatField(default=0.0)
     strategy_factor = models.FloatField(default=0.0)
 
+    sr_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
     fp_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
     ll_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
     fl_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
+    crash_outcomes = ArrayField(models.CharField(max_length=5, null=True), null=True, blank=True)
+    penalty_outcomes = ArrayField(models.CharField(max_length=5, null=True), null=True, blank=True)
 
     avg_fp = models.FloatField(default=0.0)
     avg_ll = models.FloatField(default=0.0)
