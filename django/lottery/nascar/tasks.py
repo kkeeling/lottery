@@ -567,7 +567,8 @@ def execute_sim_iteration(sim_id):
         # print(f'  There are {num_cautions} cautions.')
         # For each caution, assign damage
 
-        for caution in range(0, num_cautions):
+        max_drivers = race_sim.damage_profiles.all().order_by('-max_cars_involved').first().max_cars_involved
+        for _ in range(0, num_cautions):
             c_val = random()
             if c_val <= debris_caution_cutoff:
                 min_cars = -1
@@ -580,7 +581,7 @@ def execute_sim_iteration(sim_id):
                 max_cars = min(6, len(race_drivers))
             else:
                 min_cars = min(7, len(race_drivers))
-                max_cars = min(21, len(race_drivers))
+                max_cars = min(max_drivers, len(race_drivers))
 
             num_cars = max(math.ceil(uniform(min_cars - 1, max_cars)), 0)
             # print(f'Caution {caution + 1}: {num_cars} involved.')
