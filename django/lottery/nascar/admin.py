@@ -250,8 +250,8 @@ class RaceSimLapsLedInline(admin.TabularInline):
         'pct_laps_led_max',
         'cum_laps_led_min',
         'cum_laps_led_max',
-        'eligible_fl_min',
-        'eligible_fl_max',
+        'rank_order',
+        # 'eligible_fl_max',
     )
 
 

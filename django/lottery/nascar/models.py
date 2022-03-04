@@ -470,8 +470,8 @@ class RaceSimLapsLedProfile(models.Model):
     pct_laps_led_max = models.FloatField(default=1.0)
     cum_laps_led_min = models.FloatField(default=0.0)
     cum_laps_led_max = models.FloatField(default=1.0)
-    eligible_fl_min = models.IntegerField(default=1)
-    eligible_fl_max = models.IntegerField(default=1)
+    rank_order = models.IntegerField(default=1)
+    # eligible_fl_max = models.IntegerField(default=1)
 
     def __str__(self):
         return f'Laps Led Profile: {self.pct_laps_led_min * 100}% - {self.pct_laps_led_max * 100}%'
@@ -511,6 +511,10 @@ class RaceSimDriver(models.Model):
 
     def get_scores(self, site):
         sp = self.starting_position
+
+        # only calc score if starting position is set
+        if sp == 0:
+            return 0
 
         count = min(min(len(self.fp_outcomes), len(self.ll_outcomes)), len(self.fl_outcomes))
 

@@ -1005,10 +1005,8 @@ def execute_sim_iteration(sim_id):
         cum_min = int(p.cum_fastest_laps_min * 100)
         cum_max = int(p.cum_fastest_laps_max * 100)
 
-        print(f'p = {p}; pct = {pct}; cum = {cum}')
         while cum + pct < cum_min or cum + pct > cum_max:
             pct = randrange(int(p.pct_fastest_laps_min*100), int(p.pct_fastest_laps_max*100)+1, 1)
-            print(f'p = {p}; pct = {pct}; cum = {cum}')
         
         cum += pct
         v = max(int((pct/100) * fl_laps), 1)
@@ -1051,9 +1049,10 @@ def execute_sim_iteration(sim_id):
     ll_laps = race_sim.race.scheduled_laps
     # ll_vals = [max(int(randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100), 1)/100 * ll_laps), 1) for p in race_sim.ll_profiles.all().order_by('-pct_laps_led_min')]
     
+    # -- First determine the number of LL awarded to each rank
     ll_vals = []
     cum = 0
-    for p in race_sim.ll_profiles.all().order_by('-pct_laps_led_min'):
+    for p in race_sim.ll_profiles.all().order_by('rank_order'):
         pct = randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100)+1, 1) if p.pct_laps_led_min < p.pct_laps_led_max else int(p.pct_laps_led_min*100)
         cum_min = int(p.cum_laps_led_min * 100)
         cum_max = int(p.cum_laps_led_max * 100)
@@ -1070,33 +1069,41 @@ def execute_sim_iteration(sim_id):
         if cum >= 100:  # if we run out before we get to the last profile
             break
 
+    # -- Next find eligible drivers for LL by giving each driver a randbetween(0, FL%), then ranking each driver
+    fl_rank_vals = []
+    for i in range(0, len(driver_fl)):
+        fl_rank_vals.append(randrange(0, driver_fl[i]+1) + random())
+    fl_ranks = len(fl_rank_vals) + 1 - scipy.stats.rankdata(fl_rank_vals, method='ordinal')
+
+    # -- Finally, award FL to drivers based on FL ranks
     ll_laps_remaining = ll_laps
     ll_laps_assigned = []
-    profiles = list(race_sim.ll_profiles.all().order_by('-pct_laps_led_min'))
+    profiles = list(race_sim.ll_profiles.all().order_by('rank_order'))
     for index, ll_val in enumerate(ll_vals):
     # for index, llp in enumerate(race_sim.ll_profiles.all().order_by('-pct_laps_led_min')):
         llp = profiles[index]
-        ll_index = randrange(llp.eligible_fl_min, llp.eligible_fl_max+1)
+        ll_index = int(numpy.where(fl_ranks == llp.rank_order)[0][0])
+        # ll_index = randrange(llp.eligible_fl_min, llp.eligible_fl_max+1)
         # print(f'index = {index}; llp = {llp}; ll_val = {ll_val}; ll_index = {ll_index}')
-        while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
-            ll_index = randrange(llp.eligible_fl_min, llp.eligible_fl_max+1)
+        # while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
+        #     ll_index = randrange(llp.eligible_fl_min, llp.eligible_fl_max+1)
 
-        sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
-        driver_ll[sp_index] = ll_val # ll_vals[index]
+        # sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
+        driver_ll[ll_index] = ll_val # ll_vals[index]
         ll_laps_assigned.append(ll_index)
 
         ll_laps_remaining -= ll_val # ll_vals[index]
         
     # there may be remaining LL, assign using lowest profile in tranches of 5
-    llp = race_sim.ll_profiles.all().order_by('-pct_laps_led_min').last()
+    # llp = race_sim.ll_profiles.all().order_by('-rank_order').last()
     while ll_laps_remaining > 0:
         ll_index = randrange(1, 21)
-        # while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
-        #     ll_index = randrange(1, 21)
+        while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
+            ll_index = randrange(1, 21)
 
-        sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
+        # sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
         ll_val = max(ll_laps_remaining, 5)
-        driver_ll[sp_index] += ll_val
+        driver_ll[ll_index] += ll_val
         ll_laps_assigned.append(ll_index)
 
         # print(driver_ll)
@@ -1232,7 +1239,6 @@ def export_results(sim_id, result_path, result_url, task_id):
             '80p': [numpy.percentile(d.get_scores('draftkings'), float(80)) for d in race_sim.outcomes.all()],
             '90p': [numpy.percentile(d.get_scores('draftkings'), float(90)) for d in race_sim.outcomes.all()],
         }, index=[d.driver.full_name for d in race_sim.outcomes.all()])
-
 
         with pandas.ExcelWriter(result_path) as writer:
             df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
