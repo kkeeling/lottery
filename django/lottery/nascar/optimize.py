@@ -3,7 +3,7 @@ import numpy
 
 from collections import namedtuple
 from pydfs_lineup_optimizer import Site, Sport, Player, get_optimizer, exceptions
-from pydfs_lineup_optimizer.solvers.mip_solver import MIPSolver
+from pydfs_lineup_optimizer.stacks import PlayersGroup
 
 # from draftfast import rules
 # from draftfast.optimize import run_multi
@@ -35,7 +35,7 @@ GameInfo = namedtuple('GameInfo', ['home_team', 'away_team', 'starts_at', 'game_
 #     )
 #     return rosters
 
-def optimize(site, projections, config, num_lineups=150):
+def optimize(site, projections, groups, config, num_lineups=150):
     if site == 'draftkings':
         optimizer = get_optimizer(Site.DRAFTKINGS, Sport.NASCAR)
     elif site == 'fanduel':
@@ -59,6 +59,23 @@ def optimize(site, projections, config, num_lineups=150):
         config=config
     )
     optimizer.load_players(players_list)
+
+    # Groups
+    for group in groups:
+        group_player_list = []
+        for player in group.players.all(): 
+            p = optimizer.get_player_by_id(player.player.slate_player.slate_player_id)
+
+            if p is not None:
+                group_player_list.append(p)
+        
+        if len(group_player_list) > 0:
+            opto_group = PlayersGroup(
+                group_player_list, 
+                min_from_group=group.min_from_group,
+                max_from_group=group.max_from_group
+            )
+            optimizer.add_players_group(opto_group)
 
     lineups = []
 

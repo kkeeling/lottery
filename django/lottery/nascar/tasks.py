@@ -2189,7 +2189,7 @@ def build_lineups(build_id, task_id):
         #     6,
         #     60000
         # )
-        lineups = optimize.optimize(build.slate.site, build.projections.filter(in_play=True), build.configuration, build.total_lineups)
+        lineups = optimize.optimize(build.slate.site, build.projections.filter(in_play=True), build.groups.filter(active=True), build.configuration, build.total_lineups)
 
         for lineup in lineups:
             if build.slate.site == 'draftkings':

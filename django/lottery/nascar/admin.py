@@ -17,6 +17,7 @@ from django.http import HttpResponse
 from django.shortcuts import redirect, get_object_or_404
 from django.urls import path
 from django.utils.html import mark_safe
+from django import forms
 
 from django_admin_listfilter_dropdown.filters import DropdownFilter, RelatedDropdownFilter
 
@@ -24,115 +25,14 @@ from configuration.models import BackgroundTask
 from . import models, tasks
 
 
-# class RetirementFilter(SimpleListFilter):
-#     title = 'loser retired'
-#     parameter_name = 'retired'
+# Forms
 
-#     def lookups(self, request, model_admin):
-#         return (
-#             ('y', 'Retired'),
-#             ('n', 'Not Retired'),
-#         )
-
-#     def queryset(self, request, queryset):
-#         if self.value() == 'y':
-#             return queryset.filter(score__icontains='RET')
-#         elif self.value() == 'n':
-#             return queryset.exclude(score__icontains='RET')
-
-
-# class DKEligibleMatchFilter(SimpleListFilter):
-#     title = 'dk eligible'
-#     parameter_name = 'eligible'
-
-#     def lookups(self, request, model_admin):
-#         return (
-#             (True, 'DK Eligible Only'),
-#         )
-
-#     def queryset(self, request, queryset):
-#         if self.value():
-#             return queryset.exclude(Q(
-#                 Q(w_ace=None) | Q(w_df=None) | Q(l_ace=None) | Q(l_df=None)
-#             ))
-
-
-# class SpecialTourneyFilter(SimpleListFilter):
-#     title = 'Special Tourney'
-#     parameter_name = 'special_tourney'
-
-#     def lookups(self, request, model_admin):
-#         return (
-#             ('y', 'Davis Cup & Olympics Only'),
-#             ('n', 'Exclude Davis Cup & Olympics'),
-#         )
-
-#     def queryset(self, request, queryset):
-#         if self.value() == 'n':
-#             return queryset.exclude(Q(
-#                 Q(tourney_level='D') | Q(tourney_level='O')
-#             ))
-#         elif self.value() == 'y':
-#             return queryset.filter(Q(
-#                 Q(tourney_level='D') | Q(tourney_level='O')
-#             ))
-
-
-# class RecentMatchesFilter(SimpleListFilter):
-#     title = 'recent matches'
-#     parameter_name = 'recent'
-
-#     def lookups(self, request, model_admin):
-#         return (
-#             (True, 'Recent Matches Only'),
-#         )
-
-#     def queryset(self, request, queryset):
-#         if self.value():
-#             return queryset.filter(tourney_date__gte=datetime.date(2010, 1, 1))
-
-
-# class ActivePlayerFilter(SimpleListFilter):
-#     title = 'active players'
-#     parameter_name = 'active'
-
-#     def lookups(self, request, model_admin):
-#         return (
-#             (True, 'Active Players Only'),
-#         )
-
-#     def queryset(self, request, queryset):
-#         if self.value():
-#             endDate = datetime.date.today() - datetime.timedelta(weeks=52)
-#             return queryset.filter(
-#                 Q(
-#                     Q(winning_matches__tourney_date__gte=endDate) | Q(losing_matches__tourney_date__gte=endDate)
-#                 )
-#             ).distinct()
-#         return queryset
-
-
-# class RankingHistoryInline(admin.TabularInline):
-#     model = models.RankingHistory
-
-
-# class SlateMatchInline(admin.TabularInline):
-#     model = models.SlateMatch
-#     extra = 0
-#     fields = (
-#         'match',
-#         'surface',
-#         'best_of',
-#         'common_opponents'
-#     )
-#     readonly_fields = (
-#         'match',
-#         'common_opponents'
-#     )
-
-#     def common_opponents(self, obj):
-#         return models.Player.objects.filter(id__in=obj.common_opponents(obj.surface)).count()
-#     common_opponents.short_description = 'Common Opponents'
+def groupplayerform_factory(build):
+    class GroupPlayerForm(forms.ModelForm):
+        m_file = forms.ModelChoiceField(
+            queryset=models.BuildPlayerProjection.objects.filter(build=build)
+        )
+    return GroupPlayerForm
 
 
 class RaceResultInline(admin.TabularInline):
@@ -267,126 +167,18 @@ class RaceSimFastestLapsInline(admin.TabularInline):
         'eligible_speed_max',
     )
 
-# @admin.register(models.Player)
-# class PlayerAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'full_name',
-#         'tour',
-#         'hand',
-#         'dob',
-#         'country',
-#         'get_num_matches',
-#         'get_ace_rate',
-#         'get_v_ace_rate',
-#         'get_df_rate',
-#         'get_hold_rate',
-#         'get_break_rate',
-#     )
 
-#     list_filter = (
-#         'tour',
-#         'hand',
-#         ('country', DropdownFilter),
-#         ActivePlayerFilter,
-#     )
-    
-#     search_fields = (
-#         'first_name',
-#         'last_name'
-#     )
+class SlateBuildGroupPlayerInline(admin.TabularInline):
+    model = models.SlateBuildGroupPlayer
+    autocomplete_fields = ['player']
 
-#     actions = [
-#     ]
-
-#     inlines = [
-#         RankingHistoryInline
-#     ]
-
-#     def get_num_matches(self, obj):
-#         return obj.get_num_matches()
-#     get_num_matches.short_description = '#'
-
-#     def get_ace_rate(self, obj):
-#         return obj.get_ace_rate()
-#     get_ace_rate.short_description = 'a'
-
-#     def get_v_ace_rate(self, obj):
-#         return obj.get_v_ace_rate()
-#     get_v_ace_rate.short_description = 'v_a'
-
-#     def get_df_rate(self, obj):
-#         return obj.get_df_rate()
-#     get_df_rate.short_description = 'df'
-
-#     def get_first_in_rate(self, obj):
-#         rate = obj.get_first_in_rate()
-#         if rate is not None:
-#             return '{}%'.format(round(rate*100.0, 2))
-#         return rate
-#     get_first_in_rate.short_description = '1stIn'
-
-#     def get_first_won_rate(self, obj):
-#         rate = obj.get_first_won_rate()
-#         if rate is not None:
-#             return '{}%'.format(round(rate*100.0, 2))
-#         return rate
-#     get_first_won_rate.short_description = '1stW'
-
-#     def get_second_won_rate(self, obj):
-#         rate = obj.get_second_won_rate()
-#         if rate is not None:
-#             return '{}%'.format(round(rate*100.0, 2))
-#         return rate
-#     get_second_won_rate.short_description = '2ndW'
-
-#     def get_hold_rate(self, obj):
-#         rate = obj.get_hold_rate()
-#         if rate is not None:
-#             return '{}%'.format(round(rate*100.0, 2))
-#         return rate
-#     get_hold_rate.short_description = 'hld'
-
-#     def get_break_rate(self, obj):
-#         rate = obj.get_break_rate()
-#         if rate is not None:
-#             return '{}%'.format(round(rate*100.0, 2))
-#         return rate
-#     get_break_rate.short_description = 'brk'
+    def get_form(self, request, obj=None, **kwargs):
+        if obj is not None and obj.build is not None:
+            kwargs['form'] = groupplayerform_factory(obj.build)
+        return super(SlateBuildGroupPlayerInline, self).get_form(request, obj, **kwargs)
 
 
-# @admin.register(models.Match)
-# class MatchAdmin(admin.ModelAdmin):
-#     date_hierarchy = 'tourney_date'
-#     list_display = (
-#         'tourney_id',
-#         'tourney_name',
-#         'tourney_level',
-#         'surface',
-#         'round',
-#         'best_of',
-#         'tourney_date',
-#         'winner',
-#         'loser',
-#         'score',
-#         'winner_dk_points',
-#         'loser_dk_points',
-#     )
-
-#     list_filter = (
-#         ('surface', DropdownFilter),
-#         ('best_of', DropdownFilter),
-#         ('winner__tour', DropdownFilter),
-#         RetirementFilter,
-#         DKEligibleMatchFilter,
-#         RecentMatchesFilter,
-#         SpecialTourneyFilter,
-#     )
-
-#     search_fields = (
-#         'winner_name',
-#         'loser_name'
-#     )
-
+# Admins
 
 @admin.register(models.Alias)
 class AliasAdmin(admin.ModelAdmin):
@@ -932,6 +724,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'used_in_contests',
         'configuration',
         'get_projections_link',
+        'get_groups_link',
         'total_lineups',
         'num_lineups_created',
         'get_lineups_link',
@@ -1047,6 +840,10 @@ class SlateBuildAdmin(admin.ModelAdmin):
         return 'None'
     get_lineups_link.short_description = 'Lineups'
 
+    def get_groups_link(self, obj):
+        return mark_safe('<a href="/admin/nascar/slatebuildgroup/?build__id__exact={}">Groups</a>'.format(obj.id))
+    get_groups_link.short_description = 'Groups'
+
 
 @admin.register(models.BuildPlayerProjection)
 class BuildPlayerProjectionAdmin(admin.ModelAdmin):
@@ -1072,6 +869,9 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'min_exposure',
         'max_exposure',
     )
+    search_fields = [
+        'slate_player__name'
+    ]
 
 
     # def get_queryset(self, request):
@@ -1097,6 +897,33 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     #     return '{:.2f}%'.format(float(obj.exposure) * 100.0)
     # get_exposure.short_description = 'Exp'
     # get_exposure.admin_order_field = 'exposure'
+
+
+@admin.register(models.SlateBuildGroup)
+class SlateBuildGroupAdmin(admin.ModelAdmin):
+    list_display = (
+        'name',
+        'min_from_group',
+        'max_from_group',
+        'num_players',
+        'get_players',
+        'active',
+    )
+    raw_id_fields = (
+        'build',
+    )
+    list_editable = (
+        'min_from_group',
+        'max_from_group',
+        'active',
+    )
+    inlines = [
+        SlateBuildGroupPlayerInline
+    ]
+
+    def get_players(self, obj):
+        return mark_safe('<br />'.join(list(obj.players.all().values_list('player__slate_player__name', flat=True))))
+    get_players.short_description = 'players'
 
 
 @admin.register(models.SlateBuildLineup)

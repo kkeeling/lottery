@@ -683,35 +683,35 @@ class BuildPlayerProjection(models.Model):
         return numpy.percentile(self.sim_scores, float(percentile))
 
 
-# class SlateBuildGroup(models.Model):
-#     build = models.ForeignKey(SlateBuild, related_name='groups', on_delete=models.CASCADE)
-#     name = models.CharField(max_length=255)
-#     max_from_group = models.PositiveIntegerField(default=1)
-#     min_from_group = models.PositiveIntegerField(default=0)
-#     active = models.BooleanField(default=True)
+class SlateBuildGroup(models.Model):
+    build = models.ForeignKey(SlateBuild, related_name='groups', on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    max_from_group = models.PositiveIntegerField(default=1)
+    min_from_group = models.PositiveIntegerField(default=0)
+    active = models.BooleanField(default=True)
 
-#     class Meta:
-#         verbose_name = 'Group'
-#         verbose_name_plural = 'Groups'
+    class Meta:
+        verbose_name = 'Group'
+        verbose_name_plural = 'Groups'
     
-#     def __str__(self):
-#         return '{}'.format(self.name)
+    def __str__(self):
+        return '{}'.format(self.name)
 
-#     @property
-#     def num_players(self):
-#         return self.players.all().count()
+    @property
+    def num_players(self):
+        return self.players.all().count()
 
 
-# class SlateBuildGroupPlayer(models.Model):
-#     group = models.ForeignKey(SlateBuildGroup, related_name='players', on_delete=models.CASCADE)
-#     slate_player = models.ForeignKey(SlatePlayer, related_name='groups', on_delete=models.CASCADE)
+class SlateBuildGroupPlayer(models.Model):
+    group = models.ForeignKey(SlateBuildGroup, related_name='players', on_delete=models.CASCADE)
+    player = models.ForeignKey(BuildPlayerProjection, related_name='groups', on_delete=models.CASCADE)
 
-#     class Meta:
-#         verbose_name = 'Player'
-#         verbose_name_plural = 'Players'
+    class Meta:
+        verbose_name = 'Player'
+        verbose_name_plural = 'Players'
     
-#     def __str__(self):
-#         return '{}'.format(self.slate_player)
+    def __str__(self):
+        return '{}'.format(self.player)
  
         
 class SlateBuildLineup(models.Model):
