@@ -1220,9 +1220,9 @@ def export_results(sim_id, result_path, result_url, task_id):
         fp_list = []
         for fp in range(1, race_sim.outcomes.count()+1):
             fp_list.append(
-                [df_fp[d.driver.full_name].value_counts()[fp] if fp in df_fp[d.driver.full_name].value_counts() else 0 for d in race_sim.outcomes.all().order_by('starting_position')]
+                [df_fp[d.driver.full_name].value_counts()[fp] if fp in df_fp[d.driver.full_name].value_counts() else 0 for d in race_sim.outcomes.all().order_by('starting_position', 'id')]
             )
-        df_fp_results = pandas.DataFrame(fp_list, index=range(0, race_sim.outcomes.count()), columns=list(race_sim.outcomes.all().order_by('starting_position').values_list('driver__full_name', flat=True)))
+        df_fp_results = pandas.DataFrame(fp_list, index=range(0, race_sim.outcomes.count()), columns=list(race_sim.outcomes.all().order_by('starting_position', 'id').values_list('driver__full_name', flat=True)))
 
         # FL distribution
         df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
