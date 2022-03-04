@@ -525,8 +525,8 @@ def execute_sim_iteration(sim_id):
 
     driver_fl = [0 for driver in drivers]
     driver_ll = [0 for driver in drivers]
-    driver_damage = [None for driver in drivers]
-    driver_penalty = [None for driver in drivers]
+    # driver_damage = [None for driver in drivers]
+    # driver_penalty = [None for driver in drivers]
 
     minor_damage_drivers = []
     medium_damage_drivers = []
@@ -706,10 +706,10 @@ def execute_sim_iteration(sim_id):
                     # Did driver have a penalty?
                     if driver in stage_1_green_penalty_drivers:
                         driver_s1_penalties[index] = 'G'
-                        driver_penalty[index] = '1G'
+                        # driver_penalty[index] = '1G'
                     elif driver in stage_1_yellow_penalty_drivers:
                         driver_s1_penalties[index] = 'Y'
-                        driver_penalty[index] = '1Y'
+                        # driver_penalty[index] = '1Y'
 
                     # flr = driver.speed_min
                     # ceil = driver.speed_max
@@ -717,10 +717,10 @@ def execute_sim_iteration(sim_id):
                     # Did driver have a penalty?
                     if driver in stage_2_green_penalty_drivers:
                         driver_s2_penalties[index] = 'G'
-                        driver_penalty[index] = '2G'
+                        # driver_penalty[index] = '2G'
                     elif driver in stage_2_yellow_penalty_drivers:
                         driver_s2_penalties[index] = 'Y'
-                        driver_penalty[index] = '2Y'
+                        # driver_penalty[index] = '2Y'
 
                     # flr = driver_s1_mins[index]
                     # ceil = driver_s1_maxes[index]
@@ -728,10 +728,10 @@ def execute_sim_iteration(sim_id):
                     # Did driver have a penalty?
                     if driver in stage_3_green_penalty_drivers:
                         driver_s3_penalties[index] = 'G'
-                        driver_penalty[index] = '3G'
+                        # driver_penalty[index] = '3G'
                     elif driver in stage_3_yellow_penalty_drivers:
                         driver_s3_penalties[index] = 'Y'
-                        driver_penalty[index] = '3Y'
+                        # driver_penalty[index] = '3Y'
 
                     # flr = driver_s2_mins[index]
                     # ceil = driver_s2_maxes[index]
@@ -739,10 +739,10 @@ def execute_sim_iteration(sim_id):
             # Did driver have a penalty?
                     if driver in stage_4_green_penalty_drivers:
                         driver_s4_penalties[index] = 'G'
-                        driver_penalty[index] = '4G'
+                        # driver_penalty[index] = '4G'
                     elif driver in stage_4_yellow_penalty_drivers:
                         driver_s4_penalties[index] = 'Y'
-                        driver_penalty[index] = '4Y'
+                        # driver_penalty[index] = '4Y'
 
                     # flr = driver_s3_mins[index]
                     # ceil = driver_s3_maxes[index]
