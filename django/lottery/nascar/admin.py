@@ -420,7 +420,7 @@ class RaceSimAdmin(admin.ModelAdmin):
         RaceSimLapsLedInline,
         RaceSimDriverInline
     ]
-    actions = ['export_results']
+    actions = ['calculate_driver_gto', 'export_results']
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -549,6 +549,25 @@ class RaceSimAdmin(admin.ModelAdmin):
             f'Export FP outcomes for {queryset.count()} races'
         )
     export_results.short_description = 'Export Results for selected sim'
+
+    def calculate_driver_gto(self, request, queryset):
+        jobs = [
+            tasks.find_driver_gto.si(
+                sim.id,
+                BackgroundTask.objects.create(
+                    name=f'Find driver GTO for {sim}',
+                    user=request.user
+                ).id
+            ) for sim in queryset
+        ]
+        group(jobs)()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Finding driver GTO for {queryset.count()} races'
+        )
+    calculate_driver_gto.short_description = 'Calculate Driver GTO'
 
 @admin.register(models.SlateBuildConfig)
 class ConfigAdmin(admin.ModelAdmin):

@@ -521,7 +521,7 @@ class RaceSimDriver(models.Model):
 
         count = min(min(len(self.fp_outcomes), len(self.ll_outcomes)), len(self.fl_outcomes))
 
-        return [(SITE_SCORING.get(site).get('place_differential') * (self.fp_outcomes[index] - sp) + SITE_SCORING.get(site).get('fastest_laps') * self.fl_outcomes[index] + SITE_SCORING.get(site).get('laps_led') * self.ll_outcomes[index] + SITE_SCORING.get(site).get('finishing_position').get(str(self.fp_outcomes[index]))) for index in range(0, count)]
+        return [(SITE_SCORING.get(site).get('place_differential') * (sp - self.fp_outcomes[index]) + SITE_SCORING.get(site).get('fastest_laps') * self.fl_outcomes[index] + SITE_SCORING.get(site).get('laps_led') * self.ll_outcomes[index] + SITE_SCORING.get(site).get('finishing_position').get(str(self.fp_outcomes[index]))) for index in range(0, count)]
 
 
 # DFS Slates

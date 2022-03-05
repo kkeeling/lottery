@@ -1230,42 +1230,37 @@ def sim_execution_complete(results, sim_id, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-# @shared_task
-# def find_driver_gto(sim_id, task_id):
-#     task = None
+@shared_task
+def find_driver_gto(sim_id, task_id):
+    task = None
 
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
         
-#         race_sim = models.RaceSim.objects.get(id=sim_id)
-#         scores = [d.get_scores('draftkings') for d in race_sim.outcomes.all()]
+        race_sim = models.RaceSim.objects.get(id=sim_id)
+        scores = [d.get_scores('draftkings') for d in race_sim.outcomes.all()]
 
-#         # DK
-#         df_dk = pandas.DataFrame(data={
-#             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
-#             'score': [d.get_scores('draftkings') for d in race_sim.outcomes.all()],
-#             '60p': [numpy.percentile(d.get_scores('draftkings'), float(60)) for d in race_sim.outcomes.all()],
-#             '70p': [numpy.percentile(d.get_scores('draftkings'), float(70)) for d in race_sim.outcomes.all()],
-#             '80p': [numpy.percentile(d.get_scores('draftkings'), float(80)) for d in race_sim.outcomes.all()],
-#             '90p': [numpy.percentile(d.get_scores('draftkings'), float(90)) for d in race_sim.outcomes.all()],
-#         }, index=[d.driver.full_name for d in race_sim.outcomes.all()])
+        # DK
+        df_dk = pandas.DataFrame(scores, index=[d.driver.full_name for d in race_sim.outcomes.all()])
+        df_dk['sal'] = [d.dk_salary for d in race_sim.outcomes.all()]
+        print(df_dk)
 
-#         task.status = 'success'
-#         task.content = f'GTO for {race_sim} complete.'
-#         task.save()
+        task.status = 'success'
+        task.content = f'GTO for {race_sim} complete.'
+        task.save()
 
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was an error finding driver GTO exposures: {e}'
-#             task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error finding driver GTO exposures: {e}'
+            task.save()
 
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task
@@ -1385,19 +1380,22 @@ def process_build(build_id, task_id):
                 slate_player=slate_player,
                 build=build
             )
-            sim_driver = build.sim.outcomes.get(driver=slate_player.driver)
-            df_scores = pandas.DataFrame(data={
-                'fp': sim_driver.fp_outcomes,
-                'fl': sim_driver.fl_outcomes,
-                'll': sim_driver.ll_outcomes
-            })
+            try:
+                sim_driver = build.sim.outcomes.get(driver=slate_player.driver)
+                df_scores = pandas.DataFrame(data={
+                    'fp': sim_driver.fp_outcomes,
+                    'fl': sim_driver.fl_outcomes,
+                    'll': sim_driver.ll_outcomes
+                })
 
-            projection.starting_position = sim_driver.starting_position
-            projection.sim_scores = df_scores.apply(get_score, axis=1, site=build.slate.site, sp=sim_driver.starting_position).to_list()
-            projection.projection = numpy.percentile(projection.sim_scores, float(50))
-            projection.ceiling = numpy.percentile(projection.sim_scores, float(90))
-            projection.s75 = numpy.percentile(projection.sim_scores, float(75))
-            projection.save()
+                projection.starting_position = sim_driver.starting_position
+                projection.sim_scores = df_scores.apply(get_score, axis=1, site=build.slate.site, sp=sim_driver.starting_position).to_list()
+                projection.projection = numpy.percentile(projection.sim_scores, float(50))
+                projection.ceiling = numpy.percentile(projection.sim_scores, float(90))
+                projection.s75 = numpy.percentile(projection.sim_scores, float(75))
+                projection.save()
+            except:
+                pass
 
         task.status = 'success'
         task.content = f'{build} processed.'
