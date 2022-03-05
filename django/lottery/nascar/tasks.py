@@ -1354,7 +1354,7 @@ def get_score(row, **kwargs):
     sp = kwargs.get('sp')
 
     fp = row.get('fp')
-    pd = fp - sp
+    pd = sp - fp
     fl = row.get('fl')
     ll = row.get('ll')
 
