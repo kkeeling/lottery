@@ -503,6 +503,8 @@ class RaceSimDriver(models.Model):
     avg_ll = models.FloatField(default=0.0)
     avg_fl = models.FloatField(default=0.0)
 
+    gto = models.FloatField(default=0.0)
+
     def __str__(self):
         return f'{self.driver}'
 

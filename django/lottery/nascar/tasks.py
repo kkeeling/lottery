@@ -27,9 +27,7 @@ from django.db.models import Q, F, ExpressionWrapper, FloatField
 from django.db import transaction
 
 from configuration.models import BackgroundTask
-
-from fanduel import models as fanduel_models
-from yahoo import models as yahoo_models
+from pydfs_lineup_optimizer import Site, Sport, Player, get_optimizer
 
 from . import models
 from . import optimize
@@ -1041,8 +1039,8 @@ def execute_sim_iteration(sim_id):
         flp = profiles[index]
         fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
         # print(f'index = {index}; flp = {flp}; fl_val = {fl_val}; fl_index = {fl_index}')
-        while fl_index in fl_laps_assigned:  # only assign FL to drivers that haven't gotten any yet
-            fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+        # while fl_index in fl_laps_assigned:  # only assign FL to drivers that haven't gotten any yet
+        #     fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
 
         sp_index = int(numpy.where(final_ranks == fl_index)[0][0])
         driver_fl[sp_index] = fl_val # fl_vals[index]
@@ -1116,8 +1114,8 @@ def execute_sim_iteration(sim_id):
     # llp = race_sim.ll_profiles.all().order_by('-rank_order').last()
     while ll_laps_remaining > 0:
         ll_index = randrange(1, 21)
-        while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
-            ll_index = randrange(1, 21)
+        # while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
+        #     ll_index = randrange(1, 21)
 
         # sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
         ll_val = min(ll_laps_remaining, 5)
@@ -1242,12 +1240,84 @@ def find_driver_gto(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
-        scores = [d.get_scores('draftkings') for d in race_sim.outcomes.all()]
+        scores = [d.get_scores('draftkings') for d in race_sim.outcomes.all().order_by('starting_position')]
+        jobs = [make_optimals_for_gto.si(s, list(race_sim.outcomes.all().order_by('starting_position').values_list('id', flat=True)), 'draftkings') for s in scores]
 
-        # DK
-        df_dk = pandas.DataFrame(scores, index=[d.driver.full_name for d in race_sim.outcomes.all()])
-        df_dk['sal'] = [d.dk_salary for d in race_sim.outcomes.all()]
-        print(df_dk)
+        chord(
+            group(jobs), 
+            finalize_gto.s(
+                race_sim.id,
+                task_id
+            )
+        )()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error finding driver GTO exposures: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def make_optimals_for_gto(iterations_scores, driver_ids, site):
+    if site == 'fanduel':
+        optimizer = get_optimizer(Site.FANDUEL, Sport.NASCAR)
+    else:
+        optimizer = get_optimizer(Site.DRAFTKINGS, Sport.NASCAR)
+
+    drivers = models.RaceSim.objects.filter(id__in=driver_ids)
+    player_list = []
+
+    for index, driver in enumerate(drivers):
+        if ' ' in driver.driver.full_name:
+            first = driver.driver.full_name.name.split(' ')[0]
+            last = driver.driver.full_name.name.split(' ')[-1]
+        else:
+            first = driver.driver.full_name.name
+            last = ''
+
+        fppg = iterations_scores[index]
+
+        player = Player(
+            driver.driver.nascar_driver_id,
+            first,
+            last,
+            ['D'],
+            'Nasca',
+            driver.dk_salary if site == 'draftkings' else driver.fd_salary,
+            float(fppg),
+        )
+
+        player_list.append(player)
+
+    optimizer.load_players(player_list)
+
+    optimized_lineups = optimizer.optimize(
+        n=1,
+        randomness=False, 
+    )
+
+    print(optimized_lineups)
+    return [p.id for p in optimized_lineups[0].players]
+
+
+@shared_task
+def finalize_gto(results, sim_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        
+        race_sim = models.RaceSim.objects.get(id=sim_id)
+        df_results = pandas.DataFrame(results)
+        print(df_results)
 
         task.status = 'success'
         task.content = f'GTO for {race_sim} complete.'
