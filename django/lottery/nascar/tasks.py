@@ -1039,8 +1039,8 @@ def execute_sim_iteration(sim_id):
         flp = profiles[index]
         fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
         print(f'index = {index}; flp = {flp}; fl_val = {fl_val}; fl_index = {fl_index}')
-        while fl_index in fl_laps_assigned:  # only assign FL to drivers that haven't gotten any yet
-            fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
+        # while fl_index in fl_laps_assigned:  # only assign FL to drivers that haven't gotten any yet
+        #     fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
 
         sp_index = int(numpy.where(final_ranks == fl_index)[0][0])
         driver_fl[sp_index] = fl_val # fl_vals[index]
@@ -1114,8 +1114,8 @@ def execute_sim_iteration(sim_id):
     # llp = race_sim.ll_profiles.all().order_by('-rank_order').last()
     while ll_laps_remaining > 0:
         ll_index = randrange(1, 21)
-        while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
-            ll_index = randrange(1, 21)
+        # while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
+        #     ll_index = randrange(1, 21)
 
         # sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
         ll_val = min(ll_laps_remaining, 5)
