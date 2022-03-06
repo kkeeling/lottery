@@ -942,7 +942,7 @@ def execute_sim_iteration(sim_id):
             # stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
             # d_sr = numpy.random.normal(mu, stdev, 1)[0] + random()
             d_sr = randrange(ceil, ceil+1) + random()
-            print(f'{driver}, {d_sr}')
+            # print(f'{driver}, {d_sr}')
             speed.append(d_sr)
 
     # Rank final speed
@@ -1022,6 +1022,7 @@ def execute_sim_iteration(sim_id):
         cum_max = int(p.cum_fastest_laps_max * 100)
 
         while cum + pct < cum_min or cum + pct > cum_max:
+            print(f'min = {int(p.pct_fastest_laps_min*100)}; max = {int(p.pct_fastest_laps_max*100)+1}')
             pct = randrange(int(p.pct_fastest_laps_min*100), int(p.pct_fastest_laps_max*100)+1, 1)
         
         cum += pct
