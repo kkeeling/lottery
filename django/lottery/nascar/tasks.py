@@ -543,7 +543,7 @@ def execute_sim_iteration(sim_id):
     total_cautions = 0
 
     for stage in range(1, race_sim.race.num_stages() + 1):
-        # num_laps = race_sim.race.get_laps_for_stage(stage)
+        num_laps = race_sim.race.get_laps_for_stage(stage)
         print(f'Stage {stage}: {num_laps} laps')
 
         # Find # of cautions & caution type thresholds
