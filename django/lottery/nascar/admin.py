@@ -109,6 +109,7 @@ class RaceSimDriverInline(admin.TabularInline):
         'avg_fp',
         'avg_fl',
         'avg_ll',
+        'gto',
     )
     read_only_fields = (
         'avg_fp',

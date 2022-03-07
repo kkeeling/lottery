@@ -1242,7 +1242,14 @@ def find_driver_gto(sim_id, task_id):
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
         scores = [d.get_scores('draftkings') for d in race_sim.outcomes.all().order_by('starting_position')]
-        jobs = [make_optimals_for_gto.si(s, list(race_sim.outcomes.all().order_by('starting_position').values_list('id', flat=True)), 'draftkings') for s in scores]
+
+        jobs = []
+        for i in range(0, race_sim.iterations):
+            jobs.append(make_optimals_for_gto.si(
+                [s[i] for s in scores],
+                list(race_sim.outcomes.all().order_by('starting_position').values_list('id', flat=True)),
+                'draftkings'
+            ))
 
         chord(
             group(jobs), 
@@ -1269,15 +1276,15 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
     else:
         optimizer = get_optimizer(Site.DRAFTKINGS, Sport.NASCAR)
 
-    drivers = models.RaceSim.objects.filter(id__in=driver_ids)
+    drivers = models.RaceSimDriver.objects.filter(id__in=driver_ids)
     player_list = []
 
     for index, driver in enumerate(drivers):
         if ' ' in driver.driver.full_name:
-            first = driver.driver.full_name.name.split(' ')[0]
-            last = driver.driver.full_name.name.split(' ')[-1]
+            first = driver.driver.full_name.split(' ')[0]
+            last = driver.driver.full_name.split(' ')[-1]
         else:
-            first = driver.driver.full_name.name
+            first = driver.driver.full_name
             last = ''
 
         fppg = iterations_scores[index]
@@ -1300,10 +1307,11 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
         n=1,
         randomness=False, 
     )
+    
+    for l in optimized_lineups:
+        lineup = [p.id for p in l.players]
 
-    print(optimized_lineups)
-    return [p.id for p in optimized_lineups[0].players]
-
+    return lineup
 
 @shared_task
 def finalize_gto(results, sim_id, task_id):
@@ -1317,9 +1325,52 @@ def finalize_gto(results, sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
-        df_results = pandas.DataFrame(results)
-        print(df_results)
 
+        df_results = pandas.DataFrame(results)
+
+        d_count_0 = df_results[0].value_counts()
+        d_count_1 = df_results[1].value_counts()
+        d_count_2 = df_results[2].value_counts()
+        d_count_3 = df_results[3].value_counts()
+        d_count_4 = df_results[4].value_counts()
+        d_count_5 = df_results[5].value_counts()
+
+        for driver in race_sim.outcomes.all():
+            count = 0
+            
+            try:
+                count += d_count_0.loc[driver.driver.nascar_driver_id]
+            except KeyError:
+                pass
+            
+            try:
+                count += d_count_1.loc[driver.driver.nascar_driver_id]
+            except KeyError:
+                pass
+            
+            try:
+                count += d_count_2.loc[driver.driver.nascar_driver_id]
+            except KeyError:
+                pass
+            
+            try:
+                count += d_count_3.loc[driver.driver.nascar_driver_id]
+            except KeyError:
+                pass
+            
+            try:
+                count += d_count_4.loc[driver.driver.nascar_driver_id]
+            except KeyError:
+                pass
+            
+            try:
+                count += d_count_5.loc[driver.driver.nascar_driver_id]
+            except KeyError:
+                pass
+                            
+            driver.gto = count / race_sim.iterations
+            driver.save()
+        
         task.status = 'success'
         task.content = f'GTO for {race_sim} complete.'
         task.save()
@@ -1388,6 +1439,7 @@ def export_results(sim_id, result_path, result_url, task_id):
             '70p': [numpy.percentile(d.get_scores('draftkings'), float(70)) for d in race_sim.outcomes.all()],
             '80p': [numpy.percentile(d.get_scores('draftkings'), float(80)) for d in race_sim.outcomes.all()],
             '90p': [numpy.percentile(d.get_scores('draftkings'), float(90)) for d in race_sim.outcomes.all()],
+            'gto': [d.gto for d in race_sim.outcomes.all()]
         }, index=[d.driver.full_name for d in race_sim.outcomes.all()])
 
         with pandas.ExcelWriter(result_path) as writer:
