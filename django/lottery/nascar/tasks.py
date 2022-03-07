@@ -458,9 +458,18 @@ def execute_sim(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         race_sim = models.RaceSim.objects.get(id=sim_id)
-        chord([
-            execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
-        ], sim_execution_complete.s(sim_id, task_id))()
+        chain(
+            chord([
+                execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
+            ], sim_execution_complete.s(sim_id, task_id)),
+            find_driver_gto.si(
+                race_sim.id,
+                BackgroundTask.objects.create(
+                    name=f'Find driver GTO for {race_sim}',
+                    user=task.user
+                ).id
+            )
+        )()
 
     except Exception as e:
         if task is not None:
