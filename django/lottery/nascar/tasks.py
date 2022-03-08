@@ -950,7 +950,7 @@ def execute_sim_iteration(sim_id):
             # mu = numpy.average([flr, ceil])
             # stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
             # d_sr = numpy.random.normal(mu, stdev, 1)[0] + random()
-            d_sr = randrange(ceil, ceil+1) + random()
+            d_sr = randrange(flr, ceil+1) + random()
             # print(f'{driver}, {d_sr}')
             speed.append(d_sr)
 
