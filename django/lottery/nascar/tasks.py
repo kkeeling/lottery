@@ -1288,7 +1288,7 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
     drivers = models.RaceSimDriver.objects.filter(id__in=driver_ids)
     player_list = []
 
-    for index, driver in enumerate(drivers):
+    for index, driver in enumerate(drivers.order_by('starting_position')):
         if ' ' in driver.driver.full_name:
             first = driver.driver.full_name.split(' ')[0]
             last = driver.driver.full_name.split(' ')[-1]
