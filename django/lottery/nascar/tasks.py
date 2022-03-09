@@ -349,8 +349,67 @@ def export_sim_template(sim_id, result_path, result_url, task_id):
         df_drivers['best_possible_speed'] = ''
         df_drivers['worst_possible_speed'] = ''
 
+        df_race = pandas.DataFrame.from_records(models.RaceSim.objects.filter(id=sim_id).values(
+            'laps_per_caution',
+            'early_stage_caution_mean',
+            'early_stage_caution_prob_debris',
+            'early_stage_caution_prob_accident_small',
+            'early_stage_caution_prob_accident_medium',
+            'early_stage_caution_prob_accident_major',
+            'final_stage_caution_mean',
+            'final_stage_caution_prob_debris',
+            'final_stage_caution_prob_accident_small',
+            'final_stage_caution_prob_accident_medium',
+            'final_stage_caution_prob_accident_major',
+            'track_variance',
+            'track_variance_late_restart',
+        ))
+
+        df_damage = pandas.DataFrame(data={
+            'name': ['Small Accident', 'Medium Accident', 'Major Accident'],
+            'min_cars': [1, 3, 7],
+            'max_cars': [2, 6, 10],
+            'prob_no_damage': [0, 0, 0.05],
+            'prob_minor_damage': [.2, .05, .1],
+            'prob_medium_damage': [.4, .25, .15],
+            'prob_dnf': [.4, .7, .7]
+        })
+
+        df_penalty = pandas.DataFrame(data={
+            'stage': [1, 1, 2, 2, 3, 3],
+            'is_green': [True, False, True, False, True, False],
+            'floor_impact': [8, 0, 9, 2, 10, 4],
+            'ceiling_impact': [8, 0, 9, 2, 10, 4]
+        })
+
+        df_fl = pandas.DataFrame(data={
+            'pct_min': [0 for _ in range (0, 15)],
+            'pct_max': [0 for _ in range (0, 15)],
+            'cum_min': [0 for _ in range (0, 15)],
+            'cum_max': [0 for _ in range (0, 15)],
+            'speed_rank_min': [i+1 for i in range (0, 15)],
+            'speed_rank_max': [i+1 for i in range (0, 15)]
+        })
+
+        df_ll = pandas.DataFrame(data={
+            'pct_min': [0 for _ in range (0, 15)],
+            'pct_max': [0 for _ in range (0, 15)],
+            'cum_min': [0 for _ in range (0, 15)],
+            'cum_max': [0 for _ in range (0, 15)],
+            'fl_rank_min': [i+1 for i in range (0, 15)],
+            'fl_rank_max': [i+1 for i in range (0, 15)]
+        })
+
         df_drivers = df_drivers.drop(columns=['num_finish', 'num_crashes', 'num_mech', 'num_penalty'])
-        df_drivers.to_csv(result_path)
+        # df_drivers.to_csv(result_path)
+
+        with pandas.ExcelWriter(result_path) as writer:
+            df_race.to_excel(writer, sheet_name='race')
+            df_damage.to_excel(writer, sheet_name='damage')
+            df_penalty.to_excel(writer, sheet_name='penalty')
+            df_fl.to_excel(writer, sheet_name='fl')
+            df_ll.to_excel(writer, sheet_name='ll')
+            df_drivers.to_excel(writer, sheet_name='drivers')
 
         task.status = 'download'
         task.content = result_url
@@ -390,42 +449,97 @@ def process_sim_input_file(sim_id, task_id):
         if bool(race_sim.fd_salaries):
             fd_salaries = pandas.read_csv(race_sim.fd_salaries.path, header=None, sep='\n')
 
-        with open(race_sim.input_file.path, mode='r') as input_file:
-            csv_reader = csv.DictReader(input_file)
+        df_race = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='race')
+        df_damage = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='damage')
+        df_penalty = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='penalty')
+        df_fl = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='fl')
+        df_ll = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='ll')
+        df_drivers = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='drivers')
 
-            for row in csv_reader:
-                driver_id = row['nascar_driver_id']
-                starting_position = row['starting_position']
-                crash_rate = row['crash_rate']
-                mech_rate = row['mech_rate']
-                penalty_rate = row['penalty_rate']
-                strategy_factor = row['strategy_factor']
-                speed_min = row['speed_min']
-                speed_max = row['speed_max']
-                best_possible_speed = row['best_possible_speed']
-                worst_possible_speed = row['worst_possible_speed']
+        race_sim.laps_per_caution = df_race.loc[0, 'laps_per_caution']
+        race_sim.early_stage_caution_mean = df_race.loc[0, 'early_stage_caution_mean']
+        race_sim.early_stage_caution_prob_debris = df_race.loc[0, 'early_stage_caution_prob_debris']
+        race_sim.early_stage_caution_prob_accident_small = df_race.loc[0, 'early_stage_caution_prob_accident_small']
+        race_sim.early_stage_caution_prob_accident_medium = df_race.loc[0, 'early_stage_caution_prob_accident_medium']
+        race_sim.early_stage_caution_prob_accident_major = df_race.loc[0, 'early_stage_caution_prob_accident_major']
+        race_sim.final_stage_caution_mean = df_race.loc[0, 'final_stage_caution_mean']
+        race_sim.final_stage_caution_prob_debris = df_race.loc[0, 'final_stage_caution_prob_debris']
+        race_sim.final_stage_caution_prob_accident_small = df_race.loc[0, 'final_stage_caution_prob_accident_small']
+        race_sim.final_stage_caution_prob_accident_medium = df_race.loc[0, 'final_stage_caution_prob_accident_medium']
+        race_sim.final_stage_caution_prob_accident_major = df_race.loc[0, 'final_stage_caution_prob_accident_major']
+        race_sim.track_variance = df_race.loc[0, 'track_variance']
+        race_sim.track_variance_late_restart = df_race.loc[0, 'track_variance_late_restart']
+        race_sim.save()
 
-                driver = models.Driver.objects.get(nascar_driver_id=driver_id)
-                alias = models.Alias.find_alias(driver.full_name, 'nascar')
+        race_sim.damage_profiles.all().delete()
+        for index in range(0, len(df_damage.index)):
+            models.RaceSimDamageProfile.objects.create(
+                sim=race_sim,
+                name=df_damage.at[index, 'name'],
+                min_cars_involved=df_damage.at[index, 'min_cars'],
+                max_cars_involved=df_damage.at[index, 'max_cars'],
+                prob_no_damage=df_damage.at[index, 'prob_no_damage'],
+                prob_minor_damage=df_damage.at[index, 'prob_minor_damage'],
+                prob_medium_damage=df_damage.at[index, 'prob_medium_damage'],
+                prob_dnf=df_damage.at[index, 'prob_dnf']
+            )
 
-                dk_salary = dk_salaries.loc[[alias.dk_name]]['Salary'] if dk_salaries is not None else 0.0
-                fd_salary = fd_salaries.loc[[alias.fd_name]] if fd_salaries is not None else 0.0
+        race_sim.penalty_profiles.all().delete()
+        for index in range(0, len(df_penalty.index)):
+            models.RaceSimPenaltyProfile.objects.create(
+                sim=race_sim,
+                stage=df_penalty.at[index, 'stage'],
+                is_green=df_penalty.at[index, 'is_green'],
+                floor_impact=df_penalty.at[index, 'floor_impact'],
+                ceiling_impact=df_penalty.at[index, 'ceiling_impact']
+            )
 
-                models.RaceSimDriver.objects.create(
-                    sim=race_sim,
-                    driver=driver,
-                    starting_position=starting_position,
-                    dk_salary=dk_salary,
-                    fd_salary=fd_salary,
-                    speed_min=speed_min,
-                    speed_max=speed_max,
-                    best_possible_speed=best_possible_speed,
-                    worst_possible_speed=worst_possible_speed,
-                    crash_rate=crash_rate,
-                    mech_rate=mech_rate,
-                    infraction_rate=penalty_rate,
-                    strategy_factor=strategy_factor
-                )
+        race_sim.fl_profiles.all().delete()
+        for index in range(0, len(df_fl.index)):
+            models.RaceSimFastestLapsProfile.objects.create(
+                sim=race_sim,
+                pct_fastest_laps_min=df_fl.at[index, 'pct_min'],
+                pct_fastest_laps_max=df_fl.at[index, 'pct_max'],
+                cum_fastest_laps_min=df_fl.at[index, 'cum_min'],
+                cum_fastest_laps_max=df_fl.at[index, 'cum_max'],
+                eligible_speed_min=df_fl.at[index, 'speed_rank_min'],
+                eligible_speed_max=df_fl.at[index, 'speed_rank_max']
+            )
+
+        race_sim.ll_profiles.all().delete()
+        for index in range(0, len(df_ll.index)):
+            models.RaceSimLapsLedProfile.objects.create(
+                sim=race_sim,
+                pct_laps_led_min=df_ll.at[index, 'pct_min'],
+                pct_laps_led_max=df_ll.at[index, 'pct_max'],
+                cum_laps_led_min=df_ll.at[index, 'cum_min'],
+                cum_laps_led_max=df_ll.at[index, 'cum_max'],
+                rank_order=df_ll.at[index, 'rank_order']
+            )
+
+        race_sim.outcomes.all().delete()
+        for index in range(0, len(df_drivers.index)):
+            driver = models.Driver.objects.get(nascar_driver_id=df_drivers.at[index, 'nascar_driver_id'])
+            alias = models.Alias.find_alias(driver.full_name, 'nascar')
+
+            dk_salary = dk_salaries.loc[[alias.dk_name]]['Salary'] if dk_salaries is not None else 0.0
+            fd_salary = fd_salaries.loc[[alias.fd_name]] if fd_salaries is not None else 0.0
+
+            models.RaceSimDriver.objects.create(
+                sim=race_sim,
+                driver=driver,
+                starting_position=df_drivers.at[index, 'starting_position'],
+                dk_salary=dk_salary,
+                fd_salary=fd_salary,
+                speed_min=df_drivers.at[index, 'speed_min'],
+                speed_max=df_drivers.at[index, 'speed_max'],
+                best_possible_speed=df_drivers.at[index, 'best_possible_speed'],
+                worst_possible_speed=0,
+                crash_rate=df_drivers.at[index, 'crash_rate'],
+                mech_rate=df_drivers.at[index, 'mech_rate'],
+                infraction_rate=df_drivers.at[index, 'penalty_rate'],
+                strategy_factor=df_drivers.at[index, 'strategy_factor']
+            )
 
         task.status = 'success'
         task.content = f'{race_sim} inputs processed.'
@@ -1525,6 +1639,7 @@ def process_build(build_id, task_id):
                 projection.projection = numpy.percentile(projection.sim_scores, float(50))
                 projection.ceiling = numpy.percentile(projection.sim_scores, float(90))
                 projection.s75 = numpy.percentile(projection.sim_scores, float(75))
+                projection.gto = sim_driver.gto
                 projection.save()
             except:
                 pass
@@ -1622,31 +1737,59 @@ def build_lineups(build_id, task_id):
 
         # Task implementation goes here
         build = models.SlateBuild.objects.get(id=build_id)
-        # lineups = optimize.generateRandomLineups(
-        #     build.projections.all(),
-        #     1000,
-        #     6,
-        #     60000
-        # )
-        lineups = optimize.optimize(build.slate.site, build.projections.filter(in_play=True), build.groups.filter(active=True), build.configuration, build.total_lineups)
+        if build.configuration.optimize_by_percentile == 0:
+            lineups = optimize.generateRandomLineups(
+                build.projections.filter(in_play=True),
+                build.total_lineups * build.configuration.lineup_multiplier,
+                6,
+                50000
+            )
 
-        for lineup in lineups:
-            if build.slate.site == 'draftkings':
-                lineup = models.SlateBuildLineup.objects.create(
-                    build=build,
-                    player_1=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[0].id, slate_player__slate=build.slate),
-                    player_2=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[1].id, slate_player__slate=build.slate),
-                    player_3=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[2].id, slate_player__slate=build.slate),
-                    player_4=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[3].id, slate_player__slate=build.slate),
-                    player_5=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[4].id, slate_player__slate=build.slate),
-                    player_6=models.BuildPlayerProjection.objects.get(slate_player__slate_player_id=lineup.players[5].id, slate_player__slate=build.slate),
-                    total_salary=lineup.salary_costs
-                )
-                lineup.save()
+            for lineup in lineups:
+                if build.slate.site == 'draftkings':
+                    lineup = models.SlateBuildLineup.objects.create(
+                        build=build,
+                        player_1=lineup[0],
+                        player_2=lineup[1],
+                        player_3=lineup[2],
+                        player_4=lineup[3],
+                        player_5=lineup[4],
+                        player_6=lineup[5],
+                        total_salary=sum([lp.salary for lp in lineup])
+                    )
 
-                lineup.simulate()
-            else:
-                raise Exception(f'{build.slate.site} is not available for building yet.')
+                    lineup.save()
+                    lineup.simulate()
+                else:
+                    raise Exception(f'{build.slate.site} is not available for building yet.')
+
+                # print(f'dup = {lineup.duplicated}; {lineup.duplicated > build.configuration.duplicate_threshold}')
+                if lineup.duplicated > build.configuration.duplicate_threshold:
+                    # print('delete this lineup')
+                    lineup.delete()
+        else:
+            lineups = optimize.optimize(build.slate.site, build.projections.filter(in_play=True), build.groups.filter(active=True), build.configuration, build.total_lineups)
+
+            for lineup in lineups:
+                if build.slate.site == 'draftkings':
+                    lineup = models.SlateBuildLineup.objects.create(
+                        build=build,
+                        player_1=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=lineup.players[0].id, slate_player__slate=build.slate),
+                        player_2=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=lineup.players[1].id, slate_player__slate=build.slate),
+                        player_3=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=lineup.players[2].id, slate_player__slate=build.slate),
+                        player_4=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=lineup.players[3].id, slate_player__slate=build.slate),
+                        player_5=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=lineup.players[4].id, slate_player__slate=build.slate),
+                        player_6=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=lineup.players[5].id, slate_player__slate=build.slate),
+                        total_salary=lineup.salary_costs
+                    )
+
+                    lineup.save()
+                    lineup.simulate()
+                else:
+                    raise Exception(f'{build.slate.site} is not available for building yet.')
+
+                if lineup.duplicated > build.configuration.duplicate_threshold:
+                    lineup.delete()
         
         task.status = 'success'
         task.content = f'{len(lineups)} lineups created.'

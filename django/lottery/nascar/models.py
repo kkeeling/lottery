@@ -537,6 +537,7 @@ class SlateBuildConfig(models.Model):
     optimize_by_percentile = models.IntegerField(default=50)
     lineup_multiplier = models.IntegerField(default=1)
     clean_by_percentile = models.IntegerField(default=50)
+    duplicate_threshold = models.FloatField(default=5)
 
     class Meta:
         verbose_name = 'Build Config'
@@ -584,6 +585,7 @@ class SlateBuild(models.Model):
     used_in_contests = models.BooleanField(default=False, verbose_name='Used')
     configuration = models.ForeignKey(SlateBuildConfig, related_name='builds', verbose_name='Config', on_delete=models.SET_NULL, null=True)
     total_lineups = models.PositiveIntegerField(verbose_name='total', default=0)
+    max_entrants = models.PositiveIntegerField(verbose_name='max_entrants', default=50000)
 
     class Meta:
         verbose_name = 'Slate Build'
@@ -657,6 +659,8 @@ class BuildPlayerProjection(models.Model):
     ceiling = models.FloatField(db_index=True, default=0.0, verbose_name='Ceil')
     s75 = models.FloatField(db_index=True, default=0.0, verbose_name='s75')
     in_play = models.BooleanField(default=True)
+    op = models.FloatField(default=0.0)
+    gto = models.FloatField(default=0.0)
     min_exposure = models.FloatField(default=0.0, verbose_name='min')
     max_exposure = models.FloatField(default=1.0, verbose_name='max')
 
@@ -677,12 +681,19 @@ class BuildPlayerProjection(models.Model):
         return self.slate_player.salary
 
     @property
-    def odds_for_target(self, target_score):
-        if target_score is not None and target_score > 0.0:
-            a = numpy.asarray(self.sim_scores)
-            za = round((a > float(target_score)).sum()/a.size, ndigits=4)
-            return za
-        return None
+    def exposure(self):
+        if self.build.lineups.all().count() > 0:
+            return self.build.lineups.filter(
+                Q(
+                    Q(player_1=self) | 
+                    Q(player_2=self) | 
+                    Q(player_3=self) | 
+                    Q(player_4=self) | 
+                    Q(player_5=self) | 
+                    Q(player_6=self)
+                )
+            ).count() / self.build.lineups.all().count()
+        return 0
 
     def get_percentile_projection(self, percentile):
         return numpy.percentile(self.sim_scores, float(percentile))
@@ -729,6 +740,8 @@ class SlateBuildLineup(models.Model):
     player_6 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_6', on_delete=models.CASCADE, null=True, blank=True)
     total_salary = models.IntegerField(default=0)
     sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    ownership_projection = models.DecimalField(max_digits=10, decimal_places=9, default=0.0)
+    duplicated = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     roi = models.FloatField(default=0.0, db_index=True)
     median = models.FloatField(db_index=True, default=0.0)
     s75 = models.FloatField(db_index=True, default=0.0)
@@ -755,6 +768,8 @@ class SlateBuildLineup(models.Model):
         return numpy.percentile(self.sim_scores, float(percentile))
 
     def simulate(self):
+        self.ownership_projection = numpy.prod([x.op for x in self.players])
+        self.duplicated = numpy.prod([x.op for x in self.players]) * self.build.max_entrants
         self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, self.build.sim.iterations)]
         self.median = numpy.median(self.sim_scores)
         self.s75 = self.get_percentile_sim_score(75)

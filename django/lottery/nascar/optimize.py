@@ -179,6 +179,7 @@ def generateRandomLineups(projections, num_lineups, num_drivers, salary_cap, tim
         duplicate = False
 
         while total_salary > salary_cap or duplicate:
+            duplicate = False
             l = []
     
             # get drivers
@@ -191,6 +192,16 @@ def generateRandomLineups(projections, num_lineups, num_drivers, salary_cap, tim
             total_salary = sum([lp.salary for lp in l])
             
             # TODO: Handle duplicates
+            for l2 in lineups:
+                for lp in l:
+                    if lp not in l2:
+                        duplicate = False
+                        break
+                    duplicate = True
+                
+                if duplicate:
+                    print('found dup')
+                    break
         
         lineups.append(l)
         print(count)

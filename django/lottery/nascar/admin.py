@@ -466,7 +466,7 @@ class RaceSimAdmin(admin.ModelAdmin):
 
         now = datetime.datetime.now()
         timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
-        result_file = f'sim_template-{sim.race}-{timestamp}.csv'
+        result_file = f'sim_template-{sim.race}-{timestamp}.xlsx'
         result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
         os.makedirs(result_path, exist_ok=True)
         result_path = os.path.join(result_path, result_file)
@@ -757,7 +757,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'total_lineups',
     )
     list_filter = (
-        ('slate__name', DropdownFilter),
+        ('sim', RelatedDropdownFilter),
     )
     raw_id_fields = (
         'slate',
@@ -876,16 +876,18 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         's75',
         'ceiling',
         'in_play',
+        'op',
+        'gto',
+        'get_exposure',
         'min_exposure',
         'max_exposure',
-        # 'get_exposure',
     )
     list_filter = (
-        'slate_player__slate',
         'in_play',
     )
     list_editable = (
         'in_play',
+        'op',
         'min_exposure',
         'max_exposure',
     )
@@ -911,12 +913,12 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     #     return round(obj.slate_player.value, 2)
     # get_salary_value.short_description = 'value'
 
-    # def get_exposure(self, obj):
-    #     if obj.exposure is None:
-    #         return None
-    #     return '{:.2f}%'.format(float(obj.exposure) * 100.0)
-    # get_exposure.short_description = 'Exp'
-    # get_exposure.admin_order_field = 'exposure'
+    def get_exposure(self, obj):
+        if obj.exposure is None:
+            return None
+        return '{:.2f}%'.format(float(obj.exposure) * 100.0)
+    get_exposure.short_description = 'Exp'
+    get_exposure.admin_order_field = 'exposure'
 
 
 @admin.register(models.SlateBuildGroup)
@@ -960,15 +962,16 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         's75',
         's90',
         'sort_proj',
+        'duplicated'
     )
 
     search_fields = (
-        'player_1__name',
-        'player_2__name',
-        'player_3__name',
-        'player_4__name',
-        'player_5__name',
-        'player_6__name',
+        'player_1__slate_player__name',
+        'player_2__slate_player__name',
+        'player_3__slate_player__name',
+        'player_4__slate_player__name',
+        'player_5__slate_player__name',
+        'player_6__slate_player__name',
     )
 
 
