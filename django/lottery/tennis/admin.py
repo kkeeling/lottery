@@ -715,18 +715,18 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'spread',
         'get_common_opponents',
         'spw_rate',
-        'rpw_rate',
-        'ace_rate',
-        'df_rate',
+        # 'rpw_rate',
+        # 'ace_rate',
+        # 'df_rate',
         'implied_win_pct',
         'sim_win_pct',
         'projection',
-        's75',
+        # 's75',
         'ceiling',
         'odds_for_target',
-        'get_odds_for_target_value',
+        # 'get_odds_for_target_value',
         'in_play',
-        'optimal_exposure',
+        # 'optimal_exposure',
         'min_exposure',
         'max_exposure',
         'get_exposure',
@@ -738,9 +738,9 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     )
     list_editable = (
         'spw_rate',
-        'rpw_rate',
-        'ace_rate',
-        'df_rate',
+        # 'rpw_rate',
+        # 'ace_rate',
+        # 'df_rate',
         'in_play',
         'min_exposure',
         'max_exposure',
@@ -804,12 +804,12 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
-        'player_1__name',
-        'player_2__name',
-        'player_3__name',
-        'player_4__name',
-        'player_5__name',
-        'player_6__name',
+        'player_1__slate_player__name',
+        'player_2__slate_player__name',
+        'player_3__slate_player__name',
+        'player_4__slate_player__name',
+        'player_5__slate_player__name',
+        'player_6__slate_player__name',
     )
 
     raw_id_fields = (

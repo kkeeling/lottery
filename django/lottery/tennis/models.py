@@ -1253,19 +1253,19 @@ class MissingAlias(models.Model):
     
     def choose_alias_1_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px; width:100px">{}</a>',
-            reverse_lazy("admin:admin_choose_alias", args=[self.pk, self.alias_1.pk]), str(self.alias_1)
+            reverse_lazy("admin:admin_tennis_choose_alias", args=[self.pk, self.alias_1.pk]), str(self.alias_1)
         )
     choose_alias_1_button.short_description = ''
     
     def choose_alias_2_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px; width:100px">{}</a>',
-            reverse_lazy("admin:admin_choose_alias", args=[self.pk, self.alias_2.pk]), str(self.alias_2)
+            reverse_lazy("admin:admin_tennis_choose_alias", args=[self.pk, self.alias_2.pk]), str(self.alias_2)
         )
     choose_alias_2_button.short_description = ''
     
     def choose_alias_3_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px; width:100px">{}</a>',
-            reverse_lazy("admin:admin_choose_alias", args=[self.pk, self.alias_3.pk]), str(self.alias_3)
+            reverse_lazy("admin:admin_tennis_choose_alias", args=[self.pk, self.alias_3.pk]), str(self.alias_3)
         )
     choose_alias_3_button.short_description = ''
     
