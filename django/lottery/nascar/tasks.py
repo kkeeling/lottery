@@ -3,6 +3,7 @@ import datetime
 import logging
 import json
 import math
+from re import A
 import numpy
 import os
 import pandas
@@ -1143,11 +1144,16 @@ def execute_sim_iteration(sim_id):
         pct = randrange(int(p.pct_fastest_laps_min*100), max(int(p.pct_fastest_laps_max*100), 1) + 1, 1) if p.pct_fastest_laps_min < p.pct_fastest_laps_max else int(p.pct_fastest_laps_min*100)
         cum_min = int(p.cum_fastest_laps_min * 100)
         cum_max = int(p.cum_fastest_laps_max * 100)
-
-        while cum + pct < cum_min or cum + pct > cum_max:
+        
+        attempts = 0
+        while (cum + pct < cum_min or cum + pct > cum_max) and attempts < 10:
             pct = randrange(int(p.pct_fastest_laps_min*100), max(int(p.pct_fastest_laps_max*100), 1) + 1, 1)
+            attempts += 1
             # print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_fastest_laps_min*100)}; max = {int(p.pct_fastest_laps_max*100)+1}')
         
+        if attempts == 10:
+            break
+
         cum += pct
         v = max(int((pct/100) * fl_laps), 1)
         fl_vals.append(v)
@@ -1197,10 +1203,14 @@ def execute_sim_iteration(sim_id):
         cum_min = int(p.cum_laps_led_min * 100)
         cum_max = int(p.cum_laps_led_max * 100)
 
-        # print(f'p = {p}; pct = {pct}; cum = {cum}')
-        while cum + pct < cum_min or cum + pct > cum_max:
+        attempts = 0
+        while (cum + pct < cum_min or cum + pct > cum_max) and attempts < 10:
             pct = randrange(int(p.pct_laps_led_min*100), max(int(p.pct_laps_led_max*100), 1) + 1, 1)
+            attempts += 1
             # print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_laps_led_min*100)}; max = {int(p.pct_laps_led_max*100)+1}')
+        
+        if attempts == 10:
+            break
         
         cum += pct
         v = max(int((pct/100) * ll_laps), 1)
