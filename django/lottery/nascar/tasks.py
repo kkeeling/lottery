@@ -1140,12 +1140,12 @@ def execute_sim_iteration(sim_id):
     fl_vals = []
     cum = 0
     for p in race_sim.fl_profiles.all().order_by('-pct_fastest_laps_min'):
-        pct = randrange(int(p.pct_fastest_laps_min*100), int(p.pct_fastest_laps_max*100)+1, 1) if p.pct_fastest_laps_min < p.pct_fastest_laps_max else int(p.pct_fastest_laps_min*100)
+        pct = randrange(int(p.pct_fastest_laps_min*100), max(int(p.pct_fastest_laps_max*100), 1) + 1, 1) if p.pct_fastest_laps_min < p.pct_fastest_laps_max else int(p.pct_fastest_laps_min*100)
         cum_min = int(p.cum_fastest_laps_min * 100)
         cum_max = int(p.cum_fastest_laps_max * 100)
 
         while cum + pct < cum_min or cum + pct > cum_max:
-            pct = randrange(int(p.pct_fastest_laps_min*100), int(p.pct_fastest_laps_max*100)+1, 1)
+            pct = randrange(int(p.pct_fastest_laps_min*100), max(int(p.pct_fastest_laps_max*100), 1) + 1, 1)
             # print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_fastest_laps_min*100)}; max = {int(p.pct_fastest_laps_max*100)+1}')
         
         cum += pct
@@ -1193,13 +1193,13 @@ def execute_sim_iteration(sim_id):
     ll_vals = []
     cum = 0
     for p in race_sim.ll_profiles.all().order_by('rank_order'):
-        pct = randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100)+1, 1) if p.pct_laps_led_min < p.pct_laps_led_max else int(p.pct_laps_led_min*100)
+        pct = randrange(int(p.pct_laps_led_min*100), max(int(p.pct_laps_led_max*100), 1) + 1, 1) if p.pct_laps_led_min < p.pct_laps_led_max else int(p.pct_laps_led_min*100)
         cum_min = int(p.cum_laps_led_min * 100)
         cum_max = int(p.cum_laps_led_max * 100)
 
         # print(f'p = {p}; pct = {pct}; cum = {cum}')
         while cum + pct < cum_min or cum + pct > cum_max:
-            pct = randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100)+1, 1)
+            pct = randrange(int(p.pct_laps_led_min*100), max(int(p.pct_laps_led_max*100), 1) + 1, 1)
             # print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_laps_led_min*100)}; max = {int(p.pct_laps_led_max*100)+1}')
         
         cum += pct
