@@ -1146,7 +1146,7 @@ def execute_sim_iteration(sim_id):
 
         while cum + pct < cum_min or cum + pct > cum_max:
             pct = randrange(int(p.pct_fastest_laps_min*100), int(p.pct_fastest_laps_max*100)+1, 1)
-            print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_fastest_laps_min*100)}; max = {int(p.pct_fastest_laps_max*100)+1}')
+            # print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_fastest_laps_min*100)}; max = {int(p.pct_fastest_laps_max*100)+1}')
         
         cum += pct
         v = max(int((pct/100) * fl_laps), 1)
@@ -1200,7 +1200,7 @@ def execute_sim_iteration(sim_id):
         # print(f'p = {p}; pct = {pct}; cum = {cum}')
         while cum + pct < cum_min or cum + pct > cum_max:
             pct = randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100)+1, 1)
-            print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_laps_led_min*100)}; max = {int(p.pct_laps_led_max*100)+1}')
+            # print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_laps_led_min*100)}; max = {int(p.pct_laps_led_max*100)+1}')
         
         cum += pct
         v = max(int((pct/100) * ll_laps), 1)
