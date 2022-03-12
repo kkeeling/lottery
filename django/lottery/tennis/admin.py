@@ -1,4 +1,5 @@
 import csv
+from curses import raw
 import datetime
 import os
 import traceback
@@ -10,7 +11,7 @@ from celery import shared_task, chord, group, chain
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
-from django.db.models import Q, F
+from django.db.models import Q, F, Case, When, FloatField, Value
 from django.db.models.aggregates import Avg
 from django.http import HttpResponse
 from django.shortcuts import redirect, get_object_or_404
@@ -246,11 +247,11 @@ class MatchAdmin(admin.ModelAdmin):
         'winner',
         'loser',
         'score',
-        # 'get_svpt_w',
+        'get_svpt_w',
+        'get_svpt_l',
         'winner_dk_points',
         'loser_dk_points',
     )
-
     list_filter = (
         ('surface', DropdownFilter),
         ('best_of', DropdownFilter),
@@ -260,24 +261,35 @@ class MatchAdmin(admin.ModelAdmin):
         RecentMatchesFilter,
         SpecialTourneyFilter,
     )
-
     search_fields = (
         'winner_name',
         'loser_name'
+    )
+    raw_id_fields = (
+        'winner',
+        'loser',
     )
 
     # def get_queryset(self, request):
     #     qs= super().get_queryset(request)
 
-    #     qs.annotate(
-    #         sv_pt_w=(F('w_1stWon') + F('w_2ndWon'))/F('w_svpt')
+    #     qs = qs.annotate(
+    #         sv_pt_w=Case(
+    #             When(w_svpt=0, then=None),
+    #             default=(F('w_1stWon') + F('w_2ndWon'))/F('w_svpt'),
+    #             output_field=FloatField()
+    #         )
     #     )
 
     #     return qs
 
-    # def get_svpt_w(self, obj):
-    #     return obj.sv_pt_w
-    # get_svpt_w.short_description = 'w_svpt'
+    def get_svpt_w(self, obj):
+        return '{:.2f}'.format((obj.w_1stWon + obj.w_2ndWon)/obj.w_svpt) if obj.w_svpt is not None and obj.w_svpt > 0 else None
+    get_svpt_w.short_description = 'w_svpt'
+
+    def get_svpt_l(self, obj):
+        return '{:.2f}'.format((obj.l_1stWon + obj.l_2ndWon)/obj.l_svpt) if obj.l_svpt is not None and obj.l_svpt > 0 else None
+    get_svpt_l.short_description = 'l_svpt'
 
 
 @admin.register(models.Alias)
