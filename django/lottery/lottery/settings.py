@@ -86,7 +86,8 @@ INSTALLED_APPS = (
     'yahoo',
     'nfl_sd',
     'tennis',
-    'nascar'
+    'nascar',
+    'formula_1'
 )
 
 MIDDLEWARE = (
