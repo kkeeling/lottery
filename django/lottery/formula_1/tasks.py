@@ -357,7 +357,7 @@ def export_sim_template(sim_id, result_path, result_url, task_id):
     except Exception as e:
         if task is not None:
             task.status = 'error'
-            task.content = f'There was an error exporting track data: {e}'
+            task.content = f'There was an error exporting sim template: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
