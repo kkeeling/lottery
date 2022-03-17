@@ -1,0 +1,1 @@
+[{"model": "formula_1.race", "pk": 1, "fields": {"race_season": 2022, "race_name": "Bahrain GP", "race_date": "2022-03-20T11:00:00", "qualifying_date": null, "scheduled_distance": 0, "scheduled_laps": 56, "num_cars": 20}}]
