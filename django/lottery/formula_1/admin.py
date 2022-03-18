@@ -97,11 +97,13 @@ class RaceSimDriverInline(admin.TabularInline):
         'pct_laps_led_max',
         'avg_fp',
         'avg_ll',
+        'avg_dk_score',
         'gto',
     )
     read_only_fields = (
         'avg_fp',
         'avg_ll',
+        'avg_dk_score',
     )
 
 

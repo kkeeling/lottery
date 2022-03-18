@@ -341,8 +341,11 @@ class RaceSimDriver(models.Model):
     fl_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
     incident_outcomes = ArrayField(models.CharField(max_length=5, null=True), null=True, blank=True)
 
+    dk_scores = ArrayField(models.FloatField(), null=True, blank=True)
+
     avg_fp = models.FloatField(default=0.0)
     avg_ll = models.FloatField(default=0.0)
+    avg_dk_score = models.FloatField(default=0.0)
 
     gto = models.FloatField(default=0.0)
 
@@ -363,23 +366,6 @@ class RaceSimDriver(models.Model):
             return 0
 
         count = min(min(len(self.fp_outcomes), len(self.ll_outcomes)), len(self.fl_outcomes))
-        # print(f'{self} {sp}')
-        # print(SITE_SCORING.get(site).get('place_differential').get(str(sp - self.fp_outcomes[0])))
-        # print(SITE_SCORING.get(site).get('fastest_lap') * self.fl_outcomes[0])
-        # print(SITE_SCORING.get(site).get('finishing_position').get(str(self.fp_outcomes[0])))
-        # print(SITE_SCORING.get(site).get('laps_led') * self.ll_outcomes[0])
-        # print(SITE_SCORING.get(site).get('classified') if self.incident_outcomes[0] == 0 else 0)
-        # print(SITE_SCORING.get(site).get('defeated_teammate') if self.get_teammate().fp_outcomes[0] > self.fp_outcomes[0] else 0)
-        # print(self.fl_outcomes)
-        # print(self.ll_outcomes)
-        # print([
-        #     (SITE_SCORING.get(site).get('place_differential').get(str(sp - self.fp_outcomes[index])) + 
-        #     SITE_SCORING.get(site).get('fastest_lap') * self.fl_outcomes[index] + 
-        #     SITE_SCORING.get(site).get('finishing_position').get(str(self.fp_outcomes[index])) + 
-        #     SITE_SCORING.get(site).get('laps_led') * self.ll_outcomes[index] + 
-        #     (SITE_SCORING.get(site).get('classified') if self.incident_outcomes[index] == 0 else 0) +
-        #     (SITE_SCORING.get(site).get('defeated_teammate') if self.get_teammate().fp_outcomes[index] > self.fp_outcomes[index] else 0)) for index in range(0, count)
-        # ])
 
         return [
             (SITE_SCORING.get(site).get('place_differential').get(str(sp - self.fp_outcomes[index])) + 

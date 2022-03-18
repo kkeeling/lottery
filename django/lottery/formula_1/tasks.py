@@ -568,7 +568,6 @@ def execute_sim_iteration(sim_id):
         'll': driver_ll
     })
 
-    print(df_race)
     df_race.to_csv('data/race.csv')
 
     return {
@@ -613,6 +612,8 @@ def sim_execution_complete(results, sim_id, task_id):
             driver.avg_fl = numpy.average(driver.fl_outcomes)
             driver.ll_outcomes = df_ll[driver.driver.driver_id].tolist()
             driver.avg_ll = numpy.average(driver.ll_outcomes)
+            driver.dk_scores = driver.get_scores('draftkings')
+            driver.avg_dk_score = numpy.average(driver.dk_scores)
             driver.save()
 
         task.status = 'success'
@@ -819,11 +820,11 @@ def export_results(sim_id, result_path, result_url, task_id):
         df_dk = pandas.DataFrame(data={
             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
             'start': [d.starting_position for d in race_sim.outcomes.all()],
-            '50p': [numpy.percentile(d.get_scores('draftkings'), float(50)) for d in race_sim.outcomes.all()],
-            '60p': [numpy.percentile(d.get_scores('draftkings'), float(60)) for d in race_sim.outcomes.all()],
-            '70p': [numpy.percentile(d.get_scores('draftkings'), float(70)) for d in race_sim.outcomes.all()],
-            '80p': [numpy.percentile(d.get_scores('draftkings'), float(80)) for d in race_sim.outcomes.all()],
-            '90p': [numpy.percentile(d.get_scores('draftkings'), float(90)) for d in race_sim.outcomes.all()],
+            '50p': [numpy.percentile(d.dk_scores, float(50)) for d in race_sim.outcomes.all()],
+            '60p': [numpy.percentile(d.dk_scores, float(60)) for d in race_sim.outcomes.all()],
+            '70p': [numpy.percentile(d.dk_scores, float(70)) for d in race_sim.outcomes.all()],
+            '80p': [numpy.percentile(d.dk_scores, float(80)) for d in race_sim.outcomes.all()],
+            '90p': [numpy.percentile(d.dk_scores, float(90)) for d in race_sim.outcomes.all()],
             'gto': [d.gto for d in race_sim.outcomes.all()]
         }, index=[d.driver.full_name for d in race_sim.outcomes.all()])
 
