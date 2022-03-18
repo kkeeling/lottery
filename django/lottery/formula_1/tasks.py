@@ -790,6 +790,7 @@ def export_results(sim_id, result_path, result_url, task_id):
     task = None
 
     try:
+        start = time.time()
         try:
             task = BackgroundTask.objects.get(id=task_id)
         except BackgroundTask.DoesNotExist:
@@ -833,6 +834,7 @@ def export_results(sim_id, result_path, result_url, task_id):
             df_ll.to_excel(writer, sheet_name='Laps Led Raw')
             df_dk.to_excel(writer, sheet_name='DK')
 
+        print(f'export took {time.time() - start}s')
         task.status = 'download'
         task.content = result_url
         task.save()
