@@ -491,6 +491,13 @@ def execute_sim(sim_id, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
+def find_teammate_index(sim_drivers, driver):
+    for index, d in enumerate(sim_drivers):
+        if d.get_teammate() == driver:
+            return index
+    return -1
+
+
 @shared_task
 def execute_sim_iteration(sim_id):
     race_sim = models.RaceSim.objects.get(id=sim_id)
@@ -556,27 +563,37 @@ def execute_sim_iteration(sim_id):
     driver_index = int(numpy.where(fp_ranks == fp_rank)[0][0])
     driver_fl[driver_index] = 1
 
+    driver_dk = [
+            (models.SITE_SCORING.get('draftkings').get('place_differential').get(str(driver_starting_positions[index] - fp_ranks.tolist()[index])) + 
+            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[index] + 
+            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[index])) + 
+            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[index] + 
+            (models.SITE_SCORING.get('draftkings').get('classified') if driver_dnfs[index] == 0 else 0) +
+            (models.SITE_SCORING.get('draftkings').get('defeated_teammate') if fp_ranks.tolist()[index] > fp_ranks.tolist()[find_teammate_index(drivers, d)] else 0)) for index, d in enumerate(drivers)
+        ]
 
-    df_race = pandas.DataFrame({
-        'driver_id': driver_ids,
-        'driver': driver_names,
-        'sp': driver_starting_positions,
-        'speed_min': driver_sp_mins,
-        'speed_max': driver_sp_maxes,
-        'dnf': driver_dnfs,
-        'speed': sp_values,
-        'fp': fp_ranks,
-        'fl': driver_fl,
-        'll': driver_ll
-    })
+
+    # df_race = pandas.DataFrame({
+    #     'driver_id': driver_ids,
+    #     'driver': driver_names,
+    #     'sp': driver_starting_positions,
+    #     'speed_min': driver_sp_mins,
+    #     'speed_max': driver_sp_maxes,
+    #     'dnf': driver_dnfs,
+    #     'speed': sp_values,
+    #     'fp': fp_ranks,
+    #     'fl': driver_fl,
+    #     'll': driver_ll,
+    #     'dk': driver_dk
+    # })
 
     return {
         'dnf': driver_dnfs,
         'fp': fp_ranks.tolist(),
         'll': driver_ll,
-        'fl': driver_fl
+        'fl': driver_fl,
+        'dk': driver_dk
     }
-
 
 @shared_task
 def sim_execution_complete(results, sim_id, task_id):
@@ -598,11 +615,13 @@ def sim_execution_complete(results, sim_id, task_id):
         fp_list = [obj.get('fp') for obj in results]
         fl_list = [obj.get('fl') for obj in results]
         ll_list = [obj.get('ll') for obj in results]
+        dk_list = [obj.get('dk') for obj in results]
 
         df_dnf = pandas.DataFrame(dnf_list, columns=driver_ids)
         df_fp = pandas.DataFrame(fp_list, columns=driver_ids)
         df_fl = pandas.DataFrame(fl_list, columns=driver_ids)
         df_ll = pandas.DataFrame(ll_list, columns=driver_ids)
+        df_dk = pandas.DataFrame(dk_list, columns=driver_ids)
 
         for driver in drivers:
             driver.incident_outcomes = df_dnf[driver.driver.driver_id].tolist()
@@ -612,7 +631,7 @@ def sim_execution_complete(results, sim_id, task_id):
             driver.avg_fl = numpy.average(driver.fl_outcomes)
             driver.ll_outcomes = df_ll[driver.driver.driver_id].tolist()
             driver.avg_ll = numpy.average(driver.ll_outcomes)
-            driver.dk_scores = driver.get_scores('draftkings')
+            driver.dk_scores = df_dk[driver.driver.driver_id].tolist()
             driver.avg_dk_score = numpy.average(driver.dk_scores)
             driver.save()
 
