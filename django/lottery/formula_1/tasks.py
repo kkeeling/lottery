@@ -836,6 +836,7 @@ def export_results(sim_id, result_path, result_url, task_id):
         df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         # DK
+        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
         df_dk = pandas.DataFrame(data={
             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
             'start': [d.starting_position for d in race_sim.outcomes.all()],
@@ -846,6 +847,7 @@ def export_results(sim_id, result_path, result_url, task_id):
             '90p': [numpy.percentile(d.dk_scores, float(90)) for d in race_sim.outcomes.all()],
             'gto': [d.gto for d in race_sim.outcomes.all()]
         }, index=[d.driver.full_name for d in race_sim.outcomes.all()])
+        
 
         with pandas.ExcelWriter(result_path) as writer:
             df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
@@ -853,6 +855,7 @@ def export_results(sim_id, result_path, result_url, task_id):
             df_fl.to_excel(writer, sheet_name='Fastest Laps Raw')
             df_ll.to_excel(writer, sheet_name='Laps Led Raw')
             df_dk.to_excel(writer, sheet_name='DK')
+            df_dk_raw.to_excel(writer, sheet_name='DK Raw')
 
         print(f'export took {time.time() - start}s')
         task.status = 'download'
