@@ -344,7 +344,7 @@ def export_sim_template(sim_id, result_path, result_url, task_id):
             'fp': [i+1 for i in range (0, 20)]
         })
 
-        print('wtf')
+        print(df_drivers)
         with pandas.ExcelWriter(result_path) as writer:
             df_race.to_excel(writer, sheet_name='race')
             df_fl.to_excel(writer, sheet_name='fl')
