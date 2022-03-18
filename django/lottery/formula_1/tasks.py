@@ -516,7 +516,6 @@ def execute_sim_iteration(sim_id):
     # 4. Determine how many drivers get LL
     ll_laps = race_sim.race.scheduled_laps
     num_leaders = scipy.stats.poisson.rvs(race_sim.ll_mean) + 1
-    print(f'num_leaders = {num_leaders}')
 
     # 5. Assign LL as randbetween(max(driver min, fp min), min(driver max, fp max))
     ll_vals = []  # holds actual LL values
@@ -567,8 +566,6 @@ def execute_sim_iteration(sim_id):
         'fl': driver_fl,
         'll': driver_ll
     })
-
-    df_race.to_csv('data/race.csv')
 
     return {
         'dnf': driver_dnfs,
