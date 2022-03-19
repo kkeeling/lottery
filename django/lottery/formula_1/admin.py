@@ -88,7 +88,9 @@ class RaceSimDriverInline(admin.TabularInline):
     extra = 0
     fields = (
         'driver',
+        'constructor',
         'starting_position',
+        'dk_position',
         'dk_salary',
         'speed_min',
         'speed_max',
@@ -101,6 +103,8 @@ class RaceSimDriverInline(admin.TabularInline):
         'gto',
     )
     read_only_fields = (
+        'driver',
+        'constructor',
         'avg_fp',
         'avg_ll',
         'avg_dk_score',
@@ -260,6 +264,11 @@ class MissingAliasAdmin(admin.ModelAdmin):
         queryset.delete()
 
 
+@admin.register(models.Constructor)
+class ConstructorAdmin(admin.ModelAdmin):
+    pass
+
+
 @admin.register(models.Driver)
 class DriverAdmin(admin.ModelAdmin):
     list_display = (
@@ -271,7 +280,7 @@ class DriverAdmin(admin.ModelAdmin):
         'full_name',
     )
     list_filter = (
-        ('team', DropdownFilter),
+        ('team', RelatedDropdownFilter),
     )
 
 

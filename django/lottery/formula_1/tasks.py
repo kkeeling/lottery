@@ -412,26 +412,61 @@ def process_sim_input_file(sim_id, task_id):
                 pct_laps_led_max=df_ll.at[index, 'max']
             )
 
-        race_sim.outcomes.all().delete()
+        race_sim.outcomes.filter(dk_position='D').delete()
+
+        # Drivers
         for index in range(0, len(df_drivers.index)):
             driver = models.Driver.objects.get(driver_id=df_drivers.at[index, 'driver_id'])
             alias = models.Alias.find_alias(driver.full_name, 'f1')
 
-            print(alias)
             dk_salary = dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries['Roster Position'] == 'D'),'Salary'].values[0]
-            dk_salary_cpt = dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries['Roster Position'] == 'CPT'),'Salary'].values[0]
 
             models.RaceSimDriver.objects.create(
                 sim=race_sim,
                 driver=driver,
+                dk_position='D',
                 starting_position=df_drivers.at[index, 'starting_position'],
                 dk_salary=dk_salary,
-                dk_salary_cpt=dk_salary_cpt,
                 speed_min=df_drivers.at[index, 'speed_min'],
                 speed_max=df_drivers.at[index, 'speed_max'],
                 incident_rate=df_drivers.at[index, 'incident'],
                 pct_laps_led_min=df_drivers.at[index, 'll_min'],
                 pct_laps_led_max=df_drivers.at[index, 'll_max']
+            )
+
+        # Drivers as CPT
+        for index in range(0, len(df_drivers.index)):
+            driver = models.Driver.objects.get(driver_id=df_drivers.at[index, 'driver_id'])
+            alias = models.Alias.find_alias(driver.full_name, 'f1')
+
+            dk_salary = dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries['Roster Position'] == 'CPT'),'Salary'].values[0]
+
+            models.RaceSimDriver.objects.create(
+                sim=race_sim,
+                driver=driver,
+                dk_position='CPT',
+                dk_salary=dk_salary,
+                speed_min=0,
+                speed_max=0,
+                incident_rate=0,
+                pct_laps_led_min=0,
+                pct_laps_led_max=0
+            )
+
+        # Constructors
+        for constructor in models.Constructor.objects.all():
+            dk_salary = dk_salaries.loc[(dk_salaries.Name.apply(lambda x: x.strip()) == constructor.name) & (dk_salaries['Roster Position'] == 'CNSTR'),'Salary'].values[0]
+
+            models.RaceSimDriver.objects.create(
+                sim=race_sim,
+                constructor=constructor,
+                dk_position='CNSTR',
+                dk_salary=dk_salary,
+                speed_min=0,
+                speed_max=0,
+                incident_rate=0,
+                pct_laps_led_min=0,
+                pct_laps_led_max=0
             )
 
         task.status = 'success'
@@ -501,7 +536,7 @@ def find_teammate_index(sim_drivers, driver):
 @shared_task
 def execute_sim_iteration(sim_id):
     race_sim = models.RaceSim.objects.get(id=sim_id)
-    drivers = race_sim.outcomes.all().order_by('starting_position', 'id')
+    drivers = race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id')
 
     race_drivers = list(drivers.values_list('driver__driver_id', flat=True))  # tracks drivers still in race
     driver_ids = list(drivers.values_list('driver__driver_id', flat=True))
@@ -564,13 +599,13 @@ def execute_sim_iteration(sim_id):
     driver_fl[driver_index] = 1
 
     driver_dk = [
-            (models.SITE_SCORING.get('draftkings').get('place_differential').get(str(driver_starting_positions[index] - fp_ranks.tolist()[index])) + 
-            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[index] + 
-            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[index])) + 
-            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[index] + 
-            (models.SITE_SCORING.get('draftkings').get('classified') if driver_dnfs[index] == 0 else 0) +
-            (models.SITE_SCORING.get('draftkings').get('defeated_teammate') if fp_ranks.tolist()[index] > fp_ranks.tolist()[find_teammate_index(drivers, d)] else 0)) for index, d in enumerate(drivers)
-        ]
+        (models.SITE_SCORING.get('draftkings').get('place_differential').get(str(driver_starting_positions[index] - fp_ranks.tolist()[index])) + 
+        models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[index] + 
+        models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[index])) + 
+        models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[index] + 
+        (models.SITE_SCORING.get('draftkings').get('classified') if driver_dnfs[index] == 0 else 0) +
+        (models.SITE_SCORING.get('draftkings').get('defeated_teammate') if fp_ranks.tolist()[index] > fp_ranks.tolist()[find_teammate_index(drivers, d)] else 0)) for index, d in enumerate(drivers)
+    ]
 
 
     # df_race = pandas.DataFrame({
@@ -607,7 +642,7 @@ def sim_execution_complete(results, sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
-        drivers = race_sim.outcomes.all().order_by('starting_position', 'id')
+        drivers = race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id')
         
         driver_ids = list(drivers.values_list('driver__driver_id', flat=True))
 
@@ -623,6 +658,7 @@ def sim_execution_complete(results, sim_id, task_id):
         df_ll = pandas.DataFrame(ll_list, columns=driver_ids)
         df_dk = pandas.DataFrame(dk_list, columns=driver_ids)
 
+        # Drivers & Captains
         for driver in drivers:
             driver.incident_outcomes = df_dnf[driver.driver.driver_id].tolist()
             driver.fp_outcomes = df_fp[driver.driver.driver_id].tolist()
@@ -634,6 +670,24 @@ def sim_execution_complete(results, sim_id, task_id):
             driver.dk_scores = df_dk[driver.driver.driver_id].tolist()
             driver.avg_dk_score = numpy.average(driver.dk_scores)
             driver.save()
+
+            captain = race_sim.outcomes.get(driver=driver.driver, dk_position='CPT')
+            captain.dk_scores = (df_dk[driver.driver.driver_id] * 1.5).tolist()
+            captain.avg_dk_score = numpy.average(captain.dk_scores)
+            captain.save()
+
+        # Constructors
+        for constructor in race_sim.outcomes.filter(dk_position='CNSTR'):
+            teammates = drivers.filter(driver__team=constructor.constructor)
+
+            constructor.dk_scores = [
+                (teammates[0].dk_scores[index] + teammates[1].dk_scores[index] - models.SITE_SCORING.get('draftkings').get('defeated_teammate') + 
+                (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(teammates[0].incident_outcomes[index]) == 0 and int(teammates[1].incident_outcomes[index]) == 0 else 0) + 
+                (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if teammates[0].fp_outcomes[index] <= 10 and teammates[1].fp_outcomes[index] <= 10 else 0) + 
+                (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if teammates[0].fp_outcomes[index] <= 3 and teammates[1].fp_outcomes[index] <= 3 else 0)) for index in range(0, race_sim.iterations)
+            ]
+            constructor.avg_dk_score = numpy.average(constructor.dk_scores)
+            constructor.save()
 
         task.status = 'success'
         task.content = f'{race_sim} complete.'
@@ -661,13 +715,13 @@ def find_driver_gto(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
-        scores = [d.get_scores('draftkings') for d in race_sim.outcomes.all().order_by('starting_position')]
+        scores = [d.get_scores('draftkings') for d in race_sim.outcomes.filter(dk_position='D').order_by('starting_position')]
 
         jobs = []
         for i in range(0, race_sim.iterations):
             jobs.append(make_optimals_for_gto.si(
                 [s[i] for s in scores],
-                list(race_sim.outcomes.all().order_by('starting_position').values_list('id', flat=True)),
+                list(race_sim.outcomes.filter(dk_position='D').order_by('starting_position').values_list('id', flat=True)),
                 'draftkings'
             ))
 
@@ -691,10 +745,7 @@ def find_driver_gto(sim_id, task_id):
 
 @shared_task
 def make_optimals_for_gto(iterations_scores, driver_ids, site):
-    if site == 'fanduel':
-        optimizer = get_optimizer(Site.FANDUEL, Sport.NASCAR)
-    else:
-        optimizer = get_optimizer(Site.DRAFTKINGS, Sport.NASCAR)
+    optimizer = get_optimizer(Site.DRAFTKINGS, Sport.F1)
 
     drivers = models.RaceSimDriver.objects.filter(id__in=driver_ids)
     player_list = []
@@ -714,8 +765,8 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
             first,
             last,
             ['D'],
-            'Nasca',
-            driver.dk_salary if site == 'draftkings' else driver.fd_salary,
+            driver.driver.team,
+            driver.dk_salary,
             float(fppg),
         )
 
@@ -755,7 +806,7 @@ def finalize_gto(results, sim_id, task_id):
         d_count_4 = df_results[4].value_counts()
         d_count_5 = df_results[5].value_counts()
 
-        for driver in race_sim.outcomes.all():
+        for driver in race_sim.outcomes.filter(dk_position='D'):
             count = 0
             
             try:
@@ -820,24 +871,25 @@ def export_results(sim_id, result_path, result_url, task_id):
         race_sim = models.RaceSim.objects.get(id=sim_id)
 
         # Finishing position raw outcomes and finishing position distribution
-        df_fp = pandas.DataFrame([d.fp_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        df_fp = pandas.DataFrame([d.fp_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
 
         fp_list = []
         for fp in range(1, race_sim.outcomes.count()+1):
             fp_list.append(
-                [df_fp[d.driver.full_name].value_counts()[fp] if fp in df_fp[d.driver.full_name].value_counts() else 0 for d in race_sim.outcomes.all().order_by('starting_position', 'id')]
+                [df_fp[d.driver.full_name].value_counts()[fp] if fp in df_fp[d.driver.full_name].value_counts() else 0 for d in race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id')]
             )
-        df_fp_results = pandas.DataFrame(fp_list, index=range(0, race_sim.outcomes.count()), columns=list(race_sim.outcomes.all().order_by('starting_position', 'id').values_list('driver__full_name', flat=True)))
+        df_fp_results = pandas.DataFrame(fp_list, index=range(0, race_sim.outcomes.count()), columns=list(race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id').values_list('driver__full_name', flat=True)))
 
         # FL outcomes
-        df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
 
         # LL outcomes
-        df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
 
         # DK
-        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
         df_dk = pandas.DataFrame(data={
+            'pos': [d.dk_position for d in race_sim.outcomes.all()],
             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
             'start': [d.starting_position for d in race_sim.outcomes.all()],
             '50p': [numpy.percentile(d.dk_scores, float(50)) for d in race_sim.outcomes.all()],
@@ -846,7 +898,7 @@ def export_results(sim_id, result_path, result_url, task_id):
             '80p': [numpy.percentile(d.dk_scores, float(80)) for d in race_sim.outcomes.all()],
             '90p': [numpy.percentile(d.dk_scores, float(90)) for d in race_sim.outcomes.all()],
             'gto': [d.gto for d in race_sim.outcomes.all()]
-        }, index=[d.driver.full_name for d in race_sim.outcomes.all()])
+        }, index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()])
         
 
         with pandas.ExcelWriter(result_path) as writer:

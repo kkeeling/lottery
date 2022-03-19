@@ -110,6 +110,12 @@ SITE_SCORING = {
     }
 }
 
+DK_ROSTER_POSITION_CHOICES = (
+    ('D', 'D'),
+    ('CPT', 'CPT'),
+    ('CNSTR', 'CNSTR'),
+)
+
 
 # Aliases
 
@@ -226,14 +232,21 @@ class MissingAlias(models.Model):
 
 # F1 Data
 
+class Constructor(models.Model):
+    name = models.CharField(max_length=50)
+
+    def __str__(self):
+        return f'{self.name}'
+
+
 class Driver(models.Model):
     driver_id = models.BigIntegerField(primary_key=True, auto_created=True, blank=True)
     full_name = models.CharField(max_length=50, null=True)
     badge = models.CharField(max_length=5, null=True)
-    team = models.CharField(max_length=100, null=True)
+    team = models.ForeignKey(Constructor, related_name='drivers', on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
-        return f'{self.full_name}'
+        return f'{self.full_name} ({self.team})'
     
 
 class Race(models.Model):
@@ -326,9 +339,10 @@ class RaceSimLapsLedProfile(models.Model):
 
 class RaceSimDriver(models.Model):
     sim = models.ForeignKey(RaceSim, related_name='outcomes', on_delete=models.CASCADE)
-    driver = models.ForeignKey(Driver, related_name='outcomes', on_delete=models.CASCADE)
+    driver = models.ForeignKey(Driver, related_name='outcomes', on_delete=models.CASCADE, null=True, blank=True)
+    constructor = models.ForeignKey(Constructor, related_name='outcomes', on_delete=models.CASCADE, null=True, blank=True)
     dk_salary = models.IntegerField(default=0)
-    dk_salary_cpt = models.IntegerField(default=0)
+    dk_position = models.CharField(default='D', choices=DK_ROSTER_POSITION_CHOICES, max_length=10)
     starting_position = models.IntegerField(default=0)
     speed_min = models.IntegerField(default=1)
     speed_max = models.IntegerField(default=5)
@@ -350,7 +364,9 @@ class RaceSimDriver(models.Model):
     gto = models.FloatField(default=0.0)
 
     def __str__(self):
-        return f'{self.driver}'
+        if self.driver is None:
+            return f'{self.constructor}'
+        return f'{self.dk_position} {self.driver}'
 
     def get_teammate(self):
         return RaceSimDriver.objects.filter(
