@@ -500,21 +500,21 @@ def execute_sim(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         race_sim = models.RaceSim.objects.get(id=sim_id)
-        chord([
-            execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
-        ], sim_execution_complete.s(sim_id, task_id))()
-        # chain(
-        #     chord([
-        #         execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
-        #     ], sim_execution_complete.s(sim_id, task_id)),
-        #     find_driver_gto.si(
-        #         race_sim.id,
-        #         BackgroundTask.objects.create(
-        #             name=f'Find driver GTO for {race_sim}',
-        #             user=task.user
-        #         ).id
-        #     )
-        # )()
+        # chord([
+        #     execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
+        # ], sim_execution_complete.s(sim_id, task_id))()
+        chain(
+            chord([
+                execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
+            ], sim_execution_complete.s(sim_id, task_id)),
+            find_driver_gto.si(
+                race_sim.id,
+                BackgroundTask.objects.create(
+                    name=f'Find driver GTO for {race_sim}',
+                    user=task.user
+                ).id
+            )
+        )()
 
     except Exception as e:
         if task is not None:
@@ -715,13 +715,13 @@ def find_driver_gto(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
-        scores = [d.get_scores('draftkings') for d in race_sim.outcomes.filter(dk_position='D').order_by('starting_position')]
+        scores = [d.dk_scores for d in race_sim.outcomes.all().order_by('-avg_dk_score')]
 
         jobs = []
         for i in range(0, race_sim.iterations):
             jobs.append(make_optimals_for_gto.si(
                 [s[i] for s in scores],
-                list(race_sim.outcomes.filter(dk_position='D').order_by('starting_position').values_list('id', flat=True)),
+                list(race_sim.outcomes.all().values_list('id', flat=True)),
                 'draftkings'
             ))
 
@@ -750,22 +750,27 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
     drivers = models.RaceSimDriver.objects.filter(id__in=driver_ids)
     player_list = []
 
-    for index, driver in enumerate(drivers.order_by('starting_position')):
-        if ' ' in driver.driver.full_name:
-            first = driver.driver.full_name.split(' ')[0]
-            last = driver.driver.full_name.split(' ')[-1]
-        else:
-            first = driver.driver.full_name
+    for index, driver in enumerate(drivers.order_by('-avg_dk_score')):
+        if driver.driver is None:
+            first = driver.constructor.name
             last = ''
+        else:
+            if ' ' in driver.driver.full_name:
+                first = driver.driver.full_name.split(' ')[0]
+                last = driver.driver.full_name.split(' ')[-1]
+            else:
+                first = driver.driver.full_name
+                last = ''
 
+        team = driver.constructor.name if driver.driver is None else driver.driver.team.name
         fppg = iterations_scores[index]
 
         player = Player(
-            driver.driver.driver_id,
+            driver.id,
             first,
             last,
-            ['D'],
-            driver.driver.team,
+            [driver.dk_position],
+            team,
             driver.dk_salary,
             float(fppg),
         )
@@ -806,36 +811,36 @@ def finalize_gto(results, sim_id, task_id):
         d_count_4 = df_results[4].value_counts()
         d_count_5 = df_results[5].value_counts()
 
-        for driver in race_sim.outcomes.filter(dk_position='D'):
+        for driver in race_sim.outcomes.all():
             count = 0
             
             try:
-                count += d_count_0.loc[driver.driver.driver_id]
+                count += d_count_0.loc[driver.id]
             except KeyError:
                 pass
             
             try:
-                count += d_count_1.loc[driver.driver.driver_id]
+                count += d_count_1.loc[driver.id]
             except KeyError:
                 pass
             
             try:
-                count += d_count_2.loc[driver.driver.driver_id]
+                count += d_count_2.loc[driver.id]
             except KeyError:
                 pass
             
             try:
-                count += d_count_3.loc[driver.driver.driver_id]
+                count += d_count_3.loc[driver.id]
             except KeyError:
                 pass
             
             try:
-                count += d_count_4.loc[driver.driver.driver_id]
+                count += d_count_4.loc[driver.id]
             except KeyError:
                 pass
             
             try:
-                count += d_count_5.loc[driver.driver.driver_id]
+                count += d_count_5.loc[driver.id]
             except KeyError:
                 pass
                             
