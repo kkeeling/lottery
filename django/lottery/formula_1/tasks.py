@@ -532,6 +532,7 @@ def execute_sim(sim_id, task_id):
 
 def find_teammate_index(sim_drivers, driver):
     for index, d in enumerate(sim_drivers):
+        # print(f'{d.get_teammate()} == {driver}: {d.get_teammate() == driver}')
         if d.get_teammate() == driver:
             return index
     return -1
@@ -602,6 +603,12 @@ def execute_sim_iteration(sim_id):
     driver_index = int(numpy.where(fp_ranks == fp_rank)[0][0])
     driver_fl[driver_index] = 1
 
+    # l = [(models.SITE_SCORING.get('draftkings').get('defeated_teammate') if fp_ranks.tolist()[index] < fp_ranks.tolist()[find_teammate_index(drivers, d)] else 0) for index, d in enumerate(drivers)]
+    # t = [find_teammate_index(drivers, d) for _, d in enumerate(drivers)]
+    # print(drivers)
+    # print(t)
+    # print(fp_ranks.tolist())
+    # print(l)
     driver_dk = [
         (models.SITE_SCORING.get('draftkings').get('place_differential').get(str(driver_starting_positions[index] - fp_ranks.tolist()[index])) + 
         models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[index] + 
@@ -717,6 +724,8 @@ def calc_constructor_score(sim_id, constructor_id):
     constructor = race_sim.outcomes.get(id=constructor_id)
 
     teammates = drivers.filter(driver__team=constructor.constructor)
+    # print(teammates[0].fp_outcomes)
+    # print(teammates[1].fp_outcomes)
 
     constructor.dk_scores = [
         (teammates[0].dk_scores[index] + teammates[1].dk_scores[index] - models.SITE_SCORING.get('draftkings').get('defeated_teammate') + 

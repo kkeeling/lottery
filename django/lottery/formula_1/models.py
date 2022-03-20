@@ -371,7 +371,8 @@ class RaceSimDriver(models.Model):
     def get_teammate(self):
         return RaceSimDriver.objects.filter(
             sim=self.sim,
-            driver__team=self.driver.team
+            driver__team=self.driver.team,
+            dk_position='D'
         ).exclude(id=self.id)[0]
 
     def get_scores(self, site):
