@@ -502,18 +502,22 @@ def execute_sim(sim_id, task_id):
         race_sim = models.RaceSim.objects.get(id=sim_id)
         # chord([
         #     execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
-        # ], sim_execution_complete.s(sim_id, task_id))()
+        # ], calc_sim_scores.s(sim_id, task_id))()
         chain(
-            chord([
+            group([
                 execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
-            ], sim_execution_complete.s(sim_id, task_id)),
+            ]),
+            calc_sim_scores.s(sim_id, task_id),
+            group([
+                calc_constructor_score.si(sim_id, constructor.id) for constructor in race_sim.outcomes.filter(dk_position='CNSTR')
+            ]),
             find_driver_gto.si(
                 race_sim.id,
                 BackgroundTask.objects.create(
                     name=f'Find driver GTO for {race_sim}',
                     user=task.user
                 ).id
-            )
+            ),
         )()
 
     except Exception as e:
@@ -604,7 +608,7 @@ def execute_sim_iteration(sim_id):
         models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[index])) + 
         models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[index] + 
         (models.SITE_SCORING.get('draftkings').get('classified') if driver_dnfs[index] == 0 else 0) +
-        (models.SITE_SCORING.get('draftkings').get('defeated_teammate') if fp_ranks.tolist()[index] > fp_ranks.tolist()[find_teammate_index(drivers, d)] else 0)) for index, d in enumerate(drivers)
+        (models.SITE_SCORING.get('draftkings').get('defeated_teammate') if fp_ranks.tolist()[index] < fp_ranks.tolist()[find_teammate_index(drivers, d)] else 0)) for index, d in enumerate(drivers)
     ]
 
 
@@ -631,7 +635,7 @@ def execute_sim_iteration(sim_id):
     }
 
 @shared_task
-def sim_execution_complete(results, sim_id, task_id):
+def calc_sim_scores(results, sim_id, task_id):
     task = None
 
     try:
@@ -677,17 +681,20 @@ def sim_execution_complete(results, sim_id, task_id):
             captain.save()
 
         # Constructors
-        for constructor in race_sim.outcomes.filter(dk_position='CNSTR'):
-            teammates = drivers.filter(driver__team=constructor.constructor)
+        # group([
+        #     calc_constructor_score.si(sim_id, constructor.id) for constructor in race_sim.outcomes.filter(dk_position='CNSTR')
+        # ])()
+        # for constructor in race_sim.outcomes.filter(dk_position='CNSTR'):
+        #     teammates = drivers.filter(driver__team=constructor.constructor)
 
-            constructor.dk_scores = [
-                (teammates[0].dk_scores[index] + teammates[1].dk_scores[index] - models.SITE_SCORING.get('draftkings').get('defeated_teammate') + 
-                (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(teammates[0].incident_outcomes[index]) == 0 and int(teammates[1].incident_outcomes[index]) == 0 else 0) + 
-                (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if teammates[0].fp_outcomes[index] <= 10 and teammates[1].fp_outcomes[index] <= 10 else 0) + 
-                (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if teammates[0].fp_outcomes[index] <= 3 and teammates[1].fp_outcomes[index] <= 3 else 0)) for index in range(0, race_sim.iterations)
-            ]
-            constructor.avg_dk_score = numpy.average(constructor.dk_scores)
-            constructor.save()
+        #     constructor.dk_scores = [
+        #         (teammates[0].dk_scores[index] + teammates[1].dk_scores[index] - models.SITE_SCORING.get('draftkings').get('defeated_teammate') + 
+        #         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(teammates[0].incident_outcomes[index]) == 0 and int(teammates[1].incident_outcomes[index]) == 0 else 0) + 
+        #         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if teammates[0].fp_outcomes[index] <= 10 and teammates[1].fp_outcomes[index] <= 10 else 0) + 
+        #         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if teammates[0].fp_outcomes[index] <= 3 and teammates[1].fp_outcomes[index] <= 3 else 0)) for index in range(0, race_sim.iterations)
+        #     ]
+        #     constructor.avg_dk_score = numpy.average(constructor.dk_scores)
+        #     constructor.save()
 
         task.status = 'success'
         task.content = f'{race_sim} complete.'
@@ -701,6 +708,24 @@ def sim_execution_complete(results, sim_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def calc_constructor_score(sim_id, constructor_id):
+    race_sim = models.RaceSim.objects.get(id=sim_id)
+    drivers = race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id')
+    constructor = race_sim.outcomes.get(id=constructor_id)
+
+    teammates = drivers.filter(driver__team=constructor.constructor)
+
+    constructor.dk_scores = [
+        (teammates[0].dk_scores[index] + teammates[1].dk_scores[index] - models.SITE_SCORING.get('draftkings').get('defeated_teammate') + 
+        (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(teammates[0].incident_outcomes[index]) == 0 and int(teammates[1].incident_outcomes[index]) == 0 else 0) + 
+        (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if teammates[0].fp_outcomes[index] <= 10 and teammates[1].fp_outcomes[index] <= 10 else 0) + 
+        (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if teammates[0].fp_outcomes[index] <= 3 and teammates[1].fp_outcomes[index] <= 3 else 0)) for index in range(0, race_sim.iterations)
+    ]
+    constructor.avg_dk_score = numpy.average(constructor.dk_scores)
+    constructor.save()
 
 
 @shared_task
