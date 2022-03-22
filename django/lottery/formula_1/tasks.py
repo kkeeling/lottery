@@ -601,12 +601,6 @@ def execute_sim_iteration(sim_id):
     driver_index = int(numpy.where(fp_ranks == fp_rank)[0][0])
     driver_fl[driver_index] = 1
 
-    # l = [(models.SITE_SCORING.get('draftkings').get('defeated_teammate') if fp_ranks.tolist()[index] < fp_ranks.tolist()[find_teammate_index(drivers, d)] else 0) for index, d in enumerate(drivers)]
-    # t = [find_teammate_index(drivers, d) for _, d in enumerate(drivers)]
-    # print(drivers)
-    # print(t)
-    # print(fp_ranks.tolist())
-    # print(l)
     driver_dk = [
         (models.SITE_SCORING.get('draftkings').get('place_differential').get(str(driver_starting_positions[index] - fp_ranks.tolist()[index])) + 
         models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[index] + 
@@ -725,26 +719,6 @@ def calc_sim_scores(results, sim_id, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-# @shared_task
-# def calc_constructor_score(sim_id, constructor_id):
-#     race_sim = models.RaceSim.objects.get(id=sim_id)
-#     drivers = race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id')
-#     constructor = race_sim.outcomes.get(id=constructor_id)
-
-#     teammates = drivers.filter(driver__team=constructor.constructor)
-#     # print(teammates[0].fp_outcomes)
-#     # print(teammates[1].fp_outcomes)
-
-#     constructor.dk_scores = [
-#         (teammates[0].dk_scores[index] + teammates[1].dk_scores[index] - models.SITE_SCORING.get('draftkings').get('defeated_teammate') + 
-#         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(teammates[0].incident_outcomes[index]) == 0 and int(teammates[1].incident_outcomes[index]) == 0 else 0) + 
-#         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if teammates[0].fp_outcomes[index] <= 10 and teammates[1].fp_outcomes[index] <= 10 else 0) + 
-#         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if teammates[0].fp_outcomes[index] <= 3 and teammates[1].fp_outcomes[index] <= 3 else 0)) for index in range(0, race_sim.iterations)
-#     ]
-#     constructor.avg_dk_score = numpy.average(constructor.dk_scores)
-#     constructor.save()
-
-
 @shared_task
 def find_driver_gto(sim_id, task_id):
     task = None
@@ -757,6 +731,7 @@ def find_driver_gto(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
+        race_sim.lineups.all().delete()
         scores = [d.dk_scores for d in race_sim.outcomes.all().order_by('-avg_dk_score')]
 
         jobs = []
@@ -790,6 +765,7 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
     optimizer = get_optimizer(Site.DRAFTKINGS, Sport.F1)
 
     drivers = models.RaceSimDriver.objects.filter(id__in=driver_ids)
+    sim = drivers[0].sim
     player_list = []
 
     for index, driver in enumerate(drivers.order_by('-avg_dk_score')):
@@ -828,6 +804,32 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
     
     for l in optimized_lineups:
         lineup = [p.id for p in l.players]
+        
+        existing = models.RaceSimLineup.objects.filter(
+            cpt__id__in=lineup,
+            flex_1__id__in=lineup,
+            flex_2__id__in=lineup,
+            flex_3__id__in=lineup,
+            flex_4__id__in=lineup,
+            constructor__id__in=lineup
+        )
+        
+        if existing.count() > 0:
+            sim_lineup = existing[0]
+            sim_lineup.count += 1
+            sim_lineup.save()
+        else:
+            sim_lineup = models.RaceSimLineup.objects.create(
+                sim=sim,
+                cpt_id=lineup[0],
+                flex_1_id=lineup[1],
+                flex_2_id=lineup[2],
+                flex_3_id=lineup[3],
+                flex_4_id=lineup[4],
+                constructor_id=lineup[5],
+                total_salary=sum([lp.salary for lp in l])
+            )
+            sim_lineup.simulate()
 
     return lineup
 
@@ -946,8 +948,12 @@ def export_results(sim_id, result_path, result_url, task_id):
             '90p': [numpy.percentile(d.dk_scores, float(90)) for d in race_sim.outcomes.all()],
             'gto': [d.gto for d in race_sim.outcomes.all()]
         }, index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()])
-        
 
+        # GTO Lineups
+        df_lineups = pandas.DataFrame.from_records(race_sim.lineups.all().values(
+            'cpt__driver__full_name', 'flex_1__driver__full_name', 'flex_2__driver__full_name', 'flex_3__driver__full_name', 'flex_4__driver__full_name', 'constructor__constructor__name', 'total_salary', 'median', 's75', 's90', 'count'
+        ))
+        
         with pandas.ExcelWriter(result_path) as writer:
             df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
             df_fp_results.to_excel(writer, sheet_name='Finishing Position Distribution')
@@ -955,6 +961,7 @@ def export_results(sim_id, result_path, result_url, task_id):
             df_ll.to_excel(writer, sheet_name='Laps Led Raw')
             df_dk.to_excel(writer, sheet_name='DK')
             df_dk_raw.to_excel(writer, sheet_name='DK Raw')
+            df_lineups.to_excel(writer, sheet_name='Lineups')
 
         print(f'export took {time.time() - start}s')
         task.status = 'download'

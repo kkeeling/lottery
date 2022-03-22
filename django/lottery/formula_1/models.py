@@ -368,6 +368,11 @@ class RaceSimDriver(models.Model):
             return f'{self.constructor}'
         return f'{self.dk_position} {self.driver}'
 
+    def name(self):
+        if self.driver is None:
+            return f'{self.constructor}'
+        return f'{self.driver}'
+
     def get_team_drivers(self):
         if self.dk_position != 'CNSTR':
             return None
@@ -400,6 +405,47 @@ class RaceSimDriver(models.Model):
             (SITE_SCORING.get(site).get('classified') if self.incident_outcomes[index] == 0 else 0) +
             (SITE_SCORING.get(site).get('defeated_teammate') if self.get_teammate().fp_outcomes[index] > self.fp_outcomes[index] else 0)) for index in range(0, count)
         ]
+
+class RaceSimLineup(models.Model):
+    sim = models.ForeignKey(RaceSim, related_name='lineups', on_delete=models.CASCADE)
+    cpt = models.ForeignKey(RaceSimDriver, related_name='lineups_as_cpt', on_delete=models.CASCADE)
+    flex_1 = models.ForeignKey(RaceSimDriver, related_name='lineups_as_flex_1', on_delete=models.CASCADE)
+    flex_2 = models.ForeignKey(RaceSimDriver, related_name='lineups_as_flex_2', on_delete=models.CASCADE)
+    flex_3 = models.ForeignKey(RaceSimDriver, related_name='lineups_as_flex_3', on_delete=models.CASCADE)
+    flex_4 = models.ForeignKey(RaceSimDriver, related_name='lineups_as_flex_4', on_delete=models.CASCADE)
+    constructor = models.ForeignKey(RaceSimDriver, related_name='lineups_as_constructor', on_delete=models.CASCADE)
+    total_salary = models.IntegerField(default=0)
+    sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    median = models.FloatField(db_index=True, default=0.0)
+    s75 = models.FloatField(db_index=True, default=0.0)
+    s90 = models.FloatField(db_index=True, default=0.0)
+    count = models.IntegerField(db_index=True, default=1)
+
+    class Meta:
+        verbose_name = 'Optimal Lineup'
+        verbose_name_plural = 'Optimal Lineups'
+        ordering = ['-count']
+
+    @property
+    def players(self):
+        return [
+            self.cpt, 
+            self.flex_1, 
+            self.flex_2, 
+            self.flex_3, 
+            self.flex_4, 
+            self.constructor
+        ]
+
+    def get_percentile_sim_score(self, percentile):
+        return numpy.percentile(self.sim_scores, float(percentile))
+
+    def simulate(self):
+        self.sim_scores = [float(sum([p.dk_scores[i] for p in self.players])) for i in range(0, self.sim.iterations)]
+        self.median = numpy.median(self.sim_scores)
+        self.s75 = self.get_percentile_sim_score(75)
+        self.s90 = self.get_percentile_sim_score(90)
+        self.save()
 
 
 # DFS Slates

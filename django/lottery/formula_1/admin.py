@@ -47,42 +47,6 @@ class RaceResultInline(admin.TabularInline):
     )
 
 
-# class RaceCautionInline(admin.TabularInline):
-#     model = models.RaceCautionSegment
-#     extra = 0
-#     fields = (
-#         'start_lap',
-#         'end_lap',
-#         'reason',
-#         'comment',
-#     )
-#     readonly_fields = (
-#         'start_lap',
-#         'end_lap',
-#         'reason',
-#         'comment',
-#     )
-
-
-# class RaceInfractionInline(admin.TabularInline):
-#     model = models.RaceInfraction
-#     extra = 0
-#     fields = (
-#         'driver',
-#         'lap',
-#         'infraction',
-#         'penalty',
-#         'notes',
-#     )
-#     readonly_fields = (
-#         'driver',
-#         'lap',
-#         'infraction',
-#         'penalty',
-#         'notes',
-#     )
-
-
 class RaceSimDriverInline(admin.TabularInline):
     model = models.RaceSimDriver
     extra = 0
@@ -109,31 +73,6 @@ class RaceSimDriverInline(admin.TabularInline):
         'avg_ll',
         'avg_dk_score',
     )
-
-
-# class RaceSimDamageProfileInline(admin.TabularInline):
-#     model = models.RaceSimDamageProfile
-#     extra = 0
-#     fields = (
-#         'name',
-#         'min_cars_involved',
-#         'max_cars_involved',
-#         'prob_no_damage',
-#         'prob_minor_damage',
-#         'prob_medium_damage',
-#         'prob_dnf',
-#     )
-
-
-# class RaceSimPenaltyProfileInline(admin.TabularInline):
-#     model = models.RaceSimPenaltyProfile
-#     extra = 0
-#     fields = (
-#         'stage',
-#         'is_green',
-#         'floor_impact',
-#         'ceiling_impact',
-#     )
 
 
 class RaceSimLapsLedInline(admin.TabularInline):
@@ -488,6 +427,33 @@ class RaceSimAdmin(admin.ModelAdmin):
             f'Finding driver GTO for {queryset.count()} races'
         )
     calculate_driver_gto.short_description = 'Calculate Driver GTO'
+
+
+@admin.register(models.RaceSimLineup)
+class RaceSimLineupAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'cpt',
+        'flex_1',
+        'flex_2',
+        'flex_3',
+        'flex_4',
+        'constructor',
+        'total_salary',
+        'median',
+        's75',
+        's90',
+        'count',
+    )
+
+    search_fields = (
+        'cpt__driver__full_name',
+        'flex_1__driver__full_name',
+        'flex_2__driver__full_name',
+        'flex_3__driver__full_name',
+        'flex_4__driver__full_name',
+        'constructor__constructor__name',
+    )
 
 # @admin.register(models.SlateBuildConfig)
 # class ConfigAdmin(admin.ModelAdmin):
