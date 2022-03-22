@@ -327,6 +327,15 @@ class RaceSimFastestLapsProfile(models.Model):
         return f'Fastest Laps Profile: FP {self.fp_rank} - {self.probability * 100}%'
 
 
+class RaceSimNumLeadersProfile(models.Model):
+    sim = models.ForeignKey(RaceSim, related_name='nl_profiles', on_delete=models.CASCADE)
+    leader_count = models.IntegerField(default=1)
+    probability = models.FloatField(default=0.0)
+
+    def __str__(self):
+        return f'Num Leaders Profile: {self.leader_count} leaders - {self.probability * 100}%'
+
+
 class RaceSimLapsLedProfile(models.Model):
     sim = models.ForeignKey(RaceSim, related_name='ll_profiles', on_delete=models.CASCADE)
     fp_rank = models.IntegerField(default=1)

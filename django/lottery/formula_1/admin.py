@@ -94,6 +94,15 @@ class RaceSimFastestLapsInline(admin.TabularInline):
     )
 
 
+class RaceSimNumLeadersInline(admin.TabularInline):
+    model = models.RaceSimNumLeadersProfile
+    extra = 0
+    fields = (
+        'leader_count',
+        'probability',
+    )
+
+
 # class SlateBuildGroupPlayerInline(admin.TabularInline):
 #     model = models.SlateBuildGroupPlayer
 #     autocomplete_fields = ['player']
@@ -276,6 +285,7 @@ class RaceSimAdmin(admin.ModelAdmin):
     )
     inlines = [
         RaceSimFastestLapsInline,
+        RaceSimNumLeadersInline,
         RaceSimLapsLedInline,
         RaceSimDriverInline
     ]

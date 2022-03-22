@@ -52,249 +52,6 @@ def lock_task(key, timeout=None):
             lock.release()
 
 
-# Updating Nascar Data
-
-# @shared_task
-# def update_driver_list():
-#     try:
-#         url = 'https://www.nascar.com/json/drivers/?limit=1000'
-#         response = requests.get(url)
-
-#         if response.status_code >= 300:
-#             raise Exception(f'Error updating driver list: HTTP {response.status_code}')
-        
-#         data = response.json().get('response')
-#         for d in data:
-#             driver, _ = models.Driver.objects.get_or_create(
-#                 driver_id=d.get('Driver_ID')
-#             )
-
-#             driver.driver_id = d.get('Driver_ID')
-#             driver.first_name = d.get('First_Name')
-#             driver.last_name = d.get('Last_Name')
-#             driver.full_name = d.get('Full_Name')
-#             driver.badge = d.get('Badge')
-#             driver.badge_image = d.get('Badge_Image')
-#             driver.manufacturer_image = d.get('Manufacturer')
-#             driver.team = d.get('Team') if d.get('Team') != d.get('Badge') else None
-#             driver.driver_image = d.get('Image')
-#             driver.save()
-
-#             alias, _ = models.Alias.objects.get_or_create(
-#                 nascar_name=driver.full_name
-#             )
-#             alias.dk_name = driver.full_name if alias.dk_name is None else alias.dk_name
-#             alias.fd_name = driver.full_name if alias.fd_name is None else alias.fd_name
-#             alias.ma_name = driver.full_name if alias.ma_name is None else alias.ma_name
-#             alias.save()
-
-#     except Exception as e:
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-# @shared_task
-# def update_race_list(race_year=2022):
-#     try:
-#         url = f'https://cf.nascar.com/cacher/{race_year}/race_list_basic.json'
-#         response = requests.get(url)
-
-#         if response.status_code >= 300:
-#             raise Exception(f'Error updating race list: HTTP {response.status_code}')
-        
-#         data = response.json()
-
-#         for series in data:
-#             races = data[series]
-#             for r in races:
-#                 # get basic race data
-#                 print(r.get('race_name'))
-
-#                 race, _ = models.Race.objects.get_or_create(
-#                     race_id=r.get('race_id')
-#                 )
-#                 race.series = r.get('series_id')
-#                 race.race_season = r.get('race_season')
-#                 race.race_name = r.get('race_name')
-#                 race.race_type = r.get('race_type_id')
-#                 race.restrictor_plate = r.get('restrictor_plate')
-
-#                 track, _ = models.Track.objects.get_or_create(
-#                     track_id=r.get('track_id')
-#                 )
-
-#                 track.track_name = r.get('track_name')
-#                 track.save()
-
-#                 race.track = track
-#                 race.race_date = datetime.datetime.strptime(r.get('race_date'), '%Y-%m-%dT%H:%M:%S')
-#                 race.qualifying_date = datetime.datetime.strptime(r.get('qualifying_date'), '%Y-%m-%dT%H:%M:%S')
-#                 race.scheduled_distance = r.get('scheduled_distance')
-#                 race.scheduled_laps = r.get('scheduled_laps')
-#                 race.stage_1_laps = r.get('stage_1_laps')
-#                 race.stage_2_laps = r.get('stage_2_laps')
-#                 race.stage_3_laps = r.get('stage_3_laps')
-#                 race.stage_4_laps = r.get('stage_4_laps') if r.get('stage_4_laps') is not None else 0
-#                 race.save()
-        
-#         race_result_tasks = group([
-#             update_race_results.si(race.race_id, race_year) for race in models.Race.objects.filter(race_season=race_year)
-#         ])
-#         lap_data_tasks = group([
-#             update_lap_data_for_race.si(race.race_id, race_year) for race in models.Race.objects.filter(race_season=race_year)
-#         ])
-#         chain(race_result_tasks, lap_data_tasks)()
-
-#     except Exception as e:
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-# @shared_task
-# def update_race_results(race_id, race_year=2022):
-#     race = models.Race.objects.get(race_id=race_id)
-
-#     # get race results
-#     race.results.all().delete()
-#     race.cautions.all().delete()
-#     race.infractions.all().delete()
-#     weekend_url = f'https://cf.nascar.com/cacher/{race_year}/{race.series}/{race.race_id}/weekend-feed.json'
-
-#     results_response = requests.get(weekend_url)
-#     if results_response.status_code >= 300:
-#         print(f'Cannot retrieve results for {race.race_name}: HTTP {results_response.status_code}')
-#         return
-    
-#     results_data = results_response.json()
-#     weekend_race = results_data.get('weekend_race')
-
-#     for wr in weekend_race:
-#         race.num_cars = wr.get('number_of_cars_in_field')
-#         race.num_lead_changes = wr.get('number_of_lead_changes')
-#         race.num_leaders = wr.get('number_of_leaders')
-#         race.num_cautions = wr.get('number_of_cautions')
-#         race.num_caution_laps = wr.get('number_of_caution_laps')
-#         race.save()
-
-#         results = wr.get('results')
-#         for result in results:
-#             try:
-#                 driver = models.Driver.objects.get(driver_id=result.get('driver_id'))
-#                 driver.manufacturer = result.get('car_make')
-#                 driver.team = result.get('team_name')
-#                 driver.save()
-
-#                 models.RaceResult.objects.create(
-#                     race=race,
-#                     driver=models.Driver.objects.get(driver_id=result.get('driver_id')),
-#                     finishing_position=result.get('finishing_position'),
-#                     starting_position=result.get('starting_position'),
-#                     laps_led=result.get('laps_led'),
-#                     times_led=result.get('times_led'),
-#                     laps_completed=result.get('laps_completed'),
-#                     finishing_status=result.get('finishing_status'),
-#                     disqualified=result.get('disqualified')
-#                 )
-#             except:
-#                 pass
-
-#         caution_segments = wr.get('caution_segments')
-#         for caution in caution_segments:
-#             try:
-#                 models.RaceCautionSegment.objects.create(
-#                     race=race,
-#                     start_lap=caution.get('start_lap'),
-#                     end_lap=caution.get('end_lap'),
-#                     reason=caution.get('reason'),
-#                     comment=caution.get('comment')
-#                 )
-#             except:
-#                 pass
-
-#         infractions = wr.get('infractions')
-#         for infraction in infractions:
-#             try:
-#                 models.RaceInfraction.objects.create(
-#                     race=race,
-#                     driver=models.Driver.objects.get(driver_id=infraction.get('driver_id')),
-#                     lap=infraction.get('lap'),
-#                     lap_assessed=infraction.get('lap_assessed'),
-#                     infraction=infraction.get('infraction'),
-#                     penalty=infraction.get('penalty'),
-#                     notes=infraction.get('notes')
-#                 )
-#             except:
-#                 pass
-
-
-# @shared_task
-# def update_lap_data_for_race(race_id, race_year=2022):
-#     race = models.Race.objects.get(race_id=race_id)
-
-#     # get lap data
-#     race.driver_laps.all().delete()
-#     lap_times_url = f'https://cf.nascar.com/cacher/{race_year}/{race.series}/{race.race_id}/lap-times.json'
-
-#     laps_response = requests.get(lap_times_url)
-#     if laps_response.status_code >= 300:
-#         print(f'Cannot retrieve results for {race.race_name}: HTTP {laps_response.status_code}')
-#         return
-
-#     laps_data = laps_response.json().get('laps')
-#     for ld in laps_data:
-#         driver = models.Driver.objects.get(driver_id=ld.get('NASCARDriverID'))
-#         for l in ld.get('Laps'):
-#             # check for caution segment
-#             caution_segments = models.RaceCautionSegment.objects.filter(
-#                 race=race,
-#                 start_lap__gte=l.get('Lap'),
-#                 end_lap__lte=l.get('Lap')
-#             )
-            
-#             if caution_segments.count() < 0:
-#                 try:
-#                     models.RaceDriverLap.objects.create(
-#                         race=race,
-#                         driver=driver,
-#                         lap=l.get('Lap'),
-#                         lap_time=l.get('LapTime'),
-#                         lap_speed=l.get('LapSpeed'),
-#                         running_pos=l.get('RunningPos')
-#                     )
-#                 except:
-#                     pass
-
-
-# # Exports
-
-# @shared_task
-# def export_tracks(track_ids, result_path, result_url, task_id):
-#     task = None
-
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
-
-#         tracks = models.Track.objects.filter(track_id__in=track_ids)
-#         df_tracks = pandas.DataFrame.from_records(tracks.values())
-#         df_tracks.to_csv(result_path)
-
-#         task.status = 'download'
-#         task.content = result_url
-#         task.save()
-
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was an error exporting track data: {e}'
-#             task.save()
-
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
 
 # Sims
 
@@ -338,16 +95,21 @@ def export_sim_template(sim_id, result_path, result_url, task_id):
             'fp': [i+1 for i in range (0, 20)]
         })
 
+        df_nl = pandas.DataFrame(data={
+            'pct': [0 for _ in range (0, 4)],
+            'count': [i+1 for i in range (0, 4)]
+        })
+
         df_ll = pandas.DataFrame(data={
             'min': [0 for _ in range (0, 20)],
             'max': [0 for _ in range (0, 20)],
             'fp': [i+1 for i in range (0, 20)]
         })
 
-        print(df_drivers)
         with pandas.ExcelWriter(result_path) as writer:
             df_race.to_excel(writer, sheet_name='race')
             df_fl.to_excel(writer, sheet_name='fl')
+            df_nl.to_excel(writer, sheet_name='num leaders')
             df_ll.to_excel(writer, sheet_name='ll')
             df_drivers.to_excel(writer, sheet_name='drivers')
 
@@ -386,6 +148,7 @@ def process_sim_input_file(sim_id, task_id):
 
         df_race = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='race')
         df_fl = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='fl')
+        df_nl = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='num leaders')
         df_ll = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='ll')
         df_drivers = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='drivers')
 
@@ -401,6 +164,14 @@ def process_sim_input_file(sim_id, task_id):
                 sim=race_sim,
                 fp_rank=df_fl.at[index, 'fp'],
                 probability=df_fl.at[index, 'pct']
+            )
+
+        race_sim.nl_profiles.all().delete()
+        for index in range(0, len(df_nl.index)):
+            models.RaceSimNumLeadersProfile.objects.create(
+                sim=race_sim,
+                leader_count=df_nl.at[index, 'count'],
+                probability=df_nl.at[index, 'pct']
             )
 
         race_sim.ll_profiles.all().delete()
@@ -563,7 +334,18 @@ def execute_sim_iteration(sim_id):
 
     # 4. Determine how many drivers get LL
     ll_laps = race_sim.race.scheduled_laps
-    num_leaders = scipy.stats.poisson.rvs(race_sim.ll_mean) + 1
+    nl_profiles = race_sim.nl_profiles.all()
+    nl_rand_prob = random()
+    num_leaders = 0
+    nl_cum = 0
+    for nlp in nl_profiles:
+        nl_cum += nlp.probability
+        if nl_rand_prob <= nl_cum:
+            num_leaders = nlp.leader_count
+            break
+    # num_leaders = scipy.stats.poisson.rvs(race_sim.ll_mean) + 1
+    print(f'nl_rand_prob = {nl_rand_prob}')
+    print(f'num_leaders = {num_leaders}')
 
     # 5. Assign LL as randbetween(max(driver min, fp min), min(driver max, fp max))
     ll_vals = []  # holds actual LL values
