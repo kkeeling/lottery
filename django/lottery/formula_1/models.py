@@ -368,6 +368,14 @@ class RaceSimDriver(models.Model):
             return f'{self.constructor}'
         return f'{self.dk_position} {self.driver}'
 
+    def get_team_drivers(self):
+        if self.dk_position != 'CNSTR':
+            return None
+        return RaceSimDriver.objects.filter(
+            sim=self.sim,
+            driver__team=self.constructor
+        )
+
     def get_teammate(self):
         return RaceSimDriver.objects.filter(
             sim=self.sim,

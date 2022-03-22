@@ -508,9 +508,6 @@ def execute_sim(sim_id, task_id):
                 execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
             ]),
             calc_sim_scores.s(sim_id, task_id),
-            group([
-                calc_constructor_score.si(sim_id, constructor.id) for constructor in race_sim.outcomes.filter(dk_position='CNSTR')
-            ]),
             find_driver_gto.si(
                 race_sim.id,
                 BackgroundTask.objects.create(
@@ -542,6 +539,7 @@ def find_teammate_index(sim_drivers, driver):
 def execute_sim_iteration(sim_id):
     race_sim = models.RaceSim.objects.get(id=sim_id)
     drivers = race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id')
+    constructors = race_sim.outcomes.filter(dk_position='CNSTR').order_by('id')
 
     race_drivers = list(drivers.values_list('driver__driver_id', flat=True))  # tracks drivers still in race
     driver_ids = list(drivers.values_list('driver__driver_id', flat=True))
@@ -618,6 +616,21 @@ def execute_sim_iteration(sim_id):
         (models.SITE_SCORING.get('draftkings').get('defeated_teammate') if fp_ranks.tolist()[index] < fp_ranks.tolist()[find_teammate_index(drivers, d)] else 0)) for index, d in enumerate(drivers)
     ]
 
+    constructor_dk = []
+    for index, c in enumerate(constructors):
+        teammates = c.get_team_drivers()
+        constructor_dk.append(
+            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])])) + 
+            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])])) +
+            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_teammate_index(drivers, teammates[0])] + 
+            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_teammate_index(drivers, teammates[1])] + 
+            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_teammate_index(drivers, teammates[0])] + 
+            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_teammate_index(drivers, teammates[1])] + 
+            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(driver_dnfs[find_teammate_index(drivers, teammates[0])]) == 0 and int(driver_dnfs[find_teammate_index(drivers, teammates[1])]) == 0 else 0) + 
+            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])] <= 10 and fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])] <= 10 else 0) + 
+            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])] <= 3 and fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])] <= 3 else 0)
+        )
+    
 
     # df_race = pandas.DataFrame({
     #     'driver_id': driver_ids,
@@ -638,7 +651,8 @@ def execute_sim_iteration(sim_id):
         'fp': fp_ranks.tolist(),
         'll': driver_ll,
         'fl': driver_fl,
-        'dk': driver_dk
+        'dk': driver_dk,
+        'c_dk': constructor_dk
     }
 
 @shared_task
@@ -654,20 +668,24 @@ def calc_sim_scores(results, sim_id, task_id):
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
         drivers = race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id')
+        constructors = race_sim.outcomes.filter(dk_position='CNSTR').order_by('id')
         
         driver_ids = list(drivers.values_list('driver__driver_id', flat=True))
+        constructor_ids = list(constructors.values_list('constructor__id', flat=True))
 
         dnf_list = [obj.get('dnf') for obj in results]
         fp_list = [obj.get('fp') for obj in results]
         fl_list = [obj.get('fl') for obj in results]
         ll_list = [obj.get('ll') for obj in results]
         dk_list = [obj.get('dk') for obj in results]
+        c_dk_list = [obj.get('c_dk') for obj in results]
 
         df_dnf = pandas.DataFrame(dnf_list, columns=driver_ids)
         df_fp = pandas.DataFrame(fp_list, columns=driver_ids)
         df_fl = pandas.DataFrame(fl_list, columns=driver_ids)
         df_ll = pandas.DataFrame(ll_list, columns=driver_ids)
         df_dk = pandas.DataFrame(dk_list, columns=driver_ids)
+        df_c_dk = pandas.DataFrame(c_dk_list, columns=constructor_ids)
 
         # Drivers & Captains
         for driver in drivers:
@@ -688,20 +706,10 @@ def calc_sim_scores(results, sim_id, task_id):
             captain.save()
 
         # Constructors
-        # group([
-        #     calc_constructor_score.si(sim_id, constructor.id) for constructor in race_sim.outcomes.filter(dk_position='CNSTR')
-        # ])()
-        # for constructor in race_sim.outcomes.filter(dk_position='CNSTR'):
-        #     teammates = drivers.filter(driver__team=constructor.constructor)
-
-        #     constructor.dk_scores = [
-        #         (teammates[0].dk_scores[index] + teammates[1].dk_scores[index] - models.SITE_SCORING.get('draftkings').get('defeated_teammate') + 
-        #         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(teammates[0].incident_outcomes[index]) == 0 and int(teammates[1].incident_outcomes[index]) == 0 else 0) + 
-        #         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if teammates[0].fp_outcomes[index] <= 10 and teammates[1].fp_outcomes[index] <= 10 else 0) + 
-        #         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if teammates[0].fp_outcomes[index] <= 3 and teammates[1].fp_outcomes[index] <= 3 else 0)) for index in range(0, race_sim.iterations)
-        #     ]
-        #     constructor.avg_dk_score = numpy.average(constructor.dk_scores)
-        #     constructor.save()
+        for constructor in constructors:
+            constructor.dk_scores = df_c_dk[constructor.constructor.id].tolist()
+            constructor.avg_dk_score = numpy.average(constructor.dk_scores)
+            constructor.save()
 
         task.status = 'success'
         task.content = f'{race_sim} complete.'
@@ -717,24 +725,24 @@ def calc_sim_scores(results, sim_id, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-@shared_task
-def calc_constructor_score(sim_id, constructor_id):
-    race_sim = models.RaceSim.objects.get(id=sim_id)
-    drivers = race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id')
-    constructor = race_sim.outcomes.get(id=constructor_id)
+# @shared_task
+# def calc_constructor_score(sim_id, constructor_id):
+#     race_sim = models.RaceSim.objects.get(id=sim_id)
+#     drivers = race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id')
+#     constructor = race_sim.outcomes.get(id=constructor_id)
 
-    teammates = drivers.filter(driver__team=constructor.constructor)
-    # print(teammates[0].fp_outcomes)
-    # print(teammates[1].fp_outcomes)
+#     teammates = drivers.filter(driver__team=constructor.constructor)
+#     # print(teammates[0].fp_outcomes)
+#     # print(teammates[1].fp_outcomes)
 
-    constructor.dk_scores = [
-        (teammates[0].dk_scores[index] + teammates[1].dk_scores[index] - models.SITE_SCORING.get('draftkings').get('defeated_teammate') + 
-        (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(teammates[0].incident_outcomes[index]) == 0 and int(teammates[1].incident_outcomes[index]) == 0 else 0) + 
-        (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if teammates[0].fp_outcomes[index] <= 10 and teammates[1].fp_outcomes[index] <= 10 else 0) + 
-        (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if teammates[0].fp_outcomes[index] <= 3 and teammates[1].fp_outcomes[index] <= 3 else 0)) for index in range(0, race_sim.iterations)
-    ]
-    constructor.avg_dk_score = numpy.average(constructor.dk_scores)
-    constructor.save()
+#     constructor.dk_scores = [
+#         (teammates[0].dk_scores[index] + teammates[1].dk_scores[index] - models.SITE_SCORING.get('draftkings').get('defeated_teammate') + 
+#         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(teammates[0].incident_outcomes[index]) == 0 and int(teammates[1].incident_outcomes[index]) == 0 else 0) + 
+#         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if teammates[0].fp_outcomes[index] <= 10 and teammates[1].fp_outcomes[index] <= 10 else 0) + 
+#         (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if teammates[0].fp_outcomes[index] <= 3 and teammates[1].fp_outcomes[index] <= 3 else 0)) for index in range(0, race_sim.iterations)
+#     ]
+#     constructor.avg_dk_score = numpy.average(constructor.dk_scores)
+#     constructor.save()
 
 
 @shared_task
