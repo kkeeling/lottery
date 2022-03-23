@@ -401,8 +401,8 @@ def execute_sim_iteration(sim_id):
     for index, c in enumerate(constructors):
         teammates = c.get_team_drivers()
         print(f'{c}: {teammates}')
-        print(f'{teammates[0]} finished {fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position="D"), teammates[0])]}')
-        print(f'{teammates[1]} finished {fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position="D"), teammates[1])]}')
+        print(f'{teammates[0]} finished {fp_ranks.tolist()[find_driver_index(drivers, teammates[0])]}')
+        print(f'{teammates[1]} finished {fp_ranks.tolist()[find_driver_index(drivers, teammates[1])]}')
         # print(models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])])))
         # print(models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])])))
         # print(models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_teammate_index(drivers, teammates[0])])
@@ -413,15 +413,15 @@ def execute_sim_iteration(sim_id):
         # print((models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])] <= 10 and fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])] <= 10 else 0))
         # print((models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])] <= 3 and fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])] <= 3 else 0))
         constructor_dk.append(
-            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[0])])) + 
-            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[1])])) +
-            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_driver_index(drivers.filter(dk_position='D'), teammates[0])] + 
-            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_driver_index(drivers.filter(dk_position='D'), teammates[1])] + 
-            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_driver_index(drivers.filter(dk_position='D'), teammates[0])] + 
-            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_driver_index(drivers.filter(dk_position='D'), teammates[1])] + 
-            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(driver_dnfs[find_driver_index(drivers.filter(dk_position='D'), teammates[0])]) == 0 and int(driver_dnfs[find_driver_index(drivers.filter(dk_position='D'), teammates[1])]) == 0 else 0) + 
-            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[0])] <= 10 and fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[1])] <= 10 else 0) + 
-            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[0])] <= 3 and fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[1])] <= 3 else 0)
+            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_driver_index(drivers, teammates[0])])) + 
+            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_driver_index(drivers, teammates[1])])) +
+            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_driver_index(drivers, teammates[0])] + 
+            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_driver_index(drivers, teammates[1])] + 
+            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_driver_index(drivers, teammates[0])] + 
+            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_driver_index(drivers, teammates[1])] + 
+            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(driver_dnfs[find_driver_index(drivers, teammates[0])]) == 0 and int(driver_dnfs[find_driver_index(drivers, teammates[1])]) == 0 else 0) + 
+            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if fp_ranks.tolist()[find_driver_index(drivers, teammates[0])] <= 10 and fp_ranks.tolist()[find_driver_index(drivers, teammates[1])] <= 10 else 0) + 
+            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if fp_ranks.tolist()[find_driver_index(drivers, teammates[0])] <= 3 and fp_ranks.tolist()[find_driver_index(drivers, teammates[1])] <= 3 else 0)
         )
     
 
