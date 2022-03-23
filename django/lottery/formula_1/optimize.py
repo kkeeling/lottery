@@ -122,24 +122,25 @@ def get_player_list(projections, config):
         #     game_started=False
         # )
 
+        team = player.slate_player.constructor.name if player.slate_player.driver is None else player.slate_player.driver.team.name
         fppg = player.get_percentile_projection(config.optimize_by_percentile)
 
-        player = Player(
+        p = Player(
             player.slate_player.slate_player_id,
             first,
             last,
-            ['D'],
-            last,
+            [player.slate_player.position],
+            team,
             player.slate_player.salary,
             float(fppg),
             # game_info=game_info,
             min_deviation=-float(config.randomness) if config.randomness > 0.0 else None,
             max_deviation=float(config.randomness) if config.randomness > 0.0 else None,
             min_exposure=float(player.min_exposure),
-            max_exposure=float(player.max_exposure),
+            max_exposure=float(player.max_exposure)
         )
 
-        player_list.append(player)
+        player_list.append(p)
     return player_list
 
 
@@ -172,6 +173,10 @@ def get_player_list(projections, config):
 
 def generateRandomLineups(projections, num_lineups, num_drivers, salary_cap, timeout_seconds=60):
     lineups = []
+    captains = projections.filter(slate_player__position='CPT')
+    constructors = projections.filter(slate_player__position='CNSTR')
+    drivers = projections.filter(slate_player__position='D')
+
     for count in range(0, num_lineups):
         total_salary = 999999
         duplicate = False
@@ -179,17 +184,25 @@ def generateRandomLineups(projections, num_lineups, num_drivers, salary_cap, tim
         while total_salary > salary_cap or duplicate:
             duplicate = False
             l = []
-    
-            # get drivers
+
+            # cpt
+            cpt = captains[(int)(abs(random.random() - random.random()) * captains.count())]
+            l.append(cpt)
+
+            # drivers
             for _ in range(0, num_drivers):
-                d = projections[(int)(abs(random.random() - random.random()) * projections.count())]
+                d = drivers[(int)(abs(random.random() - random.random()) * drivers.count())]
                 while d in l:
-                    d = projections[(int)(abs(random.random() - random.random()) * projections.count())]
+                    d = drivers[(int)(abs(random.random() - random.random()) * drivers.count())]
                 l.append(d)
+
+            # cnstr
+            cnstr = constructors[(int)(abs(random.random() - random.random()) * constructors.count())]
+            l.append(cnstr)
 
             total_salary = sum([lp.salary for lp in l])
             
-            # TODO: Handle duplicates
+            #  Handle duplicates
             for l2 in lineups:
                 for lp in l:
                     if lp not in l2:

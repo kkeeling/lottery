@@ -417,13 +417,13 @@ class RaceSimDriver(models.Model):
         ]
 
 class RaceSimLineup(models.Model):
-    sim = models.ForeignKey(RaceSim, related_name='lineups', on_delete=models.CASCADE)
-    cpt = models.ForeignKey(RaceSimDriver, related_name='lineups_as_cpt', on_delete=models.CASCADE)
-    flex_1 = models.ForeignKey(RaceSimDriver, related_name='lineups_as_flex_1', on_delete=models.CASCADE)
-    flex_2 = models.ForeignKey(RaceSimDriver, related_name='lineups_as_flex_2', on_delete=models.CASCADE)
-    flex_3 = models.ForeignKey(RaceSimDriver, related_name='lineups_as_flex_3', on_delete=models.CASCADE)
-    flex_4 = models.ForeignKey(RaceSimDriver, related_name='lineups_as_flex_4', on_delete=models.CASCADE)
-    constructor = models.ForeignKey(RaceSimDriver, related_name='lineups_as_constructor', on_delete=models.CASCADE)
+    sim = models.ForeignKey(RaceSim, related_name='sim_lineups', on_delete=models.CASCADE)
+    cpt = models.ForeignKey(RaceSimDriver, related_name='sim_lineups_as_cpt', on_delete=models.CASCADE)
+    flex_1 = models.ForeignKey(RaceSimDriver, related_name='sim_lineups_as_flex_1', on_delete=models.CASCADE)
+    flex_2 = models.ForeignKey(RaceSimDriver, related_name='sim_lineups_as_flex_2', on_delete=models.CASCADE)
+    flex_3 = models.ForeignKey(RaceSimDriver, related_name='sim_lineups_as_flex_3', on_delete=models.CASCADE)
+    flex_4 = models.ForeignKey(RaceSimDriver, related_name='sim_lineups_as_flex_4', on_delete=models.CASCADE)
+    constructor = models.ForeignKey(RaceSimDriver, related_name='sim_lineups_as_constructor', on_delete=models.CASCADE)
     total_salary = models.IntegerField(default=0)
     sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
     median = models.FloatField(db_index=True, default=0.0)
@@ -460,24 +460,24 @@ class RaceSimLineup(models.Model):
 
 # DFS Slates
 
-# class SlateBuildConfig(models.Model):
-#     name = models.CharField(max_length=255)
-#     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='draftkings')
-#     randomness = models.DecimalField(decimal_places=2, max_digits=2, default=0.75)
-#     uniques = models.IntegerField(default=1)
-#     min_salary = models.IntegerField(default=0)
-#     optimize_by_percentile = models.IntegerField(default=50)
-#     lineup_multiplier = models.IntegerField(default=1)
-#     clean_by_percentile = models.IntegerField(default=50)
-#     duplicate_threshold = models.FloatField(default=5)
+class SlateBuildConfig(models.Model):
+    name = models.CharField(max_length=255)
+    site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='draftkings')
+    randomness = models.DecimalField(decimal_places=2, max_digits=2, default=0.75)
+    uniques = models.IntegerField(default=1)
+    min_salary = models.IntegerField(default=0)
+    optimize_by_percentile = models.IntegerField(default=50)
+    lineup_multiplier = models.IntegerField(default=1)
+    clean_by_percentile = models.IntegerField(default=50)
+    duplicate_threshold = models.FloatField(default=5)
 
-#     class Meta:
-#         verbose_name = 'Build Config'
-#         verbose_name_plural = 'Build Configs'
-#         ordering = ['id']
+    class Meta:
+        verbose_name = 'Build Config'
+        verbose_name_plural = 'Build Configs'
+        ordering = ['id']
     
-#     def __str__(self):
-#         return '{}'.format(self.name)
+    def __str__(self):
+        return '{}'.format(self.name)
 
 
 class Slate(models.Model):
@@ -512,202 +512,195 @@ class SlatePlayer(models.Model):
         ordering = ['-salary', 'name']
 
 
-# class SlateBuild(models.Model):
-#     slate = models.ForeignKey(Slate, related_name='builds', on_delete=models.CASCADE)
-#     sim = models.ForeignKey(RaceSim, related_name='builds', on_delete=models.SET_NULL, null=True)
-#     created = models.DateTimeField(auto_now_add=True, null=True, blank=True)
-#     used_in_contests = models.BooleanField(default=False, verbose_name='Used')
-#     configuration = models.ForeignKey(SlateBuildConfig, related_name='builds', verbose_name='Config', on_delete=models.SET_NULL, null=True)
-#     total_lineups = models.PositiveIntegerField(verbose_name='total', default=0)
-#     max_entrants = models.PositiveIntegerField(verbose_name='max_entrants', default=50000)
+class SlateBuild(models.Model):
+    slate = models.ForeignKey(Slate, related_name='builds', on_delete=models.CASCADE)
+    sim = models.ForeignKey(RaceSim, related_name='builds', on_delete=models.SET_NULL, null=True)
+    created = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    used_in_contests = models.BooleanField(default=False, verbose_name='Used')
+    configuration = models.ForeignKey(SlateBuildConfig, related_name='builds', verbose_name='Config', on_delete=models.SET_NULL, null=True)
+    total_lineups = models.PositiveIntegerField(verbose_name='total', default=0)
+    max_entrants = models.PositiveIntegerField(verbose_name='max_entrants', default=50000)
 
-#     class Meta:
-#         verbose_name = 'Slate Build'
-#         verbose_name_plural = 'Slate Builds'
+    class Meta:
+        verbose_name = 'Slate Build'
+        verbose_name_plural = 'Slate Builds'
 
-#     def __str__(self):
-#         return '{} ({})'.format(self.slate.name, self.configuration)
+    def __str__(self):
+        return '{} ({})'.format(self.slate.name, self.configuration)
 
-#     def execute_build(self, user):
-#         self.lineups.all().delete()
+    def execute_build(self, user):
+        self.lineups.all().delete()
         
-#         chain(
-#             tasks.build_lineups.si(
-#                 self.id,
-#                 BackgroundTask.objects.create(
-#                     name='Build Lineups',
-#                     user=user
-#                 ).id
-#             ),
-#             tasks.clean_lineups.si(
-#                 self.id,
-#                 BackgroundTask.objects.create(
-#                     name='Clean Lineups',
-#                     user=user
-#                 ).id
-#             ),
-#             # tasks.calculate_exposures.si(
-#             #     self.id,
-#             #     BackgroundTask.objects.create(
-#             #         name='Calculate Exposures',
-#             #         user=user
-#             #     ).id
-#             # )
-#         )()
+        chain(
+            tasks.build_lineups.si(
+                self.id,
+                BackgroundTask.objects.create(
+                    name='Build Lineups',
+                    user=user
+                ).id
+            ),
+            tasks.clean_lineups.si(
+                self.id,
+                BackgroundTask.objects.create(
+                    name='Clean Lineups',
+                    user=user
+                ).id
+            ),
+        )()
 
-#     def num_lineups_created(self):
-#         return self.lineups.all().count()
-#     num_lineups_created.short_description = 'created'
+    def num_lineups_created(self):
+        return self.lineups.all().count()
+    num_lineups_created.short_description = 'created'
 
-#     def get_exposure(self, slate_player):
-#         return self.lineups.filter(
-#             Q(
-#                 Q(player_1__slate_player_id=slate_player.slate_player_id) | 
-#                 Q(player_2__slate_player_id=slate_player.slate_player_id) | 
-#                 Q(player_3__slate_player_id=slate_player.slate_player_id) | 
-#                 Q(player_4__slate_player_id=slate_player.slate_player_id) | 
-#                 Q(player_5__slate_player_id=slate_player.slate_player_id) | 
-#                 Q(player_6__slate_player_id=slate_player.slate_player_id)
-#             )
-#         ).count()
+    def get_exposure(self, slate_player):
+        return self.lineups.filter(
+            Q(
+                Q(cpt__slate_player_id=slate_player.slate_player_id) | 
+                Q(flex_1__slate_player_id=slate_player.slate_player_id) | 
+                Q(flex_2__slate_player_id=slate_player.slate_player_id) | 
+                Q(flex_3__slate_player_id=slate_player.slate_player_id) | 
+                Q(flex_4__slate_player_id=slate_player.slate_player_id) | 
+                Q(constructor__slate_player_id=slate_player.slate_player_id)
+            )
+        ).count()
 
-#     def build_button(self):
-#         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Build</a>',
-#             reverse_lazy("admin:admin_nascar_slatebuild_build", args=[self.pk])
-#         )
-#     build_button.short_description = ''
+    def build_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Build</a>',
+            reverse_lazy("admin:admin_f1_slatebuild_build", args=[self.pk])
+        )
+    build_button.short_description = ''
     
-#     def export_button(self):
-#         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #5b80b2; font-weight: bold; padding: 10px 15px;">Export</a>',
-#             reverse_lazy("admin:admin_nascar_slatebuild_export", args=[self.pk])
-#         )
-#     export_button.short_description = ''
+    def export_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #5b80b2; font-weight: bold; padding: 10px 15px;">Export</a>',
+            reverse_lazy("admin:admin_f1_slatebuild_export", args=[self.pk])
+        )
+    export_button.short_description = ''
 
 
-# class BuildPlayerProjection(models.Model):
-#     build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)
-#     slate_player = models.ForeignKey(SlatePlayer, db_index=True, related_name='builds', on_delete=models.CASCADE)
-#     starting_position = models.IntegerField(default=0)
-#     sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
-#     projection = models.FloatField(db_index=True, default=0.0, verbose_name='Proj')
-#     ceiling = models.FloatField(db_index=True, default=0.0, verbose_name='Ceil')
-#     s75 = models.FloatField(db_index=True, default=0.0, verbose_name='s75')
-#     in_play = models.BooleanField(default=True)
-#     op = models.FloatField(default=0.0)
-#     gto = models.FloatField(default=0.0)
-#     min_exposure = models.FloatField(default=0.0, verbose_name='min')
-#     max_exposure = models.FloatField(default=1.0, verbose_name='max')
+class BuildPlayerProjection(models.Model):
+    build = models.ForeignKey(SlateBuild, db_index=True, verbose_name='Build', related_name='projections', on_delete=models.CASCADE)
+    slate_player = models.ForeignKey(SlatePlayer, db_index=True, related_name='builds', on_delete=models.CASCADE)
+    starting_position = models.IntegerField(default=0)
+    sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    projection = models.FloatField(db_index=True, default=0.0, verbose_name='Proj')
+    ceiling = models.FloatField(db_index=True, default=0.0, verbose_name='Ceil')
+    s75 = models.FloatField(db_index=True, default=0.0, verbose_name='s75')
+    in_play = models.BooleanField(default=True)
+    op = models.FloatField(default=0.0)
+    gto = models.FloatField(default=0.0)
+    min_exposure = models.FloatField(default=0.0, verbose_name='min')
+    max_exposure = models.FloatField(default=1.0, verbose_name='max')
 
-#     class Meta:
-#         verbose_name = 'Player Projection'
-#         verbose_name_plural = 'Player Projections'
-#         ordering = ['-slate_player__salary']
+    class Meta:
+        verbose_name = 'Player Projection'
+        verbose_name_plural = 'Player Projections'
+        ordering = ['-slate_player__salary']
 
-#     def __str__(self):
-#         return '{}'.format(str(self.slate_player))
+    def __str__(self):
+        return '{}'.format(str(self.slate_player))
 
-#     @property
-#     def name(self):
-#         return self.slate_player.name
+    @property
+    def name(self):
+        return self.slate_player.name
 
-#     @property
-#     def salary(self):
-#         return self.slate_player.salary
+    @property
+    def salary(self):
+        return self.slate_player.salary
 
-#     @property
-#     def exposure(self):
-#         if self.build.lineups.all().count() > 0:
-#             return self.build.lineups.filter(
-#                 Q(
-#                     Q(player_1=self) | 
-#                     Q(player_2=self) | 
-#                     Q(player_3=self) | 
-#                     Q(player_4=self) | 
-#                     Q(player_5=self) | 
-#                     Q(player_6=self)
-#                 )
-#             ).count() / self.build.lineups.all().count()
-#         return 0
+    @property
+    def exposure(self):
+        if self.build.lineups.all().count() > 0:
+            return self.build.lineups.filter(
+                Q(
+                    Q(cpt=self) | 
+                    Q(flex_1=self) | 
+                    Q(flex_2=self) | 
+                    Q(flex_3=self) | 
+                    Q(flex_4=self) | 
+                    Q(constructor=self)
+                )
+            ).count() / self.build.lineups.all().count()
+        return 0
 
-#     def get_percentile_projection(self, percentile):
-#         return numpy.percentile(self.sim_scores, float(percentile))
+    def get_percentile_projection(self, percentile):
+        return numpy.percentile(self.sim_scores, float(percentile))
 
 
-# class SlateBuildGroup(models.Model):
-#     build = models.ForeignKey(SlateBuild, related_name='groups', on_delete=models.CASCADE)
-#     name = models.CharField(max_length=255)
-#     max_from_group = models.PositiveIntegerField(default=1)
-#     min_from_group = models.PositiveIntegerField(default=0)
-#     active = models.BooleanField(default=True)
+class SlateBuildGroup(models.Model):
+    build = models.ForeignKey(SlateBuild, related_name='groups', on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    max_from_group = models.PositiveIntegerField(default=1)
+    min_from_group = models.PositiveIntegerField(default=0)
+    active = models.BooleanField(default=True)
 
-#     class Meta:
-#         verbose_name = 'Group'
-#         verbose_name_plural = 'Groups'
+    class Meta:
+        verbose_name = 'Group'
+        verbose_name_plural = 'Groups'
     
-#     def __str__(self):
-#         return '{}'.format(self.name)
+    def __str__(self):
+        return '{}'.format(self.name)
 
-#     @property
-#     def num_players(self):
-#         return self.players.all().count()
+    @property
+    def num_players(self):
+        return self.players.all().count()
 
 
-# class SlateBuildGroupPlayer(models.Model):
-#     group = models.ForeignKey(SlateBuildGroup, related_name='players', on_delete=models.CASCADE)
-#     player = models.ForeignKey(BuildPlayerProjection, related_name='groups', on_delete=models.CASCADE)
+class SlateBuildGroupPlayer(models.Model):
+    group = models.ForeignKey(SlateBuildGroup, related_name='players', on_delete=models.CASCADE)
+    player = models.ForeignKey(BuildPlayerProjection, related_name='groups', on_delete=models.CASCADE)
 
-#     class Meta:
-#         verbose_name = 'Player'
-#         verbose_name_plural = 'Players'
+    class Meta:
+        verbose_name = 'Player'
+        verbose_name_plural = 'Players'
     
-#     def __str__(self):
-#         return '{}'.format(self.player)
+    def __str__(self):
+        return '{}'.format(self.player)
  
         
-# class SlateBuildLineup(models.Model):
-#     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='lineups', on_delete=models.CASCADE)
-#     player_1 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_1', on_delete=models.CASCADE)
-#     player_2 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_2', on_delete=models.CASCADE)
-#     player_3 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_3', on_delete=models.CASCADE)
-#     player_4 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_4', on_delete=models.CASCADE)
-#     player_5 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_5', on_delete=models.CASCADE)
-#     player_6 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_6', on_delete=models.CASCADE, null=True, blank=True)
-#     total_salary = models.IntegerField(default=0)
-#     sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
-#     ownership_projection = models.DecimalField(max_digits=10, decimal_places=9, default=0.0)
-#     duplicated = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
-#     roi = models.FloatField(default=0.0, db_index=True)
-#     median = models.FloatField(db_index=True, default=0.0)
-#     s75 = models.FloatField(db_index=True, default=0.0)
-#     s90 = models.FloatField(db_index=True, default=0.0)
-#     sort_proj = models.FloatField(db_index=True, default=0.0)
+class SlateBuildLineup(models.Model):
+    build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='lineups', on_delete=models.CASCADE)
+    cpt = models.ForeignKey(BuildPlayerProjection, related_name='lineups_as_cpt', on_delete=models.CASCADE)
+    flex_1 = models.ForeignKey(BuildPlayerProjection, related_name='lineups_as_flex_1', on_delete=models.CASCADE)
+    flex_2 = models.ForeignKey(BuildPlayerProjection, related_name='lineups_as_flex_2', on_delete=models.CASCADE)
+    flex_3 = models.ForeignKey(BuildPlayerProjection, related_name='lineups_as_flex_3', on_delete=models.CASCADE)
+    flex_4 = models.ForeignKey(BuildPlayerProjection, related_name='lineups_as_flex_4', on_delete=models.CASCADE)
+    constructor = models.ForeignKey(BuildPlayerProjection, related_name='lineups_as_constructor', on_delete=models.CASCADE)
+    total_salary = models.IntegerField(default=0)
+    sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    ownership_projection = models.DecimalField(max_digits=10, decimal_places=9, default=0.0)
+    duplicated = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    roi = models.FloatField(default=0.0, db_index=True)
+    median = models.FloatField(db_index=True, default=0.0)
+    s75 = models.FloatField(db_index=True, default=0.0)
+    s90 = models.FloatField(db_index=True, default=0.0)
+    sort_proj = models.FloatField(db_index=True, default=0.0)
 
-#     class Meta:
-#         verbose_name = 'Lineup'
-#         verbose_name_plural = 'Lineups'
-#         ordering = ['-sort_proj']
+    class Meta:
+        verbose_name = 'Lineup'
+        verbose_name_plural = 'Lineups'
+        ordering = ['-sort_proj']
 
-#     @property
-#     def players(self):
-#         return [
-#             self.player_1, 
-#             self.player_2, 
-#             self.player_3, 
-#             self.player_4, 
-#             self.player_5, 
-#             self.player_6
-#         ]
+    @property
+    def players(self):
+        return [
+            self.cpt, 
+            self.flex_1, 
+            self.flex_2, 
+            self.flex_3, 
+            self.flex_4, 
+            self.constructor
+        ]
 
-#     def get_percentile_sim_score(self, percentile):
-#         return numpy.percentile(self.sim_scores, float(percentile))
+    def get_percentile_sim_score(self, percentile):
+        return numpy.percentile(self.sim_scores, float(percentile))
 
-#     def simulate(self):
-#         self.ownership_projection = numpy.prod([x.op for x in self.players])
-#         self.duplicated = numpy.prod([x.op for x in self.players]) * self.build.max_entrants
-#         self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, self.build.sim.iterations)]
-#         self.median = numpy.median(self.sim_scores)
-#         self.s75 = self.get_percentile_sim_score(75)
-#         self.s90 = self.get_percentile_sim_score(90)
-#         self.sort_proj = self.get_percentile_sim_score(self.build.configuration.clean_by_percentile)
-#         self.save()
+    def simulate(self):
+        self.ownership_projection = numpy.prod([x.op for x in self.players])
+        self.duplicated = numpy.prod([x.op for x in self.players]) * self.build.max_entrants
+        self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, self.build.sim.iterations)]
+        self.median = numpy.median(self.sim_scores)
+        self.s75 = self.get_percentile_sim_score(75)
+        self.s90 = self.get_percentile_sim_score(90)
+        self.sort_proj = self.get_percentile_sim_score(self.build.configuration.clean_by_percentile)
+        self.save()
 
