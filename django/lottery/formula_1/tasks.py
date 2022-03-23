@@ -400,9 +400,9 @@ def execute_sim_iteration(sim_id):
     constructor_dk = []
     for index, c in enumerate(constructors):
         teammates = c.get_team_drivers()
-        print(f'{c}: {teammates}')
-        print(f'{teammates[0]} finished {fp_ranks.tolist()[find_driver_index(drivers, teammates[0])]}')
-        print(f'{teammates[1]} finished {fp_ranks.tolist()[find_driver_index(drivers, teammates[1])]}')
+        # print(f'{c}: {teammates}')
+        # print(f'{teammates[0]} finished {fp_ranks.tolist()[find_driver_index(drivers, teammates[0])]}')
+        # print(f'{teammates[1]} finished {fp_ranks.tolist()[find_driver_index(drivers, teammates[1])]}')
         # print(models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])])))
         # print(models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])])))
         # print(models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_teammate_index(drivers, teammates[0])])
