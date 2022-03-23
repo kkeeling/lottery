@@ -465,6 +465,10 @@ class RaceSimLineupAdmin(admin.ModelAdmin):
         'constructor__constructor__name',
     )
 
+    list_filter = (
+        ('sim', RelatedDropdownFilter),
+    )
+
 # @admin.register(models.SlateBuildConfig)
 # class ConfigAdmin(admin.ModelAdmin):
 #     list_display = [
