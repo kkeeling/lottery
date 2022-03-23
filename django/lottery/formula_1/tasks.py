@@ -306,6 +306,13 @@ def find_teammate_index(sim_drivers, driver):
     return -1
 
 
+def find_driver_index(sim_drivers, driver):
+    for index, d in enumerate(sim_drivers):
+        if d == driver:
+            return index
+    return -1
+
+
 @shared_task
 def execute_sim_iteration(sim_id):
     race_sim = models.RaceSim.objects.get(id=sim_id)
@@ -344,8 +351,6 @@ def execute_sim_iteration(sim_id):
             num_leaders = nlp.leader_count
             break
     # num_leaders = scipy.stats.poisson.rvs(race_sim.ll_mean) + 1
-    print(f'nl_rand_prob = {nl_rand_prob}')
-    print(f'num_leaders = {num_leaders}')
 
     # 5. Assign LL as randbetween(max(driver min, fp min), min(driver max, fp max))
     ll_vals = []  # holds actual LL values
@@ -395,16 +400,28 @@ def execute_sim_iteration(sim_id):
     constructor_dk = []
     for index, c in enumerate(constructors):
         teammates = c.get_team_drivers()
+        print(f'{c}: {teammates}')
+        print(f'{teammates[0]} finished {fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position="D"), teammates[0])]}')
+        print(f'{teammates[1]} finished {fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position="D"), teammates[1])]}')
+        # print(models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])])))
+        # print(models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])])))
+        # print(models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_teammate_index(drivers, teammates[0])])
+        # print(models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_teammate_index(drivers, teammates[1])])
+        # print(models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_teammate_index(drivers, teammates[0])])
+        # print(models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_teammate_index(drivers, teammates[1])])
+        # print((models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(driver_dnfs[find_teammate_index(drivers, teammates[0])]) == 0 and int(driver_dnfs[find_teammate_index(drivers, teammates[1])]) == 0 else 0))
+        # print((models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])] <= 10 and fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])] <= 10 else 0))
+        # print((models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])] <= 3 and fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])] <= 3 else 0))
         constructor_dk.append(
-            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])])) + 
-            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])])) +
-            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_teammate_index(drivers, teammates[0])] + 
-            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_teammate_index(drivers, teammates[1])] + 
-            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_teammate_index(drivers, teammates[0])] + 
-            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_teammate_index(drivers, teammates[1])] + 
-            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(driver_dnfs[find_teammate_index(drivers, teammates[0])]) == 0 and int(driver_dnfs[find_teammate_index(drivers, teammates[1])]) == 0 else 0) + 
-            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])] <= 10 and fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])] <= 10 else 0) + 
-            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if fp_ranks.tolist()[find_teammate_index(drivers, teammates[0])] <= 3 and fp_ranks.tolist()[find_teammate_index(drivers, teammates[1])] <= 3 else 0)
+            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[0])])) + 
+            models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[1])])) +
+            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_driver_index(drivers.filter(dk_position='D'), teammates[0])] + 
+            models.SITE_SCORING.get('draftkings').get('fastest_lap') * driver_fl[find_driver_index(drivers.filter(dk_position='D'), teammates[1])] + 
+            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_driver_index(drivers.filter(dk_position='D'), teammates[0])] + 
+            models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[find_driver_index(drivers.filter(dk_position='D'), teammates[1])] + 
+            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_classified') if int(driver_dnfs[find_driver_index(drivers.filter(dk_position='D'), teammates[0])]) == 0 and int(driver_dnfs[find_driver_index(drivers.filter(dk_position='D'), teammates[1])]) == 0 else 0) + 
+            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_in_points') if fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[0])] <= 10 and fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[1])] <= 10 else 0) + 
+            (models.SITE_SCORING.get('draftkings').get('constructor_bonuses').get('both_on_podium') if fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[0])] <= 3 and fp_ranks.tolist()[find_driver_index(drivers.filter(dk_position='D'), teammates[1])] <= 3 else 0)
         )
     
 
@@ -828,70 +845,73 @@ def export_results(sim_id, result_path, result_url, task_id):
 #         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-# @shared_task
-# def process_slate_players(slate_id, task_id):
-#     task = None
+@shared_task
+def process_slate_players(slate_id, task_id):
+    task = None
 
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
 
-#         # Task implementation goes here
-#         slate = models.Slate.objects.get(id=slate_id)
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
         
-#         with open(slate.salaries.path, mode='r') as salaries_file:
-#             csv_reader = csv.DictReader(salaries_file)
+        with open(slate.salaries.path, mode='r') as salaries_file:
+            csv_reader = csv.DictReader(salaries_file)
 
-#             success_count = 0
-#             missing_players = []
+            success_count = 0
+            missing_players = []
 
-#             for row in csv_reader:
-#                 if slate.site == 'draftkings':
-#                     player_id = row['ID']
-#                     player_name = row['Name']
-#                     player_salary = int(row['Salary'])
-#                 else:
-#                     raise Exception(f'{slate.site} is not supported yet.')
+            for row in csv_reader:
+                if slate.site == 'draftkings':
+                    player_id = row['ID']
+                    player_name = row['Name']
+                    player_position = row['Roster Position']
+                    player_salary = int(row['Salary'])
+                else:
+                    raise Exception(f'{slate.site} is not supported yet.')
 
-#                 alias = models.Alias.find_alias(player_name, slate.site)
+                alias = models.Alias.find_alias(player_name, slate.site)
                 
-#                 if alias is not None:
-#                     try:
-#                         slate_player = models.SlatePlayer.objects.get(
-#                             slate=slate,
-#                             slate_player_id=player_id
-#                         )
-#                     except models.SlatePlayer.DoesNotExist:
-#                         slate_player = models.SlatePlayer(
-#                             slate=slate,
-#                             slate_player_id=player_id
-#                         )
+                if alias is not None:
+                    try:
+                        slate_player = models.SlatePlayer.objects.get(
+                            slate=slate,
+                            slate_player_id=player_id
+                        )
+                    except models.SlatePlayer.DoesNotExist:
+                        slate_player = models.SlatePlayer(
+                            slate=slate,
+                            slate_player_id=player_id
+                        )
 
-#                     slate_player.name = alias.get_alias(slate.site)
-#                     slate_player.salary = player_salary
-#                     print(models.Driver.objects.filter(full_name=alias.get_alias('nascar')))
-#                     slate_player.driver = models.Driver.objects.get(full_name=alias.get_alias('nascar'))
-#                     slate_player.save()
+                    slate_player.name = alias.get_alias(slate.site)
+                    slate_player.salary = player_salary
+                    if player_position == 'CNSTR':
+                        slate_player.constructor = models.Constructor.objects.get(name=alias.get_alias('f1'))
+                    else:
+                        slate_player.driver = models.Driver.objects.get(full_name=alias.get_alias('f1'))
+                    slate_player.save()
 
-#                     success_count += 1
-#                 else:
-#                     missing_players.append(player_name)
+                    success_count += 1
+                else:
+                    missing_players.append(player_name)
 
-#         task.status = 'success'
-#         task.content = '{} players have been successfully added to {}.'.format(success_count, str(slate)) if len(missing_players) == 0 else '{} players have been successfully added to {}. {} players could not be identified.'.format(success_count, str(slate), len(missing_players))
-#         task.link = '/admin/nascar/missingalias/' if len(missing_players) > 0 else None
-#         task.save()
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was a problem processing slate players: {e}'
-#             task.save()
+        task.status = 'success'
+        task.content = '{} players have been successfully added to {}.'.format(success_count, str(slate)) if len(missing_players) == 0 else '{} players have been successfully added to {}. {} players could not be identified.'.format(success_count, str(slate), len(missing_players))
+        task.link = '/admin/nascar/missingalias/' if len(missing_players) > 0 else None
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem processing slate players: {e}'
+            task.save()
 
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 # @shared_task

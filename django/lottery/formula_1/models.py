@@ -387,7 +387,8 @@ class RaceSimDriver(models.Model):
             return None
         return RaceSimDriver.objects.filter(
             sim=self.sim,
-            driver__team=self.constructor
+            driver__team=self.constructor,
+            dk_position='D'
         )
 
     def get_teammate(self):
@@ -479,34 +480,36 @@ class RaceSimLineup(models.Model):
 #         return '{}'.format(self.name)
 
 
-# class Slate(models.Model):
-#     datetime = models.DateTimeField()
-#     name = models.CharField(max_length=255, verbose_name='Slate')
-#     race = models.ForeignKey(Race, related_name='slates', on_delete=models.SET_NULL, null=True)
-#     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='draftkings')
-#     salaries = models.FileField(upload_to='uploads/salaries', blank=True, null=True)
+class Slate(models.Model):
+    datetime = models.DateTimeField()
+    name = models.CharField(max_length=255, verbose_name='Slate')
+    race = models.ForeignKey(Race, related_name='slates', on_delete=models.SET_NULL, null=True)
+    site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='draftkings')
+    salaries = models.FileField(upload_to='uploads/salaries', blank=True, null=True)
 
-#     class Meta:
-#         ordering = ['-name']
+    class Meta:
+        ordering = ['-name']
 
-#     def __str__(self):
-#         return '{}'.format(self.name) if self.name is not None else '{}'.format(self.datetime)
+    def __str__(self):
+        return '{}'.format(self.name) if self.name is not None else '{}'.format(self.datetime)
 
 
-# class SlatePlayer(models.Model):
-#     slate_player_id = models.CharField(max_length=255)
-#     slate = models.ForeignKey(Slate, related_name='players', on_delete=models.CASCADE)
-#     name = models.CharField(max_length=255)
-#     salary = models.IntegerField()
-#     fantasy_points = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
-#     ownership = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
-#     driver = models.ForeignKey(Driver, related_name='slates', null=True, blank=True, on_delete=models.SET_NULL)
+class SlatePlayer(models.Model):
+    slate_player_id = models.CharField(max_length=255)
+    slate = models.ForeignKey(Slate, related_name='players', on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    position = models.CharField(default='D', choices=DK_ROSTER_POSITION_CHOICES, max_length=10)
+    salary = models.IntegerField()
+    fantasy_points = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
+    ownership = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
+    driver = models.ForeignKey(Driver, related_name='slates', null=True, blank=True, on_delete=models.SET_NULL)
+    constructor = models.ForeignKey(Constructor, related_name='slates', on_delete=models.CASCADE, null=True, blank=True)
 
-#     def __str__(self):
-#         return '{} ${}'.format(self.name, self.salary)
+    def __str__(self):
+        return '{} ${}'.format(self.name, self.salary)
 
-#     class Meta:
-#         ordering = ['-salary', 'name']
+    class Meta:
+        ordering = ['-salary', 'name']
 
 
 # class SlateBuild(models.Model):

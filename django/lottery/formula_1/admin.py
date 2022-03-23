@@ -483,150 +483,68 @@ class RaceSimLineupAdmin(admin.ModelAdmin):
 #     ]
 
 
-# @admin.register(models.Slate)
-# class SlateAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'datetime',
-#         'name',
-#         'race',
-#         'site',
-#         'get_players_link',
-#         'get_builds_link',
-#     )
-#     raw_id_fields = (
-#         'race',
-#     )
-#     # list_editable = (
-#     #     'name',
-#     #     'site',
-#     # )
+@admin.register(models.Slate)
+class SlateAdmin(admin.ModelAdmin):
+    list_display = (
+        'datetime',
+        'name',
+        'race',
+        'site',
+        'get_players_link',
+        'get_builds_link',
+    )
+    raw_id_fields = (
+        'race',
+    )
 
-#     def save_model(self, request, obj, form, change):
-#         super().save_model(request, obj, form, change)
-#         self.process_slate(request, obj)
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.process_slate(request, obj)
 
-#     def process_slate(self, request, slate):
-#         chain(
-#             tasks.process_slate_players.si(
-#                 slate.id,
-#                 BackgroundTask.objects.create(
-#                     name='Process slate players',
-#                     user=request.user
-#                 ).id
-#             )
-#         )()
+    def process_slate(self, request, slate):
+        chain(
+            tasks.process_slate_players.si(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name='Process slate players',
+                    user=request.user
+                ).id
+            )
+        )()
 
-#         messages.add_message(
-#             request,
-#             messages.WARNING,
-#             'Your slate is being processed. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the slate is ready.')
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your slate is being processed. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the slate is ready.')
 
-# #     def get_urls(self):
-# #         urls = super().get_urls()
-# #         my_urls = [
-# #             path('tennis-slate-simulate/<int:pk>/', self.simulate, name="tennis_admin_slate_simulate"),
-# #         ]
-# #         return my_urls + urls
+    def get_players_link(self, obj):
+        if obj.players.all().count() > 0:
+            return mark_safe('<a href="/admin/nascar/slateplayer/?slate__id={}">Players</a>'.format(obj.id))
+        return 'None'
+    get_players_link.short_description = 'Players'
 
-#     def get_players_link(self, obj):
-#         if obj.players.all().count() > 0:
-#             return mark_safe('<a href="/admin/nascar/slateplayer/?slate__id={}">Players</a>'.format(obj.id))
-#         return 'None'
-#     get_players_link.short_description = 'Players'
-
-#     def get_builds_link(self, obj):
-#         if obj.players.all().count() > 0:
-#             return mark_safe('<a href="/admin/nascar/slatebuild/?slate__id={}">Builds</a>'.format(obj.id))
-#         return 'None'
-#     get_builds_link.short_description = 'Builds'
-
-# #     def initialize(self, request, queryset):
-# #         for slate in queryset:
-# #             slate.get_pinn_odds()
-# #             slate.find_opponents()
-# #             slate.create_build()
-# #     initialize.short_description = 'Initialize selected slates'
-
-# #     def get_pinn_odds(self, request, queryset):
-# #         group(
-# #             [
-# #                 chain(
-# #                     tasks.get_pinn_odds.si(
-# #                         BackgroundTask.objects.create(
-# #                             name='Get Pinnacle Odds',
-# #                             user=request.user
-# #                         ).id
-# #                     ),
-# #                     tasks.find_slate_matches.si(
-# #                         slate.id,
-# #                         BackgroundTask.objects.create(
-# #                             name='Find Slate matches',
-# #                             user=request.user
-# #                         ).id
-# #                     )
-# #                 ) for slate in queryset
-# #             ]
-# #         )()
-# #     get_pinn_odds.short_description = 'Update odds for selected slates'
-
-# #     def project_players(self, request, queryset):
-# #         for slate in queryset:
-# #             slate.project_players()
-# #     project_players.short_description = 'Project players for selected slates'
-
-# #     def project_ownership(self, request, queryset):
-# #         for slate in queryset:
-# #             slate.project_ownership()
-# #     project_ownership.short_description = 'Project ownership for selected slates'
-
-# #     def simulate(self, request, pk):
-# #         context = dict(
-# #            # Include common variables for rendering the admin template.
-# #            self.admin_site.each_context(request),
-# #            # Anything else you want in the context...
-# #         )
-
-# #         slate = get_object_or_404(models.Slate, pk=pk)
-# #         chord([
-# #             tasks.simulate_match.si(
-# #                 slate_match.id,
-# #                 BackgroundTask.objects.create(
-# #                     name=f'Simulate {slate_match}',
-# #                     user=request.user
-# #                 ).id
-# #             ) for slate_match in slate.matches.all()
-# #         ], tasks.calculate_target_scores.si(
-# #                 slate.id,
-# #                 BackgroundTask.objects.create(
-# #                     name=f'Calculate target scores for {slate}',
-# #                     user=request.user
-# #                 ).id
-
-# #         ))()
-
-# #         messages.add_message(
-# #             request,
-# #             messages.WARNING,
-# #             'Simulating player outcomes for {}'.format(str(slate)))
-
-# #         # redirect or TemplateResponse(request, "sometemplate.html", context)
-# #         return redirect(request.META.get('HTTP_REFERER'), context=context)
+    def get_builds_link(self, obj):
+        if obj.players.all().count() > 0:
+            return mark_safe('<a href="/admin/nascar/slatebuild/?slate__id={}">Builds</a>'.format(obj.id))
+        return 'None'
+    get_builds_link.short_description = 'Builds'
 
 
-# @admin.register(models.SlatePlayer)
-# class SlatePlayerAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'name',
-#         'salary',
-#         'fantasy_points',
-#     )
-#     search_fields = ('name',)
-#     list_filter = (
-#         ('slate__name', DropdownFilter),
-#     )
-#     raw_id_fields = (
-#         'driver', 
-#     )
+@admin.register(models.SlatePlayer)
+class SlatePlayerAdmin(admin.ModelAdmin):
+    list_display = (
+        'name',
+        'salary',
+        'fantasy_points',
+    )
+    search_fields = ('name',)
+    list_filter = (
+        ('slate__name', DropdownFilter),
+    )
+    raw_id_fields = (
+        'driver', 
+        'constructor',
+    )
 
 
 # @admin.register(models.SlateBuild)

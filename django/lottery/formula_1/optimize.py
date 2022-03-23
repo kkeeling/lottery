@@ -37,9 +37,7 @@ GameInfo = namedtuple('GameInfo', ['home_team', 'away_team', 'starts_at', 'game_
 
 def optimize(site, projections, groups, config, num_lineups=150):
     if site == 'draftkings':
-        optimizer = get_optimizer(Site.DRAFTKINGS, Sport.NASCAR)
-    elif site == 'fanduel':
-        optimizer = get_optimizer(Site.FANDUEL, Sport.NASCAR)
+        optimizer = get_optimizer(Site.DRAFTKINGS, Sport.F1)
     else:
         raise Exception('{} is not a supported dfs site.'.format(site))
 
