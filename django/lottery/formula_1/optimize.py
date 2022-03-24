@@ -218,3 +218,33 @@ def generateRandomLineups(projections, num_lineups, num_drivers, salary_cap, tim
         print(count)
     
     return lineups
+
+def generateRandomLineup(projections, num_drivers, salary_cap, timeout_seconds=60):
+    lineups = []
+    captains = projections.filter(slate_player__position='CPT')
+    constructors = projections.filter(slate_player__position='CNSTR')
+    drivers = projections.filter(slate_player__position='D')
+
+    total_salary = 999999
+
+    while total_salary > salary_cap:
+        l = []
+
+        # cpt
+        cpt = captains[(int)(abs(random.random() - random.random()) * captains.count())]
+        l.append(cpt)
+
+        # cnstr
+        cnstr = constructors[(int)(abs(random.random() - random.random()) * constructors.count())]
+
+        # drivers
+        for _ in range(0, num_drivers):
+            d = drivers[(int)(abs(random.random() - random.random()) * drivers.count())]
+            while d in l or cpt.name == d.name or (cpt.team == cnstr.team and cpt.team == d.team):
+                d = drivers[(int)(abs(random.random() - random.random()) * drivers.count())]
+            l.append(d)
+        l.append(cnstr)
+
+        total_salary = sum([lp.salary for lp in l])
+    
+    return l

@@ -898,35 +898,46 @@ def build_lineups(build_id, task_id):
         # Task implementation goes here
         build = models.SlateBuild.objects.get(id=build_id)
         if build.configuration.optimize_by_percentile == 0:
-            lineups = optimize.generateRandomLineups(
-                build.projections.filter(in_play=True),
-                build.total_lineups * build.configuration.lineup_multiplier,
-                6,
-                50000
-            )
+            jobs = [generate_random_lineup.si(build_id, list(build.projections.filter(in_play=True).values_list('id', flat=True)), 50000) for _ in range(0, build.total_lineups * build.configuration.lineup_multiplier)]
+            jobs.append(complete_random_lineup_creation.si(
+                build_id,
+                task_id
+            ))
+            jobs.append(clean_lineups.si(
+                build_id,
+                BackgroundTask.objects.create(
+                    name='Clean Lineups',
+                    user=task.user
+                ).id
+            ))
+            chain(jobs)()
+            # lineups = optimize.generateRandomLineups(
+            #     build.projections.filter(in_play=True),
+            #     build.total_lineups * build.configuration.lineup_multiplier,
+            #     4,
+            #     50000
+            # )
 
-            for lineup in lineups:
-                if build.slate.site == 'draftkings':
-                    lineup = models.SlateBuildLineup.objects.create(
-                        build=build,
-                        cpt=lineup[0],
-                        flex_1=lineup[1],
-                        flex_2=lineup[2],
-                        flex_3=lineup[3],
-                        flex_4=lineup[4],
-                        constructor=lineup[5],
-                        total_salary=sum([lp.salary for lp in lineup])
-                    )
+            # for lineup in lineups:
+            #     if build.slate.site == 'draftkings':
+            #         lineup = models.SlateBuildLineup.objects.create(
+            #             build=build,
+            #             cpt=lineup[0],
+            #             flex_1=lineup[1],
+            #             flex_2=lineup[2],
+            #             flex_3=lineup[3],
+            #             flex_4=lineup[4],
+            #             constructor=lineup[5],
+            #             total_salary=sum([lp.salary for lp in lineup])
+            #         )
 
-                    lineup.save()
-                    lineup.simulate()
-                else:
-                    raise Exception(f'{build.slate.site} is not available for building yet.')
+            #         lineup.save()
+            #         lineup.simulate()
+            #     else:
+            #         raise Exception(f'{build.slate.site} is not available for building yet.')
 
-                # print(f'dup = {lineup.duplicated}; {lineup.duplicated > build.configuration.duplicate_threshold}')
-                if lineup.duplicated > build.configuration.duplicate_threshold:
-                    # print('delete this lineup')
-                    lineup.delete()
+            #     if lineup.duplicated > build.configuration.duplicate_threshold:
+            #         lineup.delete()
         else:
             lineups = optimize.optimize(build.slate.site, build.projections.filter(in_play=True), build.groups.filter(active=True), build.configuration, build.total_lineups)
 
@@ -951,8 +962,67 @@ def build_lineups(build_id, task_id):
                 if lineup.duplicated > build.configuration.duplicate_threshold:
                     lineup.delete()
         
+            task.status = 'success'
+            task.content = f'{len(lineups)} lineups created.'
+            task.save()
+
+            clean_lineups.delay(
+                build_id,
+                BackgroundTask.objects.create(
+                    name='Clean Lineups',
+                    user=task.user
+                ).id
+            )           
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem building lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def generate_random_lineup(build_id, projection_ids, salary_cap):
+    lineup = optimize.generateRandomLineup(
+        models.BuildPlayerProjection.objects.filter(id__in=projection_ids), 
+        4, 
+        salary_cap, 
+        60
+    )
+    lineup = models.SlateBuildLineup.objects.create(
+        build_id=build_id,
+        cpt=lineup[0],
+        flex_1=lineup[1],
+        flex_2=lineup[2],
+        flex_3=lineup[3],
+        flex_4=lineup[4],
+        constructor=lineup[5],
+        total_salary=sum([lp.salary for lp in lineup])
+    )
+
+    lineup.save()
+    lineup.simulate()
+
+
+@shared_task
+def complete_random_lineup_creation(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        build = models.SlateBuild.objects.get(id=build_id)
+        build.lineups.filter(duplicated__gt=build.configuration.duplicate_threshold).delete()
+        
         task.status = 'success'
-        task.content = f'{len(lineups)} lineups created.'
+        task.content = f'{build.lineups.all().count()} lineups created.'
         task.save()
     except Exception as e:
         if task is not None:

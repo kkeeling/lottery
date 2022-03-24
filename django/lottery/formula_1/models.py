@@ -539,13 +539,13 @@ class SlateBuild(models.Model):
                     user=user
                 ).id
             ),
-            tasks.clean_lineups.si(
-                self.id,
-                BackgroundTask.objects.create(
-                    name='Clean Lineups',
-                    user=user
-                ).id
-            ),
+            # tasks.clean_lineups.si(
+            #     self.id,
+            #     BackgroundTask.objects.create(
+            #         name='Clean Lineups',
+            #         user=user
+            #     ).id
+            # ),
         )()
 
     def num_lineups_created(self):
@@ -602,6 +602,12 @@ class BuildPlayerProjection(models.Model):
     @property
     def name(self):
         return self.slate_player.name
+
+    @property
+    def team(self):
+        if self.slate_player.driver is None:
+            return self.slate_player.constructor.name
+        return self.slate_player.driver.team.name
 
     @property
     def salary(self):
