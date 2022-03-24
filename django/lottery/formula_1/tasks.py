@@ -737,7 +737,7 @@ def export_results(sim_id, result_path, result_url, task_id):
         }, index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()])
 
         # GTO Lineups
-        df_lineups = pandas.DataFrame.from_records(race_sim.lineups.all().values(
+        df_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
             'cpt__driver__full_name', 'flex_1__driver__full_name', 'flex_2__driver__full_name', 'flex_3__driver__full_name', 'flex_4__driver__full_name', 'constructor__constructor__name', 'total_salary', 'median', 's75', 's90', 'count'
         ))
         
