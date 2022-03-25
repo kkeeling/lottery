@@ -12,7 +12,7 @@ import requests
 
 from statistics import mean
 
-from celery import chain
+from celery import chain, group
 from django.contrib.postgres.fields import ArrayField
 from django.db import models, signals
 from django.db.models import Q, Sum
@@ -599,29 +599,47 @@ class SlateBuild(models.Model):
     def execute_build(self, user):
         self.lineups.all().delete()
         
-        chain(
-            tasks.build_lineups.si(
-                self.id,
-                BackgroundTask.objects.create(
-                    name='Build Lineups',
-                    user=user
-                ).id
-            ),
-            tasks.clean_lineups.si(
-                self.id,
-                BackgroundTask.objects.create(
-                    name='Clean Lineups',
-                    user=user
-                ).id
-            ),
-            # tasks.calculate_exposures.si(
-            #     self.id,
-            #     BackgroundTask.objects.create(
-            #         name='Calculate Exposures',
-            #         user=user
-            #     ).id
-            # )
-        )()
+        if self.configuration.optimize_by_percentile == 0:
+            chain(
+                group([
+                    tasks.generate_random_lineup.si(
+                        self.id,
+                        list(self.projections.filter(in_play=True).values_list('id', flat=True)),
+                        SITE_SCORING.get(self.slate.site).get('max_salary')
+                    ) for _ in range(0, self.total_lineups * self.configuration.lineup_multiplier)
+                ]),
+                tasks.complete_random_lineup_creation.si(
+                    self.id,
+                    BackgroundTask.objects.create(
+                        name='Build Lineups',
+                        user=user
+                    ).id
+                ),
+                tasks.clean_lineups.si(
+                    self.id,
+                    BackgroundTask.objects.create(
+                        name='Clean Lineups',
+                        user=user
+                    ).id
+                ),
+            )()
+        else:
+            chain(
+                tasks.build_lineups.si(
+                    self.id,
+                    BackgroundTask.objects.create(
+                        name='Build Lineups',
+                        user=user
+                    ).id
+                ),
+                tasks.clean_lineups.si(
+                    self.id,
+                    BackgroundTask.objects.create(
+                        name='Clean Lineups',
+                        user=user
+                    ).id
+                )
+            )()
 
     def num_lineups_created(self):
         return self.lineups.all().count()

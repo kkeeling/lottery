@@ -5,35 +5,8 @@ from collections import namedtuple
 from pydfs_lineup_optimizer import Site, Sport, Player, get_optimizer, exceptions
 from pydfs_lineup_optimizer.stacks import PlayersGroup
 
-# from draftfast import rules
-# from draftfast.optimize import run_multi
-# from draftfast.orm import Player
-# from draftfast.csv_parse import salary_download
-
 
 GameInfo = namedtuple('GameInfo', ['home_team', 'away_team', 'starts_at', 'game_started'])
-
-
-# def optimize(site, projections, config, num_lineups=150):
-#     players_list = get_player_list(
-#         projections, 
-#         config=config
-#     )
-#     exposure_bounds = [
-#         {
-#             'name': p.slate_player.name,
-#             'max': float(p.max_exposure),
-#             'min': float(p.min_exposure)
-#         } for p in projections
-#     ]
-#     rosters, _ = run_multi(
-#         iterations=num_lineups,
-#         exposure_bounds=exposure_bounds,
-#         rule_set=rules.DK_TEN_CLASSIC_RULE_SET,
-#         player_pool=players_list,
-#         verbose=True,
-#     )
-#     return rosters
 
 def optimize(site, projections, groups, config, num_lineups=150):
     if site == 'draftkings':
@@ -107,23 +80,6 @@ def get_player_list(projections, config):
             first = player.slate_player.name
             last = ''
 
-        # if ' ' in player.slate_match.match.home_participant:
-        #     home_last = player.slate_match.match.home_participant.split(' ')[-1]
-        # else:
-        #     home_last = player.slate_match.match.home_participant
-
-        # if ' ' in player.slate_match.match.away_participant:
-        #     away_last = player.slate_match.match.away_participant.split(' ')[-1]
-        # else:
-        #     away_last = player.slate_match.match.away_participant
-
-        # game_info = GameInfo(
-        #     home_team=home_last, 
-        #     away_team=away_last,
-        #     starts_at=player.slate_match.match.start_time,
-        #     game_started=False
-        # )
-
         fppg = player.get_percentile_projection(config.optimize_by_percentile)
 
         player = Player(
@@ -144,33 +100,6 @@ def get_player_list(projections, config):
         player_list.append(player)
     return player_list
 
-
-# def get_player_list(projections, config):
-#     '''
-#     Returns the player list on which to optimize
-#     '''
-#     player_list = []
-
-#     for player in projections.filter(in_play=True):
-#         fppg = None
-#         if config.optimize_by == 'implied_win_pct':
-#             fppg = numpy.average([float(player.implied_win_pct), float(player.implied_win_pct), float(player.implied_win_pct), float(player.sim_win_pct)]) * 100
-#         elif config.optimize_by == 'sim_win_pct':
-#             fppg = player.sim_win_pct * 100
-#         elif config.optimize_by == 'projection':
-#             fppg = player.projection
-#         else:
-#             fppg = player.ceiling
-
-#         player = Player(
-#             name=player.slate_player.name,
-#             cost=player.slate_player.salary,
-#             proj=float(fppg),
-#             pos='P'
-#         )
-
-#         player_list.append(player)
-#     return player_list
 
 def generateRandomLineups(projections, num_lineups, num_drivers, salary_cap, timeout_seconds=60):
     lineups = []
@@ -207,3 +136,24 @@ def generateRandomLineups(projections, num_lineups, num_drivers, salary_cap, tim
         print(count)
     
     return lineups
+
+
+def get_random_lineup(projections, num_drivers, salary_cap):
+    total_salary = 999999
+    duplicate = False
+
+    l = None
+    while total_salary > salary_cap or duplicate:
+        duplicate = False
+        l = []
+
+        # get drivers
+        for _ in range(0, num_drivers):
+            d = projections[(int)(abs(random.random() - random.random()) * projections.count())]
+            while d in l:
+                d = projections[(int)(abs(random.random() - random.random()) * projections.count())]
+            l.append(d)
+
+        total_salary = sum([lp.salary for lp in l])
+
+    return l
