@@ -1793,7 +1793,36 @@ def generate_random_lineup(build_id, projection_ids, salary_cap):
         6, 
         salary_cap
     )
-    lineup = models.SlateBuildLineup.objects.create(
+
+    duplicate_lineups = models.SlateBuildLineup.objects.filter(
+        Q((Q(player_1=lineup[0]) | Q(player_2=lineup[0]) | Q(player_3=lineup[0]) | Q(player_4=lineup[0]) | Q(player_5=lineup[0]) | Q(player_6=lineup[0]))),
+        Q((Q(player_1=lineup[1]) | Q(player_2=lineup[1]) | Q(player_3=lineup[1]) | Q(player_4=lineup[1]) | Q(player_5=lineup[1]) | Q(player_6=lineup[1]))),
+        Q((Q(player_1=lineup[2]) | Q(player_2=lineup[2]) | Q(player_3=lineup[2]) | Q(player_4=lineup[2]) | Q(player_5=lineup[2]) | Q(player_6=lineup[2]))),
+        Q((Q(player_1=lineup[3]) | Q(player_2=lineup[3]) | Q(player_3=lineup[3]) | Q(player_4=lineup[3]) | Q(player_5=lineup[3]) | Q(player_6=lineup[3]))),
+        Q((Q(player_1=lineup[4]) | Q(player_2=lineup[4]) | Q(player_3=lineup[4]) | Q(player_4=lineup[4]) | Q(player_5=lineup[4]) | Q(player_6=lineup[4]))),
+        Q((Q(player_1=lineup[5]) | Q(player_2=lineup[5]) | Q(player_3=lineup[5]) | Q(player_4=lineup[5]) | Q(player_5=lineup[5]) | Q(player_6=lineup[5]))),
+        build_id=build_id
+    )
+
+    while duplicate_lineups.count() > 0:
+        lineup = optimize.get_random_lineup(
+            models.BuildPlayerProjection.objects.filter(id__in=projection_ids), 
+            6, 
+            salary_cap
+        )
+
+        duplicate_lineups = models.SlateBuildLineup.objects.filter(
+            Q((Q(player_1=lineup[0]) | Q(player_2=lineup[0]) | Q(player_3=lineup[0]) | Q(player_4=lineup[0]) | Q(player_5=lineup[0]) | Q(player_6=lineup[0]))),
+            Q((Q(player_1=lineup[1]) | Q(player_2=lineup[1]) | Q(player_3=lineup[1]) | Q(player_4=lineup[1]) | Q(player_5=lineup[1]) | Q(player_6=lineup[1]))),
+            Q((Q(player_1=lineup[2]) | Q(player_2=lineup[2]) | Q(player_3=lineup[2]) | Q(player_4=lineup[2]) | Q(player_5=lineup[2]) | Q(player_6=lineup[2]))),
+            Q((Q(player_1=lineup[3]) | Q(player_2=lineup[3]) | Q(player_3=lineup[3]) | Q(player_4=lineup[3]) | Q(player_5=lineup[3]) | Q(player_6=lineup[3]))),
+            Q((Q(player_1=lineup[4]) | Q(player_2=lineup[4]) | Q(player_3=lineup[4]) | Q(player_4=lineup[4]) | Q(player_5=lineup[4]) | Q(player_6=lineup[4]))),
+            Q((Q(player_1=lineup[5]) | Q(player_2=lineup[5]) | Q(player_3=lineup[5]) | Q(player_4=lineup[5]) | Q(player_5=lineup[5]) | Q(player_6=lineup[5]))),
+            build_id=build_id
+        )
+
+
+    l = models.SlateBuildLineup.objects.create(
         build_id=build_id,
         player_1=lineup[0],
         player_2=lineup[1],
@@ -1804,8 +1833,8 @@ def generate_random_lineup(build_id, projection_ids, salary_cap):
         total_salary=sum([lp.salary for lp in lineup])
     )
 
-    lineup.save()
-    lineup.simulate()
+    l.save()
+    l.simulate()
 
 
 @shared_task
