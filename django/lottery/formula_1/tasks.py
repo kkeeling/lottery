@@ -991,7 +991,36 @@ def generate_random_lineup(build_id, projection_ids, salary_cap):
         salary_cap, 
         60
     )
-    lineup = models.SlateBuildLineup.objects.create(
+
+    duplicate_lineups = models.SlateBuildLineup.objects.filter(
+        Q((Q(flex_1=lineup[1]) | Q(flex_2=lineup[1]) | Q(flex_3=lineup[1]) | Q(flex_4=lineup[1]))),
+        Q((Q(flex_1=lineup[2]) | Q(flex_2=lineup[2]) | Q(flex_3=lineup[2]) | Q(flex_4=lineup[2]))),
+        Q((Q(flex_1=lineup[3]) | Q(flex_2=lineup[3]) | Q(flex_3=lineup[3]) | Q(flex_4=lineup[3]))),
+        Q((Q(flex_1=lineup[4]) | Q(flex_2=lineup[4]) | Q(flex_3=lineup[4]) | Q(flex_4=lineup[4]))),
+        build_id=build_id,
+        cpt=lineup[0],
+        constructor=lineup[5]
+    )
+
+    while duplicate_lineups.count() > 0:
+        lineup = optimize.generateRandomLineup(
+            models.BuildPlayerProjection.objects.filter(id__in=projection_ids), 
+            4, 
+            salary_cap, 
+            60
+        )
+
+        duplicate_lineups = models.SlateBuildLineup.objects.filter(
+            Q((Q(flex_1=lineup[1]) | Q(flex_2=lineup[1]) | Q(flex_3=lineup[1]) | Q(flex_4=lineup[1]))),
+            Q((Q(flex_1=lineup[2]) | Q(flex_2=lineup[2]) | Q(flex_3=lineup[2]) | Q(flex_4=lineup[2]))),
+            Q((Q(flex_1=lineup[3]) | Q(flex_2=lineup[3]) | Q(flex_3=lineup[3]) | Q(flex_4=lineup[3]))),
+            Q((Q(flex_1=lineup[4]) | Q(flex_2=lineup[4]) | Q(flex_3=lineup[4]) | Q(flex_4=lineup[4]))),
+            build_id=build_id,
+            cpt=lineup[0],
+            constructor=lineup[5]
+        )
+
+    l = models.SlateBuildLineup.objects.create(
         build_id=build_id,
         cpt=lineup[0],
         flex_1=lineup[1],
@@ -1002,8 +1031,8 @@ def generate_random_lineup(build_id, projection_ids, salary_cap):
         total_salary=sum([lp.salary for lp in lineup])
     )
 
-    lineup.save()
-    lineup.simulate()
+    l.save()
+    l.simulate()
 
 
 @shared_task
