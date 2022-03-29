@@ -22,7 +22,7 @@ from django import forms
 from django_admin_listfilter_dropdown.filters import DropdownFilter, RelatedDropdownFilter
 
 from configuration.models import BackgroundTask
-from . import models, tasks
+from . import models, tasks, forms
 
 
 # Forms
@@ -97,7 +97,7 @@ class RaceSimDriverInline(admin.TabularInline):
         'driver',
         'starting_position',
         'dk_salary',
-        'fd_salary',
+        'dk_name',
         'speed_min',
         'speed_max',
         'best_possible_speed',
@@ -407,6 +407,7 @@ class RaceSimAdmin(admin.ModelAdmin):
         'iterations',
         'export_template_button',
         'sim_button',
+        'get_lineups_link',
     )
     list_editable = (
         'iterations',
@@ -449,6 +450,12 @@ class RaceSimAdmin(admin.ModelAdmin):
             path('nascar-race-simulate/<int:pk>/', self.simulate, name="nascar_admin_slate_simulate"),
         ]
         return my_urls + urls
+
+    def get_lineups_link(self, obj):
+        if obj.sim_lineups.all().count() > 0:
+            return mark_safe('<a href="/admin/nascar/racesimlineup/?sim__id__exact={}" target="_blank">Lineups</a>'.format(obj.id))
+        return 'None'
+    get_lineups_link.short_description = 'Optimal Lineups'
 
     def export_template(self, request, pk):
         context = dict(
@@ -569,6 +576,37 @@ class RaceSimAdmin(admin.ModelAdmin):
             f'Finding driver GTO for {queryset.count()} races'
         )
     calculate_driver_gto.short_description = 'Calculate Driver GTO'
+
+
+@admin.register(models.RaceSimLineup)
+class RaceSimLineupAdmin(admin.ModelAdmin):
+    list_display = (
+        'player_1',
+        'player_2',
+        'player_3',
+        'player_4',
+        'player_5',
+        'player_6',
+        'total_salary',
+        'median',
+        's75',
+        's90',
+        'count'
+    )
+
+    search_fields = (
+        'player_1__slate_player__name',
+        'player_2__slate_player__name',
+        'player_3__slate_player__name',
+        'player_4__slate_player__name',
+        'player_5__slate_player__name',
+        'player_6__slate_player__name',
+    )
+
+    list_filter = (
+        ('sim', RelatedDropdownFilter),
+    )
+
 
 @admin.register(models.SlateBuildConfig)
 class ConfigAdmin(admin.ModelAdmin):
@@ -737,6 +775,7 @@ class SlatePlayerAdmin(admin.ModelAdmin):
 @admin.register(models.SlateBuild)
 class SlateBuildAdmin(admin.ModelAdmin):
     date_hierarchy = 'slate__datetime'
+    form = forms.SlateBuildForm
     list_display = (
         'created',
         'slate',
@@ -757,6 +796,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'total_lineups',
     )
     list_filter = (
+        ('slate', RelatedDropdownFilter),
         ('sim', RelatedDropdownFilter),
     )
     raw_id_fields = (
@@ -773,6 +813,19 @@ class SlateBuildAdmin(admin.ModelAdmin):
             path('nascar-slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_nascar_slatebuild_export"),
         ]
         return my_urls + urls
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(user=request.user)
+
+    def get_form(self, request, obj=None, **kwargs):
+        AdminForm = super(SlateBuildAdmin, self).get_form(request, obj, **kwargs)
+
+        class AdminFormWithRequest(AdminForm):
+            def __new__(cls, *args, **kwargs):
+                kwargs['request'] = request
+                return AdminForm(*args, **kwargs)
+
+        return AdminFormWithRequest
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)

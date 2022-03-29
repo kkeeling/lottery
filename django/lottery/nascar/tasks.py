@@ -436,7 +436,7 @@ def process_sim_input_file(sim_id, task_id):
         try:
             task = BackgroundTask.objects.get(id=task_id)
         except BackgroundTask.DoesNotExist:
-            time.sleep(0.2)
+            time.sleep(0.5)
             task = BackgroundTask.objects.get(id=task_id)
 
         race_sim = models.RaceSim.objects.get(id=sim_id)
@@ -446,7 +446,7 @@ def process_sim_input_file(sim_id, task_id):
         fd_salaries = None
 
         if bool(race_sim.dk_salaries):
-            dk_salaries = pandas.read_csv(race_sim.dk_salaries.path, usecols= ['Name','Salary'], index_col='Name')
+            dk_salaries = pandas.read_csv(race_sim.dk_salaries.path, usecols= ['Name','Salary','ID'], index_col='Name')
         if bool(race_sim.fd_salaries):
             fd_salaries = pandas.read_csv(race_sim.fd_salaries.path, header=None, sep='\n')
 
@@ -524,7 +524,10 @@ def process_sim_input_file(sim_id, task_id):
             alias = models.Alias.find_alias(driver.full_name, 'nascar')
 
             dk_salary = dk_salaries.loc[[alias.dk_name]]['Salary'] if dk_salaries is not None else 0.0
+            dk_name = f'{alias.dk_name} ({dk_salaries.loc[[alias.dk_name]]["ID"][0]})' if dk_salaries is not None else None
+            print(dk_name)
             fd_salary = fd_salaries.loc[[alias.fd_name]] if fd_salaries is not None else 0.0
+            fd_name = fd_salaries.loc[[alias.fd_name]] if fd_salaries is not None else None
 
             models.RaceSimDriver.objects.create(
                 sim=race_sim,
@@ -532,6 +535,8 @@ def process_sim_input_file(sim_id, task_id):
                 starting_position=df_drivers.at[index, 'starting_position'],
                 dk_salary=dk_salary,
                 fd_salary=fd_salary,
+                dk_name=dk_name,
+                fd_name=fd_name,
                 speed_min=df_drivers.at[index, 'speed_min'],
                 speed_max=df_drivers.at[index, 'speed_max'],
                 best_possible_speed=df_drivers.at[index, 'best_possible_speed'],
@@ -1258,6 +1263,13 @@ def execute_sim_iteration(sim_id):
 
         # print(driver_ll)
         ll_laps_remaining -= ll_val
+        
+    driver_dk = [
+        (models.SITE_SCORING.get('draftkings').get('place_differential') * (driver_starting_positions[index] - fp_ranks.tolist()[index]) + 
+        models.SITE_SCORING.get('draftkings').get('fastest_laps') * driver_fl[index] + 
+        models.SITE_SCORING.get('draftkings').get('finishing_position').get(str(fp_ranks.tolist()[index])) + 
+        models.SITE_SCORING.get('draftkings').get('laps_led') * driver_ll[index]) for index, d in enumerate(drivers)
+    ]
 
     df_race = pandas.DataFrame({
         'driver_id': driver_ids,
@@ -1301,6 +1313,7 @@ def execute_sim_iteration(sim_id):
         'fp': fp_ranks.tolist(),
         'll': driver_ll,
         'fl': driver_fl,
+        'dk': driver_dk,
         # 'dam': driver_damage,
         # 'pen': driver_penalty
     }
@@ -1327,6 +1340,7 @@ def sim_execution_complete(results, sim_id, task_id):
         fp_list = [obj.get('fp') for obj in results]
         fl_list = [obj.get('fl') for obj in results]
         ll_list = [obj.get('ll') for obj in results]
+        dk_list = [obj.get('dk') for obj in results]
         # dam_list = [obj.get('dam') for obj in results]
         # pen_list = [obj.get('pen') for obj in results]
 
@@ -1334,6 +1348,7 @@ def sim_execution_complete(results, sim_id, task_id):
         df_fp = pandas.DataFrame(fp_list, columns=driver_ids)
         df_fl = pandas.DataFrame(fl_list, columns=driver_ids)
         df_ll = pandas.DataFrame(ll_list, columns=driver_ids)
+        df_dk = pandas.DataFrame(dk_list, columns=driver_ids)
         # df_dam = pandas.DataFrame(dam_list, columns=driver_ids)
         # df_pen = pandas.DataFrame(pen_list, columns=driver_ids)
         for driver in drivers:
@@ -1344,6 +1359,8 @@ def sim_execution_complete(results, sim_id, task_id):
             driver.avg_fl = numpy.average(driver.fl_outcomes)
             driver.ll_outcomes = df_ll[driver.driver.nascar_driver_id].tolist()
             driver.avg_ll = numpy.average(driver.ll_outcomes)
+            driver.dk_scores = df_dk[driver.driver.nascar_driver_id].tolist()
+            driver.avg_dk_score = numpy.average(driver.dk_scores)
             # driver.crash_outcomes = df_dam[driver.driver.nascar_driver_id].tolist()
             # driver.penalties_outcomes = df_pen[driver.driver.nascar_driver_id].tolist()
             driver.save()
@@ -1410,6 +1427,7 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
         optimizer = get_optimizer(Site.DRAFTKINGS, Sport.NASCAR)
 
     drivers = models.RaceSimDriver.objects.filter(id__in=driver_ids)
+    sim = drivers[0].sim
     player_list = []
 
     for index, driver in enumerate(drivers.order_by('starting_position')):
@@ -1443,8 +1461,36 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
     
     for l in optimized_lineups:
         lineup = [p.id for p in l.players]
+        
+        existing = models.RaceSimLineup.objects.filter(
+            sim=sim,
+            player_1__driver__nascar_driver_id__in=lineup,
+            player_2__driver__nascar_driver_id__in=lineup,
+            player_3__driver__nascar_driver_id__in=lineup,
+            player_4__driver__nascar_driver_id__in=lineup,
+            player_5__driver__nascar_driver_id__in=lineup,
+            player_6__driver__nascar_driver_id__in=lineup
+        )
+        
+        if existing.count() > 0:
+            sim_lineup = existing[0]
+            sim_lineup.count += 1
+            sim_lineup.save()
+        else:
+            sim_lineup = models.RaceSimLineup.objects.create(
+                sim=sim,
+                player_1=models.RaceSimDriver.objects.get(sim=sim, driver__nascar_driver_id=lineup[0]),
+                player_2=models.RaceSimDriver.objects.get(sim=sim, driver__nascar_driver_id=lineup[1]),
+                player_3=models.RaceSimDriver.objects.get(sim=sim, driver__nascar_driver_id=lineup[2]),
+                player_4=models.RaceSimDriver.objects.get(sim=sim, driver__nascar_driver_id=lineup[3]),
+                player_5=models.RaceSimDriver.objects.get(sim=sim, driver__nascar_driver_id=lineup[4]),
+                player_6=models.RaceSimDriver.objects.get(sim=sim, driver__nascar_driver_id=lineup[5]),
+                total_salary=sum([lp.salary for lp in l])
+            )
+            sim_lineup.simulate()
 
     return lineup
+
 
 @shared_task
 def finalize_gto(results, sim_id, task_id):
@@ -1565,16 +1611,22 @@ def export_results(sim_id, result_path, result_url, task_id):
         df_pen = pandas.DataFrame([d.penalty_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         # DK
+        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
         df_dk = pandas.DataFrame(data={
             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
             'start': [d.starting_position for d in race_sim.outcomes.all()],
-            '50p': [numpy.percentile(d.get_scores('draftkings'), float(50)) for d in race_sim.outcomes.all()],
-            '60p': [numpy.percentile(d.get_scores('draftkings'), float(60)) for d in race_sim.outcomes.all()],
-            '70p': [numpy.percentile(d.get_scores('draftkings'), float(70)) for d in race_sim.outcomes.all()],
-            '80p': [numpy.percentile(d.get_scores('draftkings'), float(80)) for d in race_sim.outcomes.all()],
-            '90p': [numpy.percentile(d.get_scores('draftkings'), float(90)) for d in race_sim.outcomes.all()],
+            '50p': [numpy.percentile(d.dk_scores, float(50)) for d in race_sim.outcomes.all()],
+            '60p': [numpy.percentile(d.dk_scores, float(60)) for d in race_sim.outcomes.all()],
+            '70p': [numpy.percentile(d.dk_scores, float(70)) for d in race_sim.outcomes.all()],
+            '80p': [numpy.percentile(d.dk_scores, float(80)) for d in race_sim.outcomes.all()],
+            '90p': [numpy.percentile(d.dk_scores, float(90)) for d in race_sim.outcomes.all()],
             'gto': [d.gto for d in race_sim.outcomes.all()]
         }, index=[d.driver.full_name for d in race_sim.outcomes.all()])
+
+        # GTO Lineups
+        dk_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
+            'player_1__dk_name', 'player_2__dk_name', 'player_3__dk_name', 'player_4__dk_name', 'player_5__dk_name', 'player_6__dk_name', 'total_salary', 'median', 's75', 's90', 'count'
+        ))
 
         with pandas.ExcelWriter(result_path) as writer:
             df_sr.to_excel(writer, sheet_name='Speed Rank Raw')
@@ -1586,6 +1638,8 @@ def export_results(sim_id, result_path, result_url, task_id):
             df_dam.to_excel(writer, sheet_name='Damage Raw')
             df_pen.to_excel(writer, sheet_name='Penalty Raw')
             df_dk.to_excel(writer, sheet_name='DK')
+            df_dk_raw.to_excel(writer, sheet_name='DK Raw')
+            dk_lineups.to_excel(writer, sheet_name='DK Lineups')
 
         print(f'export took {time.time() - start}s')
         task.status = 'download'
@@ -1893,53 +1947,6 @@ def clean_lineups(build_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-# @shared_task
-# def calculate_exposures(build_id, task_id):
-#     task = None
-
-#     try:
-#         try:
-#             task = BackgroundTask.objects.get(id=task_id)
-#         except BackgroundTask.DoesNotExist:
-#             time.sleep(0.2)
-#             task = BackgroundTask.objects.get(id=task_id)
-
-#         # Task implementation goes here
-#         build = models.SlateBuild.objects.get(id=build_id)
-#         players = models.SlatePlayerProjection.objects.filter(
-#             slate_player__slate=build.slate
-#         )
-
-#         for player in players:
-#             exposure, _ = models.SlateBuildPlayerExposure.objects.get_or_create(
-#                 build=build,
-#                 player=player
-#             )
-#             exposure.exposure = build.lineups.filter(
-#                 Q(
-#                     Q(player_1=player) | 
-#                     Q(player_2=player) | 
-#                     Q(player_3=player) | 
-#                     Q(player_4=player) | 
-#                     Q(player_5=player) | 
-#                     Q(player_6=player)
-#                 )
-#             ).count() / build.lineups.all().count()
-#             exposure.save()
-        
-#         task.status = 'success'
-#         task.content = 'Exposures calculated.'
-#         task.save()
-#     except Exception as e:
-#         if task is not None:
-#             task.status = 'error'
-#             task.content = f'There was a problem calculating exposures: {e}'
-#             task.save()
-
-#         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-#         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task

@@ -416,6 +416,7 @@ class RaceSimDriver(models.Model):
             (SITE_SCORING.get(site).get('defeated_teammate') if self.get_teammate().fp_outcomes[index] > self.fp_outcomes[index] else 0)) for index in range(0, count)
         ]
 
+
 class RaceSimLineup(models.Model):
     sim = models.ForeignKey(RaceSim, related_name='sim_lineups', on_delete=models.CASCADE)
     cpt = models.ForeignKey(RaceSimDriver, related_name='sim_lineups_as_cpt', on_delete=models.CASCADE)

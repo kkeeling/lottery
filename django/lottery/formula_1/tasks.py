@@ -436,6 +436,7 @@ def execute_sim_iteration(sim_id):
         'c_dk': constructor_dk
     }
 
+
 @shared_task
 def calc_sim_scores(results, sim_id, task_id):
     task = None
@@ -593,6 +594,7 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
         lineup = [p.id for p in l.players]
         
         existing = models.RaceSimLineup.objects.filter(
+            sim=sim,
             cpt__id__in=lineup,
             flex_1__id__in=lineup,
             flex_2__id__in=lineup,
@@ -619,6 +621,7 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
             sim_lineup.simulate()
 
     return lineup
+
 
 @shared_task
 def finalize_gto(results, sim_id, task_id):
@@ -1091,53 +1094,6 @@ def clean_lineups(build_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-# # @shared_task
-# # def calculate_exposures(build_id, task_id):
-# #     task = None
-
-# #     try:
-# #         try:
-# #             task = BackgroundTask.objects.get(id=task_id)
-# #         except BackgroundTask.DoesNotExist:
-# #             time.sleep(0.2)
-# #             task = BackgroundTask.objects.get(id=task_id)
-
-# #         # Task implementation goes here
-# #         build = models.SlateBuild.objects.get(id=build_id)
-# #         players = models.SlatePlayerProjection.objects.filter(
-# #             slate_player__slate=build.slate
-# #         )
-
-# #         for player in players:
-# #             exposure, _ = models.SlateBuildPlayerExposure.objects.get_or_create(
-# #                 build=build,
-# #                 player=player
-# #             )
-# #             exposure.exposure = build.lineups.filter(
-# #                 Q(
-# #                     Q(player_1=player) | 
-# #                     Q(player_2=player) | 
-# #                     Q(player_3=player) | 
-# #                     Q(player_4=player) | 
-# #                     Q(player_5=player) | 
-# #                     Q(player_6=player)
-# #                 )
-# #             ).count() / build.lineups.all().count()
-# #             exposure.save()
-        
-# #         task.status = 'success'
-# #         task.content = 'Exposures calculated.'
-# #         task.save()
-# #     except Exception as e:
-# #         if task is not None:
-# #             task.status = 'error'
-# #             task.content = f'There was a problem calculating exposures: {e}'
-# #             task.save()
-
-# #         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-# #         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task

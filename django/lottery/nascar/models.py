@@ -13,6 +13,7 @@ import requests
 from statistics import mean
 
 from celery import chain, group
+from django.contrib.auth.models import User
 from django.contrib.postgres.fields import ArrayField
 from django.db import models, signals
 from django.db.models import Q, Sum
@@ -484,6 +485,8 @@ class RaceSimDriver(models.Model):
     driver = models.ForeignKey(Driver, related_name='outcomes', on_delete=models.CASCADE)
     dk_salary = models.IntegerField(default=0)
     fd_salary = models.IntegerField(default=0)
+    dk_name = models.CharField(max_length=100, blank=True, null=True)
+    fd_name = models.CharField(max_length=100, blank=True, null=True)
     starting_position = models.IntegerField(default=0)
     speed_min = models.IntegerField(default=1)
     speed_max = models.IntegerField(default=5)
@@ -501,9 +504,15 @@ class RaceSimDriver(models.Model):
     crash_outcomes = ArrayField(models.CharField(max_length=5, null=True), null=True, blank=True)
     penalty_outcomes = ArrayField(models.CharField(max_length=5, null=True), null=True, blank=True)
 
+    dk_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    fd_scores = ArrayField(models.FloatField(), null=True, blank=True)
+
     avg_fp = models.FloatField(default=0.0)
     avg_ll = models.FloatField(default=0.0)
     avg_fl = models.FloatField(default=0.0)
+
+    avg_dk_score = models.FloatField(default=0.0)
+    avg_fd_score = models.FloatField(default=0.0)
 
     gto = models.FloatField(default=0.0)
 
@@ -526,6 +535,48 @@ class RaceSimDriver(models.Model):
         count = min(min(len(self.fp_outcomes), len(self.ll_outcomes)), len(self.fl_outcomes))
 
         return [(SITE_SCORING.get(site).get('place_differential') * (sp - self.fp_outcomes[index]) + SITE_SCORING.get(site).get('fastest_laps') * self.fl_outcomes[index] + SITE_SCORING.get(site).get('laps_led') * self.ll_outcomes[index] + SITE_SCORING.get(site).get('finishing_position').get(str(self.fp_outcomes[index]))) for index in range(0, count)]
+
+
+class RaceSimLineup(models.Model):
+    sim = models.ForeignKey(RaceSim, related_name='sim_lineups', on_delete=models.CASCADE)
+    player_1 = models.ForeignKey(RaceSimDriver, related_name='sim_lineup_as_player_1', on_delete=models.CASCADE)
+    player_2 = models.ForeignKey(RaceSimDriver, related_name='sim_lineup_as_player_2', on_delete=models.CASCADE)
+    player_3 = models.ForeignKey(RaceSimDriver, related_name='sim_lineup_as_player_3', on_delete=models.CASCADE)
+    player_4 = models.ForeignKey(RaceSimDriver, related_name='sim_lineup_as_player_4', on_delete=models.CASCADE)
+    player_5 = models.ForeignKey(RaceSimDriver, related_name='sim_lineup_as_player_5', on_delete=models.CASCADE)
+    player_6 = models.ForeignKey(RaceSimDriver, related_name='sim_lineup_as_player_6', on_delete=models.CASCADE, null=True, blank=True)
+    total_salary = models.IntegerField(default=0)
+    sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    median = models.FloatField(db_index=True, default=0.0)
+    s75 = models.FloatField(db_index=True, default=0.0)
+    s90 = models.FloatField(db_index=True, default=0.0)
+    count = models.IntegerField(db_index=True, default=1)
+
+    class Meta:
+        verbose_name = 'Optimal Lineup'
+        verbose_name_plural = 'Optimal Lineups'
+        ordering = ['-count']
+
+    @property
+    def players(self):
+        return [
+            self.player_1, 
+            self.player_2, 
+            self.player_3, 
+            self.player_4, 
+            self.player_5, 
+            self.player_6
+        ]
+
+    def get_percentile_sim_score(self, percentile):
+        return numpy.percentile(self.sim_scores, float(percentile))
+
+    def simulate(self):
+        self.sim_scores = [float(sum([p.dk_scores[i] for p in self.players])) for i in range(0, self.sim.iterations)]
+        self.median = numpy.median(self.sim_scores)
+        self.s75 = self.get_percentile_sim_score(75)
+        self.s90 = self.get_percentile_sim_score(90)
+        self.save()
 
 
 # DFS Slates
@@ -583,9 +634,10 @@ class SlatePlayer(models.Model):
 class SlateBuild(models.Model):
     slate = models.ForeignKey(Slate, related_name='builds', on_delete=models.CASCADE)
     sim = models.ForeignKey(RaceSim, related_name='builds', on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey(User, related_name='builds', on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     used_in_contests = models.BooleanField(default=False, verbose_name='Used')
-    configuration = models.ForeignKey(SlateBuildConfig, related_name='builds', verbose_name='Config', on_delete=models.SET_NULL, null=True)
+    configuration = models.ForeignKey(SlateBuildConfig, related_name='builds', verbose_name='Config', on_delete=models.SET_NULL, null=True, blank=True)
     total_lineups = models.PositiveIntegerField(verbose_name='total', default=0)
     max_entrants = models.PositiveIntegerField(verbose_name='max_entrants', default=50000)
 
