@@ -1585,28 +1585,69 @@ def rank_optimal_lineups(sim_id, task_id):
         print(f'ranking took {time.time() - start}s')
         start = time.time()
 
-        for l in race_sim.sim_lineups.all().iterator():
-            ranks = df_lineup_ranks.loc[l.id]
-            print(f'getting ranks took {time.time() - start}s')
-            start = time.time()
-            l.sim_score_ranks = ranks.tolist()
-            print(f'storing ranks took {time.time() - start}s')
-            start = time.time()
-            l.rank_median = numpy.median(l.sim_score_ranks)
-            print(f'median took {time.time() - start}s')
-            start = time.time()
-            l.rank_s75 = l.get_rank_percentile_sim_score(25)
-            print(f'75th took {time.time() - start}s')
-            start = time.time()
-            l.rank_s90 = l.get_rank_percentile_sim_score(10)
-            print(f'90th took {time.time() - start}s')
-            start = time.time()
-            l.save()
-            print(f'saving took {time.time() - start}s')
-            start = time.time()
-        print(f'saving all took {time.time() - start}s')
-        start = time.time()
+        chord([
+            save_sim_lineup_ranking.si(l.id, df_lineup_ranks.loc[l.id].tolist()) for l in race_sim.sim_lineups.all().iterator()
+        ], sim_lineup_ranking_complete.si(sim_id, task_id))()
+
+        # for l in race_sim.sim_lineups.all().iterator():
+        #     ranks = df_lineup_ranks.loc[l.id]
+        #     print(f'getting ranks took {time.time() - start}s')
+        #     start = time.time()
+        #     l.sim_score_ranks = ranks.tolist()
+        #     print(f'storing ranks took {time.time() - start}s')
+        #     start = time.time()
+        #     l.rank_median = numpy.median(l.sim_score_ranks)
+        #     print(f'median took {time.time() - start}s')
+        #     start = time.time()
+        #     l.rank_s75 = l.get_rank_percentile_sim_score(25)
+        #     print(f'75th took {time.time() - start}s')
+        #     start = time.time()
+        #     l.rank_s90 = l.get_rank_percentile_sim_score(10)
+        #     print(f'90th took {time.time() - start}s')
+        #     start = time.time()
+        #     l.save()
+        #     print(f'saving took {time.time() - start}s')
+        #     start = time.time()
+        # print(f'saving all took {time.time() - start}s')
+        # start = time.time()
         
+        # task.status = 'success'
+        # task.content = f'Optimals ranked for {race_sim}.'
+        # task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error ranking optimals for {race_sim}: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def save_sim_lineup_ranking(lineup_id, rankings):
+    l = models.RaceSimLineup.objects.get(id=lineup_id)
+    l.sim_score_ranks = rankings
+    l.rank_median = numpy.median(l.sim_score_ranks)
+    l.rank_s75 = l.get_rank_percentile_sim_score(25)
+    l.rank_s90 = l.get_rank_percentile_sim_score(10)
+    l.save()
+
+
+@shared_task
+def sim_lineup_ranking_complete(sim_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        race_sim = models.RaceSim.objects.get(id=sim_id)
+
         task.status = 'success'
         task.content = f'Optimals ranked for {race_sim}.'
         task.save()
