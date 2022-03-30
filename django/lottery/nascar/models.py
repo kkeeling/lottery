@@ -544,10 +544,14 @@ class RaceSimLineup(models.Model):
     player_6 = models.ForeignKey(RaceSimDriver, related_name='sim_lineup_as_player_6', on_delete=models.CASCADE, null=True, blank=True)
     total_salary = models.IntegerField(default=0)
     sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    sim_score_ranks = ArrayField(models.IntegerField(), null=True, blank=True)
     median = models.FloatField(db_index=True, default=0.0)
     s75 = models.FloatField(db_index=True, default=0.0)
     s90 = models.FloatField(db_index=True, default=0.0)
     count = models.IntegerField(db_index=True, default=1)
+    rank_median = models.FloatField(db_index=True, default=0.0)
+    rank_s75 = models.FloatField(db_index=True, default=0.0)
+    rank_s90 = models.FloatField(db_index=True, default=0.0)
 
     class Meta:
         verbose_name = 'Optimal Lineup'
@@ -567,6 +571,9 @@ class RaceSimLineup(models.Model):
 
     def get_percentile_sim_score(self, percentile):
         return numpy.percentile(self.sim_scores, float(percentile))
+
+    def get_rank_percentile_sim_score(self, percentile):
+        return numpy.percentile(self.sim_score_ranks, float(percentile))
 
     def simulate(self):
         self.sim_scores = [float(sum([p.dk_scores[i] for p in self.players])) for i in range(0, self.sim.iterations)]

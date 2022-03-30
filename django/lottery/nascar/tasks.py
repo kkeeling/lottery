@@ -1377,6 +1377,7 @@ def find_driver_gto(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
+        race_sim.sim_lineups.all().delete()
         scores = [d.get_scores('draftkings') for d in race_sim.outcomes.all().order_by('starting_position')]
 
         jobs = []
@@ -1386,12 +1387,21 @@ def find_driver_gto(sim_id, task_id):
                 list(race_sim.outcomes.all().order_by('starting_position').values_list('id', flat=True)),
                 'draftkings'
             ))
-
-        chord(
-            group(jobs), 
-            finalize_gto.s(
+        
+        chain(
+            chord(
+                group(jobs), 
+                finalize_gto.s(
+                    race_sim.id,
+                    task_id
+                )
+            ),
+            rank_optimal_lineups.si(
                 race_sim.id,
-                task_id
+                BackgroundTask.objects.create(
+                    name=f'Rank optimal lineups for {race_sim}',
+                    user=task.user
+                ).id
             )
         )()
 
@@ -1551,6 +1561,47 @@ def finalize_gto(results, sim_id, task_id):
 
 
 @shared_task
+def rank_optimal_lineups(sim_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        
+        race_sim = models.RaceSim.objects.get(id=sim_id)
+        df_lineups = pandas.DataFrame(
+            [l.sim_scores for l in race_sim.sim_lineups.all()],
+            index=[l.id for l in race_sim.sim_lineups.all()]
+        )
+
+        df_lineup_ranks = df_lineups.rank(method='min', ascending=False)
+
+        for l in race_sim.sim_lineups.all():
+            ranks = df_lineup_ranks.loc[l.id]
+            l.sim_score_ranks = ranks.tolist()
+            l.rank_median = numpy.median(l.sim_score_ranks)
+            l.rank_s75 = l.get_rank_percentile_sim_score(25)
+            l.rank_s90 = l.get_rank_percentile_sim_score(10)
+            l.save()
+        
+        task.status = 'success'
+        task.content = f'Optimals ranked for {race_sim}.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error ranking optimals for {race_sim}: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def export_results(sim_id, result_path, result_url, task_id):
     task = None
 
@@ -1611,7 +1662,7 @@ def export_results(sim_id, result_path, result_url, task_id):
 
         # GTO Lineups
         dk_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
-            'player_1__dk_name', 'player_2__dk_name', 'player_3__dk_name', 'player_4__dk_name', 'player_5__dk_name', 'player_6__dk_name', 'total_salary', 'median', 's75', 's90', 'count'
+            'player_1__dk_name', 'player_2__dk_name', 'player_3__dk_name', 'player_4__dk_name', 'player_5__dk_name', 'player_6__dk_name', 'total_salary', 'median', 's75', 's90', 'rank_median', 'rank_s75', 'rank_s90', 'count'
         ))
 
         with pandas.ExcelWriter(result_path) as writer:

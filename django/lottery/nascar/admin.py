@@ -421,7 +421,7 @@ class RaceSimAdmin(admin.ModelAdmin):
         RaceSimLapsLedInline,
         RaceSimDriverInline
     ]
-    actions = ['calculate_driver_gto', 'export_results']
+    actions = ['calculate_driver_gto', 'rank_lineups', 'export_results']
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -576,6 +576,25 @@ class RaceSimAdmin(admin.ModelAdmin):
         )
     calculate_driver_gto.short_description = 'Calculate Driver GTO'
 
+    def rank_lineups(self, request, queryset):
+        jobs = [
+            tasks.rank_optimal_lineups.si(
+                sim.id,
+                BackgroundTask.objects.create(
+                    name=f'Rank optimal lineups for {sim}',
+                    user=request.user
+                ).id
+            ) for sim in queryset
+        ]
+        group(jobs)()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Ranking optimal lineups.'
+        )
+    rank_lineups.short_description = 'Rank optimal lineups for selected sims'
+
 
 @admin.register(models.RaceSimLineup)
 class RaceSimLineupAdmin(admin.ModelAdmin):
@@ -590,6 +609,9 @@ class RaceSimLineupAdmin(admin.ModelAdmin):
         'median',
         's75',
         's90',
+        'rank_median',
+        'rank_s75',
+        'rank_s90',
         'count'
     )
 
