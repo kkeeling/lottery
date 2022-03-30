@@ -1571,21 +1571,28 @@ def rank_optimal_lineups(sim_id, task_id):
             time.sleep(0.2)
             task = BackgroundTask.objects.get(id=task_id)
         
+        start = time.time()
         race_sim = models.RaceSim.objects.get(id=sim_id)
         df_lineups = pandas.DataFrame(
             [l.sim_scores for l in race_sim.sim_lineups.all()],
             index=[l.id for l in race_sim.sim_lineups.all()]
         )
-
+        print(f'loading dataframe took {time.time() - start}s')
+        start = time.time()
+        
         df_lineup_ranks = df_lineups.rank(method='min', ascending=False)
+        print(f'ranking took {time.time() - start}s')
+        start = time.time()
 
-        for l in race_sim.sim_lineups.all():
+        for index, l in enumerate(race_sim.sim_lineups.all()):
             ranks = df_lineup_ranks.loc[l.id]
             l.sim_score_ranks = ranks.tolist()
             l.rank_median = numpy.median(l.sim_score_ranks)
             l.rank_s75 = l.get_rank_percentile_sim_score(25)
-            l.rank_s90 = l.get_rank_percentile_sim_score(10)
+            l.rank_s90 = l.get_rank_percentile_sim_score(2)
             l.save()
+        print(f'saving took {time.time() - start}s')
+        start = time.time()
         
         task.status = 'success'
         task.content = f'Optimals ranked for {race_sim}.'
