@@ -1573,10 +1573,11 @@ def rank_optimal_lineups(sim_id, task_id):
         
         start = time.time()
         race_sim = models.RaceSim.objects.get(id=sim_id)
-        df_lineups = pandas.DataFrame(
-            [l.sim_scores for l in race_sim.sim_lineups.all()],
-            index=[l.id for l in race_sim.sim_lineups.all()]
-        )
+        a = [[l.id] + l.sim_scores for l in race_sim.sim_lineups.all()]
+        df_lineups = pandas.DataFrame(a, columns=['id'] + [i for i in range(0, race_sim.iterations)])
+        # print(df_lineups)
+        # df_lineups.set_index('id')
+        df_lineups = df_lineups.set_index('id')
         print(f'loading dataframe took {time.time() - start}s')
         start = time.time()
         
@@ -1584,14 +1585,26 @@ def rank_optimal_lineups(sim_id, task_id):
         print(f'ranking took {time.time() - start}s')
         start = time.time()
 
-        for index, l in enumerate(race_sim.sim_lineups.all()):
+        for l in race_sim.sim_lineups.all().iterator():
             ranks = df_lineup_ranks.loc[l.id]
+            print(f'getting ranks took {time.time() - start}s')
+            start = time.time()
             l.sim_score_ranks = ranks.tolist()
+            print(f'storing ranks took {time.time() - start}s')
+            start = time.time()
             l.rank_median = numpy.median(l.sim_score_ranks)
+            print(f'median took {time.time() - start}s')
+            start = time.time()
             l.rank_s75 = l.get_rank_percentile_sim_score(25)
-            l.rank_s90 = l.get_rank_percentile_sim_score(2)
+            print(f'75th took {time.time() - start}s')
+            start = time.time()
+            l.rank_s90 = l.get_rank_percentile_sim_score(10)
+            print(f'90th took {time.time() - start}s')
+            start = time.time()
             l.save()
-        print(f'saving took {time.time() - start}s')
+            print(f'saving took {time.time() - start}s')
+            start = time.time()
+        print(f'saving all took {time.time() - start}s')
         start = time.time()
         
         task.status = 'success'
