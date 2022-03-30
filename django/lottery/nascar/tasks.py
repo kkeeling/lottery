@@ -1086,8 +1086,8 @@ def execute_sim_iteration(sim_id):
     # final_ranks = driver_s3_ranks if race_sim.race.num_stages() == 3 else driver_s4_ranks
     fp_vals = []
     for index, final_sp in enumerate(final_ranks):
-        flr = final_sp - race_variance - driver_strategy[index]
-        ceil = final_sp + race_variance + driver_strategy[index]
+        flr = final_sp - race_variance
+        ceil = final_sp + race_variance
 
         driver = drivers[index]
         if driver_dnfs[index] is not None:
@@ -1263,7 +1263,7 @@ def execute_sim_iteration(sim_id):
         'sp': driver_starting_positions,
         'speed_min': driver_sp_mins,
         'speed_max': driver_sp_maxes,
-        'best_possible': driver_bp_sp_mins,
+        # 'best_possible': driver_bp_sp_mins,
         # 'worst_possible': driver_bp_sp_maxes,
         'dnf': driver_dnfs,
         's1_penalty': driver_s1_penalties,
