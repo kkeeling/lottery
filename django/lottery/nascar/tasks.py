@@ -344,11 +344,8 @@ def export_sim_template(sim_id, result_path, result_url, task_id):
         df_drivers['crash_rate'] = df_drivers['num_crashes']/df_drivers['num_races']
         df_drivers['mech_rate'] = df_drivers['num_mech']/df_drivers['num_races']
         df_drivers['penalty_rate'] = df_drivers['num_penalty']/df_drivers['num_races']
-        df_drivers['strategy_factor'] = ''
         df_drivers['speed_min'] = ''
         df_drivers['speed_max'] = ''
-        df_drivers['best_possible_speed'] = ''
-        df_drivers['worst_possible_speed'] = ''
 
         df_race = pandas.DataFrame.from_records(models.RaceSim.objects.filter(id=sim_id).values(
             'laps_per_caution',
@@ -397,8 +394,7 @@ def export_sim_template(sim_id, result_path, result_url, task_id):
             'pct_max': [0 for _ in range (0, 15)],
             'cum_min': [0 for _ in range (0, 15)],
             'cum_max': [0 for _ in range (0, 15)],
-            'fl_rank_min': [i+1 for i in range (0, 15)],
-            'fl_rank_max': [i+1 for i in range (0, 15)]
+            'rank_order': [i+1 for i in range (0, 15)]
         })
 
         df_drivers = df_drivers.drop(columns=['num_finish', 'num_crashes', 'num_mech', 'num_penalty'])
@@ -525,7 +521,6 @@ def process_sim_input_file(sim_id, task_id):
 
             dk_salary = dk_salaries.loc[[alias.dk_name]]['Salary'] if dk_salaries is not None else 0.0
             dk_name = f'{alias.dk_name} ({dk_salaries.loc[[alias.dk_name]]["ID"][0]})' if dk_salaries is not None else None
-            print(dk_name)
             fd_salary = fd_salaries.loc[[alias.fd_name]] if fd_salaries is not None else 0.0
             fd_name = fd_salaries.loc[[alias.fd_name]] if fd_salaries is not None else None
 
@@ -539,12 +534,9 @@ def process_sim_input_file(sim_id, task_id):
                 fd_name=fd_name,
                 speed_min=df_drivers.at[index, 'speed_min'],
                 speed_max=df_drivers.at[index, 'speed_max'],
-                best_possible_speed=df_drivers.at[index, 'best_possible_speed'],
-                worst_possible_speed=0,
                 crash_rate=df_drivers.at[index, 'crash_rate'],
                 mech_rate=df_drivers.at[index, 'mech_rate'],
-                infraction_rate=df_drivers.at[index, 'penalty_rate'],
-                strategy_factor=df_drivers.at[index, 'strategy_factor']
+                infraction_rate=df_drivers.at[index, 'penalty_rate']
             )
 
         task.status = 'success'
@@ -559,11 +551,6 @@ def process_sim_input_file(sim_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-def get_speed_min(driver, current_speed_rank):
-    speed_delta = 10
-    speed_min = max(current_speed_rank - 5, driver.best_possible_speed)
 
 
 @shared_task
@@ -619,12 +606,11 @@ def execute_sim_iteration(sim_id):
     driver_ids = list(drivers.values_list('driver__nascar_driver_id', flat=True))
     driver_names = list(drivers.values_list('driver__full_name', flat=True))
     driver_starting_positions = list(drivers.values_list('starting_position', flat=True))
-    driver_strategy = list(drivers.values_list('strategy_factor', flat=True))
 
     driver_dnfs = [None for driver in drivers]
     driver_sp_mins = list(drivers.values_list('speed_min', flat=True))
     driver_sp_maxes = list(drivers.values_list('speed_max', flat=True))
-    driver_bp_sp_mins = list(drivers.values_list('best_possible_speed', flat=True))
+    # driver_bp_sp_mins = list(drivers.values_list('best_possible_speed', flat=True))
     # driver_bp_sp_maxes = list(drivers.values_list('worst_possible_speed', flat=True))
 
     driver_s1_penalties = [None for driver in drivers]

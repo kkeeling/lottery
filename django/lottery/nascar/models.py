@@ -490,12 +490,9 @@ class RaceSimDriver(models.Model):
     starting_position = models.IntegerField(default=0)
     speed_min = models.IntegerField(default=1)
     speed_max = models.IntegerField(default=5)
-    best_possible_speed = models.IntegerField(default=1)
-    worst_possible_speed = models.IntegerField(default=5)
     crash_rate = models.FloatField(default=0.0)
     mech_rate = models.FloatField(default=0.0)
     infraction_rate = models.FloatField(default=0.0)
-    strategy_factor = models.FloatField(default=0.0)
 
     sr_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)
     fp_outcomes = ArrayField(models.IntegerField(default=0), null=True, blank=True)

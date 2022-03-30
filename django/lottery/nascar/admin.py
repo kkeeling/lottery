@@ -100,21 +100,20 @@ class RaceSimDriverInline(admin.TabularInline):
         'dk_name',
         'speed_min',
         'speed_max',
-        'best_possible_speed',
-        'worst_possible_speed',
         'crash_rate',
         'mech_rate',
         'infraction_rate',
-        'strategy_factor',
         'avg_fp',
         'avg_fl',
         'avg_ll',
+        'avg_dk_score',
         'gto',
     )
     read_only_fields = (
         'avg_fp',
         'avg_fl',
         'avg_ll',
+        'avg_dk_score',
     )
 
 
