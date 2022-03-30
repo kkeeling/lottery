@@ -704,78 +704,6 @@ class SlateAdmin(admin.ModelAdmin):
         return 'None'
     get_builds_link.short_description = 'Builds'
 
-#     def initialize(self, request, queryset):
-#         for slate in queryset:
-#             slate.get_pinn_odds()
-#             slate.find_opponents()
-#             slate.create_build()
-#     initialize.short_description = 'Initialize selected slates'
-
-#     def get_pinn_odds(self, request, queryset):
-#         group(
-#             [
-#                 chain(
-#                     tasks.get_pinn_odds.si(
-#                         BackgroundTask.objects.create(
-#                             name='Get Pinnacle Odds',
-#                             user=request.user
-#                         ).id
-#                     ),
-#                     tasks.find_slate_matches.si(
-#                         slate.id,
-#                         BackgroundTask.objects.create(
-#                             name='Find Slate matches',
-#                             user=request.user
-#                         ).id
-#                     )
-#                 ) for slate in queryset
-#             ]
-#         )()
-#     get_pinn_odds.short_description = 'Update odds for selected slates'
-
-#     def project_players(self, request, queryset):
-#         for slate in queryset:
-#             slate.project_players()
-#     project_players.short_description = 'Project players for selected slates'
-
-#     def project_ownership(self, request, queryset):
-#         for slate in queryset:
-#             slate.project_ownership()
-#     project_ownership.short_description = 'Project ownership for selected slates'
-
-#     def simulate(self, request, pk):
-#         context = dict(
-#            # Include common variables for rendering the admin template.
-#            self.admin_site.each_context(request),
-#            # Anything else you want in the context...
-#         )
-
-#         slate = get_object_or_404(models.Slate, pk=pk)
-#         chord([
-#             tasks.simulate_match.si(
-#                 slate_match.id,
-#                 BackgroundTask.objects.create(
-#                     name=f'Simulate {slate_match}',
-#                     user=request.user
-#                 ).id
-#             ) for slate_match in slate.matches.all()
-#         ], tasks.calculate_target_scores.si(
-#                 slate.id,
-#                 BackgroundTask.objects.create(
-#                     name=f'Calculate target scores for {slate}',
-#                     user=request.user
-#                 ).id
-
-#         ))()
-
-#         messages.add_message(
-#             request,
-#             messages.WARNING,
-#             'Simulating player outcomes for {}'.format(str(slate)))
-
-#         # redirect or TemplateResponse(request, "sometemplate.html", context)
-#         return redirect(request.META.get('HTTP_REFERER'), context=context)
-
 
 @admin.register(models.SlatePlayer)
 class SlatePlayerAdmin(admin.ModelAdmin):
@@ -1036,6 +964,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         's75',
         's90',
         'sort_proj',
+        'get_is_optimal',
         'duplicated'
     )
 
@@ -1048,34 +977,17 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'player_6__slate_player__name',
     )
 
-
-# @admin.register(models.PinnacleMatch)
-# class PinnacleMatchAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'event',
-#         'home_participant',
-#         'away_participant'
-#     )
-#     search_fields = (
-#         'event',
-#         'home_participant',
-#         'away_participant'
-#     )
-
-
-# @admin.register(models.PinnacleMatchOdds)
-# class PinnacleMatchOddsAdmin(admin.ModelAdmin):
-#     list_display = (
-#         'match',
-#         'get_event',
-#         'create_at',
-#         'home_price',
-#         'away_price',
-#         'home_spread',
-#         'away_spread'
-#     )
-#     search_fields = (
-#         'match__event',
-#         'match__home_participant',
-#         'match__away_participant'
-#     )
+    def get_is_optimal(self, obj):
+        lineup = [p.id for p in obj.players]
+        matching_optimals = models.RaceSimLineup.objects.filter(
+            sim=obj.build.sim,
+            player_1__driver__nascar_driver_id__in=lineup,
+            player_2__driver__nascar_driver_id__in=lineup,
+            player_3__driver__nascar_driver_id__in=lineup,
+            player_4__driver__nascar_driver_id__in=lineup,
+            player_5__driver__nascar_driver_id__in=lineup,
+            player_6__driver__nascar_driver_id__in=lineup
+        )
+        return matching_optimals.count() > 0
+    get_is_optimal.short_description = 'Opt?'
+    get_is_optimal.boolean = True

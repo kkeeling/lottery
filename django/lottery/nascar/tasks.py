@@ -1388,20 +1388,11 @@ def find_driver_gto(sim_id, task_id):
                 'draftkings'
             ))
         
-        chain(
-            chord(
-                group(jobs), 
-                finalize_gto.s(
-                    race_sim.id,
-                    task_id
-                )
-            ),
-            rank_optimal_lineups.si(
+        chord(
+            group(jobs), 
+            finalize_gto.s(
                 race_sim.id,
-                BackgroundTask.objects.create(
-                    name=f'Rank optimal lineups for {race_sim}',
-                    user=task.user
-                ).id
+                task_id
             )
         )()
 
