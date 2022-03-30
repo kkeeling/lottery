@@ -978,7 +978,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
     )
 
     def get_is_optimal(self, obj):
-        lineup = [p.id for p in obj.players]
+        lineup = [p.slate_player.driver.nascar_driver_id for p in obj.players]
         matching_optimals = models.RaceSimLineup.objects.filter(
             sim=obj.build.sim,
             player_1__driver__nascar_driver_id__in=lineup,
