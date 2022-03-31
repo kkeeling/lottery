@@ -375,6 +375,8 @@ class RaceSim(models.Model):
     input_file = models.FileField(upload_to='uploads/sim_input_files', blank=True, null=True)
     dk_salaries = models.FileField(upload_to='uploads/dk_salaries', blank=True, null=True)
     fd_salaries = models.FileField(upload_to='uploads/fd_salaries', blank=True, null=True)
+    dk_contest_entries = models.IntegerField(default=5000)
+    fd_contest_entries = models.IntegerField(default=5000)
     
     # caution data
     laps_per_caution = models.FloatField(default=0.0)
@@ -512,6 +514,8 @@ class RaceSimDriver(models.Model):
     avg_fd_score = models.FloatField(default=0.0)
 
     gto = models.FloatField(default=0.0)
+    dk_op = models.FloatField(default=0.0)
+    fd_op = models.FloatField(default=0.0)
 
     def __str__(self):
         return f'{self.driver}'
@@ -552,6 +556,7 @@ class RaceSimLineup(models.Model):
     rank_median = models.FloatField(db_index=True, default=0.0)
     rank_s75 = models.FloatField(db_index=True, default=0.0)
     rank_s90 = models.FloatField(db_index=True, default=0.0)
+    dup_projection = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
 
     class Meta:
         verbose_name = 'Optimal Lineup'
@@ -577,6 +582,7 @@ class RaceSimLineup(models.Model):
 
     def simulate(self):
         self.sim_scores = [float(sum([p.dk_scores[i] for p in self.players])) for i in range(0, self.sim.iterations)]
+        self.dup_projection = numpy.prod([x.dk_op for x in self.players]) * self.sim.dk_contest_entries
         self.median = numpy.median(self.sim_scores)
         self.s75 = self.get_percentile_sim_score(75)
         self.s90 = self.get_percentile_sim_score(90)

@@ -346,6 +346,8 @@ def export_sim_template(sim_id, result_path, result_url, task_id):
         df_drivers['penalty_rate'] = df_drivers['num_penalty']/df_drivers['num_races']
         df_drivers['speed_min'] = ''
         df_drivers['speed_max'] = ''
+        df_drivers['dk_op'] = 0.0
+        df_drivers['fd_op'] = 0.0
 
         df_race = pandas.DataFrame.from_records(models.RaceSim.objects.filter(id=sim_id).values(
             'laps_per_caution',
@@ -536,7 +538,9 @@ def process_sim_input_file(sim_id, task_id):
                 speed_max=df_drivers.at[index, 'speed_max'],
                 crash_rate=df_drivers.at[index, 'crash_rate'],
                 mech_rate=df_drivers.at[index, 'mech_rate'],
-                infraction_rate=df_drivers.at[index, 'penalty_rate']
+                infraction_rate=df_drivers.at[index, 'penalty_rate'],
+                dk_op=df_drivers.at[index, 'dk_op'],
+                fd_op=df_drivers.at[index, 'fd_op']
             )
 
         task.status = 'success'
@@ -1713,12 +1717,13 @@ def export_results(sim_id, result_path, result_url, task_id):
             '70p': [numpy.percentile(d.dk_scores, float(70)) for d in race_sim.outcomes.all()],
             '80p': [numpy.percentile(d.dk_scores, float(80)) for d in race_sim.outcomes.all()],
             '90p': [numpy.percentile(d.dk_scores, float(90)) for d in race_sim.outcomes.all()],
-            'gto': [d.gto for d in race_sim.outcomes.all()]
+            'gto': [d.gto for d in race_sim.outcomes.all()],
+            'op': [d.dk_op for d in race_sim.outcomes.all()]
         }, index=[d.driver.full_name for d in race_sim.outcomes.all()])
 
         # GTO Lineups
         dk_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
-            'player_1__dk_name', 'player_2__dk_name', 'player_3__dk_name', 'player_4__dk_name', 'player_5__dk_name', 'player_6__dk_name', 'total_salary', 'median', 's75', 's90', 'rank_median', 'rank_s75', 'rank_s90', 'count'
+            'player_1__dk_name', 'player_2__dk_name', 'player_3__dk_name', 'player_4__dk_name', 'player_5__dk_name', 'player_6__dk_name', 'total_salary', 'median', 's75', 's90', 'rank_median', 'rank_s75', 'rank_s90', 'count', 'dup_projection'
         ))
 
         with pandas.ExcelWriter(result_path) as writer:

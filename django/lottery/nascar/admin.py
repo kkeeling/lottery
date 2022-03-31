@@ -97,7 +97,7 @@ class RaceSimDriverInline(admin.TabularInline):
         'driver',
         'starting_position',
         'dk_salary',
-        'dk_name',
+        'dk_op',
         'speed_min',
         'speed_max',
         'crash_rate',
