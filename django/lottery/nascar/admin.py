@@ -404,12 +404,18 @@ class RaceSimAdmin(admin.ModelAdmin):
         'pk',
         'race',
         'iterations',
+        'optimal_lineups_per_iteration',
+        'run_with_gto',
+        'run_with_lineup_rankings',
         'export_template_button',
         'sim_button',
         'get_lineups_link',
     )
     list_editable = (
         'iterations',
+        'optimal_lineups_per_iteration',
+        'run_with_gto',
+        'run_with_lineup_rankings',
     )
     raw_id_fields = (
         'race',

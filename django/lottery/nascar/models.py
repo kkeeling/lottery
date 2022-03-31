@@ -377,6 +377,10 @@ class RaceSim(models.Model):
     fd_salaries = models.FileField(upload_to='uploads/fd_salaries', blank=True, null=True)
     dk_contest_entries = models.IntegerField(default=5000)
     fd_contest_entries = models.IntegerField(default=5000)
+
+    optimal_lineups_per_iteration = models.IntegerField(default=3, verbose_name='num_lineups')
+    run_with_gto = models.BooleanField(default=True)
+    run_with_lineup_rankings = models.BooleanField(default=False)
     
     # caution data
     laps_per_caution = models.FloatField(default=0.0)

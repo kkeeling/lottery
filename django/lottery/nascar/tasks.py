@@ -569,18 +569,23 @@ def execute_sim(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         race_sim = models.RaceSim.objects.get(id=sim_id)
-        chain(
+        if race_sim.run_with_gto:
+            chain(
+                chord([
+                    execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
+                ], sim_execution_complete.s(sim_id, task_id)),
+                find_driver_gto.si(
+                    race_sim.id,
+                    BackgroundTask.objects.create(
+                        name=f'Find driver GTO for {race_sim}',
+                        user=task.user
+                    ).id
+                )
+            )()
+        else:
             chord([
                 execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
-            ], sim_execution_complete.s(sim_id, task_id)),
-            find_driver_gto.si(
-                race_sim.id,
-                BackgroundTask.objects.create(
-                    name=f'Find driver GTO for {race_sim}',
-                    user=task.user
-                ).id
-            )
-        )()
+            ], sim_execution_complete.s(sim_id, task_id))()
 
     except Exception as e:
         if task is not None:
@@ -1389,16 +1394,35 @@ def find_driver_gto(sim_id, task_id):
             jobs.append(make_optimals_for_gto.si(
                 [s[i] for s in scores],
                 list(race_sim.outcomes.all().order_by('starting_position').values_list('id', flat=True)),
-                'draftkings'
+                'draftkings',
+                race_sim.optimal_lineups_per_iteration
             ))
         
-        chord(
-            group(jobs), 
-            finalize_gto.s(
-                race_sim.id,
-                task_id
-            )
-        )()
+        if race_sim.run_with_lineup_rankings:
+            chain(
+                chord(
+                    group(jobs), 
+                    finalize_gto.s(
+                        race_sim.id,
+                        task_id
+                    )
+                ),
+                rank_optimal_lineups.si(
+                    race_sim.id,
+                    BackgroundTask.objects.create(
+                        name=f'Rank optimal lineups for {race_sim}',
+                        user=task.user
+                    ).id
+                )
+            )()
+        else:
+            chord(
+                group(jobs), 
+                finalize_gto.s(
+                    race_sim.id,
+                    task_id
+                )
+            )()
 
     except Exception as e:
         if task is not None:
@@ -1411,7 +1435,7 @@ def find_driver_gto(sim_id, task_id):
 
 
 @shared_task
-def make_optimals_for_gto(iterations_scores, driver_ids, site):
+def make_optimals_for_gto(iterations_scores, driver_ids, site, num_lineups=1):
     if site == 'fanduel':
         optimizer = get_optimizer(Site.FANDUEL, Sport.NASCAR)
     else:
@@ -1446,7 +1470,7 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
     optimizer.load_players(player_list)
 
     optimized_lineups = optimizer.optimize(
-        n=3,
+        n=num_lineups,
         randomness=False, 
     )
     
