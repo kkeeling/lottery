@@ -1442,12 +1442,16 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
     optimizer.load_players(player_list)
 
     optimized_lineups = optimizer.optimize(
-        n=1,
+        n=3,
         randomness=False, 
     )
     
-    for l in optimized_lineups:
+    optimal_lineup = None
+    for index, l in enumerate(optimized_lineups):
         lineup = [p.id for p in l.players]
+        
+        if index == 0:
+            optimal_lineup = lineup
         
         existing = models.RaceSimLineup.objects.filter(
             sim=sim,
@@ -1476,7 +1480,7 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
             )
             sim_lineup.simulate()
 
-    return lineup
+    return optimal_lineup
 
 
 @shared_task
