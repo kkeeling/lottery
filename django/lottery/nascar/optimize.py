@@ -140,11 +140,9 @@ def generateRandomLineups(projections, num_lineups, num_drivers, salary_cap, tim
 
 def get_random_lineup(projections, num_drivers, salary_cap):
     total_salary = 999999
-    duplicate = False
 
     l = None
-    while total_salary > salary_cap or duplicate:
-        duplicate = False
+    while total_salary > salary_cap or total_salary < 44000:
         l = []
 
         # get drivers
