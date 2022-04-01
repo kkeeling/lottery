@@ -142,7 +142,7 @@ def get_random_lineup(projections, num_drivers, salary_cap):
     total_salary = 999999
 
     l = None
-    while total_salary > salary_cap or total_salary < 44000:
+    while total_salary > salary_cap or total_salary < 46000:
         l = []
 
         # get drivers
