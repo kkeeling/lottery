@@ -760,6 +760,9 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'configuration',
     )
     search_fields = ('slate__name',)
+    actions = [
+        'rank_lineups'
+    ]
 
     def get_urls(self):
         urls = super().get_urls()
@@ -872,6 +875,25 @@ class SlateBuildAdmin(admin.ModelAdmin):
         return mark_safe('<a href="/admin/nascar/slatebuildgroup/?build__id__exact={}">Groups</a>'.format(obj.id))
     get_groups_link.short_description = 'Groups'
 
+    def rank_lineups(self, request, queryset):
+        jobs = [
+            tasks.rank_build_lineups.si(
+                build.id,
+                BackgroundTask.objects.create(
+                    name=f'Rank lineups for {build}',
+                    user=request.user
+                ).id
+            ) for build in queryset
+        ]
+        group(jobs)()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Ranking lineups.'
+        )
+    rank_lineups.short_description = 'Rank lineups for selected build'
+
 
 @admin.register(models.BuildPlayerProjection)
 class BuildPlayerProjectionAdmin(admin.ModelAdmin):
@@ -969,6 +991,9 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'median',
         's75',
         's90',
+        'rank_median',
+        'rank_s75',
+        'rank_s90',
         'sort_proj',
         'get_is_optimal',
         'duplicated'

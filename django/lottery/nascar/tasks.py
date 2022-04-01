@@ -1387,7 +1387,7 @@ def find_driver_gto(sim_id, task_id):
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
         race_sim.sim_lineups.all().delete()
-        scores = [d.get_scores('draftkings') for d in race_sim.outcomes.all().order_by('starting_position')]
+        scores = [d.dk_scores for d in race_sim.outcomes.all().order_by('starting_position')]
 
         jobs = []
         for i in range(0, race_sim.iterations):
@@ -1778,21 +1778,21 @@ def export_results(sim_id, result_path, result_url, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-def get_score(row, **kwargs):
-    if 'site' not in kwargs:
-        raise Exception('Must provide a site.')
-    site = kwargs.get('site')
+# def get_score(row, **kwargs):
+#     if 'site' not in kwargs:
+#         raise Exception('Must provide a site.')
+#     site = kwargs.get('site')
 
-    if 'sp' not in kwargs:
-        raise Exception('Must provide sp')
-    sp = kwargs.get('sp')
+#     if 'sp' not in kwargs:
+#         raise Exception('Must provide sp')
+#     sp = kwargs.get('sp')
 
-    fp = row.get('fp')
-    pd = sp - fp
-    fl = row.get('fl')
-    ll = row.get('ll')
+#     fp = row.get('fp')
+#     pd = sp - fp
+#     fl = row.get('fl')
+#     ll = row.get('ll')
 
-    return float(models.SITE_SCORING.get(site).get('place_differential') * pd + models.SITE_SCORING.get(site).get('fastest_laps') * fl + models.SITE_SCORING.get(site).get('laps_led') * ll + models.SITE_SCORING.get(site).get('finishing_position').get(str(fp))) 
+#     return float(models.SITE_SCORING.get(site).get('place_differential') * pd + models.SITE_SCORING.get(site).get('fastest_laps') * fl + models.SITE_SCORING.get(site).get('laps_led') * ll + models.SITE_SCORING.get(site).get('finishing_position').get(str(fp))) 
 
 
 @shared_task
@@ -1810,27 +1810,31 @@ def process_build(build_id, task_id):
 
         # create (or update) the projections
         for slate_player in build.slate.players.all():
-            projection, created = models.BuildPlayerProjection.objects.get_or_create(
+            projection, _ = models.BuildPlayerProjection.objects.get_or_create(
                 slate_player=slate_player,
                 build=build
             )
             try:
                 sim_driver = build.sim.outcomes.get(driver=slate_player.driver)
-                df_scores = pandas.DataFrame(data={
-                    'fp': sim_driver.fp_outcomes,
-                    'fl': sim_driver.fl_outcomes,
-                    'll': sim_driver.ll_outcomes
-                })
+                # df_scores = pandas.DataFrame(data={
+                #     'fp': sim_driver.fp_outcomes,
+                #     'fl': sim_driver.fl_outcomes,
+                #     'll': sim_driver.ll_outcomes,
+                #     'dk': sim_driver.dk_scores,
+                #     'fd': sim_driver.fd_scores
+                # })
 
                 projection.starting_position = sim_driver.starting_position
-                projection.sim_scores = df_scores.apply(get_score, axis=1, site=build.slate.site, sp=sim_driver.starting_position).to_list()
+                projection.sim_scores = sim_driver.dk_scores if build.slate.site == 'draftkings' else sim_driver.fd_scores
                 projection.projection = numpy.percentile(projection.sim_scores, float(50))
                 projection.ceiling = numpy.percentile(projection.sim_scores, float(90))
                 projection.s75 = numpy.percentile(projection.sim_scores, float(75))
                 projection.gto = sim_driver.gto
+                projection.op = sim_driver.dk_op if build.slate.site == 'draftkings' else sim_driver.fd_op
+                # print(f'{projection} - {projection.op}')
                 projection.save()
             except:
-                pass
+                traceback.print_exc()
 
         task.status = 'success'
         task.content = f'{build} processed.'
@@ -2042,6 +2046,85 @@ def complete_random_lineup_creation(build_id, task_id):
 
 
 @shared_task
+def rank_build_lineups(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        
+        start = time.time()
+        build = models.SlateBuild.objects.get(id=build_id)
+        a = [[l.id] + l.sim_scores for l in build.lineups.all()]
+        df_lineups = pandas.DataFrame(a, columns=['id'] + [i for i in range(0, build.sim.iterations)])
+        df_lineups = df_lineups.set_index('id')
+        print(f'loading dataframe took {time.time() - start}s')
+        start = time.time()
+        
+        df_lineup_ranks = df_lineups.rank(method='min', ascending=False)
+        print(f'ranking took {time.time() - start}s')
+        start = time.time()
+
+        chain(
+            chord([
+                save_build_lineup_ranking.si(l.id, df_lineup_ranks.loc[l.id].tolist()) for l in build.lineups.all().iterator()
+            ], build_lineup_ranking_complete.si(build_id, task_id)),
+            clean_lineups.si(
+                build_id,
+                BackgroundTask.objects.create(
+                    name='Clean Lineups',
+                    user=task.user
+                ).id
+            )
+        )()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error ranking lineups for {build}: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def save_build_lineup_ranking(lineup_id, rankings):
+    l = models.SlateBuildLineup.objects.get(id=lineup_id)
+    l.rank(rankings)
+
+
+@shared_task
+def build_lineup_ranking_complete(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        build = models.SlateBuild.objects.get(id=build_id)
+
+        task.status = 'success'
+        task.content = f'Lineups ranked for {build}.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error ranking lineups for {build}: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def clean_lineups(build_id, task_id):
     task = None
 
@@ -2055,7 +2138,10 @@ def clean_lineups(build_id, task_id):
         # Task implementation goes here
         build = models.SlateBuild.objects.get(id=build_id)
 
-        ordered_lineups = build.lineups.all().order_by('-sort_proj')
+        if build.configuration.clean_by_direction == 'descending':
+            ordered_lineups = build.lineups.all().order_by('-sort_proj')
+        else:
+            ordered_lineups = build.lineups.all().order_by('sort_proj')
         ordered_lineups.filter(id__in=ordered_lineups.values_list('pk', flat=True)[int(build.total_lineups):]).delete()
         
         task.status = 'success'

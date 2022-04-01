@@ -4,6 +4,7 @@ import difflib
 from email.policy import default
 import math
 from pyexpat import model
+from urllib import request
 from django.db.models.fields import related
 import numpy
 import random
@@ -596,6 +597,10 @@ class RaceSimLineup(models.Model):
 # DFS Slates
 
 class SlateBuildConfig(models.Model):
+    CLEAN_BY_CHOICES = (
+        ('projected_score', 'Projected Score'),
+        ('projected_rank', 'Projected Rank'),
+    )
     name = models.CharField(max_length=255)
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='draftkings')
     randomness = models.DecimalField(decimal_places=2, max_digits=2, default=0.75)
@@ -604,6 +609,8 @@ class SlateBuildConfig(models.Model):
     optimize_by_percentile = models.IntegerField(default=50)
     lineup_multiplier = models.IntegerField(default=1)
     clean_by_percentile = models.IntegerField(default=50)
+    clean_by_field = models.CharField(max_length=25, choices=CLEAN_BY_CHOICES, default='s90')
+    clean_by_direction = models.CharField(max_length=25, choices=(('ascending', 'Ascending'), ('descending', 'Descending')), default='descending')
     duplicate_threshold = models.FloatField(default=5)
 
     class Meta:
@@ -681,13 +688,13 @@ class SlateBuild(models.Model):
                         user=user
                     ).id
                 ),
-                tasks.clean_lineups.si(
+                tasks.rank_build_lineups.si(
                     self.id,
                     BackgroundTask.objects.create(
-                        name='Clean Lineups',
+                        name=f'Rank lineups for {self}',
                         user=user
                     ).id
-                ),
+                )
             )()
         else:
             chain(
@@ -826,12 +833,16 @@ class SlateBuildLineup(models.Model):
     player_6 = models.ForeignKey(BuildPlayerProjection, related_name='lineup_as_player_6', on_delete=models.CASCADE, null=True, blank=True)
     total_salary = models.IntegerField(default=0)
     sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    sim_score_ranks = ArrayField(models.IntegerField(), null=True, blank=True)
     ownership_projection = models.DecimalField(max_digits=10, decimal_places=9, default=0.0)
     duplicated = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     roi = models.FloatField(default=0.0, db_index=True)
     median = models.FloatField(db_index=True, default=0.0)
     s75 = models.FloatField(db_index=True, default=0.0)
     s90 = models.FloatField(db_index=True, default=0.0)
+    rank_median = models.FloatField(db_index=True, default=0.0)
+    rank_s75 = models.FloatField(db_index=True, default=0.0)
+    rank_s90 = models.FloatField(db_index=True, default=0.0)
     sort_proj = models.FloatField(db_index=True, default=0.0)
 
     class Meta:
@@ -853,6 +864,9 @@ class SlateBuildLineup(models.Model):
     def get_percentile_sim_score(self, percentile):
         return numpy.percentile(self.sim_scores, float(percentile))
 
+    def get_rank_percentile_sim_score(self, percentile):
+        return numpy.percentile(self.sim_score_ranks, float(percentile))
+
     def simulate(self):
         self.ownership_projection = numpy.prod([x.op for x in self.players])
         self.duplicated = numpy.prod([x.op for x in self.players]) * self.build.max_entrants
@@ -860,7 +874,17 @@ class SlateBuildLineup(models.Model):
         self.median = numpy.median(self.sim_scores)
         self.s75 = self.get_percentile_sim_score(75)
         self.s90 = self.get_percentile_sim_score(90)
-        self.sort_proj = self.get_percentile_sim_score(self.build.configuration.clean_by_percentile)
+        if self.build.configuration.clean_by_field == 'projected_score':
+            self.sort_proj = self.get_percentile_sim_score(self.build.configuration.clean_by_percentile)
+        self.save()
+
+    def rank(self, rankings):
+        self.sim_score_ranks = rankings
+        self.rank_median = numpy.median(self.sim_score_ranks)
+        self.rank_s75 = self.get_rank_percentile_sim_score(25)
+        self.rank_s90 = self.get_rank_percentile_sim_score(10)
+        if self.build.configuration.clean_by_field == 'projected_rank':
+            self.sort_proj = self.get_rank_percentile_sim_score(self.build.configuration.clean_by_percentile)
         self.save()
 
 
