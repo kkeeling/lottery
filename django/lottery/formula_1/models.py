@@ -297,7 +297,7 @@ class RaceSim(models.Model):
     dk_salaries = models.FileField(upload_to='uploads/dk_salaries', blank=True, null=True)
 
     # variance data
-    ll_mean = models.IntegerField(default=1)
+    # ll_mean = models.IntegerField(default=1)
 
     def __str__(self):
         return f'{self.race} Sim {self.id}'
@@ -352,6 +352,7 @@ class RaceSimDriver(models.Model):
     constructor = models.ForeignKey(Constructor, related_name='outcomes', on_delete=models.CASCADE, null=True, blank=True)
     dk_salary = models.IntegerField(default=0)
     dk_position = models.CharField(default='D', choices=DK_ROSTER_POSITION_CHOICES, max_length=10)
+    dk_name = models.CharField(max_length=100, blank=True, null=True)
     starting_position = models.IntegerField(default=0)
     speed_min = models.IntegerField(default=1)
     speed_max = models.IntegerField(default=5)

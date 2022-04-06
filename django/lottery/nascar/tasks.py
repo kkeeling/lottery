@@ -1776,23 +1776,6 @@ def export_results(sim_id, result_path, result_url, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-# def get_score(row, **kwargs):
-#     if 'site' not in kwargs:
-#         raise Exception('Must provide a site.')
-#     site = kwargs.get('site')
-
-#     if 'sp' not in kwargs:
-#         raise Exception('Must provide sp')
-#     sp = kwargs.get('sp')
-
-#     fp = row.get('fp')
-#     pd = sp - fp
-#     fl = row.get('fl')
-#     ll = row.get('ll')
-
-#     return float(models.SITE_SCORING.get(site).get('place_differential') * pd + models.SITE_SCORING.get(site).get('fastest_laps') * fl + models.SITE_SCORING.get(site).get('laps_led') * ll + models.SITE_SCORING.get(site).get('finishing_position').get(str(fp))) 
-
-
 @shared_task
 def process_build(build_id, task_id):
     task = None

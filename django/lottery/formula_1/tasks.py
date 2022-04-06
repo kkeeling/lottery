@@ -86,7 +86,6 @@ def export_sim_template(sim_id, result_path, result_url, task_id):
         df_drivers['ll_max'] = ''
 
         df_race = pandas.DataFrame.from_records(models.RaceSim.objects.filter(id=sim_id).annotate(laps=F('race__scheduled_laps')).values(
-            'll_mean',
             'laps'
         ))
 
@@ -144,7 +143,7 @@ def process_sim_input_file(sim_id, task_id):
         dk_salaries = None
 
         if bool(race_sim.dk_salaries):
-            dk_salaries = pandas.read_csv(race_sim.dk_salaries.path, usecols= ['Name', 'ID', 'Roster Position', 'Salary'], index_col='ID')
+            dk_salaries = pandas.read_csv(race_sim.dk_salaries.path, usecols= ['Name', 'ID', 'Roster Position', 'Salary', 'Name + ID'], index_col='ID')
 
         df_race = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='race')
         df_fl = pandas.read_excel(race_sim.input_file.path, index_col=0, sheet_name='fl')
@@ -154,9 +153,6 @@ def process_sim_input_file(sim_id, task_id):
 
         race_sim.race.scheduled_laps = df_race.loc[0, 'laps']
         race_sim.race.save()
-
-        race_sim.ll_mean = df_race.loc[0, 'll_mean']
-        race_sim.save()
 
         race_sim.fl_profiles.all().delete()
         for index in range(0, len(df_fl.index)):
@@ -190,7 +186,9 @@ def process_sim_input_file(sim_id, task_id):
             driver = models.Driver.objects.get(driver_id=df_drivers.at[index, 'driver_id'])
             alias = models.Alias.find_alias(driver.full_name, 'f1')
 
-            dk_salary = dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries['Roster Position'] == 'D'),'Salary'].values[0]
+            dk_salary = dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries['Roster Position'] == 'D'),'Salary'].values[0] if dk_salaries is not None else None
+            dk_name = dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries['Roster Position'] == 'D'),'Name + ID'].values[0] if dk_salaries is not None else None
+            # dk_name = f'{alias.dk_name} ({dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries["Roster Position"] == "D"),"ID"].values[0]})' if dk_salaries is not None else None
 
             models.RaceSimDriver.objects.create(
                 sim=race_sim,
@@ -198,6 +196,7 @@ def process_sim_input_file(sim_id, task_id):
                 dk_position='D',
                 starting_position=df_drivers.at[index, 'starting_position'],
                 dk_salary=dk_salary,
+                dk_name=dk_name,
                 speed_min=df_drivers.at[index, 'speed_min'],
                 speed_max=df_drivers.at[index, 'speed_max'],
                 incident_rate=df_drivers.at[index, 'incident'],
@@ -211,12 +210,14 @@ def process_sim_input_file(sim_id, task_id):
             alias = models.Alias.find_alias(driver.full_name, 'f1')
 
             dk_salary = dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries['Roster Position'] == 'CPT'),'Salary'].values[0]
+            dk_name = dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries['Roster Position'] == 'CPT'),'Name + ID'].values[0] if dk_salaries is not None else None
 
             models.RaceSimDriver.objects.create(
                 sim=race_sim,
                 driver=driver,
                 dk_position='CPT',
                 dk_salary=dk_salary,
+                dk_name=dk_name,
                 speed_min=0,
                 speed_max=0,
                 incident_rate=0,
@@ -227,12 +228,14 @@ def process_sim_input_file(sim_id, task_id):
         # Constructors
         for constructor in models.Constructor.objects.all():
             dk_salary = dk_salaries.loc[(dk_salaries.Name.apply(lambda x: x.strip()) == constructor.name) & (dk_salaries['Roster Position'] == 'CNSTR'),'Salary'].values[0]
+            dk_name = dk_salaries.loc[(dk_salaries.Name.apply(lambda x: x.strip()) == constructor.name) & (dk_salaries['Roster Position'] == 'CNSTR'),'Name + ID'].values[0] if dk_salaries is not None else None
 
             models.RaceSimDriver.objects.create(
                 sim=race_sim,
                 constructor=constructor,
                 dk_position='CNSTR',
                 dk_salary=dk_salary,
+                dk_name=dk_name,
                 speed_min=0,
                 speed_max=0,
                 incident_rate=0,
@@ -252,11 +255,6 @@ def process_sim_input_file(sim_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
-
-
-# def get_speed_min(driver, current_speed_rank):
-#     speed_delta = 10
-#     speed_min = max(current_speed_rank - 5, driver.best_possible_speed)
 
 
 @shared_task
@@ -713,20 +711,20 @@ def export_results(sim_id, result_path, result_url, task_id):
         df_fp = pandas.DataFrame([d.fp_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
 
         fp_list = []
-        for fp in range(1, race_sim.outcomes.count()+1):
+        for fp in range(1, race_sim.outcomes.filter(dk_position='D').count()+1):
             fp_list.append(
                 [df_fp[d.driver.full_name].value_counts()[fp] if fp in df_fp[d.driver.full_name].value_counts() else 0 for d in race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id')]
             )
-        df_fp_results = pandas.DataFrame(fp_list, index=range(0, race_sim.outcomes.count()), columns=list(race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id').values_list('driver__full_name', flat=True)))
+        df_fp_results = pandas.DataFrame(fp_list, index=range(0, race_sim.outcomes.filter(dk_position='D').count()), columns=list(race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id').values_list('driver__full_name', flat=True)))
 
         # FL outcomes
-        df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
+        # df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
 
         # LL outcomes
-        df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
+        # df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
 
         # DK
-        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        # df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
         df_dk = pandas.DataFrame(data={
             'pos': [d.dk_position for d in race_sim.outcomes.all()],
             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
@@ -741,16 +739,16 @@ def export_results(sim_id, result_path, result_url, task_id):
 
         # GTO Lineups
         df_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
-            'cpt__driver__full_name', 'flex_1__driver__full_name', 'flex_2__driver__full_name', 'flex_3__driver__full_name', 'flex_4__driver__full_name', 'constructor__constructor__name', 'total_salary', 'median', 's75', 's90', 'count'
+            'cpt__dk_name', 'flex_1__dk_name', 'flex_2__dk_name', 'flex_3__dk_name', 'flex_4__dk_name', 'constructor__dk_name', 'total_salary', 'median', 's75', 's90', 'count'
         ))
         
         with pandas.ExcelWriter(result_path) as writer:
-            df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
+            # df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
             df_fp_results.to_excel(writer, sheet_name='Finishing Position Distribution')
-            df_fl.to_excel(writer, sheet_name='Fastest Laps Raw')
-            df_ll.to_excel(writer, sheet_name='Laps Led Raw')
+            # df_fl.to_excel(writer, sheet_name='Fastest Laps Raw')
+            # df_ll.to_excel(writer, sheet_name='Laps Led Raw')
             df_dk.to_excel(writer, sheet_name='DK')
-            df_dk_raw.to_excel(writer, sheet_name='DK Raw')
+            # df_dk_raw.to_excel(writer, sheet_name='DK Raw')
             df_lineups.to_excel(writer, sheet_name='Lineups')
 
         print(f'export took {time.time() - start}s')
