@@ -342,7 +342,6 @@ def export_sim_template(sim_id, result_path, result_url, task_id):
             'num_penalty',
         ))
         df_drivers['crash_rate'] = df_drivers['num_crashes']/df_drivers['num_races']
-        df_drivers['mech_rate'] = df_drivers['num_mech']/df_drivers['num_races']
         df_drivers['penalty_rate'] = df_drivers['num_penalty']/df_drivers['num_races']
         df_drivers['speed_min'] = ''
         df_drivers['speed_max'] = ''
@@ -537,7 +536,6 @@ def process_sim_input_file(sim_id, task_id):
                 speed_min=df_drivers.at[index, 'speed_min'],
                 speed_max=df_drivers.at[index, 'speed_max'],
                 crash_rate=df_drivers.at[index, 'crash_rate'],
-                mech_rate=df_drivers.at[index, 'mech_rate'],
                 infraction_rate=df_drivers.at[index, 'penalty_rate'],
                 dk_op=df_drivers.at[index, 'dk_op'],
                 fd_op=df_drivers.at[index, 'fd_op']
@@ -1720,19 +1718,19 @@ def export_results(sim_id, result_path, result_url, task_id):
         df_fp_results = pandas.DataFrame(fp_list, index=range(0, race_sim.outcomes.count()), columns=list(race_sim.outcomes.all().order_by('starting_position', 'id').values_list('driver__full_name', flat=True)))
 
         # FL outcomes
-        df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        # df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         # LL outcomes
-        df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        # df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         # crash outcomes
-        df_dam = pandas.DataFrame([d.crash_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        # df_dam = pandas.DataFrame([d.crash_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         # penalty outcomes
-        df_pen = pandas.DataFrame([d.penalty_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        # df_pen = pandas.DataFrame([d.penalty_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         # DK
-        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        # df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
         df_dk = pandas.DataFrame(data={
             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
             'start': [d.starting_position for d in race_sim.outcomes.all()],
@@ -1751,16 +1749,16 @@ def export_results(sim_id, result_path, result_url, task_id):
         ))
 
         with pandas.ExcelWriter(result_path) as writer:
-            df_sr.to_excel(writer, sheet_name='Speed Rank Raw')
+            # df_sr.to_excel(writer, sheet_name='Speed Rank Raw')
             df_sr_results.to_excel(writer, sheet_name='Speed Rank Distribution')
-            df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
+            # df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
             df_fp_results.to_excel(writer, sheet_name='Finishing Position Distribution')
-            df_fl.to_excel(writer, sheet_name='Fastest Laps Raw')
-            df_ll.to_excel(writer, sheet_name='Laps Led Raw')
-            df_dam.to_excel(writer, sheet_name='Damage Raw')
-            df_pen.to_excel(writer, sheet_name='Penalty Raw')
+            # df_fl.to_excel(writer, sheet_name='Fastest Laps Raw')
+            # df_ll.to_excel(writer, sheet_name='Laps Led Raw')
+            # df_dam.to_excel(writer, sheet_name='Damage Raw')
+            # df_pen.to_excel(writer, sheet_name='Penalty Raw')
             df_dk.to_excel(writer, sheet_name='DK')
-            df_dk_raw.to_excel(writer, sheet_name='DK Raw')
+            # df_dk_raw.to_excel(writer, sheet_name='DK Raw')
             dk_lineups.to_excel(writer, sheet_name='DK Lineups')
 
         print(f'export took {time.time() - start}s')
@@ -1843,7 +1841,7 @@ def process_build(build_id, task_id):
     except Exception as e:
         if task is not None:
             task.status = 'error'
-            task.content = f'There was an error processing your buyiuld: {e}'
+            task.content = f'There was an error processing your build: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
