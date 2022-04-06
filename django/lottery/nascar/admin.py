@@ -101,7 +101,6 @@ class RaceSimDriverInline(admin.TabularInline):
         'speed_min',
         'speed_max',
         'crash_rate',
-        'mech_rate',
         'infraction_rate',
         'avg_fp',
         'avg_fl',
