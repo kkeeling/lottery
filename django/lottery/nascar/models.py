@@ -672,29 +672,54 @@ class SlateBuild(models.Model):
         self.lineups.all().delete()
         
         if self.configuration.optimize_by_percentile == 0:
-            chain(
-                group([
-                    tasks.generate_random_lineup.si(
+            if self.configuration.clean_by_field == 'projected_rank':
+                chain(
+                    group([
+                        tasks.generate_random_lineup.si(
+                            self.id,
+                            list(self.projections.filter(in_play=True).values_list('id', flat=True)),
+                            SITE_SCORING.get(self.slate.site).get('max_salary')
+                        ) for _ in range(0, self.total_lineups * self.configuration.lineup_multiplier)
+                    ]),
+                    tasks.complete_random_lineup_creation.si(
                         self.id,
-                        list(self.projections.filter(in_play=True).values_list('id', flat=True)),
-                        SITE_SCORING.get(self.slate.site).get('max_salary')
-                    ) for _ in range(0, self.total_lineups * self.configuration.lineup_multiplier)
-                ]),
-                tasks.complete_random_lineup_creation.si(
-                    self.id,
-                    BackgroundTask.objects.create(
-                        name='Build Lineups',
-                        user=user
-                    ).id
-                ),
-                tasks.rank_build_lineups.si(
-                    self.id,
-                    BackgroundTask.objects.create(
-                        name=f'Rank lineups for {self}',
-                        user=user
-                    ).id
-                )
-            )()
+                        BackgroundTask.objects.create(
+                            name='Build Lineups',
+                            user=user
+                        ).id
+                    ),
+                    tasks.rank_build_lineups.si(
+                        self.id,
+                        BackgroundTask.objects.create(
+                            name=f'Rank lineups for {self}',
+                            user=user
+                        ).id
+                    )
+                )()
+            else:
+                chain(
+                    group([
+                        tasks.generate_random_lineup.si(
+                            self.id,
+                            list(self.projections.filter(in_play=True).values_list('id', flat=True)),
+                            SITE_SCORING.get(self.slate.site).get('max_salary')
+                        ) for _ in range(0, self.total_lineups * self.configuration.lineup_multiplier)
+                    ]),
+                    tasks.complete_random_lineup_creation.si(
+                        self.id,
+                        BackgroundTask.objects.create(
+                            name='Build Lineups',
+                            user=user
+                        ).id
+                    ),
+                    tasks.clean_lineups.si(
+                        self.id,
+                        BackgroundTask.objects.create(
+                            name='Clean Lineups',
+                            user=user
+                        ).id
+                    )
+                )()
         else:
             chain(
                 tasks.build_lineups.si(
