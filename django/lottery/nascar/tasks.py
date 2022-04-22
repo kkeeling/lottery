@@ -1048,7 +1048,9 @@ def execute_sim_iteration(sim_id):
     speed = []
     for index, driver in enumerate(drivers):
         if driver in dnf_drivers:
-            speed.append(9999*(race_sim.race.num_stages()-driver_dnfs[index]+1)+index)  # DNFs always fall to the bottom, but keep them in order stage to stage
+            # speed.append(9999*(race_sim.race.num_stages()-driver_dnfs[index]+1)+index)  # DNFs always fall to the bottom, but keep them in order stage to stage
+            val = 999 + (race_sim.race.num_stages()-driver_dnfs[index]+1) * 1000 + random()  # DNFs always fall to the bottom, but keep them in order stage to stage
+            speed.append(val)
         else:
             flr = driver.speed_min
             ceil = driver.speed_max
