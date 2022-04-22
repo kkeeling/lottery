@@ -645,8 +645,8 @@ def execute_sim_iteration(sim_id):
 
     driver_fl = [0 for driver in drivers]
     driver_ll = [0 for driver in drivers]
-    # driver_damage = [None for driver in drivers]
-    # driver_penalty = [None for driver in drivers]
+    driver_damage = [None for driver in drivers]
+    driver_penalty = [None for driver in drivers]
 
     minor_damage_drivers = []
     medium_damage_drivers = []
@@ -737,7 +737,7 @@ def execute_sim_iteration(sim_id):
                 damage_index = round(uniform(0, len(damage_options)-1))
                 damage_value = damage_options[damage_index]
                 
-                # driver_index = driver_ids.index(involved_car.driver.nascar_driver_id)
+                driver_index = driver_ids.index(involved_car.driver.nascar_driver_id)
 
                 if damage_value == 0:
                     # print(f'{involved_car} [{involved_car.id}] takes no damage')
@@ -745,16 +745,16 @@ def execute_sim_iteration(sim_id):
                 elif damage_value == 1:
                     # print(f'{involved_car} [{involved_car.id}] takes minor damage')
                     minor_damage_drivers.append(involved_car)
-                    # driver_damage[driver_index] = f'{stage}d'
+                    driver_damage[driver_index] = f'{stage}d'
                 elif damage_value == 2:
                     # print(f'{involved_car} [{involved_car.id}] takes medium damage')
                     medium_damage_drivers.append(involved_car)
-                    # driver_damage[driver_index] = f'{stage}D'
+                    driver_damage[driver_index] = f'{stage}D'
                 else:
                     # print(f'{involved_car} [{involved_car.id}] is out of the race')
                     race_drivers = list(filter((involved_car.id).__ne__, race_drivers))
                     dnf_drivers.append(involved_car)
-                    # driver_damage[driver_index] = f'{stage} DNF'
+                    driver_damage[driver_index] = f'{stage} DNF'
 
         # assign penalties based on number of cautions
         if num_cautions == 0:
@@ -826,10 +826,10 @@ def execute_sim_iteration(sim_id):
                     # Did driver have a penalty?
                     if driver in stage_1_green_penalty_drivers:
                         driver_s1_penalties[index] = 'G'
-                        # driver_penalty[index] = '1G'
+                        driver_penalty[index] = '1G'
                     elif driver in stage_1_yellow_penalty_drivers:
                         driver_s1_penalties[index] = 'Y'
-                        # driver_penalty[index] = '1Y'
+                        driver_penalty[index] = '1Y'
 
                     # flr = driver.speed_min
                     # ceil = driver.speed_max
@@ -837,10 +837,10 @@ def execute_sim_iteration(sim_id):
                     # Did driver have a penalty?
                     if driver in stage_2_green_penalty_drivers:
                         driver_s2_penalties[index] = 'G'
-                        # driver_penalty[index] = '2G'
+                        driver_penalty[index] = '2G'
                     elif driver in stage_2_yellow_penalty_drivers:
                         driver_s2_penalties[index] = 'Y'
-                        # driver_penalty[index] = '2Y'
+                        driver_penalty[index] = '2Y'
 
                     # flr = driver_s1_mins[index]
                     # ceil = driver_s1_maxes[index]
@@ -848,10 +848,10 @@ def execute_sim_iteration(sim_id):
                     # Did driver have a penalty?
                     if driver in stage_3_green_penalty_drivers:
                         driver_s3_penalties[index] = 'G'
-                        # driver_penalty[index] = '3G'
+                        driver_penalty[index] = '3G'
                     elif driver in stage_3_yellow_penalty_drivers:
                         driver_s3_penalties[index] = 'Y'
-                        # driver_penalty[index] = '3Y'
+                        driver_penalty[index] = '3Y'
 
                     # flr = driver_s2_mins[index]
                     # ceil = driver_s2_maxes[index]
@@ -859,10 +859,10 @@ def execute_sim_iteration(sim_id):
             # Did driver have a penalty?
                     if driver in stage_4_green_penalty_drivers:
                         driver_s4_penalties[index] = 'G'
-                        # driver_penalty[index] = '4G'
+                        driver_penalty[index] = '4G'
                     elif driver in stage_4_yellow_penalty_drivers:
                         driver_s4_penalties[index] = 'Y'
-                        # driver_penalty[index] = '4Y'
+                        driver_penalty[index] = '4Y'
 
                     # flr = driver_s3_mins[index]
                     # ceil = driver_s3_maxes[index]
@@ -1307,8 +1307,8 @@ def execute_sim_iteration(sim_id):
         'll': driver_ll,
         'fl': driver_fl,
         'dk': driver_dk,
-        # 'dam': driver_damage,
-        # 'pen': driver_penalty
+        'dam': driver_damage,
+        'pen': driver_penalty
     }
 
 
@@ -1334,16 +1334,16 @@ def sim_execution_complete(results, sim_id, task_id):
         fl_list = [obj.get('fl') for obj in results]
         ll_list = [obj.get('ll') for obj in results]
         dk_list = [obj.get('dk') for obj in results]
-        # dam_list = [obj.get('dam') for obj in results]
-        # pen_list = [obj.get('pen') for obj in results]
+        dam_list = [obj.get('dam') for obj in results]
+        pen_list = [obj.get('pen') for obj in results]
 
         df_sr = pandas.DataFrame(sr_list, columns=driver_ids)
         df_fp = pandas.DataFrame(fp_list, columns=driver_ids)
         df_fl = pandas.DataFrame(fl_list, columns=driver_ids)
         df_ll = pandas.DataFrame(ll_list, columns=driver_ids)
         df_dk = pandas.DataFrame(dk_list, columns=driver_ids)
-        # df_dam = pandas.DataFrame(dam_list, columns=driver_ids)
-        # df_pen = pandas.DataFrame(pen_list, columns=driver_ids)
+        df_dam = pandas.DataFrame(dam_list, columns=driver_ids)
+        df_pen = pandas.DataFrame(pen_list, columns=driver_ids)
         for driver in drivers:
             driver.sr_outcomes = df_sr[driver.driver.nascar_driver_id].tolist()
             driver.fp_outcomes = df_fp[driver.driver.nascar_driver_id].tolist()
@@ -1354,8 +1354,8 @@ def sim_execution_complete(results, sim_id, task_id):
             driver.avg_ll = numpy.average(driver.ll_outcomes)
             driver.dk_scores = df_dk[driver.driver.nascar_driver_id].tolist()
             driver.avg_dk_score = numpy.average(driver.dk_scores)
-            # driver.crash_outcomes = df_dam[driver.driver.nascar_driver_id].tolist()
-            # driver.penalties_outcomes = df_pen[driver.driver.nascar_driver_id].tolist()
+            driver.crash_outcomes = df_dam[driver.driver.nascar_driver_id].tolist()
+            driver.penalties_outcomes = df_pen[driver.driver.nascar_driver_id].tolist()
             driver.save()
 
         task.status = 'success'
