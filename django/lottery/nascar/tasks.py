@@ -1724,10 +1724,10 @@ def export_results(sim_id, result_path, result_url, task_id):
         # df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         # crash outcomes
-        # df_dam = pandas.DataFrame([d.crash_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        df_dam = pandas.DataFrame([d.crash_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         # penalty outcomes
-        # df_pen = pandas.DataFrame([d.penalty_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        df_pen = pandas.DataFrame([d.penalty_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         # DK
         # df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
@@ -1755,8 +1755,8 @@ def export_results(sim_id, result_path, result_url, task_id):
             df_fp_results.to_excel(writer, sheet_name='Finishing Position Distribution')
             # df_fl.to_excel(writer, sheet_name='Fastest Laps Raw')
             # df_ll.to_excel(writer, sheet_name='Laps Led Raw')
-            # df_dam.to_excel(writer, sheet_name='Damage Raw')
-            # df_pen.to_excel(writer, sheet_name='Penalty Raw')
+            df_dam.to_excel(writer, sheet_name='Damage Raw')
+            df_pen.to_excel(writer, sheet_name='Penalty Raw')
             df_dk.to_excel(writer, sheet_name='DK')
             # df_dk_raw.to_excel(writer, sheet_name='DK Raw')
             dk_lineups.to_excel(writer, sheet_name='DK Lineups')
