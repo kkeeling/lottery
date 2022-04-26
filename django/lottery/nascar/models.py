@@ -885,9 +885,3 @@ class SlateBuildLineup(models.Model):
         if self.build.configuration.clean_by_field == 'projected_rank':
             self.sort_proj = self.get_rank_percentile_sim_score(self.build.configuration.clean_by_percentile)
         self.save()
-
-
-# class SlateBuildPlayerExposure(models.Model):
-#     build = models.ForeignKey(SlateBuild, related_name='exposures', on_delete=models.CASCADE)
-#     player = models.ForeignKey(SlatePlayerProjection, related_name='exposures', on_delete=models.CASCADE)
-#     exposure = models.DecimalField(max_digits=5, decimal_places=4, default=0.0)
