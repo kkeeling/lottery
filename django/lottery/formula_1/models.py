@@ -296,6 +296,10 @@ class RaceSim(models.Model):
     input_file = models.FileField(upload_to='uploads/sim_input_files', blank=True, null=True)
     dk_salaries = models.FileField(upload_to='uploads/dk_salaries', blank=True, null=True)
 
+    optimal_lineups_per_iteration = models.IntegerField(default=1, verbose_name='# GTO Lineups')
+    run_with_gto = models.BooleanField(default=True)
+    run_with_lineup_rankings = models.BooleanField(default=False)
+
     # variance data
     # ll_mean = models.IntegerField(default=1)
 

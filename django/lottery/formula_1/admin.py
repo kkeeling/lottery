@@ -268,17 +268,20 @@ class RaceDriverLapAdmin(admin.ModelAdmin):
         ('race', RelatedDropdownFilter),
     )
 
+
 @admin.register(models.RaceSim)
 class RaceSimAdmin(admin.ModelAdmin):
     list_display = (
         'pk',
         'race',
         'iterations',
+        'run_with_gto',
         'export_template_button',
         'sim_button',
     )
     list_editable = (
         'iterations',
+        'run_with_gto',
     )
     raw_id_fields = (
         'race',
@@ -468,6 +471,7 @@ class RaceSimLineupAdmin(admin.ModelAdmin):
     list_filter = (
         ('sim', RelatedDropdownFilter),
     )
+
 
 @admin.register(models.SlateBuildConfig)
 class ConfigAdmin(admin.ModelAdmin):

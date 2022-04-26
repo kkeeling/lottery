@@ -269,22 +269,25 @@ def execute_sim(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         race_sim = models.RaceSim.objects.get(id=sim_id)
-        # chord([
-        #     execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
-        # ], calc_sim_scores.s(sim_id, task_id))()
-        chain(
-            group([
+        
+        if race_sim.run_with_gto:
+            chain(
+                group([
+                    execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
+                ]),
+                calc_sim_scores.s(sim_id, task_id),
+                find_driver_gto.si(
+                    race_sim.id,
+                    BackgroundTask.objects.create(
+                        name=f'Find driver GTO for {race_sim}',
+                        user=task.user
+                    ).id
+                ),
+            )()
+        else:
+            chord([
                 execute_sim_iteration.si(sim_id) for _ in range(0, race_sim.iterations)
-            ]),
-            calc_sim_scores.s(sim_id, task_id),
-            find_driver_gto.si(
-                race_sim.id,
-                BackgroundTask.objects.create(
-                    name=f'Find driver GTO for {race_sim}',
-                    user=task.user
-                ).id
-            ),
-        )()
+            ], calc_sim_scores.s(sim_id, task_id))()
 
     except Exception as e:
         if task is not None:
@@ -584,7 +587,7 @@ def make_optimals_for_gto(iterations_scores, driver_ids, site):
     optimizer.load_players(player_list)
 
     optimized_lineups = optimizer.optimize(
-        n=1,
+        n=sim.optimal_lineups_per_iteration,
         randomness=False, 
     )
     
