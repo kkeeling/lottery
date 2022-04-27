@@ -1150,7 +1150,7 @@ def execute_sim_iteration(sim_id):
             attempts += 1
             # print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_fastest_laps_min*100)}; max = {int(p.pct_fastest_laps_max*100)+1}')
         
-        if attempts == 10:
+        if attempts == 20:
             break
 
         cum += pct
