@@ -1139,7 +1139,7 @@ def execute_sim_iteration(sim_id):
 
     fl_vals = []
     cum = 0
-    for p in race_sim.fl_profiles.all().order_by('-pct_fastest_laps_min'):
+    for p in race_sim.fl_profiles.all().order_by('eligible_speed_min'):
         pct = randrange(int(p.pct_fastest_laps_min*100), max(int(p.pct_fastest_laps_max*100), 1) + 1, 1) if p.pct_fastest_laps_min < p.pct_fastest_laps_max else int(p.pct_fastest_laps_min*100)
         cum_min = int(p.cum_fastest_laps_min * 100)
         cum_max = int(p.cum_fastest_laps_max * 100)
@@ -1162,7 +1162,7 @@ def execute_sim_iteration(sim_id):
 
     fl_laps_remaining = fl_laps
     fl_laps_assigned = []
-    profiles = list(race_sim.fl_profiles.all().order_by('-pct_fastest_laps_min'))
+    profiles = list(race_sim.fl_profiles.all().order_by('eligible_speed_min'))
     for index, fl_val in enumerate(fl_vals):
     # for index, flp in enumerate(race_sim.fl_profiles.all().order_by('-pct_fastest_laps_min')):
         flp = profiles[index]
