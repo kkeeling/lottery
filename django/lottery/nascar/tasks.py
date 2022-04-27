@@ -1172,8 +1172,8 @@ def execute_sim_iteration(sim_id):
         #     fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
 
         sp_index = int(numpy.where(final_ranks == fl_index)[0][0])
-        if fl_val >= 30 and final_ranks.tolist()[sp_index] >= 5:
-            print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}; driver={drivers[sp_index]}')
+        # if fl_val >= 30 and final_ranks.tolist()[sp_index] >= 5:
+        #     print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}; driver={drivers[sp_index]}')
         driver_fl[sp_index] = fl_val # fl_vals[index]
         fl_laps_assigned.append(fl_index)
 
@@ -1181,16 +1181,16 @@ def execute_sim_iteration(sim_id):
         
     # there may be remaining FL, assign using lowest profile
     # flp = race_sim.fl_profiles.all().order_by('-pct_fastest_laps_min').last()
-    while fl_laps_remaining > 0:
-        # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
-        fl_index = randrange(1, 21)
-        sp_index = int(numpy.where(final_ranks == fl_index)[0][0])
-        fl_val = max(fl_laps_remaining, randrange(1, 3))
-        # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
-        driver_fl[sp_index] += fl_val
-        fl_laps_assigned.append(fl_index)
+    # while fl_laps_remaining > 0:
+    #     # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
+    #     fl_index = randrange(1, 21)
+    #     sp_index = int(numpy.where(final_ranks == fl_index)[0][0])
+    #     fl_val = max(fl_laps_remaining, randrange(1, 3))
+    #     # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
+    #     driver_fl[sp_index] += fl_val
+    #     fl_laps_assigned.append(fl_index)
 
-        fl_laps_remaining -= fl_val
+    #     fl_laps_remaining -= fl_val
 
     # Assign laps led
     ll_laps = race_sim.race.scheduled_laps
