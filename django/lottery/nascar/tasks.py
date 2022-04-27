@@ -1172,7 +1172,8 @@ def execute_sim_iteration(sim_id):
         #     fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
 
         sp_index = int(numpy.where(final_ranks == fl_index)[0][0])
-        print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}; driver={drivers[sp_index]}')
+        if fl_val >= 30 and final_ranks.tolist()[sp_index] >= 5:
+            print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}; driver={drivers[sp_index]}')
         driver_fl[sp_index] = fl_val # fl_vals[index]
         fl_laps_assigned.append(fl_index)
 
