@@ -1181,16 +1181,16 @@ def execute_sim_iteration(sim_id):
         
     # there may be remaining FL, assign using lowest profile
     # flp = race_sim.fl_profiles.all().order_by('-pct_fastest_laps_min').last()
-    # while fl_laps_remaining > 0:
-    #     # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
-    #     fl_index = randrange(1, 21)
-    #     sp_index = int(numpy.where(final_ranks == fl_index)[0][0])
-    #     fl_val = max(fl_laps_remaining, randrange(1, 3))
-    #     # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
-    #     driver_fl[sp_index] += fl_val
-    #     fl_laps_assigned.append(fl_index)
+    while fl_laps_remaining > 0:
+        # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
+        fl_index = randrange(1, 21)
+        sp_index = int(numpy.where(final_ranks == fl_index)[0][0])
+        fl_val = min(fl_laps_remaining, randrange(1, 3))
+        # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
+        driver_fl[sp_index] += fl_val
+        fl_laps_assigned.append(fl_index)
 
-    #     fl_laps_remaining -= fl_val
+        fl_laps_remaining -= fl_val
 
     # Assign laps led
     ll_laps = race_sim.race.scheduled_laps
