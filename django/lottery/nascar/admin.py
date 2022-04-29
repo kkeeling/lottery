@@ -25,14 +25,15 @@ from configuration.models import BackgroundTask
 from . import models, tasks, forms
 
 
-# Forms
-
 def groupplayerform_factory(build):
     class GroupPlayerForm(forms.ModelForm):
         m_file = forms.ModelChoiceField(
             queryset=models.BuildPlayerProjection.objects.filter(build=build)
         )
     return GroupPlayerForm
+
+
+# Inlines
 
 
 class RaceResultInline(admin.TabularInline):
@@ -396,6 +397,7 @@ class RaceDriverLapAdmin(admin.ModelAdmin):
     list_filter = (
         ('race', RelatedDropdownFilter),
     )
+
 
 @admin.register(models.RaceSim)
 class RaceSimAdmin(admin.ModelAdmin):
@@ -1021,3 +1023,62 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         return matching_optimals.count() > 0
     get_is_optimal.short_description = 'Opt?'
     get_is_optimal.boolean = True
+
+
+@admin.register(models.Contest)
+class ContestAdmin(admin.ModelAdmin):
+    list_display = (
+        'name',
+        'slate',
+        'cost',
+        'num_entries',
+    )
+
+    raw_id_fields = (
+        'slate',
+    )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.process_contest(request, obj)
+
+    def process_contest(self, request, contest):
+        tasks.process_contest.delay(
+            contest.id,
+            BackgroundTask.objects.create(
+                name='Processing Contest',
+                user=request.user
+            ).id
+        )
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your contest is being processed. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the contest is ready.')
+
+
+@admin.register(models.ContestEntry)
+class ContestEntryAdmin(admin.ModelAdmin):
+    list_display = (
+        'entry_name',
+        'contest',
+        'player_1',
+        'player_2',
+        'player_3',
+        'player_4',
+        'player_5',
+        'player_6',
+    )
+
+    list_filter = [
+        ('contest', RelatedDropdownFilter)
+    ]
+
+    search_fields = (
+        'player_1__name',
+        'player_2__name',
+        'player_3__name',
+        'player_4__name',
+        'player_5__name',
+        'player_6__name',
+        'entry_name',
+    )

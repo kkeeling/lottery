@@ -885,3 +885,63 @@ class SlateBuildLineup(models.Model):
         if self.build.configuration.clean_by_field == 'projected_rank':
             self.sort_proj = self.get_rank_percentile_sim_score(self.build.configuration.clean_by_percentile)
         self.save()
+
+
+# Backtesting
+
+class Contest(models.Model):
+    slate = models.ForeignKey(Slate, related_name='contests', on_delete=models.CASCADE)
+    cost = models.DecimalField(decimal_places=2, max_digits=10, default=0.00)
+    name = models.CharField(max_length=255, blank=True, null=True)
+    num_entries = models.PositiveIntegerField(default=0)
+    entries_file = models.FileField(upload_to='uploads/entries', blank=True, null=True)
+
+    def __str__(self):
+        return f'{self.name}'
+
+    def get_payout(self, rank):
+        try:
+            prize = self.prizes.get(min_rank__lte=rank, max_rank__gte=rank)
+            return prize.prize
+        except ContestPrize.DoesNotExist:
+            return 0.0
+
+
+class ContestPrize(models.Model):
+    contest = models.ForeignKey(Contest, related_name='prizes', on_delete=models.CASCADE)
+    min_rank = models.IntegerField(default=1)
+    max_rank = models.IntegerField(default=1)
+    prize = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+
+    def __str__(self):
+        if self.min_rank == self.max_rank:
+            return '{}: ${}'.format(self.ordinal(self.min_rank), self.prize)
+        else:
+            return '{} - {}: {}'.format(self.ordinal(self.min_rank), self.ordinal(self.max_rank), self.prize)
+
+    def ordinal(self, num):
+        SUFFIXES = {1: 'st', 2: 'nd', 3: 'rd'}
+        # I'm checking for 10-20 because those are the digits that
+        # don't follow the normal counting scheme. 
+        if 10 <= num % 100 <= 20:
+            suffix = 'th'
+        else:
+            # the second parameter is a default.
+            suffix = SUFFIXES.get(num % 10, 'th')
+        return str(num) + suffix
+
+
+class ContestEntry(models.Model):
+    contest = models.ForeignKey(Contest, related_name='entries', on_delete=models.CASCADE)
+    entry_id = models.CharField(max_length=50)
+    entry_name = models.CharField(max_length=255, blank=True, null=True)
+    lineup_str = models.TextField(blank=True, null=True)
+    player_1 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_1', on_delete=models.CASCADE)
+    player_2 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_2', on_delete=models.CASCADE)
+    player_3 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_3', on_delete=models.CASCADE)
+    player_4 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_4', on_delete=models.CASCADE)
+    player_5 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_5', on_delete=models.CASCADE)
+    player_6 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_6', on_delete=models.CASCADE, null=True, blank=True)
+
+    def __str__(self):
+        return f'{self.entry_name}'

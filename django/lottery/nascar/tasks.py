@@ -1059,7 +1059,7 @@ def execute_sim_iteration(sim_id):
                 flr = 20
                 ceil = 40
             elif driver in minor_damage_drivers:
-                ceil += 10
+                ceil += 5
 
             # mu = numpy.average([flr, ceil])
             # stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
@@ -2186,3 +2186,89 @@ def export_build_for_upload(build_id, result_path, result_url, task_id):
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
+
+@shared_task
+def process_contest(contest_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        contest = models.Contest.objects.get(id=contest_id)
+        contest.entries.all().delete()
+        
+        with open(contest.entries_file.path, mode='r') as entries_file:
+            csv_reader = csv.DictReader(entries_file)
+
+            for row in csv_reader:
+                if contest.slate.site == 'draftkings':
+                    entry_id = row['EntryId']
+                    entry_name = row['EntryName']
+                    lineup_str = row['Lineup']
+                    drivers = lineup_str.split('D ')
+
+                    if len(drivers) == 7:  # drivers list has emptry string as first elemenet
+                        alias1 = models.Alias.find_alias(drivers[1].strip().replace('á', 'a'), contest.slate.site)
+                        alias2 = models.Alias.find_alias(drivers[2].strip().replace('á', 'a'), contest.slate.site)
+                        alias3 = models.Alias.find_alias(drivers[3].strip().replace('á', 'a'), contest.slate.site)
+                        alias4 = models.Alias.find_alias(drivers[4].strip().replace('á', 'a'), contest.slate.site)
+                        alias5 = models.Alias.find_alias(drivers[5].strip().replace('á', 'a'), contest.slate.site)
+                        alias6 = models.Alias.find_alias(drivers[6].strip().replace('á', 'a'), contest.slate.site)
+
+                        player1 = models.SlatePlayer.objects.get(
+                            slate=contest.slate,
+                            name=alias1.dk_name
+                        )
+                        player2 = models.SlatePlayer.objects.get(
+                            slate=contest.slate,
+                            name=alias2.dk_name
+                        )
+                        player3 = models.SlatePlayer.objects.get(
+                            slate=contest.slate,
+                            name=alias3.dk_name
+                        )
+                        player4 = models.SlatePlayer.objects.get(
+                            slate=contest.slate,
+                            name=alias4.dk_name
+                        )
+                        player5 = models.SlatePlayer.objects.get(
+                            slate=contest.slate,
+                            name=alias5.dk_name
+                        )
+                        player6 = models.SlatePlayer.objects.get(
+                            slate=contest.slate,
+                            name=alias6.dk_name
+                        )
+
+                        entry = models.ContestEntry.objects.create(
+                            contest=contest,
+                            entry_id=entry_id,
+                            entry_name=entry_name,
+                            lineup_str=lineup_str,
+                            player_1=player1,
+                            player_2=player2,
+                            player_3=player3,
+                            player_4=player4,
+                            player_5=player5,
+                            player_6=player6
+                        )
+                        print(f'Created {entry}')
+                else:
+                    raise Exception(f'{contest.slate.site} is not supported yet.')                
+
+        task.status = 'success'
+        task.content = f'{contest} processed. {contest.entries.all().count()} added.'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem processing contest: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
