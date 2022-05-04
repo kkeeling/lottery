@@ -1064,12 +1064,15 @@ def execute_sim_iteration(sim_id):
             # mu = numpy.average([flr, ceil])
             # stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
             # d_sr = numpy.random.normal(mu, stdev, 1)[0] + random()
-            d_sr = randrange(flr, ceil+1) + random()
+            # d_sr = randrange(flr, ceil+1) + random()
+            d_sr = uniform(flr, ceil+0.1) + random()
             # print(f'{driver}, {d_sr}')
             speed.append(d_sr)
 
     # Rank final speed
     final_ranks = scipy.stats.rankdata(speed, method='ordinal')
+    # print(drivers)
+    # print(final_ranks)
 
     # print('Assign FP:')
     # print(f'Total Cautions = {total_cautions}')
@@ -1094,10 +1097,11 @@ def execute_sim_iteration(sim_id):
     # final_ranks = driver_s3_ranks if race_sim.race.num_stages() == 3 else driver_s4_ranks
     fp_vals = []
     for index, final_sp in enumerate(final_ranks):
-        flr = final_sp - race_variance
-        ceil = final_sp + race_variance
+        flr = max(final_sp - race_variance, 1)
+        ceil = min(final_sp + race_variance, drivers.count())
 
         driver = drivers[index]
+        # print(f'{driver}; flr = {flr}; ceil = {ceil}; final_sp = {final_sp}')
         if driver_dnfs[index] is not None:
             # DNF drivers stay where they are
             fp_vals.append(speed[index])  # DNFs always fall to the bottom, but keep them in order stage to stage
@@ -1127,10 +1131,12 @@ def execute_sim_iteration(sim_id):
                 ceil += race_sim.get_penalty_profile(4, False).floor_impact
                 flr += race_sim.get_penalty_profile(4, False).ceiling_impact
         
-            mu = numpy.average([flr, ceil])
-            stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
-            fp_vals.append(numpy.random.normal(mu, stdev, 1)[0] + random())
+            # mu = numpy.average([flr, ceil])
+            # stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
+            # fp_vals.append(numpy.random.normal(mu, stdev, 1)[0] + random())
+            fp_vals.append(uniform(flr, ceil+0.1) + random())
     fp_ranks = scipy.stats.rankdata(fp_vals, method='ordinal')
+    # print(fp_ranks)
 
     # Assign fastest laps
     caution_laps = int(total_cautions * race_sim.laps_per_caution)
