@@ -687,8 +687,8 @@ def execute_sim_iteration(sim_id):
 
         total_cautions += num_cautions
         # print(f'  There are {num_cautions} cautions.')
-        # For each caution, assign damage
 
+        # For each caution, assign damage
         max_drivers = race_sim.damage_profiles.all().order_by('-max_cars_involved').first().max_cars_involved
         for _ in range(0, num_cautions):
             c_val = random()
@@ -1216,7 +1216,7 @@ def execute_sim_iteration(sim_id):
             attempts += 1
             # print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_laps_led_min*100)}; max = {int(p.pct_laps_led_max*100)+1}')
         
-        if attempts == 10:
+        if attempts == 20:
             break
         
         cum += pct
@@ -1229,7 +1229,7 @@ def execute_sim_iteration(sim_id):
     # -- Next find eligible drivers for LL by giving each driver a randbetween(0, FL%), then ranking each driver
     fl_rank_vals = []
     for i in range(0, len(driver_fl)):
-        fl_rank_vals.append(randrange(0, driver_fl[i]+1) + random())
+        fl_rank_vals.append(uniform(driver_fl[i]*0.25, driver_fl[i]+0.1) + random())
     fl_ranks = len(fl_rank_vals) + 1 - scipy.stats.rankdata(fl_rank_vals, method='ordinal')
 
     # -- Finally, award LL to drivers based on FL ranks
