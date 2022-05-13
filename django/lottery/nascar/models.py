@@ -891,10 +891,12 @@ class SlateBuildLineup(models.Model):
 
 class Contest(models.Model):
     slate = models.ForeignKey(Slate, related_name='contests', on_delete=models.CASCADE)
+    sim = models.ForeignKey(RaceSim, related_name='contests', on_delete=models.SET_NULL, null=True)
     cost = models.DecimalField(decimal_places=2, max_digits=10, default=0.00)
     name = models.CharField(max_length=255, blank=True, null=True)
     num_entries = models.PositiveIntegerField(default=0)
     entries_file = models.FileField(upload_to='uploads/entries', blank=True, null=True)
+    prizes_file = models.FileField(upload_to='uploads/prizes', blank=True, null=True)
 
     def __str__(self):
         return f'{self.name}'
@@ -936,12 +938,45 @@ class ContestEntry(models.Model):
     entry_id = models.CharField(max_length=50)
     entry_name = models.CharField(max_length=255, blank=True, null=True)
     lineup_str = models.TextField(blank=True, null=True)
-    player_1 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_1', on_delete=models.CASCADE)
-    player_2 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_2', on_delete=models.CASCADE)
-    player_3 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_3', on_delete=models.CASCADE)
-    player_4 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_4', on_delete=models.CASCADE)
-    player_5 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_5', on_delete=models.CASCADE)
-    player_6 = models.ForeignKey(SlatePlayer, related_name='contest_entry_as_player_6', on_delete=models.CASCADE, null=True, blank=True)
+    player_1 = models.ForeignKey(RaceSimDriver, related_name='contest_entry_as_player_1', on_delete=models.CASCADE)
+    player_2 = models.ForeignKey(RaceSimDriver, related_name='contest_entry_as_player_2', on_delete=models.CASCADE)
+    player_3 = models.ForeignKey(RaceSimDriver, related_name='contest_entry_as_player_3', on_delete=models.CASCADE)
+    player_4 = models.ForeignKey(RaceSimDriver, related_name='contest_entry_as_player_4', on_delete=models.CASCADE)
+    player_5 = models.ForeignKey(RaceSimDriver, related_name='contest_entry_as_player_5', on_delete=models.CASCADE)
+    player_6 = models.ForeignKey(RaceSimDriver, related_name='contest_entry_as_player_6', on_delete=models.CASCADE, null=True, blank=True)
+    sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
 
     def __str__(self):
         return f'{self.entry_name}'
+
+    class Meta:
+        verbose_name_plural = 'Contest Entries'
+
+    @property
+    def players(self):
+        return [
+            self.player_1, 
+            self.player_2, 
+            self.player_3, 
+            self.player_4, 
+            self.player_5, 
+            self.player_6
+        ]
+
+    def simulate(self):
+        self.sim_scores = [float(sum([p.dk_scores[i] for p in self.players])) for i in range(0, self.contest.sim.iterations)]
+        self.save()
+
+
+class ContestBacktest(models.Model):
+    contest = models.ForeignKey(Contest, related_name='backtests', on_delete=models.CASCADE)
+    exclude_entries_by = models.CharField(max_length=100, null=True, blank=True)
+
+    def __str__(self):
+        return f'{self.contest} Backtest'
+
+    def run_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Run</a>',
+            reverse_lazy("admin:nascar_admin_backtest_run", args=[self.pk])
+        )
+    run_button.short_description = ''

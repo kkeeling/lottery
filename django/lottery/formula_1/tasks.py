@@ -738,7 +738,7 @@ def export_results(sim_id, result_path, result_url, task_id):
             '80p': [numpy.percentile(d.dk_scores, float(80)) for d in race_sim.outcomes.all()],
             '90p': [numpy.percentile(d.dk_scores, float(90)) for d in race_sim.outcomes.all()],
             'gto': [d.gto for d in race_sim.outcomes.all()]
-        }, index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()])
+        }, index=[d.dk_name for d in race_sim.outcomes.all()])
 
         # GTO Lineups
         df_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(

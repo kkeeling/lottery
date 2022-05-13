@@ -178,6 +178,9 @@ class SlateBuildGroupPlayerInline(admin.TabularInline):
         return super(SlateBuildGroupPlayerInline, self).get_form(request, obj, **kwargs)
 
 
+class ContestPrizeInline(admin.TabularInline):
+    model = models.ContestPrize
+
 # Admins
 
 @admin.register(models.Alias)
@@ -1036,7 +1039,12 @@ class ContestAdmin(admin.ModelAdmin):
 
     raw_id_fields = (
         'slate',
+        'sim',
     )
+
+    inlines = [
+        ContestPrizeInline
+    ]
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -1074,11 +1082,44 @@ class ContestEntryAdmin(admin.ModelAdmin):
     ]
 
     search_fields = (
-        'player_1__name',
-        'player_2__name',
-        'player_3__name',
-        'player_4__name',
-        'player_5__name',
-        'player_6__name',
+        'player_1__driver__full_name',
+        'player_2__driver__full_name',
+        'player_3__driver__full_name',
+        'player_4__driver__full_name',
+        'player_5__driver__full_name',
+        'player_6__driver__full_name',
         'entry_name',
     )
+
+
+@admin.register(models.ContestBacktest)
+class ContestBacktestAdmin(admin.ModelAdmin):
+    list_display = (
+        'contest',
+        'exclude_entries_by',
+        'run_button',
+    )
+
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('nascar-contest-backtest-run/<int:pk>/', self.run_backtest, name="nascar_admin_backtest_run"),
+        ]
+        return my_urls + urls
+
+
+    def run_backtest(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        backtest = get_object_or_404(models.ContestBacktest, pk=pk)
+        tasks.simulate_contest_by_iteration.delay(
+            backtest.id,
+            0
+        )
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
