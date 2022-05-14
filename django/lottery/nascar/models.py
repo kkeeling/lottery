@@ -17,7 +17,7 @@ from celery import chain, group
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import ArrayField
 from django.db import models, signals
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Avg
 from django.db.models.signals import post_save
 from django.utils.html import format_html
 from django.urls import reverse_lazy
@@ -901,10 +901,12 @@ class Contest(models.Model):
     def __str__(self):
         return f'{self.name}'
 
-    def get_payout(self, rank):
+    def get_payout(self, rank, rank_count):
         try:
-            prize = self.prizes.get(min_rank__lte=rank, max_rank__gte=rank)
-            return prize.prize
+            prize = self.prizes.filter(min_rank__lt=rank+rank_count, max_rank__gte=rank).aggregate(
+                avg_prize=Avg('prize')
+            ).get('avg_prize')
+            return prize if prize is not None else 0.0
         except ContestPrize.DoesNotExist:
             return 0.0
 
@@ -980,3 +982,13 @@ class ContestBacktest(models.Model):
             reverse_lazy("admin:nascar_admin_backtest_run", args=[self.pk])
         )
     run_button.short_description = ''
+
+
+class ContestBacktestEntry(models.Model):
+    entry = models.ForeignKey(ContestEntry, related_name='backtest_outcomes', on_delete=models.CASCADE)
+    backtest = models.ForeignKey(ContestBacktest, related_name='entry_outcomes', on_delete=models.CASCADE)
+    amounts_won = ArrayField(models.FloatField(), default=list)
+    roi = models.FloatField(default=0.0)
+
+    def __str__(self):
+        return f'{self.entry} for {self.backtest}'

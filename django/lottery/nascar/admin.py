@@ -1116,10 +1116,38 @@ class ContestBacktestAdmin(admin.ModelAdmin):
         )
 
         backtest = get_object_or_404(models.ContestBacktest, pk=pk)
-        tasks.simulate_contest_by_iteration.delay(
-            backtest.id,
-            0
+        backtest.entry_outcomes.all().delete()
+        
+        chain(
+            tasks.start_contest_simulation.si(backtest.id),
+            chord([
+                tasks.simulate_contest_by_iteration.si(backtest.id, i) for i in range(0, backtest.contest.sim.iterations)
+            ], tasks.contest_simulation_complete.si(
+                backtest.id, 
+                BackgroundTask.objects.create(
+                    name='Simulate Contest ROI',
+                    user=request.user
+                ).id
+            ))
+        )()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Simulating ROI for {backtest}'
         )
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+
+@admin.register(models.ContestBacktestEntry)
+class ContestBacktestEntryAdmin(admin.ModelAdmin):
+    list_display = (
+        'entry',
+        'roi',
+    )
+    raw_id_fields = (
+        'backtest',
+        'entry',
+    )

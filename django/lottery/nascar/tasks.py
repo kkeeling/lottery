@@ -4,6 +4,7 @@ import logging
 import json
 import math
 from re import A
+from turtle import back
 import numpy
 import os
 import pandas
@@ -1189,7 +1190,7 @@ def execute_sim_iteration(sim_id):
     # flp = race_sim.fl_profiles.all().order_by('-pct_fastest_laps_min').last()
     while fl_laps_remaining > 0:
         # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
-        fl_index = randrange(1, 21)
+        fl_index = randrange(1, 6)  # extra FL goes to top 5 guys
         sp_index = int(numpy.where(final_ranks == fl_index)[0][0])
         fl_val = min(fl_laps_remaining, randrange(1, 3))
         # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
@@ -2306,29 +2307,88 @@ def process_contest(contest_id, task_id):
 
 
 @shared_task
+def start_contest_simulation(backtest_id):
+    backtest = models.ContestBacktest.objects.get(id=backtest_id)
+    # backtest.entry_outcomes.all().delete()
+
+    # for entry in backtest.contest.entries.all():
+    #     models.ContestBacktestEntry.objects.create(
+    #         entry=entry,
+    #         backtest=backtest
+    #     )
+
+
+@shared_task
 def simulate_contest_by_iteration(backtest_id, iteration, exclude_lineups_with_username=None):
     backtest = models.ContestBacktest.objects.get(id=backtest_id)
     entries = backtest.contest.entries.all()
+    prizes = backtest.contest.prizes.all()
 
     if exclude_lineups_with_username is not None:
         entries = entries.exclude(entry_name__istartswith=exclude_lineups_with_username)
 
-    def get_payout(rank):
-        return backtest.contest.get_payout(rank)
+    def get_payout(rank, **kwargs):
+        return backtest.contest.get_payout(rank, kwargs.get('all_ranks')[rank])
+        
 
     start = time.time()
     a = [[l.id, l.sim_scores[iteration]] for l in entries.iterator()]
-    print(f'creating arrays took {time.time() - start}s')
+    print(f'creating lineup arrays took {time.time() - start}s')
     start = time.time()
     df_lineups = pandas.DataFrame(a, columns=['id', 'score'])
-    print(f'loading dataframe took {time.time() - start}s')
+    print(f'loading lineups dataframe took {time.time() - start}s')
     start = time.time()
     df_lineups = df_lineups.set_index('id')
-    print(f'setting index took {time.time() - start}s')
+    print(f'setting lineups dataframe index took {time.time() - start}s')
     start = time.time()
     df_lineup_ranks = df_lineups.rank(method='min', ascending=False)
-    print(f'ranking took {time.time() - start}s')
+    print(f'ranking lineups took {time.time() - start}s')
     start = time.time()
-    df_pl = df_lineup_ranks['score'].apply(get_payout)
-    print(f'payouts took {time.time() - start}s')
-    print(df_pl)
+    df_prizes = pandas.DataFrame.from_records(prizes.values())
+    print(f'loading prizes dataframe took {time.time() - start}s')
+    
+    # start = time.time()
+    # df_pl = df_lineup_ranks['score'].apply(get_payout, all_ranks=df_lineup_ranks.value_counts())
+    # print(f'payouts took {time.time() - start}s')
+    # print(df_pl)
+    
+    # start = time.time()
+    # for entry in entries:
+    #     backtest_entry, _ = models.ContestBacktestEntry.objects.get_or_create(
+    #         entry=entry,
+    #         backtest=backtest
+    #     )
+    #     backtest_entry.amounts_won.append(df_pl.loc[entry.id])
+    #     backtest_entry.save()
+    # print(f'saving result took {time.time() - start}s')
+
+@shared_task
+def contest_simulation_complete(backtest_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        backtest = models.ContestBacktest.objects.get(id=backtest_id)
+        entries = backtest.entry_outcomes.all()
+
+        for entry in entries:
+            entry.roi = (float(sum(entry.amounts_won)) - (float(backtest.contest.cost) * backtest.contest.sim.iterations)) / (float(backtest.contest.cost) * backtest.contest.sim.iterations)
+            entry.save()
+
+        task.status = 'success'
+        task.content = f'{backtest} complete.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error simulating contest ROIs for {backtest}: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
