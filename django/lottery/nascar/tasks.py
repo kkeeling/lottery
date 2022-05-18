@@ -746,7 +746,7 @@ def execute_sim_iteration(sim_id):
                 elif damage_value == 1:
                     # print(f'{involved_car} [{involved_car.id}] takes minor damage')
                     minor_damage_drivers.append(involved_car)
-                    driver_damage[driver_index] = f'{stage}D'
+                    driver_damage[driver_index] = f'{stage}d'
                 elif damage_value == 2:
                     # print(f'{involved_car} [{involved_car.id}] takes medium damage')
                     medium_damage_drivers.append(involved_car)
@@ -1045,12 +1045,39 @@ def execute_sim_iteration(sim_id):
             elif num_cautions >= 3:
                 late_caution = True
 
-    # Assign final speed
+    # Assign incident-free speed
+    # Note: We must capture a driver's speed without incidents to accurately assign FL and LL; This ensures that damaged cars sometimes get FL and LL depending on when they took damage
     speed = []
+    for index, driver in enumerate(drivers):
+        flr = driver.speed_min
+        ceil = driver.speed_max
+        d_sr = uniform(flr, ceil+0.1) + random()
+        speed.append(d_sr)
+
+    # Rank incident-free speed
+    orig_speed_ranks = scipy.stats.rankdata(speed, method='ordinal')
+
+    # Adjust incident-free speed for damage
+    for index, driver in enumerate(drivers):
+        if race_sim.race.num_stages() == 4:
+            if driver_damage[index] == '3DNF' or driver_damage[index] == '3D':
+                orig_speed_ranks[index] += 2.1
+            elif driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
+                orig_speed_ranks[index] += 4.1
+            elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
+                orig_speed_ranks[index] += 6.1
+        else:
+            if driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
+                orig_speed_ranks[index] += 2.1
+            elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
+                orig_speed_ranks[index] += 4.1
+    orig_speed_ranks = scipy.stats.rankdata(orig_speed_ranks, method='ordinal')
+
+    # Assign finishing-position speed (adjust speed values for damage, then re-rank)
     for index, driver in enumerate(drivers):
         if driver in dnf_drivers:
             val = 999 + (race_sim.race.num_stages()-driver_dnfs[index]+1) * 1000 + random()  # DNFs always fall to the bottom, but keep them in order stage to stage
-            speed.append(val)
+            speed[index] = val
         else:
             flr = driver.speed_min
             ceil = driver.speed_max
@@ -1068,7 +1095,7 @@ def execute_sim_iteration(sim_id):
             # d_sr = randrange(flr, ceil+1) + random()
             d_sr = uniform(flr, ceil+0.1) + random()
             # print(f'{driver}, {d_sr}')
-            speed.append(d_sr)
+            speed[index] = d_sr
 
     # Rank final speed
     final_ranks = scipy.stats.rankdata(speed, method='ordinal')
@@ -1178,8 +1205,8 @@ def execute_sim_iteration(sim_id):
         # while fl_index in fl_laps_assigned:  # only assign FL to drivers that haven't gotten any yet
         #     fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
 
-        sp_index = int(numpy.where(final_ranks == fl_index)[0][0])
-        # if fl_val >= 30 and final_ranks.tolist()[sp_index] >= 5:
+        sp_index = int(numpy.where(orig_speed_ranks == fl_index)[0][0])
+        # if fl_val >= 30 and orig_speed_ranks.tolist()[sp_index] >= 5:
         #     print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}; driver={drivers[sp_index]}')
         driver_fl[sp_index] = fl_val # fl_vals[index]
         fl_laps_assigned.append(fl_index)
@@ -1191,7 +1218,7 @@ def execute_sim_iteration(sim_id):
     while fl_laps_remaining > 0:
         # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
         fl_index = randrange(1, 6)  # extra FL goes to top 5 guys
-        sp_index = int(numpy.where(final_ranks == fl_index)[0][0])
+        sp_index = int(numpy.where(orig_speed_ranks == fl_index)[0][0])
         fl_val = min(fl_laps_remaining, randrange(1, 3))
         # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
         driver_fl[sp_index] += fl_val
