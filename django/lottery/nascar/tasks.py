@@ -2328,8 +2328,14 @@ def simulate_contest_by_iteration(backtest_id, iteration, exclude_lineups_with_u
         entries = entries.exclude(entry_name__istartswith=exclude_lineups_with_username)
 
     def get_payout(rank, **kwargs):
-        return backtest.contest.get_payout(rank, kwargs.get('all_ranks')[rank])
+        df_prizes = kwargs.get('prizes')
+        rank_counts = kwargs.get('all_ranks')
+        prizes = df_prizes.loc[(df_prizes['min_rank'] < rank+rank_counts[rank]) & (df_prizes['max_rank'] >= rank), 'prize']
+        return prizes.mean() if not prizes.empty else 0.0
         
+    def money_iter(ranks, rank_mins, rank_maxes, prizes):
+        rank_counts = ranks.value_counts()
+        df_lineups['prize'] = prizes.loc[(rank_mins < ranks) & (rank_maxes >= ranks), 'prize'].mean()
 
     start = time.time()
     a = [[l.id, l.sim_scores[iteration]] for l in entries.iterator()]
@@ -2341,16 +2347,22 @@ def simulate_contest_by_iteration(backtest_id, iteration, exclude_lineups_with_u
     df_lineups = df_lineups.set_index('id')
     print(f'setting lineups dataframe index took {time.time() - start}s')
     start = time.time()
-    df_lineup_ranks = df_lineups.rank(method='min', ascending=False)
+    df_lineups['rank'] = df_lineups.rank(method='min', ascending=False)
     print(f'ranking lineups took {time.time() - start}s')
     start = time.time()
     df_prizes = pandas.DataFrame.from_records(prizes.values())
     print(f'loading prizes dataframe took {time.time() - start}s')
-    
     # start = time.time()
-    # df_pl = df_lineup_ranks['score'].apply(get_payout, all_ranks=df_lineup_ranks.value_counts())
-    # print(f'payouts took {time.time() - start}s')
-    # print(df_pl)
+    # df_lineups['prize'] = df_prizes.where(df_prizes['min_rank'] < df_lineups['rank']).mean()
+    # df_lineups['prize'] = money_iter(df_lineups['rank'], df_prizes['min_rank'], df_prizes['max_rank'], df_prizes)
+    # rank_counts = df_lineups['rank'].value_counts()
+    # df_lineups['prize'] = df_prizes.loc[(df_prizes['min_rank'] < df_lineups['rank']+rank_counts[df_lineups['rank']]) & (df_prizes['max_rank'] >= df_lineups['rank'])]['prize'].mean()  
+    # print(f'calculating prizes for lineups took {time.time() - start}s')
+    # print(df_lineups)
+    start = time.time()
+    df_lineups['prize'] = df_lineups['rank'].apply(get_payout, all_ranks=df_lineups['rank'].value_counts(), prizes=df_prizes)
+    print(f'payouts took {time.time() - start}s')
+    print(df_lineups)
     
     # start = time.time()
     # for entry in entries:
