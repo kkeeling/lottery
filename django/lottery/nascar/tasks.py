@@ -1287,7 +1287,7 @@ def execute_sim_iteration(sim_id):
         #     ll_index = randrange(1, 21)
 
         # sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
-        ll_val = randrange(1, min(ll_laps_remaining, 5))
+        ll_val = min(ll_laps_remaining, 5)
         driver_ll[ll_index] += ll_val
         ll_laps_assigned.append(ll_index)
 
