@@ -1217,7 +1217,7 @@ def execute_sim_iteration(sim_id):
     # flp = race_sim.fl_profiles.all().order_by('-pct_fastest_laps_min').last()
     while fl_laps_remaining > 0:
         # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
-        fl_index = randrange(1, 6)  # extra FL goes to top 5 guys
+        fl_index = randrange(0, 5)  # extra FL goes to top 5 guys
         sp_index = int(numpy.where(orig_speed_ranks == fl_index)[0][0])
         fl_val = min(fl_laps_remaining, randrange(1, 3))
         # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
@@ -1282,7 +1282,7 @@ def execute_sim_iteration(sim_id):
     # there may be remaining LL, assign using lowest profile in tranches of 5
     # llp = race_sim.ll_profiles.all().order_by('-rank_order').last()
     while ll_laps_remaining > 0:
-        ll_index = randrange(1, 21)
+        ll_index = randrange(0, 20)
         # while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
         #     ll_index = randrange(1, 21)
 
