@@ -421,7 +421,7 @@ class RaceSim(models.Model):
         )
 
     def export_template_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #f5dd5d; font-weight: bold; padding: 10px 15px;">Template</a>',
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #2563EB; font-weight: bold; padding: 10px 15px;">Template</a>',
             reverse_lazy("admin:nascar_admin_slate_template", args=[self.pk])
         )
     export_template_button.short_description = ''
@@ -431,6 +431,18 @@ class RaceSim(models.Model):
             reverse_lazy("admin:nascar_admin_slate_simulate", args=[self.pk])
         )
     sim_button.short_description = ''
+
+    def export_all_results_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #2563EB; font-weight: bold; padding: 10px 15px;">Results</a>',
+            reverse_lazy("admin:nascar_admin_slate_export_results", args=[self.pk])
+        )
+    export_all_results_button.short_description = ''
+
+    def export_dk_results_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #2563EB; font-weight: bold; padding: 10px 15px;">DK</a>',
+            reverse_lazy("admin:nascar_admin_slate_export_dk", args=[self.pk])
+        )
+    export_dk_results_button.short_description = ''
 
 
 class RaceSimDamageProfile(models.Model):

@@ -413,6 +413,8 @@ class RaceSimAdmin(admin.ModelAdmin):
         'run_with_lineup_rankings',
         'export_template_button',
         'sim_button',
+        'export_all_results_button',
+        'export_dk_results_button',
         'get_lineups_link',
     )
     list_editable = (
@@ -431,7 +433,7 @@ class RaceSimAdmin(admin.ModelAdmin):
         RaceSimLapsLedInline,
         RaceSimDriverInline
     ]
-    actions = ['calculate_driver_gto', 'rank_lineups', 'export_results']
+    actions = ['calculate_driver_gto', 'rank_lineups', 'export_results_many']
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -457,6 +459,8 @@ class RaceSimAdmin(admin.ModelAdmin):
         my_urls = [
             path('nascar-race-template/<int:pk>/', self.export_template, name="nascar_admin_slate_template"),
             path('nascar-race-simulate/<int:pk>/', self.simulate, name="nascar_admin_slate_simulate"),
+            path('nascar-race-results/<int:pk>/', self.export_results, name="nascar_admin_slate_export_results"),
+            path('nascar-race-dk_results/<int:pk>/', self.export_dk_results, name="nascar_admin_slate_export_dk"),
         ]
         return my_urls + urls
 
@@ -523,6 +527,70 @@ class RaceSimAdmin(admin.ModelAdmin):
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
 
+    def export_results(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        sim = get_object_or_404(models.RaceSim, pk=pk)
+
+        task = BackgroundTask()
+        task.name = 'Export Sim Results'
+        task.user = request.user
+        task.save()
+
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file =f'{sim.race} (Sim ID {sim.id}) - {timestamp}.xlsx'
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+        tasks.export_results.delay(sim.id, result_path, result_url, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue while you\'re waiting. A new message will appear here once your export is ready.')
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def export_dk_results(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        sim = get_object_or_404(models.RaceSim, pk=pk)
+
+        task = BackgroundTask()
+        task.name = 'Export Sim Results (DK only)'
+        task.user = request.user
+        task.save()
+
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file =f'{sim.race} (Sim ID {sim.id}) - {timestamp}.xlsx'
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+        tasks.export_dk_results.delay(sim.id, result_path, result_url, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue while you\'re waiting. A new message will appear here once your export is ready.')
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
     def simulate_races(self, request, queryset):
         jobs = [
             tasks.execute_sim.si(
@@ -541,7 +609,7 @@ class RaceSimAdmin(admin.ModelAdmin):
             f'Simulating player outcomes for {queryset.count()} races'
         )
 
-    def export_results(self, request, queryset):
+    def export_results_many(self, request, queryset):
         now = datetime.datetime.now()
         timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
         result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
@@ -565,7 +633,7 @@ class RaceSimAdmin(admin.ModelAdmin):
             messages.WARNING,
             f'Export FP outcomes for {queryset.count()} races'
         )
-    export_results.short_description = 'Export Results for selected sim'
+    export_results_many.short_description = 'Export Results for selected sim'
 
     def calculate_driver_gto(self, request, queryset):
         jobs = [
