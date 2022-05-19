@@ -1282,7 +1282,7 @@ def execute_sim_iteration(sim_id):
     # there may be remaining LL, assign using lowest profile in tranches of 5
     # llp = race_sim.ll_profiles.all().order_by('-rank_order').last()
     while ll_laps_remaining > 0:
-        ll_index = randrange(0, 20)
+        ll_index = randrange(0, 10)
         # while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
         #     ll_index = randrange(1, 21)
 
