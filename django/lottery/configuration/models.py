@@ -22,6 +22,7 @@ class BackgroundTask(models.Model):
     content = models.TextField(null=True, blank=True)
     link = models.CharField(max_length=255, blank=True, null=True)
     created = models.DateTimeField(auto_now_add=True)
+    pct_complete = models.FloatField(default=0.0)
 
     class Meta:
         ordering = ['created']

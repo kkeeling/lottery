@@ -1189,7 +1189,7 @@ class ContestBacktestAdmin(admin.ModelAdmin):
         chain(
             tasks.start_contest_simulation.si(backtest.id),
             chord([
-                tasks.simulate_contest_by_iteration.si(backtest.id, i) for i in range(0, backtest.contest.sim.iterations)
+                tasks.simulate_contest_by_iteration.s(backtest.id, i) for i in range(0, backtest.contest.sim.iterations)
             ], tasks.contest_simulation_complete.si(
                 backtest.id, 
                 BackgroundTask.objects.create(

@@ -1,20 +1,17 @@
 import csv
 import datetime
 import logging
-import json
 import math
 from re import A
 from turtle import back
+import multiprocessing
 import numpy
-import os
 import pandas
-import pandasql
 import requests
 import scipy
 import sys
 import time
 import traceback
-import uuid
 
 from random import random, uniform, randrange
 
@@ -1339,7 +1336,7 @@ def execute_sim_iteration(sim_id):
     # df_race.to_csv('data/race.csv')
 
     return {
-        'sr': final_ranks.tolist(),
+        'sr': orig_speed_ranks.tolist(),
         'fp': fp_ranks.tolist(),
         'll': driver_ll,
         'fl': driver_fl,
@@ -2273,6 +2270,60 @@ def export_build_for_upload(build_id, result_path, result_url, task_id):
 
 
 @shared_task
+def process_contest_entry(entry_id, entry_name, lineup_str, drivers, contest_id):
+    contest = models.Contest.objects.get(id=contest_id)
+
+    if len(drivers) == 7:  # drivers list has emptry string as first elemenet
+        alias1 = models.Alias.find_alias(drivers[1].strip().replace('á', 'a'), contest.slate.site)
+        alias2 = models.Alias.find_alias(drivers[2].strip().replace('á', 'a'), contest.slate.site)
+        alias3 = models.Alias.find_alias(drivers[3].strip().replace('á', 'a'), contest.slate.site)
+        alias4 = models.Alias.find_alias(drivers[4].strip().replace('á', 'a'), contest.slate.site)
+        alias5 = models.Alias.find_alias(drivers[5].strip().replace('á', 'a'), contest.slate.site)
+        alias6 = models.Alias.find_alias(drivers[6].strip().replace('á', 'a'), contest.slate.site)
+
+        player1 = models.RaceSimDriver.objects.get(
+            sim=contest.sim,
+            driver__full_name=alias1.nascar_name
+        )
+        player2 = models.RaceSimDriver.objects.get(
+            sim=contest.sim,
+            driver__full_name=alias2.nascar_name
+        )
+        player3 = models.RaceSimDriver.objects.get(
+            sim=contest.sim,
+            driver__full_name=alias3.nascar_name
+        )
+        player4 = models.RaceSimDriver.objects.get(
+            sim=contest.sim,
+            driver__full_name=alias4.nascar_name
+        )
+        player5 = models.RaceSimDriver.objects.get(
+            sim=contest.sim,
+            driver__full_name=alias5.nascar_name
+        )
+        player6 = models.RaceSimDriver.objects.get(
+            sim=contest.sim,
+            driver__full_name=alias6.nascar_name
+        )
+
+        entry = models.ContestEntry.objects.create(
+            contest=contest,
+            entry_id=entry_id,
+            entry_name=entry_name,
+            lineup_str=lineup_str,
+            player_1=player1,
+            player_2=player2,
+            player_3=player3,
+            player_4=player4,
+            player_5=player5,
+            player_6=player6
+        )
+        entry.simulate()
+
+        print(f'Created {entry}')
+
+
+@shared_task
 def process_contest(contest_id, task_id):
     task = None
 
@@ -2292,63 +2343,16 @@ def process_contest(contest_id, task_id):
                     with open(contest.entries_file.path, mode='r') as entries_file:
                         csv_reader = csv.DictReader(entries_file)
 
-                        for row in csv_reader:
-                            if contest.slate.site == 'draftkings':
-                                entry_id = row['EntryId']
-                                entry_name = row['EntryName']
-                                lineup_str = row['Lineup']
-                                drivers = lineup_str.split('D ')
-
-                                if len(drivers) == 7:  # drivers list has emptry string as first elemenet
-                                    alias1 = models.Alias.find_alias(drivers[1].strip().replace('á', 'a'), contest.slate.site)
-                                    alias2 = models.Alias.find_alias(drivers[2].strip().replace('á', 'a'), contest.slate.site)
-                                    alias3 = models.Alias.find_alias(drivers[3].strip().replace('á', 'a'), contest.slate.site)
-                                    alias4 = models.Alias.find_alias(drivers[4].strip().replace('á', 'a'), contest.slate.site)
-                                    alias5 = models.Alias.find_alias(drivers[5].strip().replace('á', 'a'), contest.slate.site)
-                                    alias6 = models.Alias.find_alias(drivers[6].strip().replace('á', 'a'), contest.slate.site)
-
-                                    player1 = models.RaceSimDriver.objects.get(
-                                        sim=contest.sim,
-                                        driver__full_name=alias1.nascar_name
-                                    )
-                                    player2 = models.RaceSimDriver.objects.get(
-                                        sim=contest.sim,
-                                        driver__full_name=alias2.nascar_name
-                                    )
-                                    player3 = models.RaceSimDriver.objects.get(
-                                        sim=contest.sim,
-                                        driver__full_name=alias3.nascar_name
-                                    )
-                                    player4 = models.RaceSimDriver.objects.get(
-                                        sim=contest.sim,
-                                        driver__full_name=alias4.nascar_name
-                                    )
-                                    player5 = models.RaceSimDriver.objects.get(
-                                        sim=contest.sim,
-                                        driver__full_name=alias5.nascar_name
-                                    )
-                                    player6 = models.RaceSimDriver.objects.get(
-                                        sim=contest.sim,
-                                        driver__full_name=alias6.nascar_name
-                                    )
-
-                                    entry = models.ContestEntry.objects.create(
-                                        contest=contest,
-                                        entry_id=entry_id,
-                                        entry_name=entry_name,
-                                        lineup_str=lineup_str,
-                                        player_1=player1,
-                                        player_2=player2,
-                                        player_3=player3,
-                                        player_4=player4,
-                                        player_5=player5,
-                                        player_6=player6
-                                    )
-                                    entry.simulate()
-
-                                    print(f'Created {entry}')
-                            else:
-                                raise Exception(f'{contest.slate.site} is not supported yet.')    
+                        chord(
+                            [process_contest_entry.si(
+                                row['EntryId'],
+                                row['EntryName'],
+                                row['Lineup'],
+                                row['Lineup'].split('D '),
+                                contest.id
+                            ) for row in csv_reader],
+                            process_contest_complete.si(contest.id, task.id)
+                        )()
                 except ValueError:
                     pass            
         
@@ -2385,35 +2389,59 @@ def process_contest(contest_id, task_id):
 
 
 @shared_task
+def process_contest_complete(contest_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        contest = models.Contest.objects.get(id=contest_id)
+
+        task.status = 'success'
+        task.content = f'{contest} processed.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem processing contest: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def start_contest_simulation(backtest_id):
     backtest = models.ContestBacktest.objects.get(id=backtest_id)
     # backtest.entry_outcomes.all().delete()
 
+    prizes = backtest.contest.prizes.all()
+    prize_lookup = {}
+    for prize in prizes:
+        for rank in range(prize.min_rank, prize.max_rank+1):
+            prize_lookup[float(rank)] = float(prize.prize)
+    
     # for entry in backtest.contest.entries.all():
     #     models.ContestBacktestEntry.objects.create(
     #         entry=entry,
     #         backtest=backtest
     #     )
+    return prize_lookup
 
 
 @shared_task
-def simulate_contest_by_iteration(backtest_id, iteration, exclude_lineups_with_username=None):
+def simulate_contest_by_iteration(prize_lookup, backtest_id, iteration, exclude_lineups_with_username=None):
     backtest = models.ContestBacktest.objects.get(id=backtest_id)
     entries = backtest.contest.entries.all()
     prizes = backtest.contest.prizes.all()
 
     if exclude_lineups_with_username is not None:
         entries = entries.exclude(entry_name__istartswith=exclude_lineups_with_username)
-
-    def get_payout(rank, **kwargs):
-        df_prizes = kwargs.get('prizes')
-        rank_counts = kwargs.get('all_ranks')
-        prizes = df_prizes.loc[(df_prizes['min_rank'] < rank+rank_counts[rank]) & (df_prizes['max_rank'] >= rank), 'prize']
-        return prizes.mean() if not prizes.empty else 0.0
-        
-    def money_iter(ranks, rank_mins, rank_maxes, prizes):
-        rank_counts = ranks.value_counts()
-        df_lineups['prize'] = prizes.loc[(rank_mins < ranks) & (rank_maxes >= ranks), 'prize'].mean()
 
     start = time.time()
     a = [[l.id, l.sim_scores[iteration]] for l in entries.iterator()]
@@ -2438,17 +2466,20 @@ def simulate_contest_by_iteration(backtest_id, iteration, exclude_lineups_with_u
     # print(f'calculating prizes for lineups took {time.time() - start}s')
     # print(df_lineups)
     start = time.time()
-    df_lineups['prize'] = df_lineups['rank'].apply(get_payout, all_ranks=df_lineups['rank'].value_counts(), prizes=df_prizes)
+    # df_lineups['prize'] = df_lineups['rank'].apply(get_payout, all_ranks=df_lineups['rank'].value_counts())
+    df_lineups['rank_count'] = df_lineups['rank'].map(df_lineups['rank'].value_counts())
+    rank_counts = df_lineups['rank'].value_counts()
+    df_lineups['prize'] = df_lineups['rank'].map(lambda x: numpy.mean([prize_lookup.get(str(float(r)), 0.0) for r in range(int(x),int(x)+rank_counts[x])]))
     print(f'payouts took {time.time() - start}s')
     print(df_lineups)
     
     # start = time.time()
     # for entry in entries:
-    #     backtest_entry, _ = models.ContestBacktestEntry.objects.get_or_create(
+    #     backtest_entry = models.ContestBacktestEntry.objects.get(
     #         entry=entry,
     #         backtest=backtest
     #     )
-    #     backtest_entry.amounts_won.append(df_pl.loc[entry.id])
+    #     backtest_entry.amounts_won.append(df_lineups.loc[entry.id, 'prize'])
     #     backtest_entry.save()
     # print(f'saving result took {time.time() - start}s')
 
