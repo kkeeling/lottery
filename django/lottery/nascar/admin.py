@@ -1213,7 +1213,24 @@ class ContestBacktestAdmin(admin.ModelAdmin):
 class ContestBacktestEntryAdmin(admin.ModelAdmin):
     list_display = (
         'entry',
+        'amount_won',
         'roi',
+    )
+    raw_id_fields = (
+        'backtest',
+        'entry',
+    )
+
+
+@admin.register(models.ContestBacktestEntryResult)
+class ContestBacktestEntryAdmin(admin.ModelAdmin):
+    list_display = (
+        'entry',
+        'iteration',
+        'score',
+        'rank',
+        'rank_count', 
+        'prize',
     )
     raw_id_fields = (
         'backtest',

@@ -999,8 +999,21 @@ class ContestBacktest(models.Model):
 class ContestBacktestEntry(models.Model):
     entry = models.ForeignKey(ContestEntry, related_name='backtest_outcomes', on_delete=models.CASCADE)
     backtest = models.ForeignKey(ContestBacktest, related_name='entry_outcomes', on_delete=models.CASCADE)
-    amounts_won = ArrayField(models.FloatField(), default=list)
+    amount_won = models.FloatField(default=0.0)
     roi = models.FloatField(default=0.0)
 
     def __str__(self):
         return f'{self.entry} for {self.backtest}'
+
+
+class ContestBacktestEntryResult(models.Model):
+    entry = models.ForeignKey(ContestEntry, related_name='backtest_iteration_outcomes', on_delete=models.CASCADE)
+    backtest = models.ForeignKey(ContestBacktest, related_name='entry_iteration_outcomes', on_delete=models.CASCADE)
+    iteration = models.IntegerField(default=1)
+    score = models.FloatField(default=0.0)
+    rank = models.FloatField(default=0.0)
+    rank_count = models.FloatField(default=0.0)
+    prize = models.FloatField(default=0.0)
+
+    def __str__(self):
+        return f'{self.entry} Result {self.iteration} for {self.backtest}'
