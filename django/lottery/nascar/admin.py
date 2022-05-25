@@ -411,6 +411,7 @@ class RaceSimAdmin(admin.ModelAdmin):
         'optimal_lineups_per_iteration',
         'run_with_gto',
         'run_with_lineup_rankings',
+        'for_backtest',
         'export_template_button',
         'sim_button',
         'export_all_results_button',
@@ -426,6 +427,9 @@ class RaceSimAdmin(admin.ModelAdmin):
     raw_id_fields = (
         'race',
     )
+    list_filter = (
+        'for_backtest',
+    )
     inlines = [
         RaceSimDamageProfileInline,
         RaceSimPenaltyProfileInline,
@@ -433,7 +437,7 @@ class RaceSimAdmin(admin.ModelAdmin):
         RaceSimLapsLedInline,
         RaceSimDriverInline
     ]
-    actions = ['calculate_driver_gto', 'rank_lineups', 'export_results_many']
+    actions = ['calculate_driver_gto', 'rank_lineups', 'export_results_many', 'create_backtest_sim']
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -469,6 +473,13 @@ class RaceSimAdmin(admin.ModelAdmin):
             return mark_safe('<a href="/admin/nascar/racesimlineup/?sim__id__exact={}" target="_blank">Lineups</a>'.format(obj.id))
         return 'None'
     get_lineups_link.short_description = 'Optimal Lineups'
+
+    def create_backtest_sim(self, request, queryset):
+        for sim in queryset:
+            sim.id = None
+            sim.for_backtest = True
+            sim.save()
+    create_backtest_sim.short_description = 'Create out of sample sims'
 
     def export_template(self, request, pk):
         context = dict(
