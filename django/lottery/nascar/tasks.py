@@ -2438,6 +2438,7 @@ def simulate_contest_by_iteration(prize_lookup, backtest_id, iteration, exclude_
     if exclude_lineups_with_username is not None:
         entries = entries.exclude(entry_name__istartswith=exclude_lineups_with_username)
 
+    start = time.time()
     a = [[l.id, l.sim_scores[iteration]] for l in entries.iterator()]
     print(f'creating lineup arrays took {time.time() - start}s')
     start = time.time()
