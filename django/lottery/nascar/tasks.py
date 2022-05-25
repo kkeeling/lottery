@@ -2439,15 +2439,36 @@ def simulate_contest_by_iteration(prize_lookup, backtest_id, iteration, exclude_
         entries = entries.exclude(entry_name__istartswith=exclude_lineups_with_username)
 
     a = [[l.id, l.sim_scores[iteration]] for l in entries.iterator()]
+    print(f'creating lineup arrays took {time.time() - start}s')
+    start = time.time()
     df_lineups = pandas.DataFrame(a, columns=['entry_id', 'score'])
     df_lineups['backtest_id'] = backtest.id
     df_lineups['iteration'] = iteration
     df_lineups['id'] = df_lineups['entry_id']
+    print(f'loading lineups dataframe took {time.time() - start}s')
+    start = time.time()
     df_lineups = df_lineups.set_index('id')
+    print(f'setting lineups dataframe index took {time.time() - start}s')
+    start = time.time()
     df_lineups['rank'] = df_lineups['score'].rank(method='min', ascending=False)
+    print(f'ranking lineups took {time.time() - start}s')
+    # start = time.time()
+    # df_prizes = pandas.DataFrame.from_records(prizes.values())
+    # print(f'loading prizes dataframe took {time.time() - start}s')
+    # start = time.time()
+    # df_lineups['prize'] = df_prizes.where(df_prizes['min_rank'] < df_lineups['rank']).mean()
+    # df_lineups['prize'] = money_iter(df_lineups['rank'], df_prizes['min_rank'], df_prizes['max_rank'], df_prizes)
+    # rank_counts = df_lineups['rank'].value_counts()
+    # df_lineups['prize'] = df_prizes.loc[(df_prizes['min_rank'] < df_lineups['rank']+rank_counts[df_lineups['rank']]) & (df_prizes['max_rank'] >= df_lineups['rank'])]['prize'].mean()  
+    # print(f'calculating prizes for lineups took {time.time() - start}s')
+    # print(df_lineups)
+    start = time.time()
+    # df_lineups['prize'] = df_lineups['rank'].apply(get_payout, all_ranks=df_lineups['rank'].value_counts())
     df_lineups['rank_count'] = df_lineups['rank'].map(df_lineups['rank'].value_counts())
     rank_counts = df_lineups['rank'].value_counts()
     df_lineups['prize'] = df_lineups['rank'].map(lambda x: numpy.mean([prize_lookup.get(str(float(r)), 0.0) for r in range(int(x),int(x)+rank_counts[x])]))
+    print(f'payouts took {time.time() - start}s')
+    # print(df_lineups)
 
     models.ContestBacktestEntryResult.objects.bulk_create(
         models.ContestBacktestEntryResult(**vals) for vals in df_lineups.to_dict('records')
