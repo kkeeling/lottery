@@ -4,9 +4,9 @@ import logging
 import math
 from re import A
 from turtle import back
-import multiprocessing
 import numpy
-import pandas
+# import pandas
+import modin.pandas as pandas
 import requests
 import scipy
 import sys
@@ -1122,8 +1122,8 @@ def execute_sim_iteration(sim_id):
     # final_ranks = driver_s3_ranks if race_sim.race.num_stages() == 3 else driver_s4_ranks
     fp_vals = []
     for index, final_sp in enumerate(final_ranks):
-        flr = max(final_sp - race_variance, 1)
-        ceil = min(final_sp + race_variance, drivers.count())
+        flr = final_sp - race_variance
+        ceil = final_sp + race_variance
 
         driver = drivers[index]
         # print(f'{driver}; flr = {flr}; ceil = {ceil}; final_sp = {final_sp}')
@@ -2416,22 +2416,50 @@ def process_contest_complete(contest_id, task_id):
 
 
 @shared_task
-def start_contest_simulation(backtest_id):
-    backtest = models.ContestBacktest.objects.get(id=backtest_id)
-    backtest.entry_outcomes.all().delete()
-    backtest.entry_iteration_outcomes.all().delete()
+def start_contest_simulation(backtest_id, task_id):
+    task = None
 
-    prizes = backtest.contest.prizes.all()
-    prize_lookup = {}
-    for prize in prizes:
-        for rank in range(prize.min_rank, prize.max_rank+1):
-            prize_lookup[float(rank)] = float(prize.prize)
-    
-    return prize_lookup
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        backtest = models.ContestBacktest.objects.get(id=backtest_id)
+        backtest.entry_outcomes.all().delete()
+        backtest.entry_iteration_outcomes.all().delete()
+
+        prizes = backtest.contest.prizes.all()
+        prize_lookup = {}
+        for prize in prizes:
+            for rank in range(prize.min_rank, prize.max_rank+1):
+                prize_lookup[float(rank)] = float(prize.prize)
+
+        a = [[l.id] + l.sim_scores for l in backtest.contest.entries.all().iterator()]
+        df_lineups = pandas.DataFrame(a, columns=['id'] + [i for i in range(0, backtest.contest.sim.iterations)])
+        df_lineups = df_lineups.set_index('id')
+
+        chord([
+            simulate_contest_by_iteration.si(prize_lookup, backtest.id, i, df_lineups[i].to_json()) for i in range(0, 1)
+        ], contest_simulation_complete.si(
+            backtest.id, 
+            task.id
+        ))()
+
+        return prize_lookup
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error simulating contest ROIs for {backtest}: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task
-def simulate_contest_by_iteration(prize_lookup, backtest_id, iteration, exclude_lineups_with_username=None):
+def simulate_contest_by_iteration(prize_lookup, backtest_id, iteration, lineups, exclude_lineups_with_username=None):
     backtest = models.ContestBacktest.objects.get(id=backtest_id)
     entries = backtest.contest.entries.all()
 
@@ -2453,27 +2481,15 @@ def simulate_contest_by_iteration(prize_lookup, backtest_id, iteration, exclude_
     start = time.time()
     df_lineups['rank'] = df_lineups['score'].rank(method='min', ascending=False)
     print(f'ranking lineups took {time.time() - start}s')
-    # start = time.time()
-    # df_prizes = pandas.DataFrame.from_records(prizes.values())
-    # print(f'loading prizes dataframe took {time.time() - start}s')
-    # start = time.time()
-    # df_lineups['prize'] = df_prizes.where(df_prizes['min_rank'] < df_lineups['rank']).mean()
-    # df_lineups['prize'] = money_iter(df_lineups['rank'], df_prizes['min_rank'], df_prizes['max_rank'], df_prizes)
-    # rank_counts = df_lineups['rank'].value_counts()
-    # df_lineups['prize'] = df_prizes.loc[(df_prizes['min_rank'] < df_lineups['rank']+rank_counts[df_lineups['rank']]) & (df_prizes['max_rank'] >= df_lineups['rank'])]['prize'].mean()  
-    # print(f'calculating prizes for lineups took {time.time() - start}s')
-    # print(df_lineups)
     start = time.time()
-    # df_lineups['prize'] = df_lineups['rank'].apply(get_payout, all_ranks=df_lineups['rank'].value_counts())
     df_lineups['rank_count'] = df_lineups['rank'].map(df_lineups['rank'].value_counts())
     rank_counts = df_lineups['rank'].value_counts()
     df_lineups['prize'] = df_lineups['rank'].map(lambda x: numpy.mean([prize_lookup.get(str(float(r)), 0.0) for r in range(int(x),int(x)+rank_counts[x])]))
     print(f'payouts took {time.time() - start}s')
-    # print(df_lineups)
 
-    models.ContestBacktestEntryResult.objects.bulk_create(
-        models.ContestBacktestEntryResult(**vals) for vals in df_lineups.to_dict('records')
-    )   
+    # models.ContestBacktestEntryResult.objects.bulk_create(
+    #     models.ContestBacktestEntryResult(**vals) for vals in df_lineups.to_dict('records')
+    # )   
 
 
 @shared_task
@@ -2488,18 +2504,18 @@ def contest_simulation_complete(backtest_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         backtest = models.ContestBacktest.objects.get(id=backtest_id)
-        entries = backtest.contest.entries.all().annotate(
-            amount_won=Sum('backtest_iteration_outcomes__prize')
-        )
-        df_entries = pandas.DataFrame.from_records(entries.values('id', 'amount_won'))
-        df_entries['roi'] = (df_entries['amount_won'] - (float(backtest.contest.cost) * 3))/ (float(backtest.contest.cost) * backtest.contest.sim.iterations)
-        df_entries['entry_id'] = df_entries['id']
-        df_entries['backtest_id'] = backtest.id
-        df_entries.set_index('id')
+        # entries = backtest.contest.entries.all().annotate(
+        #     amount_won=Sum('backtest_iteration_outcomes__prize')
+        # )
+        # df_entries = pandas.DataFrame.from_records(entries.values('id', 'amount_won'))
+        # df_entries['roi'] = (df_entries['amount_won'] - (float(backtest.contest.cost) * 3))/ (float(backtest.contest.cost) * backtest.contest.sim.iterations)
+        # df_entries['entry_id'] = df_entries['id']
+        # df_entries['backtest_id'] = backtest.id
+        # df_entries.set_index('id')
 
-        models.ContestBacktestEntry.objects.bulk_create(
-            models.ContestBacktestEntry(**vals) for vals in df_entries.to_dict('records')
-        )   
+        # models.ContestBacktestEntry.objects.bulk_create(
+        #     models.ContestBacktestEntry(**vals) for vals in df_entries.to_dict('records')
+        # )   
 
         backtest.entry_iteration_outcomes.all().delete()
 
