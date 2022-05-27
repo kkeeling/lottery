@@ -30,6 +30,7 @@ services:
 
   celery:
     container_name: lottery_dev_celery
+    shm_size: 8g
     build:
       context: ../django
     env_file:
