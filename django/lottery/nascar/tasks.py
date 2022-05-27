@@ -5,8 +5,8 @@ import math
 from re import A
 from turtle import back
 import numpy
-# import pandas
-import modin.pandas as pandas
+import pandas
+# import modin.pandas as pandas
 import requests
 import scipy
 import sys
