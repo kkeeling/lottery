@@ -181,20 +181,54 @@ def update_race_results(race_id, race_year=2022):
                 driver.manufacturer = result.get('car_make')
                 driver.team = result.get('team_name')
                 driver.save()
-
-                models.RaceResult.objects.create(
-                    race=race,
-                    driver=models.Driver.objects.get(nascar_driver_id=result.get('driver_id')),
-                    finishing_position=result.get('finishing_position'),
-                    starting_position=result.get('starting_position'),
-                    laps_led=result.get('laps_led'),
-                    times_led=result.get('times_led'),
-                    laps_completed=result.get('laps_completed'),
-                    finishing_status=result.get('finishing_status'),
-                    disqualified=result.get('disqualified')
+            except models.Driver.DoesNotExist:
+                driver = models.Driver.objects.create(
+                    nascar_driver_id = result.get('driver_id'),
+                    driver_id = result.get('driver_id')
                 )
-            except:
-                pass
+                
+                if ' ' in result.get('driver_fullname'):
+                    first, last = result.get('driver_fullname').split(' ', 1)
+                else:
+                    first = result.get('driver_fullname')
+                    last = ''
+
+                driver.first_name = first
+                driver.last_name = last
+                driver.full_name = result.get('driver_fullname')
+                driver.badge = result.get('official_car_number')
+                driver.manufacturer = result.get('car_make')
+                driver.team = result.get('team_name')
+                driver.driver_image = 'https://www.nascar.com/wp-content/uploads/sites/7/2017/01/Silhouette.png'
+                
+                if driver.manufacturer == 'Toyota':
+                    driver.manufacturer_image = 'https://www.nascar.com/wp-content/uploads/sites/7/2020/04/06/Toyota-180x180.png'
+                elif driver.manufacturer == 'Ford':
+                    driver.manufacturer_image = 'https://www.nascar.com/wp-content/uploads/sites/7/2017/01/ford_160x811-265x180.png'
+                elif driver.manufacturer == 'Chevrolet':
+                    driver.manufacturer_image = 'https://www.nascar.com/wp-content/uploads/sites/7/2017/01/Chevy-Driver-Page-New-2-160x811-265x180.png'
+                    
+                driver.save()
+
+                alias, _ = models.Alias.objects.get_or_create(
+                    nascar_name=driver.full_name
+                )
+                alias.dk_name = driver.full_name if alias.dk_name is None else alias.dk_name
+                alias.fd_name = driver.full_name if alias.fd_name is None else alias.fd_name
+                alias.ma_name = driver.full_name if alias.ma_name is None else alias.ma_name
+                alias.save()
+
+            models.RaceResult.objects.create(
+                race=race,
+                driver=models.Driver.objects.get(nascar_driver_id=result.get('driver_id')),
+                finishing_position=result.get('finishing_position'),
+                starting_position=result.get('starting_position'),
+                laps_led=result.get('laps_led'),
+                times_led=result.get('times_led'),
+                laps_completed=result.get('laps_completed'),
+                finishing_status=result.get('finishing_status'),
+                disqualified=result.get('disqualified')
+            )
 
         caution_segments = wr.get('caution_segments')
         for caution in caution_segments:
