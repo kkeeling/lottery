@@ -975,8 +975,8 @@ def execute_sim_iteration(sim_id):
     # Assign finishing position
     fp_vals = []
     for index, final_sp in enumerate(final_ranks):
-        flr = final_sp - race_variance if final_sp > 5 else final_sp
-        ceil = final_sp + race_variance if final_sp > 5 else final_sp
+        flr = final_sp - race_variance if final_sp > 5 and final_sp <= 20 else final_sp
+        ceil = final_sp + race_variance if final_sp > 5 and final_sp <= 20 else final_sp
 
         driver = drivers[index]
         # print(f'{driver}; flr = {flr}; ceil = {ceil}; final_sp = {final_sp}')
