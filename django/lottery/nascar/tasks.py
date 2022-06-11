@@ -1284,7 +1284,7 @@ def find_driver_gto(sim_id, task_id):
         for i in range(0, race_sim.iterations):
             jobs.append(make_optimals_for_gto.si(
                 [s[i] for s in scores],
-                list(race_sim.outcomes.all().order_by('starting_position').values_list('id', flat=True)),
+                list(race_sim.outcomes.exclude(dk_name=None).order_by('starting_position').values_list('id', flat=True)),
                 'draftkings',
                 race_sim.optimal_lineups_per_iteration
             ))
