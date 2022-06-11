@@ -552,10 +552,16 @@ def process_sim_input_file(sim_id, task_id):
             driver = models.Driver.objects.get(nascar_driver_id=df_drivers.at[index, 'nascar_driver_id'])
             alias = models.Alias.find_alias(driver.full_name, 'nascar')
 
-            dk_salary = dk_salaries.loc[[alias.dk_name]]['Salary'] if dk_salaries is not None else 0.0
-            dk_name = f'{alias.dk_name} ({dk_salaries.loc[[alias.dk_name]]["ID"][0]})' if dk_salaries is not None else None
-            fd_salary = fd_salaries.loc[[alias.fd_name]] if fd_salaries is not None else 0.0
-            fd_name = fd_salaries.loc[[alias.fd_name]] if fd_salaries is not None else None
+            try:
+                dk_salary = dk_salaries.loc[[alias.dk_name]]['Salary'] if dk_salaries is not None else 0.0
+                dk_name = f'{alias.dk_name} ({dk_salaries.loc[[alias.dk_name]]["ID"][0]})' if dk_salaries is not None else None
+                fd_salary = fd_salaries.loc[[alias.fd_name]] if fd_salaries is not None else 0.0
+                fd_name = fd_salaries.loc[[alias.fd_name]] if fd_salaries is not None else None
+            except:
+                dk_salary = 0.0
+                dk_name = None
+                fd_salary = 0.0
+                fd_name = None
 
             models.RaceSimDriver.objects.create(
                 sim=race_sim,
