@@ -2302,7 +2302,7 @@ def start_contest_simulation(backtest_id, task_id):
         chord([
             chord([
                 simulate_contest_by_iteration.si(prize_lookup, backtest.id, df_lineups[i + j].to_json(orient='index')) for i in range(0, chunk_size)
-            ], combine_contest_sim_results.s()) for j in range(0, 2000, chunk_size)
+            ], combine_contest_sim_results.s()) for j in range(0, 5000, chunk_size)
         ], contest_simulation_complete.s(
             backtest.id, 
             task.id
@@ -2387,7 +2387,7 @@ def contest_simulation_complete(results, backtest_id, task_id):
         df_result['entry_id'] = df_result['id']
         df_result['backtest_id'] = backtest.id
         df_result['amount_won'] = total_result
-        df_result['roi'] = (total_result - (float(backtest.contest.cost) * len(results))) / (float(backtest.contest.cost) * len(results))
+        df_result['roi'] = (total_result - (float(backtest.contest.cost) * backtest.contest.sim.iterations)) / (float(backtest.contest.cost) * backtest.contest.sim.iterations)
         df_result.set_index('id')
         # logger.info(df_result)
         # logger.info(results)
