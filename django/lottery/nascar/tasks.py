@@ -2298,8 +2298,9 @@ def start_contest_simulation(backtest_id, task_id):
         df_lineups = pandas.DataFrame(a, columns=['id'] + [i for i in range(0, backtest.contest.sim.iterations)])
         df_lineups = df_lineups.set_index('id')
 
+        page_size = 1000
         chord([
-            simulate_contest_by_iteration.si(prize_lookup, backtest.id, i, df_lineups[i].to_json(orient='index')) for i in range(0, backtest.contest.sim.iterations)
+            simulate_contest_by_iteration.si(prize_lookup, backtest.id, df_lineups[[j for j in range(i, i + page_size)]].to_json(orient='index')) for i in range(0, backtest.contest.sim.iterations, page_size)
         ], contest_simulation_complete.s(
             backtest.id, 
             task.id
@@ -2317,19 +2318,20 @@ def start_contest_simulation(backtest_id, task_id):
 
 
 @shared_task
-def simulate_contest_by_iteration(prize_lookup, backtest_id, iteration, lineups, exclude_lineups_with_username=None):
+def simulate_contest_by_iteration(prize_lookup, backtest_id, lineups, exclude_lineups_with_username=None):
     backtest = models.ContestBacktest.objects.get(id=backtest_id)
     entries = backtest.contest.entries.all().order_by('entry_id')
 
     if exclude_lineups_with_username is not None:
         entries = entries.exclude(entry_name__istartswith=exclude_lineups_with_username)
 
-    start = time.time()
+    # start = time.time()
     # a = [[l.id, l.sim_scores[iteration]] for l in entries.iterator()]
-    logger.info(f'creating lineup arrays took {time.time() - start}s')
+    # logger.info(f'creating lineup arrays took {time.time() - start}s')
     start = time.time()
     # df_lineups = pandas.DataFrame(a, columns=['entry_id', 'score'])
     df_lineups = pandas.read_json(lineups, orient='index')
+    logger.info(df_lineups)
     # df_lineups['backtest_id'] = backtest.id
     # df_lineups['iteration'] = iteration
     # df_lineups['id'] = df_lineups['entry_id']
@@ -2338,15 +2340,31 @@ def simulate_contest_by_iteration(prize_lookup, backtest_id, iteration, lineups,
     # df_lineups = df_lineups.set_index('id')
     # logger.info(f'setting lineups dataframe index took {time.time() - start}s')
     start = time.time()
-    df_lineups['rank'] = df_lineups[0].rank(method='min', ascending=False)
-    logger.info(f'ranking lineups took {time.time() - start}s')
-    start = time.time()
-    df_lineups['rank_count'] = df_lineups['rank'].map(df_lineups['rank'].value_counts())
-    rank_counts = df_lineups['rank'].value_counts()
-    df_lineups['prize'] = df_lineups['rank'].map(lambda x: numpy.mean([prize_lookup.get(str(float(r)), 0.0) for r in range(int(x),int(x)+rank_counts[x])]))
+    result_vector = None
+    for col in df_lineups.columns:
+        logger.info(col)
+        r = df_lineups[col].rank(method='min', ascending=False)
+        logger.info(r)
+        rank_counts = r.value_counts()
+        prizes = r.map(lambda x: numpy.mean([prize_lookup.get(str(float(r)), 0.0) for r in range(int(x),int(x)+rank_counts[x])]))
+        # v = df_lineups[col].rank(method='min', ascending=False).map(lambda x: numpy.mean([prize_lookup.get(str(float(r)), 0.0) for r in range(int(x),int(x) + df_lineups[col].rank(method='min', ascending=False).value_counts()[x])])).to_numpy()
+
+        if result_vector is None:
+            result_vector = numpy.array(prizes)
+        else:
+            result_vector += numpy.array(prizes)
+
+    # df_ranks = df_lineups.rank(method='min', ascending=False)
+    # logger.info(df_ranks)
+    # logger.info(f'ranking lineups took {time.time() - start}s')
+    # start = time.time()
+    # df_lineups['rank_count'] = df_lineups['rank'].map(df_lineups['rank'].value_counts())
+    # rank_counts = df_lineups['rank'].value_counts()
+    # df_lineups['prize'] = df_lineups['rank'].map(lambda x: numpy.mean([prize_lookup.get(str(float(r)), 0.0) for r in range(int(x),int(x)+rank_counts[x])]))
     logger.info(f'payouts took {time.time() - start}s')
 
-    return df_lineups['prize'].to_list()
+    return result_vector.tolist()
+    # return df_lineups['prize'].to_list()
 
 
 @shared_task
