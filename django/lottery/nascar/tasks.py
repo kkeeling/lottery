@@ -2302,7 +2302,7 @@ def start_contest_simulation(backtest_id, task_id):
         chord([
             chord([
                 simulate_contest_by_iteration.si(prize_lookup, backtest.id, df_lineups[i + j].to_json(orient='index')) for i in range(0, chunk_size)
-            ], combine_contest_sim_results.s()) for j in range(0, backtest.contest.sim.iterations, chunk_size)
+            ], combine_contest_sim_results.s()) for j in range(0, 2000, chunk_size)
         ], contest_simulation_complete.s(
             backtest.id, 
             task.id
