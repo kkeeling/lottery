@@ -2299,11 +2299,11 @@ def start_contest_simulation(backtest_id, task_id):
         df_lineups = df_lineups.set_index('id')
 
         chunk_size = 500
-        chord([
+        chord(group([
             chord([
                 simulate_contest_by_iteration.si(prize_lookup, backtest.id, df_lineups[i + j].to_json(orient='index')) for i in range(0, chunk_size)
             ], combine_contest_sim_results.s()) for j in range(0, 5000, chunk_size)
-        ], contest_simulation_complete.s(
+        ]), contest_simulation_complete.s(
             backtest.id, 
             task.id
         ))()
