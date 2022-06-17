@@ -1176,6 +1176,7 @@ class ContestBacktestAdmin(admin.ModelAdmin):
     list_display = (
         'contest',
         'exclude_entries_by',
+        'get_results_link',
         'run_button',
     )
 
@@ -1186,6 +1187,11 @@ class ContestBacktestAdmin(admin.ModelAdmin):
         ]
         return my_urls + urls
 
+    def get_results_link(self, obj):
+        if obj.entry_outcomes.all().count() > 0:
+            return mark_safe('<a href="/admin/nascar/contestbacktestentry/?backtest__id={}">Results</a>'.format(obj.id))
+        return 'None'
+    get_results_link.short_description = 'Results'
 
     def run_backtest(self, request, pk):
         context = dict(
@@ -1231,26 +1237,23 @@ class ContestBacktestAdmin(admin.ModelAdmin):
 class ContestBacktestEntryAdmin(admin.ModelAdmin):
     list_display = (
         'entry',
-        'amount_won',
-        'roi',
+        'get_amount_won',
+        'get_roi',
     )
     raw_id_fields = (
         'backtest',
         'entry',
     )
-
-
-@admin.register(models.ContestBacktestEntryResult)
-class ContestBacktestEntryAdmin(admin.ModelAdmin):
-    list_display = (
-        'entry',
-        'iteration',
-        'score',
-        'rank',
-        'rank_count', 
-        'prize',
+    search_fields = (
+        'entry__entry_name',
     )
-    raw_id_fields = (
-        'backtest',
-        'entry',
-    )
+
+    def get_amount_won(self, obj):
+        return '${:.2f}'.format(obj.amount_won)
+    get_amount_won.short_description = 'amount_won'
+    get_amount_won.admin_order_field = 'amount_won'
+
+    def get_roi(self, obj):
+        return '{:.2f}%'.format(obj.roi * 100)
+    get_roi.short_description = 'roi'
+    get_roi.admin_order_field = 'roi'
