@@ -2328,24 +2328,24 @@ def simulate_contest_by_iteration(prize_lookup, backtest_id, lineups, exclude_li
     # start = time.time()
     # a = [[l.id, l.sim_scores[iteration]] for l in entries.iterator()]
     # logger.info(f'creating lineup arrays took {time.time() - start}s')
-    start = time.time()
+    # start = time.time()
     # df_lineups = pandas.DataFrame(a, columns=['entry_id', 'score'])
     df_lineups = pandas.read_json(lineups, orient='index')
     # df_lineups['backtest_id'] = backtest.id
     # df_lineups['iteration'] = iteration
     # df_lineups['id'] = df_lineups['entry_id']
-    logger.info(f'loading lineups dataframe took {time.time() - start}s')
+    # logger.info(f'loading lineups dataframe took {time.time() - start}s')
     # start = time.time()
     # df_lineups = df_lineups.set_index('id')
     # logger.info(f'setting lineups dataframe index took {time.time() - start}s')
-    start = time.time()
+    # start = time.time()
     df_lineups['rank'] = df_lineups[0].rank(method='min', ascending=False)
-    logger.info(f'ranking lineups took {time.time() - start}s')
-    start = time.time()
+    # logger.info(f'ranking lineups took {time.time() - start}s')
+    # start = time.time()
     df_lineups['rank_count'] = df_lineups['rank'].map(df_lineups['rank'].value_counts())
     rank_counts = df_lineups['rank'].value_counts()
     df_lineups['prize'] = df_lineups['rank'].map(lambda x: numpy.mean([prize_lookup.get(str(float(r)), 0.0) for r in range(int(x),int(x)+rank_counts[x])]))
-    logger.info(f'payouts took {time.time() - start}s')
+    # logger.info(f'payouts took {time.time() - start}s')
 
     return df_lineups['prize'].to_list()
 
