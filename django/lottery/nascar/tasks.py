@@ -2324,9 +2324,9 @@ def simulate_contest_by_iteration(prize_lookup, backtest_id, iteration, lineups,
     if exclude_lineups_with_username is not None:
         entries = entries.exclude(entry_name__istartswith=exclude_lineups_with_username)
 
-    start = time.time()
+    # start = time.time()
     # a = [[l.id, l.sim_scores[iteration]] for l in entries.iterator()]
-    logger.info(f'creating lineup arrays took {time.time() - start}s')
+    # logger.info(f'creating lineup arrays took {time.time() - start}s')
     start = time.time()
     # df_lineups = pandas.DataFrame(a, columns=['entry_id', 'score'])
     df_lineups = pandas.read_json(lineups, orient='index')
