@@ -2294,7 +2294,7 @@ def start_contest_simulation(backtest_id, task_id):
             for rank in range(prize.min_rank, prize.max_rank+1):
                 prize_lookup[float(rank)] = float(prize.prize)
 
-        a = [[l.id] + l.sim_scores for l in backtest.contest.entries.all().iterator()]
+        a = [[l.id] + l.sim_scores for l in backtest.contest.entries.all().order_by('entry_id').iterator()]
         df_lineups = pandas.DataFrame(a, columns=['id'] + [i for i in range(0, backtest.contest.sim.iterations)])
         df_lineups = df_lineups.set_index('id')
 
@@ -2302,7 +2302,7 @@ def start_contest_simulation(backtest_id, task_id):
         chord([
             chord([
                 simulate_contest_by_iteration.si(prize_lookup, backtest.id, df_lineups[i + j].to_json(orient='index')) for i in range(0, chunk_size)
-            ], combine_contest_sim_results.s()) for j in range(0, 5000, chunk_size)
+            ], combine_contest_sim_results.s()) for j in range(0, backtest.contest.sim.iterations, chunk_size)
         ], contest_simulation_complete.s(
             backtest.id, 
             task.id
