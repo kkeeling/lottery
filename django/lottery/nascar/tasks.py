@@ -2298,7 +2298,7 @@ def start_contest_simulation(backtest_id, task_id):
         df_lineups = pandas.DataFrame(a, columns=['id'] + [i for i in range(0, backtest.contest.sim.iterations)])
         df_lineups = df_lineups.set_index('id')
 
-        chunk_size = 1000
+        chunk_size = 2000
         chord([
             chord([
                 simulate_contest_by_iteration.si(prize_lookup, backtest.id, df_lineups[i + j].to_json(orient='index')) for i in range(0, chunk_size)
