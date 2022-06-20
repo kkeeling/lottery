@@ -705,12 +705,12 @@ class RaceSimLineupAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
-        'player_1__slate_player__name',
-        'player_2__slate_player__name',
-        'player_3__slate_player__name',
-        'player_4__slate_player__name',
-        'player_5__slate_player__name',
-        'player_6__slate_player__name',
+        'player_1__driver__full_name',
+        'player_2__driver__full_name',
+        'player_3__driver__full_name',
+        'player_4__driver__full_name',
+        'player_5__driver__full_name',
+        'player_6__driver__full_name',
     )
 
     list_filter = (
