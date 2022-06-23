@@ -131,33 +131,33 @@ def process_contest(contest_id, task_id):
                 )   
 
             # Process entries from contest file
-            # if contest.entries_file:
-            #     models.ContestEntry.objects.filter(contest=contest).delete()
-            #     try:
-            #         with open(contest.entries_file.path, mode='r') as entries_file:
-            #             csv_reader = csv.DictReader(entries_file)
+            if contest.entries_file:
+                models.ContestEntry.objects.filter(contest=contest).delete()
+                try:
+                    with open(contest.entries_file.path, mode='r') as entries_file:
+                        csv_reader = csv.DictReader(entries_file)
                         
-            #             jobs = []
-            #             for row in csv_reader:
-            #                 lineup = []
-            #                 for item in re.finditer(r"((D)|(CPT)|(CNSTR)) [A-z]+ [A-z]*( Jr)?", row['Lineup']):
-            #                     lineup.append(item[0])
+                        jobs = []
+                        for row in csv_reader:
+                            lineup = []
+                            for item in re.finditer(r"((D)|(CPT)|(CNSTR)) [A-z]+ [A-z]*( Jr)?", row['Lineup']):
+                                lineup.append(item[0])
 
-            #                 jobs.append(
-            #                     process_contest_entry.si(
-            #                         row['EntryId'],
-            #                         row['EntryName'],
-            #                         row['Lineup'],
-            #                         lineup,
-            #                         contest.id
-            #                     )
-            #                 )
+                            jobs.append(
+                                process_contest_entry.si(
+                                    row['EntryId'],
+                                    row['EntryName'],
+                                    row['Lineup'],
+                                    lineup,
+                                    contest.id
+                                )
+                            )
 
-            #             chord(jobs,
-            #                 process_contest_complete.si(contest.id, task.id)
-            #             )()
-            #     except ValueError:
-            #         pass            
+                        chord(jobs,
+                            process_contest_complete.si(contest.id, task.id)
+                        )()
+                except ValueError:
+                    pass            
             
             if contest.prizes_file:
                 models.ContestPrize.objects.filter(contest=contest).delete()
@@ -170,25 +170,6 @@ def process_contest(contest_id, task_id):
                 models.ContestPrize.objects.bulk_create(
                     models.ContestPrize(**vals) for vals in df_prizes.to_dict('records')
                 )   
-
-                # try:
-                #     with open(contest.prizes_file.path, mode='r') as prizes_file:
-                #         csv_reader = csv.DictReader(prizes_file)
-
-                #         for row in csv_reader:
-                #             logger.info(row)
-                #             min_rank = int(row['min'])
-                #             max_rank = int(row['max'])
-                #             prize = float(row['amount'])
-
-                #             models.ContestPrize.objects.create(
-                #                 contest=contest,
-                #                 min_rank=min_rank,
-                #                 max_rank=max_rank,
-                #                 prize=prize
-                #             )
-                # except ValueError:
-                #     pass
 
     except Exception as e:
         if task is not None:
