@@ -134,6 +134,8 @@ class ContestBacktestEntryAdmin(admin.ModelAdmin):
         'entry',
         'get_amount_won',
         'get_roi',
+        'get_lineup',
+        'get_dup_count',
     )
     raw_id_fields = (
         'backtest',
@@ -152,3 +154,12 @@ class ContestBacktestEntryAdmin(admin.ModelAdmin):
         return '{:.2f}%'.format(obj.roi * 100)
     get_roi.short_description = 'roi'
     get_roi.admin_order_field = 'roi'
+
+    def get_lineup(self, obj):
+        return f'{obj.entry.lineup_str}'
+    get_lineup.short_description = 'lineup'
+
+    def get_dup_count(self, obj):
+        lineup_str = obj.entry.lineup_str
+        return models.ContestEntry.objects.filter(contest=obj.backtest.contest, lineup_str=lineup_str).count()
+    get_dup_count.short_description = 'dup'
