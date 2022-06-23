@@ -721,13 +721,70 @@ def export_results(sim_id, result_path, result_url, task_id):
         df_fp_results = pandas.DataFrame(fp_list, index=range(0, race_sim.outcomes.filter(dk_position='D').count()), columns=list(race_sim.outcomes.filter(dk_position='D').order_by('starting_position', 'id').values_list('driver__full_name', flat=True)))
 
         # FL outcomes
-        # df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
+        df_fl = pandas.DataFrame([d.fl_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
 
         # LL outcomes
-        # df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
+        df_ll = pandas.DataFrame([d.ll_outcomes for d in race_sim.outcomes.filter(dk_position='D')], index=[d.driver.full_name for d in race_sim.outcomes.filter(dk_position='D')]).transpose()
 
         # DK
         # df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        # df_dk = pandas.DataFrame(data={
+        #     'pos': [d.dk_position for d in race_sim.outcomes.all()],
+        #     'sal': [d.dk_salary for d in race_sim.outcomes.all()],
+        #     'start': [d.starting_position for d in race_sim.outcomes.all()],
+        #     '50p': [numpy.percentile(d.dk_scores, float(50)) for d in race_sim.outcomes.all()],
+        #     '60p': [numpy.percentile(d.dk_scores, float(60)) for d in race_sim.outcomes.all()],
+        #     '70p': [numpy.percentile(d.dk_scores, float(70)) for d in race_sim.outcomes.all()],
+        #     '80p': [numpy.percentile(d.dk_scores, float(80)) for d in race_sim.outcomes.all()],
+        #     '90p': [numpy.percentile(d.dk_scores, float(90)) for d in race_sim.outcomes.all()],
+        #     'gto': [d.gto for d in race_sim.outcomes.all()]
+        # }, index=[d.dk_name for d in race_sim.outcomes.all()])
+
+        # GTO Lineups
+        # df_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
+        #     'cpt__dk_name', 'flex_1__dk_name', 'flex_2__dk_name', 'flex_3__dk_name', 'flex_4__dk_name', 'constructor__dk_name', 'total_salary', 'median', 's75', 's90', 'count'
+        # ))
+        
+        with pandas.ExcelWriter(result_path) as writer:
+            df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
+            df_fp_results.to_excel(writer, sheet_name='Finishing Position Distribution')
+            df_fl.to_excel(writer, sheet_name='Fastest Laps Raw')
+            df_ll.to_excel(writer, sheet_name='Laps Led Raw')
+            # df_dk.to_excel(writer, sheet_name='DK')
+            # df_dk_raw.to_excel(writer, sheet_name='DK Raw')
+            # df_lineups.to_excel(writer, sheet_name='Lineups')
+
+        print(f'export took {time.time() - start}s')
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error exporting FP results: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def export_dk_results(sim_id, result_path, result_url, task_id):
+    task = None
+
+    try:
+        start = time.time()
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        race_sim = models.RaceSim.objects.get(id=sim_id)
+
+        # DK
+        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[f'CNSTR {d.dk_name}' if d.driver is None else f'{d.dk_position} {d.dk_name}' for d in race_sim.outcomes.all()]).transpose()
         df_dk = pandas.DataFrame(data={
             'pos': [d.dk_position for d in race_sim.outcomes.all()],
             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
@@ -744,14 +801,10 @@ def export_results(sim_id, result_path, result_url, task_id):
         df_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
             'cpt__dk_name', 'flex_1__dk_name', 'flex_2__dk_name', 'flex_3__dk_name', 'flex_4__dk_name', 'constructor__dk_name', 'total_salary', 'median', 's75', 's90', 'count'
         ))
-        
+
         with pandas.ExcelWriter(result_path) as writer:
-            # df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
-            df_fp_results.to_excel(writer, sheet_name='Finishing Position Distribution')
-            # df_fl.to_excel(writer, sheet_name='Fastest Laps Raw')
-            # df_ll.to_excel(writer, sheet_name='Laps Led Raw')
             df_dk.to_excel(writer, sheet_name='DK')
-            # df_dk_raw.to_excel(writer, sheet_name='DK Raw')
+            df_dk_raw.to_excel(writer, sheet_name='DK Raw')
             df_lineups.to_excel(writer, sheet_name='Lineups')
 
         print(f'export took {time.time() - start}s')
@@ -762,7 +815,7 @@ def export_results(sim_id, result_path, result_url, task_id):
     except Exception as e:
         if task is not None:
             task.status = 'error'
-            task.content = f'There was an error exporting FP results: {e}'
+            task.content = f'There was an error exporting DK results: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))

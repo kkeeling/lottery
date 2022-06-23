@@ -321,6 +321,18 @@ class RaceSim(models.Model):
         )
     sim_button.short_description = ''
 
+    def export_all_results_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #2563EB; font-weight: bold; padding: 10px 15px;">Results</a>',
+            reverse_lazy("admin:f1_admin_slate_export_results", args=[self.pk])
+        )
+    export_all_results_button.short_description = ''
+
+    def export_dk_results_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #2563EB; font-weight: bold; padding: 10px 15px;">DK</a>',
+            reverse_lazy("admin:f1_admin_slate_export_dk", args=[self.pk])
+        )
+    export_dk_results_button.short_description = ''
+
 
 class RaceSimFastestLapsProfile(models.Model):
     sim = models.ForeignKey(RaceSim, related_name='fl_profiles', on_delete=models.CASCADE)

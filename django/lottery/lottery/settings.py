@@ -87,7 +87,8 @@ INSTALLED_APPS = (
     'nfl_sd',
     'tennis',
     'nascar',
-    'formula_1'
+    'formula_1',
+    'backtesting',
 )
 
 MIDDLEWARE = (

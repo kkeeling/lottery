@@ -1623,7 +1623,7 @@ def export_results(sim_id, result_path, result_url, task_id):
         df_pen = pandas.DataFrame([d.penalty_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         # DK
-        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.constructor.name if d.driver is None else d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
+        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.dk_name for d in race_sim.outcomes.all()]).transpose()
         df_dk = pandas.DataFrame(data={
             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
             'start': [d.starting_position for d in race_sim.outcomes.all()],
