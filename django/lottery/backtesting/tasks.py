@@ -36,7 +36,6 @@ def lock_task(key, timeout=None):
 @shared_task
 def process_contest_entry(entry_id, entry_name, lineup_str, lineup, contest_id):
     contest = models.Contest.objects.get(id=contest_id)
-    logger.info(lineup)
 
     alias1 = lineup[0].strip().replace('á', 'a')
     player1 = models.ContestEntryPlayer.objects.get(
@@ -47,22 +46,12 @@ def process_contest_entry(entry_id, entry_name, lineup_str, lineup, contest_id):
     # lineup list has emptry string as first elemenet
     if len(lineup) > 1:
         alias2 = lineup[1].strip().replace('á', 'a')
-        logger.info(alias2)
-        logger.info(models.ContestEntryPlayer.objects.filter(
-            contest=contest,
-            name__startswith=alias2
-        ))
         player2 = models.ContestEntryPlayer.objects.get(
             contest=contest,
             name__startswith=alias2
         )
     if len(lineup) > 2:
         alias3 = lineup[2].strip().replace('á', 'a')
-        logger.info(alias3)
-        logger.info(models.ContestEntryPlayer.objects.filter(
-            contest=contest,
-            name__startswith=alias3
-        ))
         player3 = models.ContestEntryPlayer.objects.get(
             contest=contest,
             name__startswith=alias3
@@ -143,15 +132,16 @@ def process_contest(contest_id, task_id):
                             for item in re.finditer(r"((D)|(CPT)|(CNSTR)) [A-z]+ [A-z]*( Jr)?", row['Lineup']):
                                 lineup.append(item[0])
 
-                            jobs.append(
-                                process_contest_entry.si(
-                                    row['EntryId'],
-                                    row['EntryName'],
-                                    row['Lineup'],
-                                    lineup,
-                                    contest.id
+                            if len(lineup) > 0:
+                                jobs.append(
+                                    process_contest_entry.si(
+                                        row['EntryId'],
+                                        row['EntryName'],
+                                        row['Lineup'],
+                                        lineup,
+                                        contest.id
+                                    )
                                 )
-                            )
 
                         chord(jobs,
                             process_contest_complete.si(contest.id, task.id)
