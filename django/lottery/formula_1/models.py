@@ -300,8 +300,7 @@ class RaceSim(models.Model):
     run_with_gto = models.BooleanField(default=True)
     run_with_lineup_rankings = models.BooleanField(default=False)
 
-    # variance data
-    # ll_mean = models.IntegerField(default=1)
+    for_backtest = models.BooleanField(default=False)
 
     def __str__(self):
         return f'{self.race} Sim {self.id}'

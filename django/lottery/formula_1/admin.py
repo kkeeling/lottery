@@ -276,6 +276,7 @@ class RaceSimAdmin(admin.ModelAdmin):
         'race',
         'iterations',
         'run_with_gto',
+        'for_backtest',
         'export_template_button',
         'sim_button',
         'export_all_results_button',
@@ -289,13 +290,16 @@ class RaceSimAdmin(admin.ModelAdmin):
     raw_id_fields = (
         'race',
     )
+    list_filter = (
+        'for_backtest',
+    )
     inlines = [
         RaceSimFastestLapsInline,
         RaceSimNumLeadersInline,
         RaceSimLapsLedInline,
         RaceSimDriverInline
     ]
-    actions = ['calculate_driver_gto']
+    actions = ['calculate_driver_gto', 'create_backtest_sim']
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -489,6 +493,16 @@ class RaceSimAdmin(admin.ModelAdmin):
             f'Finding driver GTO for {queryset.count()} races'
         )
     calculate_driver_gto.short_description = 'Calculate Driver GTO'
+
+    def create_backtest_sim(self, request, queryset):
+        for sim in queryset:
+            sim.id = None
+            sim.for_backtest = True
+            sim.save()
+
+            self.process_sim(request, sim)
+
+    create_backtest_sim.short_description = 'Create out of sample sims'
 
 
 @admin.register(models.RaceSimLineup)
