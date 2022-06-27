@@ -1622,25 +1622,6 @@ def export_results(sim_id, result_path, result_url, task_id):
         # penalty outcomes
         df_pen = pandas.DataFrame([d.penalty_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
-        # DK
-        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[d.dk_name for d in race_sim.outcomes.all()]).transpose()
-        df_dk = pandas.DataFrame(data={
-            'sal': [d.dk_salary for d in race_sim.outcomes.all()],
-            'start': [d.starting_position for d in race_sim.outcomes.all()],
-            '50p': [numpy.percentile(d.dk_scores, float(50)) for d in race_sim.outcomes.all()],
-            '60p': [numpy.percentile(d.dk_scores, float(60)) for d in race_sim.outcomes.all()],
-            '70p': [numpy.percentile(d.dk_scores, float(70)) for d in race_sim.outcomes.all()],
-            '80p': [numpy.percentile(d.dk_scores, float(80)) for d in race_sim.outcomes.all()],
-            '90p': [numpy.percentile(d.dk_scores, float(90)) for d in race_sim.outcomes.all()],
-            'gto': [d.gto for d in race_sim.outcomes.all()],
-            'op': [d.dk_op for d in race_sim.outcomes.all()]
-        }, index=[d.dk_name for d in race_sim.outcomes.all()])
-
-        # GTO Lineups
-        dk_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
-            'player_1__dk_name', 'player_2__dk_name', 'player_3__dk_name', 'player_4__dk_name', 'player_5__dk_name', 'player_6__dk_name', 'total_salary', 'median', 's75', 's90', 'rank_median', 'rank_s75', 'rank_s90', 'count', 'dup_projection'
-        ))
-
         with pandas.ExcelWriter(result_path) as writer:
             df_sr.to_excel(writer, sheet_name='Speed Rank Raw')
             df_sr_results.to_excel(writer, sheet_name='Speed Rank Distribution')
@@ -1650,9 +1631,6 @@ def export_results(sim_id, result_path, result_url, task_id):
             df_ll.to_excel(writer, sheet_name='Laps Led Raw')
             df_dam.to_excel(writer, sheet_name='Damage Raw')
             df_pen.to_excel(writer, sheet_name='Penalty Raw')
-            df_dk.to_excel(writer, sheet_name='DK')
-            df_dk_raw.to_excel(writer, sheet_name='DK Raw')
-            dk_lineups.to_excel(writer, sheet_name='DK Lineups')
 
         print(f'export took {time.time() - start}s')
         task.status = 'download'
@@ -1684,6 +1662,7 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
         race_sim = models.RaceSim.objects.get(id=sim_id)
 
         # DK
+        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[f'D {d.dk_name}' for d in race_sim.outcomes.all()]).transpose()
         df_dk = pandas.DataFrame(data={
             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
             'start': [d.starting_position for d in race_sim.outcomes.all()],
@@ -1703,6 +1682,7 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
 
         with pandas.ExcelWriter(result_path) as writer:
             df_dk.to_excel(writer, sheet_name='DK')
+            df_dk_raw.to_excel(writer, sheet_name='DK Raw')
             dk_lineups.to_excel(writer, sheet_name='DK Lineups')
 
         print(f'export took {time.time() - start}s')
