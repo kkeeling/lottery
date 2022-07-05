@@ -223,7 +223,10 @@ def start_contest_simulation(backtest_id, task_id):
         df_lineups = df_lineups.set_index('id')
 
         chunk_size = int(backtest.contest.num_iterations / 10)
+
+        # combining workflow combines the results from each iteration workflow
         chord([
+            # iteration workflow simulates contest N times, where N = chunk_size, returning the results to combine_contest_sim_results
             chord([
                 simulate_contest_by_iteration.si(prize_lookup, backtest.id, df_lineups[i + j].to_json(orient='index')) for i in range(0, chunk_size)
             ], combine_contest_sim_results.s()) for j in range(0, backtest.contest.num_iterations, chunk_size)
