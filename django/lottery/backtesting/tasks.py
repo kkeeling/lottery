@@ -222,7 +222,7 @@ def start_contest_simulation(backtest_id, task_id):
         df_lineups = pandas.DataFrame(a, columns=['id'] + [i for i in range(0, backtest.contest.num_iterations)])
         df_lineups = df_lineups.set_index('id')
 
-        chunk_size = int(backtest.contest.num_iterations / 10)
+        chunk_size = int(backtest.contest.num_iterations / 8)
 
         # combining workflow combines the results from each iteration workflow
         chord([
@@ -302,12 +302,7 @@ def contest_simulation_complete(results, backtest_id, task_id):
 
         backtest = models.ContestBacktest.objects.get(id=backtest_id)
         
-        total_result = None
-        for result in results:
-            if total_result is None:
-                total_result = numpy.array(result)
-            else:
-                total_result += numpy.array(result)
+        total_result = numpy.array(result)
         
         entries = backtest.contest.entries.all().order_by('entry_id')
         df_result = pandas.DataFrame.from_records(entries.values('id'))
