@@ -199,6 +199,45 @@ def process_contest_complete(contest_id, task_id):
 
 
 @shared_task
+def export_entries(contest_id, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        contest = models.Contest.objects.get(id=contest_id)
+        df_entries = pandas.DataFrame.from_records(contest.entries.all().values(
+            'entry_id',
+            'entry_name',
+            'lineup_str',
+            'player_1__name',
+            'player_2__name',
+            'player_3__name',
+            'player_4__name',
+            'player_5__name',
+            'player_6__name',
+        ))
+        df_entries.to_csv(result_path)
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error exporting entries: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def start_contest_simulation(backtest_id, task_id):
     task = None
 
@@ -302,7 +341,7 @@ def contest_simulation_complete(results, backtest_id, task_id):
 
         backtest = models.ContestBacktest.objects.get(id=backtest_id)
         
-        total_result = numpy.array(result)
+        total_result = numpy.array(results)
         
         entries = backtest.contest.entries.all().order_by('entry_id')
         df_result = pandas.DataFrame.from_records(entries.values('id'))

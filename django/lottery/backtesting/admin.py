@@ -1,5 +1,9 @@
+import datetime
+import os
+
 from celery import shared_task, chord, group, chain
 
+from django.conf import settings
 from django.contrib import admin, messages
 from django.shortcuts import redirect, get_object_or_404
 from django.urls import path
@@ -27,6 +31,9 @@ class ContestAdmin(admin.ModelAdmin):
     inlines = [
         ContestPrizeInline
     ]
+    actions = [
+        'export_entries'
+    ]
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -44,6 +51,31 @@ class ContestAdmin(admin.ModelAdmin):
             request,
             messages.WARNING,
             'Your contest is being processed. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the contest is ready.')
+
+    def export_entries(self, request, queryset):
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+
+        jobs = [
+            tasks.export_entries.si(
+                contest.id,
+                os.path.join(os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username), f'{contest.name} Entries - {timestamp}.csv'),
+                '/media/temp/{}/{}'.format(request.user.username, f'{contest.name} Entries - {timestamp}.csv'),
+                BackgroundTask.objects.create(
+                    name=f'Export {contest.name} entries',
+                    user=request.user
+                ).id
+            ) for contest in queryset
+        ]
+        chain(jobs)()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your export is being compiled. You may continue while you\'re waiting. A new message will appear here once your export is ready.')
+    export_entries.short_description = 'Export entries for selected contests'
 
 
 @admin.register(models.ContestEntryPlayer)
