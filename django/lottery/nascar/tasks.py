@@ -1123,7 +1123,8 @@ def execute_sim_iteration(sim_id):
     for index, ll_val in enumerate(ll_vals):
     # for index, llp in enumerate(race_sim.ll_profiles.all().order_by('-pct_laps_led_min')):
         llp = profiles[index]
-        ll_index = int(numpy.where(fl_ranks == llp.rank_order)[0][0])
+        # ll_index = int(numpy.where(fl_ranks == llp.rank_order)[0][0])
+        ll_index = int(numpy.where(orig_speed_ranks == llp.rank_order)[0][0])
         # ll_index = randrange(llp.eligible_fl_min, llp.eligible_fl_max+1)
         # print(f'index = {index}; llp = {llp}; ll_val = {ll_val}; ll_index = {ll_index}')
         # while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
@@ -1138,7 +1139,8 @@ def execute_sim_iteration(sim_id):
     # there may be remaining LL, assign using lowest profile in tranches of 5
     # llp = race_sim.ll_profiles.all().order_by('-rank_order').last()
     while ll_laps_remaining > 0:
-        ll_index = int(numpy.where(fl_ranks == randrange(1, 11))[0][0])
+        # ll_index = int(numpy.where(fl_ranks == randrange(1, 11))[0][0])
+        ll_index = int(numpy.where(orig_speed_ranks == randrange(1, 11))[0][0])
         # while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
         #     ll_index = randrange(1, 21)
 
