@@ -969,14 +969,14 @@ def execute_sim_iteration(sim_id):
     else:
         race_variance = race_sim.track_variance
     
-    if total_cautions <= 7:
-        race_variance += 0
-    elif total_cautions <= 10:
-        race_variance += 1
-    elif total_cautions <= 13:
-        race_variance += 2
-    elif total_cautions >= 14:
-        race_variance += 3
+    # if total_cautions <= 7:
+    #     race_variance += 0
+    # elif total_cautions <= 10:
+    #     race_variance += 1
+    # elif total_cautions <= 13:
+    #     race_variance += 2
+    # elif total_cautions >= 14:
+    #     race_variance += 3
 
     # Assign finishing position
     fp_vals = []
@@ -1023,7 +1023,7 @@ def execute_sim_iteration(sim_id):
     # print(fp_ranks)
 
     # Assign fastest laps
-    caution_laps = int(total_cautions * race_sim.laps_per_caution)
+    caution_laps = int((total_cautions + race_sim.race.num_stages() - 1) * race_sim.laps_per_caution)
     fl_laps = race_sim.race.scheduled_laps - caution_laps
     # fl_vals = [max(int(randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100), 1)/100 * fl_laps), 1) for p in race_sim.fl_profiles.all().order_by('-pct_laps_led_min')]
 
