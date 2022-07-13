@@ -1035,23 +1035,24 @@ def execute_sim_iteration(sim_id):
     cum = 0
     for p in race_sim.fl_profiles.all().order_by('eligible_speed_min'):
         pct = randrange(int(p.pct_fastest_laps_min*100), max(int(p.pct_fastest_laps_max*100), 1) + 1, 1) if p.pct_fastest_laps_min < p.pct_fastest_laps_max else int(p.pct_fastest_laps_min*100)
-        cum_min = int(p.cum_fastest_laps_min * 100)
-        cum_max = int(p.cum_fastest_laps_max * 100)
+        cum_min = int(p.cum_fastest_laps_min * fl_laps)
+        cum_max = int(p.cum_fastest_laps_max * fl_laps)
+        v = max(int((pct/100) * fl_laps), 1)
         
         attempts = 0
-        while (cum + pct < cum_min or cum + pct > cum_max) and attempts < 10:
+        while (cum + v < cum_min or cum + v > cum_max) and attempts < 10:
             pct = randrange(int(p.pct_fastest_laps_min*100), max(int(p.pct_fastest_laps_max*100), 1) + 1, 1)
+            v = max(int((pct/100) * fl_laps), 1)
             attempts += 1
             # print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_fastest_laps_min*100)}; max = {int(p.pct_fastest_laps_max*100)+1}')
         
-        if attempts == 20:
+        if attempts == 10:
             break
 
-        cum += pct
-        v = max(int((pct/100) * fl_laps), 1)
+        cum += v
         fl_vals.append(v)
 
-        if cum >= 100:  # if we run out before we get to the last profile
+        if cum >= fl_laps:  # if we run out before we get to the last profile
             break
 
     # logger.info(f'fl_vals = {sum(fl_vals)}')
@@ -1107,6 +1108,7 @@ def execute_sim_iteration(sim_id):
         attempts = 0
         while (cum + v < cum_min or cum + v > cum_max) and attempts < 10:
             pct = randrange(int(p.pct_laps_led_min*100), max(int(p.pct_laps_led_max*100), 1) + 1, 1)
+            v = max(int((pct/100) * ll_laps), 1)
             attempts += 1
             # print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_laps_led_min*100)}; max = {int(p.pct_laps_led_max*100)+1}')
         
