@@ -1024,6 +1024,10 @@ def execute_sim_iteration(sim_id):
 
     # Assign fastest laps
     caution_laps = int((total_cautions + race_sim.race.num_stages() - 1) * race_sim.laps_per_caution)
+    # logger.info(f'total_cautions = {total_cautions}')
+    # logger.info(f'race_sim.race.num_stages() = {race_sim.race.num_stages()}')
+    # logger.info(f'race_sim.laps_per_caution = {race_sim.laps_per_caution}')
+    # logger.info(f'caution_laps = {caution_laps}')
     fl_laps = race_sim.race.scheduled_laps - caution_laps
     # fl_vals = [max(int(randrange(int(p.pct_laps_led_min*100), int(p.pct_laps_led_max*100), 1)/100 * fl_laps), 1) for p in race_sim.fl_profiles.all().order_by('-pct_laps_led_min')]
 
@@ -1050,14 +1054,14 @@ def execute_sim_iteration(sim_id):
         if cum >= 100:  # if we run out before we get to the last profile
             break
 
-    fl_laps_remaining = fl_laps
+    # logger.info(f'fl_vals = {sum(fl_vals)}')
+    # logger.info(f'fl_laps = {fl_laps}')
     fl_laps_assigned = []
     profiles = list(race_sim.fl_profiles.all().order_by('eligible_speed_min'))
     for index, fl_val in enumerate(fl_vals):
     # for index, flp in enumerate(race_sim.fl_profiles.all().order_by('-pct_fastest_laps_min')):
         flp = profiles[index]
         fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
-        # print(f'index = {index}; fl_val = {fl_val}; fl_index = {fl_index}')
         # while fl_index in fl_laps_assigned:  # only assign FL to drivers that haven't gotten any yet
         #     fl_index = randrange(flp.eligible_speed_min, flp.eligible_speed_max+1)
 
@@ -1065,22 +1069,27 @@ def execute_sim_iteration(sim_id):
         # if fl_val >= 30 and orig_speed_ranks.tolist()[sp_index] >= 5:
         #     print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}; driver={drivers[sp_index]}')
         driver_fl[sp_index] = fl_val # fl_vals[index]
-        fl_laps_assigned.append(fl_index)
-
-        fl_laps_remaining -= fl_val # fl_vals[index]
+        fl_laps_assigned.append(fl_val)
+        # logger.info(f'index = {index}; fl_val = {fl_val}; fl_index = {fl_index}; fl_laps_assigned = {sum(fl_laps_assigned)}')
         
+    # logger.info(f'interim_fl_laps_assigned = {sum(fl_laps_assigned)}')
+    fl_laps_remaining = fl_laps - sum(fl_laps_assigned)
+
     # there may be remaining FL, assign using lowest profile
     # flp = race_sim.fl_profiles.all().order_by('-pct_fastest_laps_min').last()
     while fl_laps_remaining > 0:
-        # print(f'{fl_laps_remaining} fl laps remaining out of {fl_laps}')
         fl_index = randrange(1, 6)  # extra FL goes to top 5 guys
         sp_index = int(numpy.where(orig_speed_ranks == fl_index)[0][0])
         fl_val = min(fl_laps_remaining, randrange(1, 3))
+        fl_laps_remaining -= fl_val
+        # logger.info(f'assigning {fl_val}')
+        # logger.info(f'fl_laps_remaining = {fl_laps_remaining}')
         # print(f'fl_index={fl_index}; sp_index={sp_index}; fl_val={fl_val}')
         driver_fl[sp_index] += fl_val
-        fl_laps_assigned.append(fl_index)
+        fl_laps_assigned.append(fl_val)
 
-        fl_laps_remaining -= fl_val
+    # logger.info(f'fl_laps_assigned = {sum(fl_laps_assigned)}')
+    # logger.info(f'driver_fl = {sum(driver_fl)}')
 
     # Assign laps led
     ll_laps = race_sim.race.scheduled_laps
@@ -1091,24 +1100,27 @@ def execute_sim_iteration(sim_id):
     cum = 0
     for p in race_sim.ll_profiles.all().order_by('rank_order'):
         pct = randrange(int(p.pct_laps_led_min*100), max(int(p.pct_laps_led_max*100), 1) + 1, 1) if p.pct_laps_led_min < p.pct_laps_led_max else int(p.pct_laps_led_min*100)
-        cum_min = int(p.cum_laps_led_min * 100)
-        cum_max = int(p.cum_laps_led_max * 100)
+        cum_min = int(p.cum_laps_led_min * ll_laps)
+        cum_max = int(p.cum_laps_led_max * ll_laps)
+        v = max(int((pct/100) * ll_laps), 1)
 
         attempts = 0
-        while (cum + pct < cum_min or cum + pct > cum_max) and attempts < 10:
+        while (cum + v < cum_min or cum + v > cum_max) and attempts < 10:
             pct = randrange(int(p.pct_laps_led_min*100), max(int(p.pct_laps_led_max*100), 1) + 1, 1)
             attempts += 1
             # print(f'cum = {cum}; pct = {pct}; min = {int(p.pct_laps_led_min*100)}; max = {int(p.pct_laps_led_max*100)+1}')
         
-        if attempts == 20:
+        if attempts == 10:
             break
         
-        cum += pct
-        v = max(int((pct/100) * ll_laps), 1)
+        cum += v
         ll_vals.append(v)
 
-        if cum >= 100:  # if we run out before we get to the last profile
+        if cum >= ll_laps:  # if we run out before we get to the last profile
             break
+
+    # logger.info(f'll_vals = {sum(ll_vals)}')
+    # logger.info(f'cum = {cum}')
 
     # -- Next find eligible drivers for LL by giving each driver a randbetween(0, FL%), then ranking each driver
     fl_rank_vals = []
@@ -1117,7 +1129,6 @@ def execute_sim_iteration(sim_id):
     fl_ranks = len(fl_rank_vals) + 1 - scipy.stats.rankdata(fl_rank_vals, method='ordinal')
 
     # -- Finally, award LL to drivers based on FL ranks
-    ll_laps_remaining = ll_laps
     ll_laps_assigned = []
     profiles = list(race_sim.ll_profiles.all().order_by('rank_order'))
     for index, ll_val in enumerate(ll_vals):
@@ -1132,9 +1143,11 @@ def execute_sim_iteration(sim_id):
 
         # sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
         driver_ll[ll_index] = ll_val # ll_vals[index]
-        ll_laps_assigned.append(ll_index)
+        ll_laps_assigned.append(ll_val)
 
-        ll_laps_remaining -= ll_val # ll_vals[index]
+    ll_laps_remaining = ll_laps - sum(ll_laps_assigned)
+    # logger.info(f'interim_ll_laps_assigned = {sum(ll_laps_assigned)}')
+    # logger.info(f'll_laps_remaining = {ll_laps_remaining}')
         
     # there may be remaining LL, assign using lowest profile in tranches of 5
     # llp = race_sim.ll_profiles.all().order_by('-rank_order').last()
@@ -1147,11 +1160,12 @@ def execute_sim_iteration(sim_id):
         # sp_index = int(numpy.where(final_ranks == ll_index)[0][0])
         ll_val = min(ll_laps_remaining, 5)
         driver_ll[ll_index] += ll_val
-        ll_laps_assigned.append(ll_index)
-
-        # print(driver_ll)
         ll_laps_remaining -= ll_val
-        
+        ll_laps_assigned.append(ll_val)
+
+    # logger.info(f'll_laps_assigned = {sum(ll_laps_assigned)}')
+    # logger.info(f'driver_ll = {sum(driver_ll)}')
+
     driver_dk = [
         (models.SITE_SCORING.get('draftkings').get('place_differential') * (driver_starting_positions[index] - fp_ranks.tolist()[index]) + 
         models.SITE_SCORING.get('draftkings').get('fastest_laps') * driver_fl[index] + 
