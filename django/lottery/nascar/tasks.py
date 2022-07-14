@@ -792,7 +792,7 @@ def execute_sim_iteration(sim_id):
                     # print(f'{involved_car} [{involved_car.id}] is out of the race')
                     race_drivers = list(filter((involved_car.id).__ne__, race_drivers))
                     dnf_drivers.append(involved_car)
-                    driver_damage[driver_index] = f'{stage} DNF'
+                    driver_damage[driver_index] = f'{stage}DNF'
 
         # assign penalties based on number of cautions
         if num_cautions == 0:
@@ -927,20 +927,20 @@ def execute_sim_iteration(sim_id):
     orig_speed_ranks = scipy.stats.rankdata(speed, method='ordinal')
 
     # Adjust incident-free speed ranks for damage (driver ranks move down based on when damage occurs)
-    # for index, driver in enumerate(drivers):
-    #     if race_sim.race.num_stages() == 4:
-    #         if driver_damage[index] == '3DNF' or driver_damage[index] == '3D':
-    #             orig_speed_ranks[index] += 2.1
-    #         elif driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
-    #             orig_speed_ranks[index] += 4.1
-    #         elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
-    #             orig_speed_ranks[index] += 6.1
-    #     else:
-    #         if driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
-    #             orig_speed_ranks[index] += 2.1
-    #         elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
-    #             orig_speed_ranks[index] += 4.1
-    # orig_speed_ranks = scipy.stats.rankdata(orig_speed_ranks, method='ordinal')
+    for index, driver in enumerate(drivers):
+        if race_sim.race.num_stages() == 4:
+            if driver_damage[index] == '3DNF' or driver_damage[index] == '3D':
+                orig_speed_ranks[index] += 2.1
+            elif driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
+                orig_speed_ranks[index] += 4.1
+            elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
+                orig_speed_ranks[index] += 6.1
+        else:
+            if driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
+                orig_speed_ranks[index] += 3.1
+            elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
+                orig_speed_ranks[index] += 6.1
+    orig_speed_ranks = scipy.stats.rankdata(orig_speed_ranks, method='ordinal')
 
     # Assign adjusted speed from incident-free speed by applying damage
     for index, driver in enumerate(drivers):
@@ -1213,6 +1213,7 @@ def execute_sim_iteration(sim_id):
     # df_race.to_csv('data/race.csv')
 
     return {
+        'osr': orig_speed_ranks.tolist(),
         'sr': final_ranks.tolist(),
         'fp': fp_ranks.tolist(),
         'll': driver_ll,
@@ -1240,6 +1241,7 @@ def sim_execution_complete(results, sim_id, task_id):
         driver_ids = list(drivers.values_list('driver__nascar_driver_id', flat=True))
         driver_names = list(drivers.values_list('driver__full_name', flat=True))
 
+        osr_list = [obj.get('osr') for obj in results]
         sr_list = [obj.get('sr') for obj in results]
         fp_list = [obj.get('fp') for obj in results]
         fl_list = [obj.get('fl') for obj in results]
@@ -1248,6 +1250,7 @@ def sim_execution_complete(results, sim_id, task_id):
         dam_list = [obj.get('dam') for obj in results]
         pen_list = [obj.get('pen') for obj in results]
 
+        df_osr = pandas.DataFrame(osr_list, columns=driver_ids)
         df_sr = pandas.DataFrame(sr_list, columns=driver_ids)
         df_fp = pandas.DataFrame(fp_list, columns=driver_ids)
         df_fl = pandas.DataFrame(fl_list, columns=driver_ids)
@@ -1256,6 +1259,7 @@ def sim_execution_complete(results, sim_id, task_id):
         df_dam = pandas.DataFrame(dam_list, columns=driver_ids)
         df_pen = pandas.DataFrame(pen_list, columns=driver_ids)
         for driver in drivers:
+            driver.osr_outcomes = df_osr[driver.driver.nascar_driver_id].tolist()
             driver.sr_outcomes = df_sr[driver.driver.nascar_driver_id].tolist()
             driver.fp_outcomes = df_fp[driver.driver.nascar_driver_id].tolist()
             driver.avg_fp = numpy.average(driver.fp_outcomes)
@@ -1609,6 +1613,7 @@ def export_results(sim_id, result_path, result_url, task_id):
         race_sim = models.RaceSim.objects.get(id=sim_id)
 
         # Speed rank raw outcomes and speed rank distribution
+        df_osr = pandas.DataFrame([d.osr_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
         df_sr = pandas.DataFrame([d.sr_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         sr_list = []
@@ -1641,6 +1646,7 @@ def export_results(sim_id, result_path, result_url, task_id):
         df_pen = pandas.DataFrame([d.penalty_outcomes for d in race_sim.outcomes.all()], index=[d.driver.full_name for d in race_sim.outcomes.all()]).transpose()
 
         with pandas.ExcelWriter(result_path) as writer:
+            df_osr.to_excel(writer, sheet_name='Orig Speed Rank Raw')
             df_sr.to_excel(writer, sheet_name='Speed Rank Raw')
             df_sr_results.to_excel(writer, sheet_name='Speed Rank Distribution')
             df_fp.to_excel(writer, sheet_name='Finishing Position Raw')
