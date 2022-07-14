@@ -927,20 +927,20 @@ def execute_sim_iteration(sim_id):
     orig_speed_ranks = scipy.stats.rankdata(speed, method='ordinal')
 
     # Adjust incident-free speed ranks for damage (driver ranks move down based on when damage occurs)
-    for index, driver in enumerate(drivers):
-        if race_sim.race.num_stages() == 4:
-            if driver_damage[index] == '3DNF' or driver_damage[index] == '3D':
-                orig_speed_ranks[index] += 2.1
-            elif driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
-                orig_speed_ranks[index] += 4.1
-            elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
-                orig_speed_ranks[index] += 6.1
-        else:
-            if driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
-                orig_speed_ranks[index] += 2.1
-            elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
-                orig_speed_ranks[index] += 4.1
-    orig_speed_ranks = scipy.stats.rankdata(orig_speed_ranks, method='ordinal')
+    # for index, driver in enumerate(drivers):
+    #     if race_sim.race.num_stages() == 4:
+    #         if driver_damage[index] == '3DNF' or driver_damage[index] == '3D':
+    #             orig_speed_ranks[index] += 2.1
+    #         elif driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
+    #             orig_speed_ranks[index] += 4.1
+    #         elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
+    #             orig_speed_ranks[index] += 6.1
+    #     else:
+    #         if driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
+    #             orig_speed_ranks[index] += 2.1
+    #         elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
+    #             orig_speed_ranks[index] += 4.1
+    # orig_speed_ranks = scipy.stats.rankdata(orig_speed_ranks, method='ordinal')
 
     # Assign adjusted speed from incident-free speed by applying damage
     for index, driver in enumerate(drivers):
