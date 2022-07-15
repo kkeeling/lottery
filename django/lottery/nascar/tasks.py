@@ -1156,7 +1156,7 @@ def execute_sim_iteration(sim_id):
     # there may be remaining LL, assign using lowest profile in tranches of 5
     # llp = race_sim.ll_profiles.all().order_by('-rank_order').last()
     while ll_laps_remaining > 0:
-        ll_index = int(numpy.where(fl_ranks == randrange(1, 3))[0][0])
+        ll_index = int(numpy.where(fl_ranks == randrange(2, 4))[0][0])
         # ll_index = int(numpy.where(orig_speed_ranks == randrange(1, 11))[0][0])
         # while ll_index in ll_laps_assigned:  # only assign LL to drivers that haven't gotten any yet
         #     ll_index = randrange(1, 21)
