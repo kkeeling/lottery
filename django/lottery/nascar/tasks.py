@@ -936,7 +936,9 @@ def execute_sim_iteration(sim_id):
             elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
                 orig_speed_ranks[index] += 6.1
         else:
-            if driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
+            if driver_damage[index] == '3DNF' or driver_damage[index] == '3D':
+                orig_speed_ranks[index] += 1.1
+            elif driver_damage[index] == '2DNF' or driver_damage[index] == '2D':
                 orig_speed_ranks[index] += 3.1
             elif driver_damage[index] == '1DNF' or driver_damage[index] == '1D':
                 orig_speed_ranks[index] += 6.1
