@@ -745,6 +745,8 @@ class SlateAdmin(admin.ModelAdmin):
         'site',
         'get_players_link',
         'get_builds_link',
+        'make_lineups_button',
+        'export_button',
     )
     raw_id_fields = (
         'race',
@@ -753,6 +755,14 @@ class SlateAdmin(admin.ModelAdmin):
     #     'name',
     #     'site',
     # )
+
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('nascar-slate-make-lineups/<int:pk>/', self.make_lineups, name="admin_nascar_slate_make_lineups"),
+            path('nascar-slate-export/<int:pk>/', self.export_lineups, name="admin_nascar_slate_export_lineups"),
+        ]
+        return my_urls + urls
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -774,13 +784,6 @@ class SlateAdmin(admin.ModelAdmin):
             messages.WARNING,
             'Your slate is being processed. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the slate is ready.')
 
-#     def get_urls(self):
-#         urls = super().get_urls()
-#         my_urls = [
-#             path('tennis-slate-simulate/<int:pk>/', self.simulate, name="tennis_admin_slate_simulate"),
-#         ]
-#         return my_urls + urls
-
     def get_players_link(self, obj):
         if obj.players.all().count() > 0:
             return mark_safe('<a href="/admin/nascar/slateplayer/?slate__id={}">Players</a>'.format(obj.id))
@@ -793,13 +796,92 @@ class SlateAdmin(admin.ModelAdmin):
         return 'None'
     get_builds_link.short_description = 'Builds'
 
+    def make_lineups(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        slate = models.Slate.objects.get(pk=pk)
+        tasks.create_slate_lineups.delay(
+            slate.id,
+            BackgroundTask.objects.create(
+                name='Make all lineups',
+                user=request.user
+            ).id
+        )
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Making all possible lineups.'
+        )
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def export_lineups(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        # Get the scenario to activate
+        slate = models.Slate.objects.get(pk=pk)
+        task = BackgroundTask()
+        task.name = 'Export All Possible Lineups'
+        task.user = request.user
+        task.save()
+
+        now = datetime.datetime.now()
+        timestamp = now.strftime('%m-%d-%Y %-I:%M %p')
+        result_file = '{}-{}_upload.csv'.format(slate.name, timestamp)
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+        # tasks.export_build_for_upload.delay(build.id, result_path, result_url, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your build export is being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your export is ready.')
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+
+@admin.register(models.SlateLineup)
+class SlateLineupAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'player_1',
+        'player_2',
+        'player_3',
+        'player_4',
+        'player_5',
+        'player_6',
+        'total_salary',
+    )
+
+    search_fields = (
+        'player_1__slate_player__name',
+        'player_2__slate_player__name',
+        'player_3__slate_player__name',
+        'player_4__slate_player__name',
+        'player_5__slate_player__name',
+        'player_6__slate_player__name',
+    )
+
 
 @admin.register(models.SlatePlayer)
 class SlatePlayerAdmin(admin.ModelAdmin):
     list_display = (
         'name',
         'salary',
-        'fantasy_points',
     )
     search_fields = ('name',)
     list_filter = (
@@ -825,6 +907,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'total_lineups',
         'num_lineups_created',
         'get_lineups_link',
+        'get_field_lineups_link',
         'build_button',
         'export_button',
     )
@@ -954,6 +1037,12 @@ class SlateBuildAdmin(admin.ModelAdmin):
         return 'None'
     get_lineups_link.short_description = 'Lineups'
 
+    def get_field_lineups_link(self, obj):
+        if obj.num_field_lineups() > 0:
+            return mark_safe('<a href="/admin/nascar/slatebuildfieldlineup/?build__id__exact={}">Field</a>'.format(obj.id))
+        return 'None'
+    get_field_lineups_link.short_description = 'Field Lineups'
+
     def get_groups_link(self, obj):
         return mark_safe('<a href="/admin/nascar/slatebuildgroup/?build__id__exact={}">Groups</a>'.format(obj.id))
     get_groups_link.short_description = 'Groups'
@@ -1080,6 +1169,51 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'sort_proj',
         'get_is_optimal',
         'duplicated'
+    )
+
+    search_fields = (
+        'player_1__slate_player__name',
+        'player_2__slate_player__name',
+        'player_3__slate_player__name',
+        'player_4__slate_player__name',
+        'player_5__slate_player__name',
+        'player_6__slate_player__name',
+    )
+
+    def get_is_optimal(self, obj):
+        lineup = [p.slate_player.driver.nascar_driver_id for p in obj.players]
+        matching_optimals = models.RaceSimLineup.objects.filter(
+            sim=obj.build.sim,
+            player_1__driver__nascar_driver_id__in=lineup,
+            player_2__driver__nascar_driver_id__in=lineup,
+            player_3__driver__nascar_driver_id__in=lineup,
+            player_4__driver__nascar_driver_id__in=lineup,
+            player_5__driver__nascar_driver_id__in=lineup,
+            player_6__driver__nascar_driver_id__in=lineup
+        )
+        return matching_optimals.count() > 0
+    get_is_optimal.short_description = 'Opt?'
+    get_is_optimal.boolean = True
+
+
+@admin.register(models.SlateBuildFieldLineup)
+class SlateBuildFieldLineupAdmin(admin.ModelAdmin):
+    list_display = (
+        'player_1',
+        'player_2',
+        'player_3',
+        'player_4',
+        'player_5',
+        'player_6',
+        'total_salary',
+        'median',
+        's75',
+        's90',
+        'rank_median',
+        'rank_s75',
+        'rank_s90',
+        'sort_proj',
+        'get_is_optimal',
     )
 
     search_fields = (

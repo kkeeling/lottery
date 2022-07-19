@@ -1,5 +1,6 @@
 import csv
 import datetime
+import itertools
 import logging
 import math
 from re import A
@@ -9,6 +10,7 @@ import pandas
 # import modin.pandas as pandas
 import requests
 import scipy
+import sqlalchemy
 import sys
 import time
 import traceback
@@ -1747,13 +1749,6 @@ def process_build(build_id, task_id):
             )
             try:
                 sim_driver = build.sim.outcomes.get(driver=slate_player.driver)
-                # df_scores = pandas.DataFrame(data={
-                #     'fp': sim_driver.fp_outcomes,
-                #     'fl': sim_driver.fl_outcomes,
-                #     'll': sim_driver.ll_outcomes,
-                #     'dk': sim_driver.dk_scores,
-                #     'fd': sim_driver.fd_scores
-                # })
 
                 projection.starting_position = sim_driver.starting_position
                 projection.sim_scores = sim_driver.dk_scores if build.slate.site == 'draftkings' else sim_driver.fd_scores
@@ -1765,7 +1760,32 @@ def process_build(build_id, task_id):
                 # print(f'{projection} - {projection.op}')
                 projection.save()
             except:
+                projection.in_play = projection.projection > 0.0
+                projection.save()
                 traceback.print_exc()
+
+        # load field lineups, if any
+        if build.field_lineups_fl is not None:
+            build.field_lineups.all().delete()
+
+            with open(build.field_lineups_fl.path, mode='r') as lineups_file:
+                csv_reader = csv.reader(lineups_file)
+
+                for index, row in enumerate(csv_reader):
+                    if index > 0:  # skip header
+                        lineup = models.SlateBuildFieldLineup.objects.create(
+                            build=build,
+                            player_1=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[0], slate_player__slate=build.slate),
+                            player_2=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[1], slate_player__slate=build.slate),
+                            player_3=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[2], slate_player__slate=build.slate),
+                            player_4=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[3], slate_player__slate=build.slate),
+                            player_5=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[4], slate_player__slate=build.slate),
+                            player_6=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[5], slate_player__slate=build.slate)
+                        )
+
+                        lineup.save()
+                        lineup.simulate()
+
 
         task.status = 'success'
         task.content = f'{build} processed.'
@@ -1848,6 +1868,78 @@ def process_slate_players(slate_id, task_id):
 
 
 @shared_task
+def create_slate_lineups(slate_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
+        start = time.time()
+        slate.possible_lineups.all().delete()
+        logger.info(f'Deleting took {time.time() - start}s')
+        
+        start = time.time()
+        df_salaries = pandas.read_csv(slate.salaries.path, index_col='ID')
+        logger.info(f'Reading took {time.time() - start}s')
+
+        r = 6   
+
+        start = time.time()
+        combinations = list(itertools.combinations(df_salaries.index.to_list(), r))
+
+        logger.info(f'There are {len(combinations)} possible lineups. Calculation took {time.time() - start}s')
+
+        start = time.time()
+        df_lineups = pandas.DataFrame(data=combinations, columns=['player_1_id', 'player_2_id', 'player_3_id', 'player_4_id', 'player_5_id', 'player_6_id'])
+        df_lineups['slate_id'] = slate.id
+        logger.info(f'Dataframe took {time.time() - start}s')
+        start = time.time()
+        df_lineups['total_salary'] = df_lineups['player_1_id'].map(lambda x: df_salaries.loc[x, 'Salary']) + df_lineups['player_2_id'].map(lambda x: df_salaries.loc[x, 'Salary']) + df_lineups['player_3_id'].map(lambda x: df_salaries.loc[x, 'Salary']) + df_lineups['player_4_id'].map(lambda x: df_salaries.loc[x, 'Salary']) + df_lineups['player_5_id'].map(lambda x: df_salaries.loc[x, 'Salary']) + df_lineups['player_6_id'].map(lambda x: df_salaries.loc[x, 'Salary'])
+        logger.info(f'Salary took {time.time() - start}s')
+        start = time.time()
+        df_lineups = df_lineups[(df_lineups.total_salary <= 50000) & (df_lineups.total_salary >= 35000)]
+        logger.info(df_lineups)
+        logger.info(f'Filtering took {time.time() - start}s.')
+        start = time.time()
+        user = settings.DATABASES['default']['USER']
+        password = settings.DATABASES['default']['PASSWORD']
+        database_name = settings.DATABASES['default']['NAME']
+        # host = settings.DATABASES['default']['HOST']
+        # port = settings.DATABASES['default']['PORT']
+
+        database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
+            user=user,
+            password=password,
+            database_name=database_name,
+        )
+
+        engine = sqlalchemy.create_engine(database_url, echo=False)
+        df_lineups.to_sql('nascar_slatelineup', engine, if_exists='append', index=False)
+        # models.SlateLineup.objects.bulk_create(
+        #     models.SlateLineup(**vals) for vals in df_lineups.to_dict('records')
+        # )   
+        logger.info(f'Storage took {time.time() - start}s')
+
+        task.status = 'success'
+        task.content = f'All possible lineups.'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem creating lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def build_lineups(build_id, task_id):
     task = None
 
@@ -1880,8 +1972,8 @@ def build_lineups(build_id, task_id):
             else:
                 raise Exception(f'{build.slate.site} is not available for building yet.')
 
-            if lineup.duplicated > build.configuration.duplicate_threshold:
-                lineup.delete()
+            # if lineup.duplicated > build.configuration.duplicate_threshold:
+            #     lineup.delete()
 
         
         task.status = 'success'
