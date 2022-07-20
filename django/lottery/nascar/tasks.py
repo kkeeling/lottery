@@ -7,6 +7,7 @@ from re import A
 from turtle import back
 import numpy
 import pandas
+import psycopg2
 # import modin.pandas as pandas
 import requests
 import scipy
@@ -14,6 +15,8 @@ import sqlalchemy
 import sys
 import time
 import traceback
+
+from psycopg2.extensions import register_adapter, AsIs
 
 from random import random, uniform, randrange
 
@@ -37,6 +40,28 @@ from lottery.celery import app
 
 logger = logging.getLogger(__name__)
 
+def addapt_numpy_float64(numpy_float64):
+    return AsIs(numpy_float64)
+
+def addapt_numpy_int64(numpy_int64):
+    return AsIs(numpy_int64)
+
+def addapt_numpy_float32(numpy_float32):
+    return AsIs(numpy_float32)
+
+def addapt_numpy_int32(numpy_int32):
+    return AsIs(numpy_int32)
+
+def addapt_numpy_array(numpy_array):
+    if len(numpy_array) == 0: 
+        return AsIs("null") 
+    return AsIs("ARRAY" + numpy.array2string(numpy_array, separator=",")) 
+
+register_adapter(numpy.float64, addapt_numpy_float64)
+register_adapter(numpy.int64, addapt_numpy_int64)
+register_adapter(numpy.float32, addapt_numpy_float32)
+register_adapter(numpy.int32, addapt_numpy_int32)
+register_adapter(numpy.ndarray, addapt_numpy_array)
 
 # ensures that tasks only run once at most!
 @contextmanager
@@ -1728,6 +1753,8 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
+# Slates
+
 @shared_task
 def process_build(build_id, task_id):
     task = None
@@ -1765,7 +1792,7 @@ def process_build(build_id, task_id):
                 traceback.print_exc()
 
         # load field lineups, if any
-        if build.field_lineups_fl is not None:
+        if build.field_lineups_fl:
             build.field_lineups.all().delete()
 
             with open(build.field_lineups_fl.path, mode='r') as lineups_file:
@@ -1786,6 +1813,46 @@ def process_build(build_id, task_id):
                         lineup.save()
                         lineup.simulate()
 
+        # Get sim scores for each slate lineup
+        build.lineups.all().delete()
+
+        from . import filters
+
+        player_outcomes = pandas.DataFrame.from_records(build.projections.filter(in_play=True).values('slate_player_id', 'sim_scores'))
+        player_outcomes = player_outcomes.set_index('slate_player_id')
+
+        not_in_play = build.projections.filter(in_play=False).values_list('slate_player_id', flat=True)
+        possible_lineups = build.slate.possible_lineups.exclude(
+            Q(
+                Q(player_1_id__in=not_in_play) | 
+                Q(player_2_id__in=not_in_play) | 
+                Q(player_3_id__in=not_in_play) | 
+                Q(player_4_id__in=not_in_play) | 
+                Q(player_5_id__in=not_in_play) | 
+                Q(player_6_id__in=not_in_play)
+            )
+        )  
+        slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs
+        
+        df_build_lineups = pandas.DataFrame.from_records(slate_lineups.values('id', 'player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'))
+        df_build_lineups['slate_lineup_id'] = df_build_lineups['id']
+        df_build_lineups['build_id'] = build.id
+        df_build_lineups['sim_scores'] = df_build_lineups.apply(lambda x: numpy.array(player_outcomes.loc[x['player_1'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_2'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_3'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_4'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_5'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_6'], 'sim_scores']), axis=1)
+        df_build_lineups['median'] = df_build_lineups['sim_scores'].map(lambda x: numpy.median(x))
+        df_build_lineups['s75'] = df_build_lineups['sim_scores'].map(lambda x: numpy.percentile(x, 75))
+        df_build_lineups['s90'] = df_build_lineups['sim_scores'].map(lambda x: numpy.percentile(x, 90))
+        df_build_lineups = df_build_lineups.drop(['player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'], axis=1)
+
+        user = settings.DATABASES['default']['USER']
+        password = settings.DATABASES['default']['PASSWORD']
+        database_name = settings.DATABASES['default']['NAME']
+        database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
+            user=user,
+            password=password,
+            database_name=database_name,
+        )
+        engine = sqlalchemy.create_engine(database_url, echo=False)
+        df_build_lineups.to_sql('nascar_slatebuildlineup', engine, if_exists='append', index=False)
 
         task.status = 'success'
         task.content = f'{build} processed.'
@@ -1799,6 +1866,11 @@ def process_build(build_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def simulate_lineup(LineupType, lineup_id):
+    LineupType.objects.get(id=lineup_id).simulate()
 
 
 @shared_task
@@ -1907,12 +1979,10 @@ def create_slate_lineups(slate_id, task_id):
         logger.info(df_lineups)
         logger.info(f'Filtering took {time.time() - start}s.')
         start = time.time()
+
         user = settings.DATABASES['default']['USER']
         password = settings.DATABASES['default']['PASSWORD']
         database_name = settings.DATABASES['default']['NAME']
-        # host = settings.DATABASES['default']['HOST']
-        # port = settings.DATABASES['default']['PORT']
-
         database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
             user=user,
             password=password,
@@ -1921,9 +1991,6 @@ def create_slate_lineups(slate_id, task_id):
 
         engine = sqlalchemy.create_engine(database_url, echo=False)
         df_lineups.to_sql('nascar_slatelineup', engine, if_exists='append', index=False)
-        # models.SlateLineup.objects.bulk_create(
-        #     models.SlateLineup(**vals) for vals in df_lineups.to_dict('records')
-        # )   
         logger.info(f'Storage took {time.time() - start}s')
 
         task.status = 'success'
@@ -1938,6 +2005,32 @@ def create_slate_lineups(slate_id, task_id):
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
+
+@shared_task
+def execute_cash_workflow(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        build = models.SlateBuild.objects.get(id=build_id)
+
+        task.status = 'success'
+        task.content = f'Cash workflow complete'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem running cash workflow: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 @shared_task
 def build_lineups(build_id, task_id):

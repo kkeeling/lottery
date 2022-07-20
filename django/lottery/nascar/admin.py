@@ -897,24 +897,15 @@ class SlateBuildAdmin(admin.ModelAdmin):
     date_hierarchy = 'slate__datetime'
     form = forms.SlateBuildForm
     list_display = (
-        'created',
         'slate',
         'sim',
-        'used_in_contests',
-        'configuration',
+        'build_type',
         'get_projections_link',
         'get_groups_link',
-        'total_lineups',
-        'num_lineups_created',
         'get_lineups_link',
         'get_field_lineups_link',
         'build_button',
         'export_button',
-    )
-    list_editable = (
-        'used_in_contests',
-        'configuration',
-        'total_lineups',
     )
     list_filter = (
         ('slate', RelatedDropdownFilter),
@@ -1153,47 +1144,30 @@ class SlateBuildGroupAdmin(admin.ModelAdmin):
 @admin.register(models.SlateBuildLineup)
 class SlateBuildLineupAdmin(admin.ModelAdmin):
     list_display = (
-        'player_1',
-        'player_2',
-        'player_3',
-        'player_4',
-        'player_5',
-        'player_6',
-        'total_salary',
+        'get_lineup',
+        'get_salary',
         'median',
         's75',
         's90',
-        'rank_median',
-        'rank_s75',
-        'rank_s90',
-        'sort_proj',
-        'get_is_optimal',
-        'duplicated'
     )
 
     search_fields = (
-        'player_1__slate_player__name',
-        'player_2__slate_player__name',
-        'player_3__slate_player__name',
-        'player_4__slate_player__name',
-        'player_5__slate_player__name',
-        'player_6__slate_player__name',
+        'lineup__player_1__slate_player__name',
+        'lineup__player_2__slate_player__name',
+        'lineup__player_3__slate_player__name',
+        'lineup__player_4__slate_player__name',
+        'lineup__player_5__slate_player__name',
+        'lineup__player_6__slate_player__name',
     )
 
-    def get_is_optimal(self, obj):
-        lineup = [p.slate_player.driver.nascar_driver_id for p in obj.players]
-        matching_optimals = models.RaceSimLineup.objects.filter(
-            sim=obj.build.sim,
-            player_1__driver__nascar_driver_id__in=lineup,
-            player_2__driver__nascar_driver_id__in=lineup,
-            player_3__driver__nascar_driver_id__in=lineup,
-            player_4__driver__nascar_driver_id__in=lineup,
-            player_5__driver__nascar_driver_id__in=lineup,
-            player_6__driver__nascar_driver_id__in=lineup
-        )
-        return matching_optimals.count() > 0
-    get_is_optimal.short_description = 'Opt?'
-    get_is_optimal.boolean = True
+    def get_lineup(self, obj):
+        return mark_safe(f'{obj.slate_lineup.player_1}<br />{obj.slate_lineup.player_2}<br />{obj.slate_lineup.player_3}<br />{obj.slate_lineup.player_4}<br />{obj.slate_lineup.player_5}<br />{obj.slate_lineup.player_6}')
+    get_lineup.short_description = ''
+
+    def get_salary(self, obj):
+        return obj.slate_lineup.total_salary
+    get_salary.short_description = 'salary'
+    get_salary.admin_order_field = 'slate_lineup__total_salary'
 
 
 @admin.register(models.SlateBuildFieldLineup)
@@ -1209,11 +1183,6 @@ class SlateBuildFieldLineupAdmin(admin.ModelAdmin):
         'median',
         's75',
         's90',
-        'rank_median',
-        'rank_s75',
-        'rank_s90',
-        'sort_proj',
-        'get_is_optimal',
     )
 
     search_fields = (
@@ -1224,21 +1193,6 @@ class SlateBuildFieldLineupAdmin(admin.ModelAdmin):
         'player_5__slate_player__name',
         'player_6__slate_player__name',
     )
-
-    def get_is_optimal(self, obj):
-        lineup = [p.slate_player.driver.nascar_driver_id for p in obj.players]
-        matching_optimals = models.RaceSimLineup.objects.filter(
-            sim=obj.build.sim,
-            player_1__driver__nascar_driver_id__in=lineup,
-            player_2__driver__nascar_driver_id__in=lineup,
-            player_3__driver__nascar_driver_id__in=lineup,
-            player_4__driver__nascar_driver_id__in=lineup,
-            player_5__driver__nascar_driver_id__in=lineup,
-            player_6__driver__nascar_driver_id__in=lineup
-        )
-        return matching_optimals.count() > 0
-    get_is_optimal.short_description = 'Opt?'
-    get_is_optimal.boolean = True
 
 
 @admin.register(models.Contest)
