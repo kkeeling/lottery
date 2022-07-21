@@ -116,10 +116,10 @@ BUILD_TYPES = (
 
 BUILD_TYPE_FILTERS = {
     'cash': {
-        'total_salary__gte': 49500
+        'total_salary__gte': 49000
     },
     'se': {
-        'total_salary__gte': 49000
+        'total_salary__gte': 48500
     },
     'mme': {
         'total_salary__gte': 40000
