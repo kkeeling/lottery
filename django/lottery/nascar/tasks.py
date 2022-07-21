@@ -1818,9 +1818,12 @@ def process_build(build_id, task_id):
 
         from . import filters
 
+        start = time.time()
         player_outcomes = pandas.DataFrame.from_records(build.projections.filter(in_play=True).values('slate_player_id', 'sim_scores'))
         player_outcomes = player_outcomes.set_index('slate_player_id')
+        logger.info(f'Getting player outcomes took {time.time() - start}s')
 
+        start = time.time()
         not_in_play = build.projections.filter(in_play=False).values_list('slate_player_id', flat=True)
         possible_lineups = build.slate.possible_lineups.exclude(
             Q(
@@ -1833,16 +1836,22 @@ def process_build(build_id, task_id):
             )
         )  
         slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs
+        logger.info(f'Filtered lineups took {time.time() - start}s')
         
+        start = time.time()
         df_build_lineups = pandas.DataFrame.from_records(slate_lineups.values('id', 'player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'))
+        logger.info(f'Initial dataframe took {time.time() - start}s')
         df_build_lineups['slate_lineup_id'] = df_build_lineups['id']
         df_build_lineups['build_id'] = build.id
+        start = time.time()
         df_build_lineups['sim_scores'] = df_build_lineups.apply(lambda x: numpy.array(player_outcomes.loc[x['player_1'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_2'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_3'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_4'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_5'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_6'], 'sim_scores']), axis=1)
+        logger.info(f'Sim scores lineups took {time.time() - start}s')
         df_build_lineups['median'] = df_build_lineups['sim_scores'].map(lambda x: numpy.median(x))
         df_build_lineups['s75'] = df_build_lineups['sim_scores'].map(lambda x: numpy.percentile(x, 75))
         df_build_lineups['s90'] = df_build_lineups['sim_scores'].map(lambda x: numpy.percentile(x, 90))
         df_build_lineups = df_build_lineups.drop(['player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'], axis=1)
 
+        start = time.time()
         user = settings.DATABASES['default']['USER']
         password = settings.DATABASES['default']['PASSWORD']
         database_name = settings.DATABASES['default']['NAME']
@@ -1853,6 +1862,7 @@ def process_build(build_id, task_id):
         )
         engine = sqlalchemy.create_engine(database_url, echo=False)
         df_build_lineups.to_sql('nascar_slatebuildlineup', engine, if_exists='append', index=False)
+        logger.info(f'Write to db took {time.time() - start}s')
 
         task.status = 'success'
         task.content = f'{build} processed.'
@@ -2031,6 +2041,7 @@ def execute_cash_workflow(build_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
 
 @shared_task
 def build_lineups(build_id, task_id):
