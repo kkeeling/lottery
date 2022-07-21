@@ -116,7 +116,7 @@ BUILD_TYPES = (
 
 BUILD_TYPE_FILTERS = {
     'cash': {
-        'total_salary__gte': 49000
+        'total_salary__gte': 50000
     },
     'se': {
         'total_salary__gte': 48500
@@ -907,7 +907,7 @@ class SlateBuildGroupPlayer(models.Model):
 class SlateBuildLineup(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='lineups', on_delete=models.CASCADE)
     slate_lineup = models.ForeignKey(SlateLineup, verbose_name='Lineup', related_name='builds', on_delete=models.CASCADE)
-    sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    win_rate = models.FloatField(db_index=True, default=0.0)
     median = models.FloatField(db_index=True, default=0.0)
     s75 = models.FloatField(db_index=True, default=0.0)
     s90 = models.FloatField(db_index=True, default=0.0)
@@ -927,22 +927,6 @@ class SlateBuildLineup(models.Model):
             self.slate_lineup.player_5, 
             self.slate_lineup.player_6
         ]
-
-    def get_percentile_sim_score(self, percentile):
-        return numpy.percentile(self.sim_scores, float(percentile))
-
-    def get_rank_percentile_sim_score(self, percentile):
-        return numpy.percentile(self.sim_score_ranks, float(percentile))
-
-    def simulate(self):
-        try:
-            self.sim_scores = [float(sum([p.builds.get(build=self.build).sim_scores[i] for p in self.players])) for i in range(0, self.build.sim.iterations)]
-            self.median = numpy.median(self.sim_scores)
-            self.s75 = self.get_percentile_sim_score(75)
-            self.s90 = self.get_percentile_sim_score(90)
-            self.save()
-        except TypeError:  # when a player has no sim scores
-            pass
 
 
 class SlateBuildFieldLineup(models.Model):

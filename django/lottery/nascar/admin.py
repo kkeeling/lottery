@@ -970,14 +970,27 @@ class SlateBuildAdmin(admin.ModelAdmin):
         )
 
         build = models.SlateBuild.objects.get(pk=pk)
-        build.execute_build(request.user)
 
-        messages.add_message(
-            request,
-            messages.WARNING,
-            f'Building {build.total_lineups} lineups.'
-        )
+        if build.build_type == 'cash':
+            tasks.execute_cash_workflow.delay(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Run Cash Workflow',
+                    user=request.user
+                ).id
+            )
 
+            messages.add_message(
+                request,
+                messages.WARNING,
+                f'Running Cash Workflow'
+            )
+        else:
+            messages.add_message(
+                request,
+                messages.ERRROR,
+                f'{build.build_type} is not supported yet'
+            )
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
 
@@ -1149,6 +1162,7 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         'median',
         's75',
         's90',
+        'get_win_rate',
     )
 
     search_fields = (
@@ -1168,6 +1182,11 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
         return obj.slate_lineup.total_salary
     get_salary.short_description = 'salary'
     get_salary.admin_order_field = 'slate_lineup__total_salary'
+
+    def get_win_rate(self, obj):
+        return '{:.2f}%'.format(obj.win_rate * 100)
+    get_win_rate.short_description = 'win %'
+    get_win_rate.admin_order_field = 'win_rate'
 
 
 @admin.register(models.SlateBuildFieldLineup)

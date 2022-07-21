@@ -70,8 +70,15 @@ def run():
     matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
     df_matchups = pandas.DataFrame(matchups, columns=['build_lineup', 'field_lineup'])
     df_matchups['wins'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_build_lineups.loc[x['build_lineup'], 'sim_scores']) - numpy.array(df_field_lineups.loc[x['field_lineup'], 'sim_scores'])) > 0.0), axis=1)
-    print(df_matchups)
     df_matchups = df_matchups.drop(['field_lineup'], axis=1)
-    df_win_rate = df_matchups.groupby('build_lineup').sum() / (build.sim.iterations * field_lineups.count())
-    print(df_win_rate)
     print(f'Matchups took {time.time() - start}s. There are {len(matchups)} matchups.')
+
+    start = time.time()
+    df_lineups = df_matchups.groupby('build_lineup').sum()
+    df_lineups['slate_lineup_id'] = df_lineups.index
+    df_lineups['win_rate'] = df_lineups['wins'] / (build.sim.iterations * field_lineups.count())
+    df_lineups['median'] = df_lineups.apply(lambda x: numpy.median(numpy.array(df_build_lineups.loc[x['slate_lineup_id'], 'sim_scores'])), axis=1)
+    df_lineups['s75'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_build_lineups.loc[x['slate_lineup_id'], 'sim_scores']), 75.0), axis=1)
+    df_lineups['s90'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_build_lineups.loc[x['slate_lineup_id'], 'sim_scores']), 90.0), axis=1)
+    print(df_lineups)
+    print(f'Win Rates took {time.time() - start}s. There are {len(df_lineups.index)} lineups.')
