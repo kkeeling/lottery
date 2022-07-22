@@ -11,16 +11,19 @@ from nascar import models, filters
 def run():
     build = models.SlateBuild.objects.get(id=2)
 
+    start = time.time()
+    projections = build.projections.filter(in_play=True).order_by('-slate_player__salary')
+    player_outcomes = pandas.DataFrame([p.sim_scores for p in projections], index=[p.slate_player.slate_player_id for p in projections], dtype='float16')
+    print(f'Getting player outcomes took {time.time() - start}s')
+    # print(player_outcomes)
+    # print(player_outcomes.info(verbose=True, memory_usage='deep'))
+
     # start = time.time()
-    # projections = build.projections.filter(in_play=True).order_by('-slate_player__salary')
-    # player_outcomes = pandas.DataFrame([p.sim_scores for p in projections], index=[p.slate_player.slate_player_id for p in projections])
+    # player_outcomes = pandas.DataFrame.from_records(build.projections.filter(in_play=True).values('slate_player_id', 'sim_scores'))
+    # player_outcomes = player_outcomes.set_index('slate_player_id')
     # print(f'Getting player outcomes took {time.time() - start}s')
     # print(player_outcomes)
-
-    start = time.time()
-    player_outcomes = pandas.DataFrame.from_records(build.projections.filter(in_play=True).values('slate_player_id', 'sim_scores'))
-    player_outcomes = player_outcomes.set_index('slate_player_id')
-    print(f'Getting player outcomes took {time.time() - start}s')
+    # print(player_outcomes.info(verbose=True, memory_usage='deep'))
 
     start = time.time()
     not_in_play = build.projections.filter(in_play=False).values_list('slate_player_id', flat=True)
@@ -38,20 +41,24 @@ def run():
     print(f'Filtered slate lineups took {time.time() - start}s')
     
     start = time.time()
-    df_build_lineups = pandas.DataFrame.from_records(slate_lineups.values('id', 'player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'))
-    print(f'  Initial dataframe took {time.time() - start}s')
-    df_build_lineups['slate_lineup_id'] = df_build_lineups['id']
+    # df_build_lineups = pandas.DataFrame.from_records(slate_lineups.values('id', 'player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'))
+    df_build_lineups = pandas.DataFrame(slate_lineups.values_list('player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'), index=list(slate_lineups.values_list('id', flat=True)))
     df_build_lineups['build_id'] = build.id
-    df_build_lineups = df_build_lineups.set_index('id')
+    df_build_lineups = df_build_lineups.apply(pandas.to_numeric, downcast='unsigned')
+    print(f'  Initial dataframe took {time.time() - start}s')
+    # df_build_lineups = df_build_lineups.set_index('id')
+    print(df_build_lineups)
+    # print(df_build_lineups.info(verbose=True, memory_usage='deep'))
     start = time.time()
-    df_build_lineups['sim_scores'] = df_build_lineups.apply(lambda x: numpy.array(player_outcomes.loc[x['player_1'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_2'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_3'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_4'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_5'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_6'], 'sim_scores']), axis=1)
+    df_build_lineups = df_build_lineups.apply(lambda x: numpy.array(player_outcomes.loc[str(x[0])]) + numpy.array(player_outcomes.loc[str(x[1])]) + numpy.array(player_outcomes.loc[str(x[2])]) + numpy.array(player_outcomes.loc[str(x[3])]) + numpy.array(player_outcomes.loc[str(x[4])]) + numpy.array(player_outcomes.loc[str(x[5])]), axis=1, result_type='expand')
     print(f'  Sim scores lineups took {time.time() - start}s')
+    print(df_build_lineups.info(verbose=True, memory_usage='deep'))
+    print(df_build_lineups)
     
-    # print(df_build_lineups['sim_scores'].to_list())
-    start = time.time()
-    df_scores = pandas.DataFrame(df_build_lineups['sim_scores'].to_list(), index=df_build_lineups.index)
-    print(f'  Scoring took {time.time() - start}s')
-    print(df_scores)
+    # start = time.time()
+    # df_scores = pandas.DataFrame(df_build_lineups['sim_scores'].to_list(), index=df_build_lineups.index)
+    # print(f'  Scoring took {time.time() - start}s')
+    # print(df_scores)
 
     # start = time.time()
     # matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
