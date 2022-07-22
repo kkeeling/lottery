@@ -51,6 +51,7 @@ def run():
     # print(df_build_lineups.info(verbose=True, memory_usage='deep'))
     start = time.time()
     df_build_lineups = df_build_lineups.apply(lambda x: numpy.array(player_outcomes.loc[str(x[0])]) + numpy.array(player_outcomes.loc[str(x[1])]) + numpy.array(player_outcomes.loc[str(x[2])]) + numpy.array(player_outcomes.loc[str(x[3])]) + numpy.array(player_outcomes.loc[str(x[4])]) + numpy.array(player_outcomes.loc[str(x[5])]), axis=1, result_type='expand')
+    df_build_lineups = df_build_lineups.apply(pandas.to_numeric, downcast='unsigned')
     print(f'  Sim scores lineups took {time.time() - start}s')
     # print(df_build_lineups.info(verbose=True, memory_usage='deep'))
     print(df_build_lineups)
