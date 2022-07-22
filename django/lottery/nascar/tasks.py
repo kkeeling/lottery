@@ -1328,6 +1328,18 @@ def find_driver_gto(sim_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
         
         race_sim = models.RaceSim.objects.get(id=sim_id)
+
+        # get cash workflow and start it
+        build = race_sim.builds.get(build_type='cash')
+        execute_cash_workflow.delay(
+            build.id,
+            BackgroundTask.objects.create(
+                name='Run Cash Workflow',
+                user=task.user
+            ).id
+        )
+
+        # delete old sim lineups
         race_sim.sim_lineups.all().delete()
         scores = [d.dk_scores for d in race_sim.outcomes.all().order_by('starting_position')]
 
@@ -1981,6 +1993,10 @@ def execute_cash_workflow(build_id, task_id):
 
         # Task implementation goes here
         build = models.SlateBuild.objects.get(id=build_id)
+        start = time.time()
+        build.lineups.all().delete()
+        logger.info(f'Deleting old cash lineups took {time.time() - start}s')
+
         start = time.time()
         player_outcomes = pandas.DataFrame.from_records(build.projections.filter(in_play=True).values('slate_player_id', 'sim_scores'))
         player_outcomes = player_outcomes.set_index('slate_player_id')
