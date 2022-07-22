@@ -2054,7 +2054,7 @@ def execute_cash_workflow(build_id, task_id):
         df_build_lineups = df_build_lineups.set_index('id')
         start = time.time()
         df_build_lineups['sim_scores'] = df_build_lineups.apply(lambda x: numpy.array(player_outcomes.loc[x['player_1'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_2'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_3'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_4'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_5'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_6'], 'sim_scores']), axis=1)
-        logger.info(f'  Sim scores lineups took {time.time() - start}s')
+        logger.info(f'  Sim scores took {time.time() - start}s')
 
         start = time.time()
         field_lineups = build.field_lineups.all()
@@ -2079,7 +2079,7 @@ def execute_cash_workflow(build_id, task_id):
         logger.info(f'  Initial dataframe took {time.time() - start}s')
         start = time.time()
         df_field_lineups['sim_scores'] = df_field_lineups.apply(lambda x: numpy.array(player_outcomes.loc[x['player_1'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_2'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_3'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_4'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_5'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_6'], 'sim_scores']), axis=1)
-        logger.info(f'  Sim scores lineups took {time.time() - start}s')
+        logger.info(f'  Sim scores took {time.time() - start}s')
 
         start = time.time()
         matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
@@ -2381,19 +2381,24 @@ def export_build_for_upload(build_id, result_path, result_url, task_id):
 
         with open(result_path, 'w') as temp_csv:
             build_writer = csv.writer(temp_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            build_writer.writerow(['D', 'D', 'D', 'D', 'D', 'D'])
+            build_writer.writerow(['D', 'D', 'D', 'D', 'D', 'D', 'win_rate', 'median', 's75', 's90'])
 
-            lineups = build.lineups.all()
+            if build.build_type == 'cash':
+                lineups = build.lineups.filter(win_rate__gte=0.6).order_by('-win_rate')
 
             for lineup in lineups:
                 if build.slate.site == 'draftkings':
                     row = [
-                        f'{lineup.player_1.name} ({lineup.player_1.slate_player.slate_player_id})',
-                        f'{lineup.player_2.name} ({lineup.player_2.slate_player.slate_player_id})',
-                        f'{lineup.player_3.name} ({lineup.player_3.slate_player.slate_player_id})',
-                        f'{lineup.player_4.name} ({lineup.player_4.slate_player.slate_player_id})',
-                        f'{lineup.player_5.name} ({lineup.player_5.slate_player.slate_player_id})',
-                        f'{lineup.player_6.name} ({lineup.player_6.slate_player.slate_player_id})'
+                        f'{lineup.slate_lineup.player_1.name} ({lineup.slate_lineup.player_1.slate_player_id})',
+                        f'{lineup.slate_lineup.player_2.name} ({lineup.slate_lineup.player_2.slate_player_id})',
+                        f'{lineup.slate_lineup.player_3.name} ({lineup.slate_lineup.player_3.slate_player_id})',
+                        f'{lineup.slate_lineup.player_4.name} ({lineup.slate_lineup.player_4.slate_player_id})',
+                        f'{lineup.slate_lineup.player_5.name} ({lineup.slate_lineup.player_5.slate_player_id})',
+                        f'{lineup.slate_lineup.player_6.name} ({lineup.slate_lineup.player_6.slate_player_id})',
+                        lineup.win_rate,
+                        lineup.median,
+                        lineup.s75,
+                        lineup.s90
                     ]
                 else:
                     raise Exception('{} is not a supported dfs site.'.format(build.slate.site)) 

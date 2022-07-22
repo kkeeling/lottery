@@ -11,10 +11,17 @@ from nascar import models, filters
 def run():
     build = models.SlateBuild.objects.get(id=1)
 
+    # start = time.time()
+    # projections = build.projections.filter(in_play=True).order_by('-slate_player__salary')
+    # player_outcomes = pandas.DataFrame([p.sim_scores for p in projections], index=[p.slate_player.slate_player_id for p in projections])
+    # print(f'Getting player outcomes took {time.time() - start}s')
+    # print(player_outcomes)
+
     start = time.time()
     player_outcomes = pandas.DataFrame.from_records(build.projections.filter(in_play=True).values('slate_player_id', 'sim_scores'))
     player_outcomes = player_outcomes.set_index('slate_player_id')
     print(f'Getting player outcomes took {time.time() - start}s')
+    print(player_outcomes)
 
     start = time.time()
     not_in_play = build.projections.filter(in_play=False).values_list('slate_player_id', flat=True)
