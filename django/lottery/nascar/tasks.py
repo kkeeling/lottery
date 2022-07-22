@@ -1728,15 +1728,20 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
             'op': [d.dk_op for d in race_sim.outcomes.all()]
         }, index=[d.dk_name for d in race_sim.outcomes.all()])
 
-        # GTO Lineups
-        dk_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
-            'player_1__dk_name', 'player_2__dk_name', 'player_3__dk_name', 'player_4__dk_name', 'player_5__dk_name', 'player_6__dk_name', 'total_salary', 'median', 's75', 's90', 'rank_median', 'rank_s75', 'rank_s90', 'count', 'dup_projection'
+        # Optimal Lineups
+        optimal_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
+            'player_1__dk_name', 'player_2__dk_name', 'player_3__dk_name', 'player_4__dk_name', 'player_5__dk_name', 'player_6__dk_name', 'total_salary', 'median', 's75', 's90', 'count', 'dup_projection'
+        ))
+        # Cash  Lineups
+        cash_lineups = pandas.DataFrame.from_records(race_sim.builds.get(build_type='cash').lineups.filter(win_rate__gte=0.6).order_by('-win_rate').values(
+            'slate_lineup__player_1__csv_name', 'slate_lineup__player_2__csv_name', 'slate_lineup__player_3__csv_name', 'slate_lineup__player_4__csv_name', 'slate_lineup__player_5__csv_name', 'slate_lineup__player_6__csv_name', 'slate_lineup__total_salary', 'median', 's75', 's90', 'win_rate'
         ))
 
         with pandas.ExcelWriter(result_path) as writer:
             df_dk.to_excel(writer, sheet_name='DK')
             df_dk_raw.to_excel(writer, sheet_name='DK Raw')
-            dk_lineups.to_excel(writer, sheet_name='DK Lineups')
+            optimal_lineups.to_excel(writer, sheet_name='GPP Lineups')
+            cash_lineups.to_excel(writer, sheet_name='Cash Lineups')
 
         print(f'export took {time.time() - start}s')
         task.status = 'download'
@@ -1813,57 +1818,6 @@ def process_build(build_id, task_id):
                         lineup.save()
                         lineup.simulate()
 
-        # Get sim scores for each slate lineup
-        # build.lineups.all().delete()
-
-        # from . import filters
-
-        # start = time.time()
-        # player_outcomes = pandas.DataFrame.from_records(build.projections.filter(in_play=True).values('slate_player_id', 'sim_scores'))
-        # player_outcomes = player_outcomes.set_index('slate_player_id')
-        # logger.info(f'Getting player outcomes took {time.time() - start}s')
-
-        # start = time.time()
-        # not_in_play = build.projections.filter(in_play=False).values_list('slate_player_id', flat=True)
-        # possible_lineups = build.slate.possible_lineups.exclude(
-        #     Q(
-        #         Q(player_1_id__in=not_in_play) | 
-        #         Q(player_2_id__in=not_in_play) | 
-        #         Q(player_3_id__in=not_in_play) | 
-        #         Q(player_4_id__in=not_in_play) | 
-        #         Q(player_5_id__in=not_in_play) | 
-        #         Q(player_6_id__in=not_in_play)
-        #     )
-        # )  
-        # slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs
-        # logger.info(f'Filtered lineups took {time.time() - start}s')
-        
-        # start = time.time()
-        # df_build_lineups = pandas.DataFrame.from_records(slate_lineups.values('id', 'player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'))
-        # logger.info(f'Initial dataframe took {time.time() - start}s')
-        # df_build_lineups['slate_lineup_id'] = df_build_lineups['id']
-        # df_build_lineups['build_id'] = build.id
-        # start = time.time()
-        # df_build_lineups['sim_scores'] = df_build_lineups.apply(lambda x: numpy.array(player_outcomes.loc[x['player_1'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_2'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_3'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_4'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_5'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_6'], 'sim_scores']), axis=1)
-        # logger.info(f'Sim scores lineups took {time.time() - start}s')
-        # df_build_lineups['median'] = df_build_lineups['sim_scores'].map(lambda x: numpy.median(x))
-        # df_build_lineups['s75'] = df_build_lineups['sim_scores'].map(lambda x: numpy.percentile(x, 75))
-        # df_build_lineups['s90'] = df_build_lineups['sim_scores'].map(lambda x: numpy.percentile(x, 90))
-        # df_build_lineups = df_build_lineups.drop(['player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'], axis=1)
-
-        # start = time.time()
-        # user = settings.DATABASES['default']['USER']
-        # password = settings.DATABASES['default']['PASSWORD']
-        # database_name = settings.DATABASES['default']['NAME']
-        # database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
-        #     user=user,
-        #     password=password,
-        #     database_name=database_name,
-        # )
-        # engine = sqlalchemy.create_engine(database_url, echo=False)
-        # df_build_lineups.to_sql('nascar_slatebuildlineup', engine, if_exists='append', index=False)
-        # logger.info(f'Write to db took {time.time() - start}s')
-
         task.status = 'success'
         task.content = f'{build} processed.'
         task.save()
@@ -1903,6 +1857,7 @@ def process_slate_players(slate_id, task_id):
                     player_id = row['ID']
                     player_name = row['Name']
                     player_salary = int(row['Salary'])
+                    csv_name = f'{player_name} ({player_id})'
                 else:
                     raise Exception(f'{slate.site} is not supported yet.')
 
@@ -1921,8 +1876,8 @@ def process_slate_players(slate_id, task_id):
                         )
 
                     slate_player.name = alias.get_alias(slate.site)
+                    slate_player.csv_name = csv_name
                     slate_player.salary = player_salary
-                    print(models.Driver.objects.filter(full_name=alias.get_alias('nascar')))
                     slate_player.driver = models.Driver.objects.get(full_name=alias.get_alias('nascar'))
                     slate_player.save()
 

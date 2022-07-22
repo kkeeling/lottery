@@ -683,6 +683,7 @@ class SlatePlayer(models.Model):
     slate_player_id = models.CharField(max_length=255, primary_key=True)
     slate = models.ForeignKey(Slate, related_name='players', on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
+    csv_name = models.CharField(max_length=255, null=True, blank=True)
     salary = models.IntegerField()
     fantasy_points = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
     ownership = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)

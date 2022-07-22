@@ -417,6 +417,7 @@ class RaceSimAdmin(admin.ModelAdmin):
         'export_all_results_button',
         'export_dk_results_button',
         'get_lineups_link',
+        'get_builds_link',
     )
     list_editable = (
         'iterations',
@@ -473,6 +474,12 @@ class RaceSimAdmin(admin.ModelAdmin):
             return mark_safe('<a href="/admin/nascar/racesimlineup/?sim__id__exact={}" target="_blank">Lineups</a>'.format(obj.id))
         return 'None'
     get_lineups_link.short_description = 'Optimal Lineups'
+
+    def get_builds_link(self, obj):
+        if obj.builds.all().count() > 0:
+            return mark_safe('<a href="/admin/nascar/slatebuild/?sim__id__exact={}" target="_blank">Builds</a>'.format(obj.id))
+        return 'None'
+    get_builds_link.short_description = 'Builds'
 
     def create_backtest_sim(self, request, queryset):
         for sim in queryset:
@@ -744,6 +751,7 @@ class SlateAdmin(admin.ModelAdmin):
         'race',
         'site',
         'get_players_link',
+        'get_lineups_link',
         'get_builds_link',
         'make_lineups_button',
         'export_button',
@@ -789,6 +797,12 @@ class SlateAdmin(admin.ModelAdmin):
             return mark_safe('<a href="/admin/nascar/slateplayer/?slate__id={}">Players</a>'.format(obj.id))
         return 'None'
     get_players_link.short_description = 'Players'
+
+    def get_lineups_link(self, obj):
+        if obj.possible_lineups.all().count() > 0:
+            return mark_safe('<a href="/admin/nascar/slatelineup/?slate__id__exact={}" target="_blank">Lineups</a>'.format(obj.id))
+        return 'None'
+    get_lineups_link.short_description = 'Possible Lineups'
 
     def get_builds_link(self, obj):
         if obj.players.all().count() > 0:
