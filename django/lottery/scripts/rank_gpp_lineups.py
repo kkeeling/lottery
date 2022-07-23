@@ -13,7 +13,10 @@ def run():
 
     start = time.time()
     projections = build.projections.filter(in_play=True).order_by('-slate_player__salary')
-    player_outcomes = pandas.DataFrame([p.sim_scores for p in projections], index=[p.slate_player.slate_player_id for p in projections], dtype='float16')
+    # player_outcomes = pandas.DataFrame([p.sim_scores for p in projections], index=[p.slate_player.slate_player_id for p in projections], dtype='float16')
+    player_outcomes = {}
+    for p in projections:
+        player_outcomes[p.slate_player.slate_player_id] = numpy.array(p.sim_scores)
     print(f'Getting player outcomes took {time.time() - start}s')
     # print(player_outcomes)
     # print(player_outcomes.info(verbose=True, memory_usage='deep'))
@@ -50,7 +53,7 @@ def run():
     print(df_build_lineups)
     # print(df_build_lineups.info(verbose=True, memory_usage='deep'))
     start = time.time()
-    df_build_lineups = df_build_lineups.apply(lambda x: numpy.array(player_outcomes.loc[str(x[0])]) + numpy.array(player_outcomes.loc[str(x[1])]) + numpy.array(player_outcomes.loc[str(x[2])]) + numpy.array(player_outcomes.loc[str(x[3])]) + numpy.array(player_outcomes.loc[str(x[4])]) + numpy.array(player_outcomes.loc[str(x[5])]), axis=1, result_type='expand')
+    df_build_lineups = df_build_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
     df_build_lineups = df_build_lineups.apply(pandas.to_numeric, downcast='unsigned')
     print(f'  Sim scores lineups took {time.time() - start}s')
     # print(df_build_lineups.info(verbose=True, memory_usage='deep'))
