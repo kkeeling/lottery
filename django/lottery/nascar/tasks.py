@@ -2060,7 +2060,7 @@ def execute_cash_workflow(build_id, task_id):
         start = time.time()
         matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
         df_matchups = pandas.DataFrame(matchups, columns=['build_lineup', 'field_lineup'])
-        df_matchups['wins'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_build_lineups.loc[x['build_lineup'], 'sim_scores']) - numpy.array(df_field_lineups.loc[x['field_lineup'], 'sim_scores'])) > 0.0), axis=1)
+        df_matchups['wins'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_build_lineups.loc[x['build_lineup'], 'sim_scores']) - numpy.array(df_field_lineups.loc[x['field_lineup'], 'sim_scores'])) >= 0.0), axis=1)
         df_matchups = df_matchups.drop(['field_lineup'], axis=1)
         logger.info(f'Matchups took {time.time() - start}s. There are {len(matchups)} matchups.')
 
