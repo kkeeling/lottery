@@ -1330,14 +1330,19 @@ def find_driver_gto(sim_id, task_id):
         race_sim = models.RaceSim.objects.get(id=sim_id)
 
         # get cash workflow and start it
-        build = race_sim.builds.get(build_type='cash')
-        execute_cash_workflow.delay(
-            build.id,
-            BackgroundTask.objects.create(
-                name='Run Cash Workflow',
-                user=task.user
-            ).id
-        )
+        try:
+            build = race_sim.builds.get(build_type='cash')
+
+            if build.field_lineups.count() > 0:  # only execute if there are field lineups to work with
+                execute_cash_workflow.delay(
+                    build.id,
+                    BackgroundTask.objects.create(
+                        name='Run Cash Workflow',
+                        user=task.user
+                    ).id
+                )
+        except:
+            pass  # if no build exists, skip
 
         # delete old sim lineups
         race_sim.sim_lineups.all().delete()
