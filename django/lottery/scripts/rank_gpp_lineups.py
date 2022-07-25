@@ -47,6 +47,7 @@ def run():
     # df_build_lineups = pandas.DataFrame.from_records(slate_lineups.values('id', 'player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'))
     df_build_lineups = pandas.DataFrame(slate_lineups.values_list('player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'), index=list(slate_lineups.values_list('id', flat=True)))
     df_build_lineups['build_id'] = build.id
+    df_build_lineups['slate_lineup_id'] = df_build_lineups.index
     df_build_lineups = df_build_lineups.apply(pandas.to_numeric, downcast='unsigned')
     print(f'  Initial dataframe took {time.time() - start}s')
     # df_build_lineups = df_build_lineups.set_index('id')

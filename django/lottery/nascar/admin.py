@@ -943,8 +943,8 @@ class SlateBuildAdmin(admin.ModelAdmin):
         ]
         return my_urls + urls
 
-    def get_queryset(self, request):
-        return super().get_queryset(request).filter(user=request.user)
+    # def get_queryset(self, request):
+    #     return super().get_queryset(request).filter(user=request.user)
 
     def get_form(self, request, obj=None, **kwargs):
         AdminForm = super(SlateBuildAdmin, self).get_form(request, obj, **kwargs)
