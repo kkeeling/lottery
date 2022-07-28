@@ -3,12 +3,11 @@ import datetime
 import itertools
 import logging
 import math
-from re import A
-from turtle import back
 import numpy
 import pandas
 import psycopg2
 # import modin.pandas as pandas
+import re
 import requests
 import scipy
 import sqlalchemy
@@ -737,6 +736,10 @@ def execute_sim_iteration(sim_id):
 
         if stage < race_sim.race.num_stages():
             num_cautions = scipy.stats.poisson.rvs(race_sim.early_stage_caution_mean)
+            if stage == 1 and num_cautions > 3:
+                num_cautions = 3
+            if stage == 2 and total_cautions + num_cautions > 6:
+                num_cautions = 6 - total_cautions
 
             debris_caution_cutoff = race_sim.early_stage_caution_prob_debris
             accident_small_caution_cutoff = race_sim.early_stage_caution_prob_accident_small
@@ -744,6 +747,8 @@ def execute_sim_iteration(sim_id):
             # accident_major_caution_cutoff = race_sim.early_stage_caution_prob_accident_major
         else:
             num_cautions = scipy.stats.poisson.rvs(race_sim.final_stage_caution_mean)
+            if total_cautions + num_cautions > 10:
+                num_cautions = 10 - total_cautions
 
             debris_caution_cutoff = race_sim.final_stage_caution_prob_debris
             accident_small_caution_cutoff = race_sim.final_stage_caution_prob_accident_small
@@ -1789,6 +1794,8 @@ def process_build(build_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         build = models.SlateBuild.objects.get(id=build_id)
+        player_sim_scores = {}
+
 
         # create (or update) the projections
         for slate_player in build.slate.players.all():
@@ -1808,32 +1815,62 @@ def process_build(build_id, task_id):
                 projection.op = sim_driver.dk_op if build.slate.site == 'draftkings' else sim_driver.fd_op
                 # print(f'{projection} - {projection.op}')
                 projection.save()
+
+                player_sim_scores[projection.slate_player.slate_player_id] = projection.sim_scores
             except:
                 projection.in_play = projection.projection > 0.0
                 projection.save()
                 traceback.print_exc()
 
         # load field lineups, if any
-        if build.field_lineups_fl:
+        if build.field_lineup_upload:
             build.field_lineups.all().delete()
 
-            with open(build.field_lineups_fl.path, mode='r') as lineups_file:
+            with open(build.field_lineup_upload.path, mode='r') as lineups_file:
                 csv_reader = csv.reader(lineups_file)
 
                 for index, row in enumerate(csv_reader):
                     if index > 0:  # skip header
-                        lineup = models.SlateBuildFieldLineup.objects.create(
-                            build=build,
-                            player_1=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[0], slate_player__slate=build.slate),
-                            player_2=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[1], slate_player__slate=build.slate),
-                            player_3=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[2], slate_player__slate=build.slate),
-                            player_4=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[3], slate_player__slate=build.slate),
-                            player_5=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[4], slate_player__slate=build.slate),
-                            player_6=models.BuildPlayerProjection.objects.get(build=build, slate_player__slate_player_id=row[5], slate_player__slate=build.slate)
+                        handle = row[0]
+                        player_1 = re.findall(r'\([0-9]*\)', row[1])[0].replace('(', '').replace(')', '')
+                        player_2 = re.findall(r'\([0-9]*\)', row[2])[0].replace('(', '').replace(')', '')
+                        player_3 = re.findall(r'\([0-9]*\)', row[3])[0].replace('(', '').replace(')', '')
+                        player_4 = re.findall(r'\([0-9]*\)', row[4])[0].replace('(', '').replace(')', '')
+                        player_5 = re.findall(r'\([0-9]*\)', row[5])[0].replace('(', '').replace(')', '')
+                        player_6 = re.findall(r'\([0-9]*\)', row[6])[0].replace('(', '').replace(')', '')
+
+                        # find this lineup in all possible lineups
+                        slate_lineup = build.slate.possible_lineups.filter(
+                           player_1__slate_player_id__in=[player_1, player_2, player_3, player_4, player_5, player_6],
+                           player_2__slate_player_id__in=[player_1, player_2, player_3, player_4, player_5, player_6],
+                           player_3__slate_player_id__in=[player_1, player_2, player_3, player_4, player_5, player_6],
+                           player_4__slate_player_id__in=[player_1, player_2, player_3, player_4, player_5, player_6],
+                           player_5__slate_player_id__in=[player_1, player_2, player_3, player_4, player_5, player_6],
+                           player_6__slate_player_id__in=[player_1, player_2, player_3, player_4, player_5, player_6],
                         )
 
+                        if slate_lineup.count() == 0:
+                            raise Exception(f'No valid lineup found for {handle} among all possible lineups.')
+                        elif slate_lineup.count() > 1:
+                            raise Exception(f'There were {slate_lineup.count()} duplicate lineups found for {handle} among all possible lineups.')
+
+                        lineup = models.SlateBuildFieldLineup.objects.create(
+                            build=build,
+                            opponent_handle=handle,
+                            slate_lineup=slate_lineup[0]
+                        )
+
+                        logger.info(player_1)
+                        logger.info(player_2)
+                        logger.info(player_3)
+                        logger.info(player_4)
+                        logger.info(player_5)
+                        logger.info(player_6)
+                        sim_scores = numpy.array(player_sim_scores[player_1]) + numpy.array(player_sim_scores[player_2]) + numpy.array(player_sim_scores[player_3]) + numpy.array(player_sim_scores[player_4]) + numpy.array(player_sim_scores[player_5]) + numpy.array(player_sim_scores[player_6])
+                        lineup.median = numpy.median(sim_scores)
+                        lineup.s75 = numpy.percentile(sim_scores, float(75))
+                        lineup.s90 = numpy.percentile(sim_scores, float(90))
                         lineup.save()
-                        lineup.simulate()
 
         task.status = 'success'
         task.content = f'{build} processed.'
@@ -1934,26 +1971,31 @@ def create_slate_lineups(slate_id, task_id):
         logger.info(f'Deleting took {time.time() - start}s')
         
         start = time.time()
-        df_salaries = pandas.read_csv(slate.salaries.path, index_col='ID')
-        logger.info(f'Reading took {time.time() - start}s')
+        slate_players = slate.players.all().order_by('-salary')
+        salaries = {}
+        for p in slate_players:
+            salaries[p.slate_player_id] = p.salary
+        # df_salaries = pandas.read_csv(slate.salaries.path, index_col='ID')
+        logger.info(f'Players took {time.time() - start}s')
 
         r = 6   
 
         start = time.time()
-        combinations = list(itertools.combinations(df_salaries.index.to_list(), r))
+        combinations = list(itertools.combinations(slate_players.values_list('slate_player_id', flat=True), r))
 
         logger.info(f'There are {len(combinations)} possible lineups. Calculation took {time.time() - start}s')
 
         start = time.time()
         df_lineups = pandas.DataFrame(data=combinations, columns=['player_1_id', 'player_2_id', 'player_3_id', 'player_4_id', 'player_5_id', 'player_6_id'])
         df_lineups['slate_id'] = slate.id
+        df_lineups = df_lineups.apply(pandas.to_numeric, downcast='unsigned')
         logger.info(f'Dataframe took {time.time() - start}s')
         start = time.time()
-        df_lineups['total_salary'] = df_lineups['player_1_id'].map(lambda x: df_salaries.loc[x, 'Salary']) + df_lineups['player_2_id'].map(lambda x: df_salaries.loc[x, 'Salary']) + df_lineups['player_3_id'].map(lambda x: df_salaries.loc[x, 'Salary']) + df_lineups['player_4_id'].map(lambda x: df_salaries.loc[x, 'Salary']) + df_lineups['player_5_id'].map(lambda x: df_salaries.loc[x, 'Salary']) + df_lineups['player_6_id'].map(lambda x: df_salaries.loc[x, 'Salary'])
+        df_lineups['total_salary'] = df_lineups.apply(lambda x: salaries.get(str(x[0])) + salaries.get(str(x[1])) + salaries.get(str(x[2])) + salaries.get(str(x[3])) + salaries.get(str(x[4])) + salaries.get(str(x[5])), axis=1, result_type='expand')
+        df_lineups = df_lineups.apply(pandas.to_numeric, downcast='unsigned')
         logger.info(f'Salary took {time.time() - start}s')
         start = time.time()
         df_lineups = df_lineups[(df_lineups.total_salary <= 50000) & (df_lineups.total_salary >= 35000)]
-        logger.info(df_lineups)
         logger.info(f'Filtering took {time.time() - start}s.')
         start = time.time()
 
@@ -2091,6 +2133,103 @@ def execute_cash_workflow(build_id, task_id):
 
         task.status = 'success'
         task.content = f'Cash workflow complete'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem running cash workflow: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def execute_h2h_workflow(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        
+        from . import filters
+
+        # Task implementation goes here
+        build = models.SlateBuild.objects.get(id=build_id)
+
+        start = time.time()
+        projections = build.projections.filter(in_play=True).order_by('-slate_player__salary')
+        # player_outcomes = pandas.DataFrame([p.sim_scores for p in projections], index=[p.slate_player.slate_player_id for p in projections], dtype='float16')
+        player_outcomes = {}
+        for p in projections:
+            player_outcomes[p.slate_player.slate_player_id] = numpy.array(p.sim_scores)
+        logger.info(f'Getting player outcomes took {time.time() - start}s')
+
+        start = time.time()
+        not_in_play = build.projections.filter(in_play=False).values_list('slate_player_id', flat=True)
+        possible_lineups = build.slate.possible_lineups.exclude(
+            Q(
+                Q(player_1_id__in=not_in_play) | 
+                Q(player_2_id__in=not_in_play) | 
+                Q(player_3_id__in=not_in_play) | 
+                Q(player_4_id__in=not_in_play) | 
+                Q(player_5_id__in=not_in_play) | 
+                Q(player_6_id__in=not_in_play)
+            )
+        )  
+        slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs
+        logger.info(f'Filtered slate lineups took {time.time() - start}s')
+        
+        start = time.time()
+        df_build_lineups = pandas.DataFrame(slate_lineups.values_list('player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'), index=list(slate_lineups.values_list('id', flat=True)))
+        df_build_lineups['build_id'] = build.id
+        df_build_lineups['slate_lineup_id'] = df_build_lineups.index
+        df_build_lineups = df_build_lineups.apply(pandas.to_numeric, downcast='unsigned')
+        logger.info(f'  Initial dataframe took {time.time() - start}s')
+        start = time.time()
+        df_build_lineups = df_build_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
+        df_build_lineups = df_build_lineups.apply(pandas.to_numeric, downcast='float')
+        logger.info(f'  Sim scores took {time.time() - start}s')
+
+        start = time.time()
+        field_lineups = build.field_lineups.all()
+        logger.info(f'Getting field lineups took {time.time() - start}s.')
+        start = time.time()
+        df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__player_1', 'slate_lineup__player_2', 'slate_lineup__player_3', 'slate_lineup__player_4', 'slate_lineup__player_5', 'slate_lineup__player_6'), index=list(field_lineups.values_list('id', flat=True)))
+        df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='unsigned')
+        logger.info(f'  Initial dataframe took {time.time() - start}s')
+        start = time.time()
+        df_field_lineups = df_field_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
+        df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='float')
+        logger.info(f'  Sim scores took {time.time() - start}s')
+
+        start = time.time()
+        matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
+        df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
+        df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_build_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
+        df_matchups['build_id'] = build.id
+        df_matchups = df_matchups.apply(pandas.to_numeric, downcast='float')
+        logger.info(df_matchups)
+        logger.info(f'Matchups took {time.time() - start}s. There are {len(matchups)} matchups.')
+
+        start = time.time()
+        user = settings.DATABASES['default']['USER']
+        password = settings.DATABASES['default']['PASSWORD']
+        database_name = settings.DATABASES['default']['NAME']
+        database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
+            user=user,
+            password=password,
+            database_name=database_name,
+        )
+        engine = sqlalchemy.create_engine(database_url, echo=False)
+        df_matchups.to_sql('nascar_slatebuildlineupmatchup', engine, if_exists='append', index=False)
+        logger.info(f'Write to db took {time.time() - start}s')
+
+        task.status = 'success'
+        task.content = f'H2H workflow complete'
         task.save()
     except Exception as e:
         if task is not None:

@@ -168,6 +168,18 @@ class RaceSimFastestLapsInline(admin.TabularInline):
     )
 
 
+class SlateBuildFieldLineupInline(admin.TabularInline):
+    model = models.SlateBuildFieldLineup
+    extra = 0
+    fields = (
+        'opponent_handle',
+        'slate_lineup',
+    )
+    raw_id_fields = (
+        'slate_lineup',
+    )
+
+
 class SlateBuildGroupPlayerInline(admin.TabularInline):
     model = models.SlateBuildGroupPlayer
     autocomplete_fields = ['player']
@@ -890,6 +902,10 @@ class SlateLineupAdmin(admin.ModelAdmin):
         'player_6__slate_player__name',
     )
 
+    list_filter = (
+        'slate',
+    )
+
 
 @admin.register(models.SlatePlayer)
 class SlatePlayerAdmin(admin.ModelAdmin):
@@ -918,6 +934,7 @@ class SlateBuildAdmin(admin.ModelAdmin):
         'get_groups_link',
         'get_lineups_link',
         'get_field_lineups_link',
+        'get_matchup_lineups_link',
         'build_button',
         'export_button',
     )
@@ -928,11 +945,13 @@ class SlateBuildAdmin(admin.ModelAdmin):
     raw_id_fields = (
         'slate',
         'sim',
-        'configuration',
     )
     search_fields = ('slate__name',)
     actions = [
         'rank_lineups'
+    ]
+    inlines = [
+        SlateBuildFieldLineupInline
     ]
 
     def get_urls(self):
@@ -999,6 +1018,20 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 messages.WARNING,
                 f'Running Cash Workflow'
             )
+        elif build.build_type == 'h2h':
+            tasks.execute_h2h_workflow.delay(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Run H2H Workflow',
+                    user=request.user
+                ).id
+            )
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                f'Running H2H Workflow'
+            )
         else:
             messages.add_message(
                 request,
@@ -1060,6 +1093,12 @@ class SlateBuildAdmin(admin.ModelAdmin):
             return mark_safe('<a href="/admin/nascar/slatebuildfieldlineup/?build__id__exact={}">Field</a>'.format(obj.id))
         return 'None'
     get_field_lineups_link.short_description = 'Field Lineups'
+
+    def get_matchup_lineups_link(self, obj):
+        if obj.matchups.all().count() > 0:
+            return mark_safe('<a href="/admin/nascar/slatebuildlineupmatchup/?build__id__exact={}">Matchups</a>'.format(obj.id))
+        return 'None'
+    get_matchup_lineups_link.short_description = 'Matchups'
 
     def get_groups_link(self, obj):
         return mark_safe('<a href="/admin/nascar/slatebuildgroup/?build__id__exact={}">Groups</a>'.format(obj.id))
@@ -1206,26 +1245,62 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
 @admin.register(models.SlateBuildFieldLineup)
 class SlateBuildFieldLineupAdmin(admin.ModelAdmin):
     list_display = (
-        'player_1',
-        'player_2',
-        'player_3',
-        'player_4',
-        'player_5',
-        'player_6',
-        'total_salary',
+        'opponent_handle',
+        'get_lineup',
+        'get_salary',
         'median',
         's75',
         's90',
     )
 
     search_fields = (
-        'player_1__slate_player__name',
-        'player_2__slate_player__name',
-        'player_3__slate_player__name',
-        'player_4__slate_player__name',
-        'player_5__slate_player__name',
-        'player_6__slate_player__name',
+        'lineup__player_1__slate_player__name',
+        'lineup__player_2__slate_player__name',
+        'lineup__player_3__slate_player__name',
+        'lineup__player_4__slate_player__name',
+        'lineup__player_5__slate_player__name',
+        'lineup__player_6__slate_player__name',
     )
+
+    def get_lineup(self, obj):
+        return mark_safe(f'{obj.slate_lineup.player_1}<br />{obj.slate_lineup.player_2}<br />{obj.slate_lineup.player_3}<br />{obj.slate_lineup.player_4}<br />{obj.slate_lineup.player_5}<br />{obj.slate_lineup.player_6}')
+    get_lineup.short_description = ''
+
+    def get_salary(self, obj):
+        return obj.slate_lineup.total_salary
+    get_salary.short_description = 'salary'
+    get_salary.admin_order_field = 'slate_lineup__total_salary'
+
+
+@admin.register(models.SlateBuildLineupMatchup)
+class SlateBuildLineupMatchupAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_lineup',
+        'get_opponent',
+        'get_win_rate',
+    )
+
+    search_fields = (
+        'slate_lineup__lineup__player_1__slate_player__name',
+        'slate_lineup__lineup__player_2__slate_player__name',
+        'slate_lineup__lineup__player_3__slate_player__name',
+        'slate_lineup__lineup__player_4__slate_player__name',
+        'slate_lineup__lineup__player_5__slate_player__name',
+        'slate_lineup__lineup__player_6__slate_player__name',
+    )
+
+    def get_lineup(self, obj):
+        return mark_safe(f'{obj.slate_lineup.player_1}<br />{obj.slate_lineup.player_2}<br />{obj.slate_lineup.player_3}<br />{obj.slate_lineup.player_4}<br />{obj.slate_lineup.player_5}<br />{obj.slate_lineup.player_6}')
+    get_lineup.short_description = ''
+
+    def get_opponent(self, obj):
+        return f'{obj.field_lineup.opponent_handle}'
+    get_opponent.short_description = 'vs.'
+
+    def get_win_rate(self, obj):
+        return '{:.2f}%'.format(obj.win_rate * 100)
+    get_win_rate.short_description = 'win %'
+    get_win_rate.admin_order_field = 'win_rate'
 
 
 @admin.register(models.Contest)

@@ -109,7 +109,8 @@ TRACK_TYPES = (
 )
 
 BUILD_TYPES = (
-    ('cash', 'Cash'),
+    ('h2h', 'Head-to-Head'),
+    ('cash', '50/50s'),
     ('se', 'Hi-Stakes SE'),
     ('mme', 'MME'),
 )
@@ -117,6 +118,9 @@ BUILD_TYPES = (
 BUILD_TYPE_FILTERS = {
     'cash': {
         'total_salary__gte': 49000
+    },
+    'h2h': {
+        'total_salary__gte': 49700
     },
     'se': {
         'total_salary__gte': 48500
@@ -711,6 +715,9 @@ class SlateLineup(models.Model):
         verbose_name_plural = 'Slate Lineups'
         ordering = ['-total_salary']
 
+    def __str__(self):
+        return f'{self.player_1} {self.player_2} {self.player_3} {self.player_4} {self.player_5} {self.player_6}'
+
     @property
     def players(self):
         return [
@@ -733,19 +740,14 @@ class SlateBuild(models.Model):
     sim = models.ForeignKey(RaceSim, related_name='builds', on_delete=models.SET_NULL, null=True)
     user = models.ForeignKey(User, related_name='builds', on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True, null=True, blank=True)
-    used_in_contests = models.BooleanField(default=False, verbose_name='Used')
-    configuration = models.ForeignKey(SlateBuildConfig, related_name='builds', verbose_name='Config', on_delete=models.SET_NULL, null=True, blank=True)
-    total_lineups = models.PositiveIntegerField(verbose_name='total', default=0)
-    max_entrants = models.PositiveIntegerField(verbose_name='max_entrants', default=50000)
-    field_lineups_fl = models.FileField(upload_to='uploads/field_lineups', blank=True, null=True)
-    field_lineups_rg = models.FileField(upload_to='uploads/field_lineups', blank=True, null=True)
+    field_lineup_upload = models.FileField(upload_to='uploads/field_lineups', blank=True, null=True)
 
     class Meta:
         verbose_name = 'Slate Build'
         verbose_name_plural = 'Slate Builds'
 
     def __str__(self):
-        return '{} ({})'.format(self.slate.name, self.configuration)
+        return f'{self.slate.name}'
 
     def execute_build(self, user):
         self.lineups.all().delete()
@@ -918,6 +920,9 @@ class SlateBuildLineup(models.Model):
         verbose_name_plural = 'Lineups'
         ordering = ['-median']
 
+    def __str__(self):
+        return f'{self.slate_lineup}'
+
     @property
     def players(self):
         return [
@@ -932,14 +937,8 @@ class SlateBuildLineup(models.Model):
 
 class SlateBuildFieldLineup(models.Model):
     build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='field_lineups', on_delete=models.CASCADE)
-    player_1 = models.ForeignKey(BuildPlayerProjection, related_name='field_lineup_as_player_1', on_delete=models.CASCADE)
-    player_2 = models.ForeignKey(BuildPlayerProjection, related_name='field_lineup_as_player_2', on_delete=models.CASCADE)
-    player_3 = models.ForeignKey(BuildPlayerProjection, related_name='field_lineup_as_player_3', on_delete=models.CASCADE)
-    player_4 = models.ForeignKey(BuildPlayerProjection, related_name='field_lineup_as_player_4', on_delete=models.CASCADE)
-    player_5 = models.ForeignKey(BuildPlayerProjection, related_name='field_lineup_as_player_5', on_delete=models.CASCADE)
-    player_6 = models.ForeignKey(BuildPlayerProjection, related_name='field_lineup_as_player_6', on_delete=models.CASCADE, null=True, blank=True)
-    total_salary = models.IntegerField(default=0)
-    sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+    opponent_handle = models.CharField(max_length=100, blank=True, null=True)
+    slate_lineup = models.ForeignKey(SlateLineup, verbose_name='Lineup', related_name='field_lineups', blank=True, null=True, on_delete=models.CASCADE)
     median = models.FloatField(db_index=True, default=0.0)
     s75 = models.FloatField(db_index=True, default=0.0)
     s90 = models.FloatField(db_index=True, default=0.0)
@@ -949,30 +948,34 @@ class SlateBuildFieldLineup(models.Model):
         verbose_name_plural = 'Field Lineups'
         ordering = ['-median']
 
+    def __str__(self):
+        return f'{self.slate_lineup}'
+
     @property
     def players(self):
         return [
-            self.player_1, 
-            self.player_2, 
-            self.player_3, 
-            self.player_4, 
-            self.player_5, 
-            self.player_6
+            self.slate_lineup.player_1, 
+            self.slate_lineup.player_2, 
+            self.slate_lineup.player_3, 
+            self.slate_lineup.player_4, 
+            self.slate_lineup.player_5, 
+            self.slate_lineup.player_6
         ]
 
-    def get_percentile_sim_score(self, percentile):
-        return numpy.percentile(self.sim_scores, float(percentile))
 
-    def get_rank_percentile_sim_score(self, percentile):
-        return numpy.percentile(self.sim_score_ranks, float(percentile))
+class SlateBuildLineupMatchup(models.Model):
+    build = models.ForeignKey(SlateBuild, verbose_name='Build', related_name='matchups', on_delete=models.CASCADE)
+    slate_lineup = models.ForeignKey(SlateLineup, related_name='matchups', on_delete=models.CASCADE)
+    field_lineup = models.ForeignKey(SlateBuildFieldLineup, related_name='matchups', on_delete=models.CASCADE)
+    win_rate = models.FloatField(db_index=True, default=0.0)
 
-    def simulate(self):
-        self.total_salary = sum([p.salary for p in self.players])
-        self.sim_scores = [float(sum([p.sim_scores[i] for p in self.players])) for i in range(0, self.build.sim.iterations)]
-        self.median = numpy.median(self.sim_scores)
-        self.s75 = self.get_percentile_sim_score(75)
-        self.s90 = self.get_percentile_sim_score(90)
-        self.save()
+    class Meta:
+        verbose_name = 'Lineup Matchup'
+        verbose_name_plural = 'Lineup Matchups'
+        ordering = ['-win_rate']
+
+    def __str__(self):
+        return f'Lineup {self.slate_lineup.id} vs. {self.field_lineup.opponent_handle}'
 
 
 # Backtesting
