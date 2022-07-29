@@ -120,7 +120,7 @@ BUILD_TYPE_FILTERS = {
         'total_salary__gte': 48500
     },
     'h2h': {
-        'total_salary__gte': 48500
+        'total_salary__gte': 49900
     },
     'se': {
         'total_salary__gte': 48500

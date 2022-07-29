@@ -905,7 +905,14 @@ class SlateLineupAdmin(admin.ModelAdmin):
     list_filter = (
         'slate',
     )
-
+    raw_id_fields = (
+        'player_1',
+        'player_2',
+        'player_3',
+        'player_4',
+        'player_5',
+        'player_6',
+    )
 
 @admin.register(models.SlatePlayer)
 class SlatePlayerAdmin(admin.ModelAdmin):

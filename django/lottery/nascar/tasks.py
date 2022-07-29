@@ -2084,7 +2084,7 @@ def execute_cash_workflow(build_id, task_id):
                 Q(player_6_id__in=not_in_play)
             )
         )  
-        slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs
+        slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs.order_by('id')
         logger.info(f'Filtered slate lineups took {time.time() - start}s')
         
         start = time.time()
@@ -2096,10 +2096,11 @@ def execute_cash_workflow(build_id, task_id):
         start = time.time()
         df_slate_lineups = df_slate_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
         df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='float')
+        logger.info(df_slate_lineups)
         logger.info(f'  Sim scores took {time.time() - start}s')
 
         start = time.time()
-        field_lineups = build.field_lineups.all()
+        field_lineups = build.field_lineups.all().order_by('id')
         logger.info(f'Getting field lineups took {time.time() - start}s.')
         start = time.time()
         df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__player_1', 'slate_lineup__player_2', 'slate_lineup__player_3', 'slate_lineup__player_4', 'slate_lineup__player_5', 'slate_lineup__player_6'), index=list(field_lineups.values_list('id', flat=True)))
@@ -2195,7 +2196,7 @@ def execute_h2h_workflow(build_id, task_id):
                 Q(player_6_id__in=not_in_play)
             )
         )  
-        slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs
+        slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs.order_by('id')
         logger.info(f'Filtered slate lineups took {time.time() - start}s')
         
         start = time.time()
@@ -2204,13 +2205,16 @@ def execute_h2h_workflow(build_id, task_id):
         df_slate_lineups['slate_lineup_id'] = df_slate_lineups.index
         df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='unsigned')
         logger.info(f'  Initial dataframe took {time.time() - start}s')
+        # logger.info(f'{player_outcomes.get(str(df_slate_lineups.loc[2009202, 0]))[0]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 1]))[0]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 2]))[0]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 3]))[0]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 4]))[0]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 5]))[0]}')
+        # logger.info(f'{player_outcomes.get(str(df_slate_lineups.loc[2009202, 0]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 1]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 2]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 3]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 4]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 5]))[1]}')
         start = time.time()
         df_slate_lineups = df_slate_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
         df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='float')
+        # logger.info(df_slate_lineups.loc[2009202])
         logger.info(f'  Sim scores took {time.time() - start}s')
 
         start = time.time()
-        field_lineups = build.field_lineups.all()
+        field_lineups = build.field_lineups.all().order_by('id')
         logger.info(f'Getting field lineups took {time.time() - start}s.')
         start = time.time()
         df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__player_1', 'slate_lineup__player_2', 'slate_lineup__player_3', 'slate_lineup__player_4', 'slate_lineup__player_5', 'slate_lineup__player_6'), index=list(field_lineups.values_list('id', flat=True)))
@@ -2255,6 +2259,7 @@ def execute_h2h_workflow(build_id, task_id):
                 s90=numpy.percentile(sim_scores, 90)
             )
         logger.info(f'Adding build lineups took {time.time() - start}s')
+
 
         task.status = 'success'
         task.content = f'H2H workflow complete'

@@ -23,6 +23,7 @@ def run():
     player_outcomes = {}
     for p in projections:
         player_outcomes[p.slate_player.slate_player_id] = numpy.array(p.sim_scores)
+        print(f'{p.slate_player.slate_player_id} = {p.sim_scores[0]}')
     print(f'Getting player outcomes took {time.time() - start}s')
 
     start = time.time()
@@ -37,7 +38,7 @@ def run():
             Q(player_6_id__in=not_in_play)
         )
     )  
-    slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs
+    slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs.order_by('id')
     print(f'Filtered slate lineups took {time.time() - start}s')
     
     start = time.time()
@@ -45,43 +46,37 @@ def run():
     df_slate_lineups['build_id'] = build.id
     df_slate_lineups['slate_lineup_id'] = df_slate_lineups.index
     df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='unsigned')
+    print(df_slate_lineups)
     print(f'  Initial dataframe took {time.time() - start}s')
+    print(df_slate_lineups.loc[1917790])
+    print(f'{player_outcomes.get(str(df_slate_lineups.loc[1917790, 0]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[1917790, 1]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[1917790, 2]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[1917790, 3]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[1917790, 4]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[1917790, 5]))[1]}')
     start = time.time()
     df_slate_lineups = df_slate_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
     df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='float')
+    print(df_slate_lineups.loc[1917790])
     print(f'  Sim scores lineups took {time.time() - start}s')
-
-    start = time.time()
-    field_lineups = build.field_lineups.all()
-    print(f'Getting field lineups took {time.time() - start}s.')
-    start = time.time()
-    df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__player_1', 'slate_lineup__player_2', 'slate_lineup__player_3', 'slate_lineup__player_4', 'slate_lineup__player_5', 'slate_lineup__player_6'), index=list(field_lineups.values_list('id', flat=True)))
-    df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='unsigned')
-    print(f'  Initial dataframe took {time.time() - start}s')
-    start = time.time()
-    df_field_lineups = df_field_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
-    df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='float')
-    print(f'  Sim scores lineups took {time.time() - start}s')
-
-    start = time.time()
-    matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
-    df_matchups = pandas.DataFrame(matchups, columns=['build_lineup', 'field_lineup'])
-    df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['build_lineup']]) - numpy.array(df_field_lineups.loc[x['field_lineup']])) > 0.0) / build.sim.iterations, axis=1)
-    df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
-    df_matchups = df_matchups.apply(pandas.to_numeric, downcast='float')
-    print(df_matchups)
-    print(f'Matchups took {time.time() - start}s. There were {len(matchups)} total matchups. {df_matchups.size} matchups remain.')
-
-    start = time.time()
-    build_lineups = df_matchups.build_lineup.unique()
-    print(f'Finding build lineups took {time.time() - start}s.')
 
     # start = time.time()
-    # df_lineups = df_matchups.groupby('build_lineup').sum()
-    # df_lineups['slate_lineup_id'] = df_lineups.index
-    # df_lineups['win_rate'] = df_lineups['wins'] / (build.sim.iterations * field_lineups.count())
-    # df_lineups['median'] = df_lineups.apply(lambda x: numpy.median(numpy.array(df_slate_lineups.loc[x['slate_lineup_id'], 'sim_scores'])), axis=1)
-    # df_lineups['s75'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id'], 'sim_scores']), 75.0), axis=1)
-    # df_lineups['s90'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id'], 'sim_scores']), 90.0), axis=1)
-    # print(df_lineups)
-    # print(f'Win Rates took {time.time() - start}s. There are {len(df_lineups.index)} lineups.')
+    # field_lineups = build.field_lineups.all()
+    # print(f'Getting field lineups took {time.time() - start}s.')
+    # start = time.time()
+    # df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__player_1', 'slate_lineup__player_2', 'slate_lineup__player_3', 'slate_lineup__player_4', 'slate_lineup__player_5', 'slate_lineup__player_6'), index=list(field_lineups.values_list('id', flat=True)))
+    # df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='unsigned')
+    # print(f'  Initial dataframe took {time.time() - start}s')
+    # start = time.time()
+    # df_field_lineups = df_field_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
+    # df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='float')
+    # print(f'  Sim scores lineups took {time.time() - start}s')
+
+    # start = time.time()
+    # matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
+    # df_matchups = pandas.DataFrame(matchups, columns=['build_lineup', 'field_lineup'])
+    # df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['build_lineup']]) - numpy.array(df_field_lineups.loc[x['field_lineup']])) > 0.0) / build.sim.iterations, axis=1)
+    # df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
+    # df_matchups = df_matchups.apply(pandas.to_numeric, downcast='float')
+    # print(df_matchups)
+    # print(f'Matchups took {time.time() - start}s. There were {len(matchups)} total matchups. {df_matchups.size} matchups remain.')
+
+    # start = time.time()
+    # build_lineups = df_matchups.build_lineup.unique()
+    # print(f'Finding build lineups took {time.time() - start}s.')
