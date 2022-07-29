@@ -862,12 +862,12 @@ class BuildPlayerProjection(models.Model):
         if self.build.lineups.all().count() > 0:
             return self.build.lineups.filter(
                 Q(
-                    Q(player_1=self) | 
-                    Q(player_2=self) | 
-                    Q(player_3=self) | 
-                    Q(player_4=self) | 
-                    Q(player_5=self) | 
-                    Q(player_6=self)
+                    Q(slate_lineup__player_1=self.slate_player) | 
+                    Q(slate_lineup__player_2=self.slate_player) | 
+                    Q(slate_lineup__player_3=self.slate_player) | 
+                    Q(slate_lineup__player_4=self.slate_player) | 
+                    Q(slate_lineup__player_5=self.slate_player) | 
+                    Q(slate_lineup__player_6=self.slate_player)
                 )
             ).count() / self.build.lineups.all().count()
         return 0
