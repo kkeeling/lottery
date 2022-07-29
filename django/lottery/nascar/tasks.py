@@ -1349,6 +1349,21 @@ def find_driver_gto(sim_id, task_id):
         except:
             pass  # if no build exists, skip
 
+        # get h2h workflow and start it
+        try:
+            build = race_sim.builds.get(build_type='h2h')
+
+            if build.field_lineups.count() > 0:  # only execute if there are field lineups to work with
+                execute_h2h_workflow.delay(
+                    build.id,
+                    BackgroundTask.objects.create(
+                        name='Run Cash Workflow',
+                        user=task.user
+                    ).id
+                )
+        except:
+            pass  # if no build exists, skip
+
         # delete old sim lineups
         race_sim.sim_lineups.all().delete()
         scores = [d.dk_scores for d in race_sim.outcomes.all().order_by('starting_position')]
@@ -1754,18 +1769,30 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
         optimal_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
             'player_1__dk_name', 'player_2__dk_name', 'player_3__dk_name', 'player_4__dk_name', 'player_5__dk_name', 'player_6__dk_name', 'total_salary', 'median', 's75', 's90', 'count', 'dup_projection'
         ))
+
         # Cash  Lineups
-        cash_lineups = pandas.DataFrame.from_records(race_sim.builds.get(build_type='cash').lineups.filter(win_rate__gte=0.6).order_by('-win_rate').values(
+        cash_lineups = pandas.DataFrame.from_records(race_sim.builds.get(build_type='cash').lineups.all().order_by('-win_rate').values(
             'slate_lineup__player_1__csv_name', 'slate_lineup__player_2__csv_name', 'slate_lineup__player_3__csv_name', 'slate_lineup__player_4__csv_name', 'slate_lineup__player_5__csv_name', 'slate_lineup__player_6__csv_name', 'slate_lineup__total_salary', 'median', 's75', 's90', 'win_rate'
         ))
+
+        # H2h Lineups
+        build = race_sim.builds.get(build_type='h2h')
+        opponents = list(build.field_lineups.all().values_list('opponent_handle', flat=True))
+        opponents = list(set(opponents))
+        h2h_lineups = pandas.DataFrame.from_records(build.lineups.all().order_by('-median').values(
+            'slate_lineup_id', 'slate_lineup__player_1__csv_name', 'slate_lineup__player_2__csv_name', 'slate_lineup__player_3__csv_name', 'slate_lineup__player_4__csv_name', 'slate_lineup__player_5__csv_name', 'slate_lineup__player_6__csv_name', 'slate_lineup__total_salary', 'median', 's75', 's90'
+        ))
+        for opponent in opponents:
+            h2h_lineups[opponent] = h2h_lineups.apply(lambda x: build.matchups.get(field_lineup__opponent_handle=opponent, slate_lineup_id=x.loc['slate_lineup_id']).win_rate if build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x['slate_lineup_id']).count() > 0 else math.nan, axis=1)
 
         with pandas.ExcelWriter(result_path) as writer:
             df_dk.to_excel(writer, sheet_name='DK')
             df_dk_raw.to_excel(writer, sheet_name='DK Raw')
             optimal_lineups.to_excel(writer, sheet_name='GPP Lineups')
             cash_lineups.to_excel(writer, sheet_name='Cash Lineups')
+            h2h_lineups.to_excel(writer, sheet_name='H2H Lineups')
 
-        print(f'export took {time.time() - start}s')
+        logger.info(f'export took {time.time() - start}s')
         task.status = 'download'
         task.content = result_url
         task.save()
@@ -1860,12 +1887,6 @@ def process_build(build_id, task_id):
                             slate_lineup=slate_lineup[0]
                         )
 
-                        logger.info(player_1)
-                        logger.info(player_2)
-                        logger.info(player_3)
-                        logger.info(player_4)
-                        logger.info(player_5)
-                        logger.info(player_6)
                         sim_scores = numpy.array(player_sim_scores[player_1]) + numpy.array(player_sim_scores[player_2]) + numpy.array(player_sim_scores[player_3]) + numpy.array(player_sim_scores[player_4]) + numpy.array(player_sim_scores[player_5]) + numpy.array(player_sim_scores[player_6])
                         lineup.median = numpy.median(sim_scores)
                         lineup.s75 = numpy.percentile(sim_scores, float(75))
@@ -2040,13 +2061,15 @@ def execute_cash_workflow(build_id, task_id):
 
         # Task implementation goes here
         build = models.SlateBuild.objects.get(id=build_id)
-        start = time.time()
+
+        build.matchups.all().delete()
         build.lineups.all().delete()
-        logger.info(f'Deleting old cash lineups took {time.time() - start}s')
 
         start = time.time()
-        player_outcomes = pandas.DataFrame.from_records(build.projections.filter(in_play=True).values('slate_player_id', 'sim_scores'))
-        player_outcomes = player_outcomes.set_index('slate_player_id')
+        projections = build.projections.filter(in_play=True).order_by('-slate_player__salary')
+        player_outcomes = {}
+        for p in projections:
+            player_outcomes[p.slate_player.slate_player_id] = numpy.array(p.sim_scores)
         logger.info(f'Getting player outcomes took {time.time() - start}s')
 
         start = time.time()
@@ -2065,54 +2088,43 @@ def execute_cash_workflow(build_id, task_id):
         logger.info(f'Filtered slate lineups took {time.time() - start}s')
         
         start = time.time()
-        df_build_lineups = pandas.DataFrame.from_records(slate_lineups.values('id', 'player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'))
+        df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'), index=list(slate_lineups.values_list('id', flat=True)))
+        df_slate_lineups['build_id'] = build.id
+        df_slate_lineups['slate_lineup_id'] = df_slate_lineups.index
+        df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='unsigned')
         logger.info(f'  Initial dataframe took {time.time() - start}s')
-        df_build_lineups['slate_lineup_id'] = df_build_lineups['id']
-        df_build_lineups['build_id'] = build.id
-        df_build_lineups = df_build_lineups.set_index('id')
         start = time.time()
-        df_build_lineups['sim_scores'] = df_build_lineups.apply(lambda x: numpy.array(player_outcomes.loc[x['player_1'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_2'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_3'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_4'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_5'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_6'], 'sim_scores']), axis=1)
+        df_slate_lineups = df_slate_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
+        df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='float')
         logger.info(f'  Sim scores took {time.time() - start}s')
 
         start = time.time()
         field_lineups = build.field_lineups.all()
         logger.info(f'Getting field lineups took {time.time() - start}s.')
         start = time.time()
-        df_field_lineups = pandas.DataFrame.from_records(field_lineups.values('id', 'player_1__slate_player_id', 'player_2__slate_player_id', 'player_3__slate_player_id', 'player_4__slate_player_id', 'player_5__slate_player_id', 'player_6__slate_player_id'))
-        df_field_lineups['player_1'] = df_field_lineups['player_1__slate_player_id']
-        df_field_lineups['player_2'] = df_field_lineups['player_2__slate_player_id']
-        df_field_lineups['player_3'] = df_field_lineups['player_3__slate_player_id']
-        df_field_lineups['player_4'] = df_field_lineups['player_4__slate_player_id']
-        df_field_lineups['player_5'] = df_field_lineups['player_5__slate_player_id']
-        df_field_lineups['player_6'] = df_field_lineups['player_6__slate_player_id']
-        df_field_lineups = df_field_lineups.set_index('id')
-        df_field_lineups = df_field_lineups.drop([
-            'player_1__slate_player_id',
-            'player_2__slate_player_id',
-            'player_3__slate_player_id',
-            'player_4__slate_player_id',
-            'player_5__slate_player_id',
-            'player_6__slate_player_id',
-        ], axis=1)
+        df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__player_1', 'slate_lineup__player_2', 'slate_lineup__player_3', 'slate_lineup__player_4', 'slate_lineup__player_5', 'slate_lineup__player_6'), index=list(field_lineups.values_list('id', flat=True)))
+        df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='unsigned')
         logger.info(f'  Initial dataframe took {time.time() - start}s')
         start = time.time()
-        df_field_lineups['sim_scores'] = df_field_lineups.apply(lambda x: numpy.array(player_outcomes.loc[x['player_1'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_2'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_3'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_4'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_5'], 'sim_scores']) + numpy.array(player_outcomes.loc[x['player_6'], 'sim_scores']), axis=1)
+        df_field_lineups = df_field_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
+        df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='float')
         logger.info(f'  Sim scores took {time.time() - start}s')
 
         start = time.time()
         matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
-        df_matchups = pandas.DataFrame(matchups, columns=['build_lineup', 'field_lineup'])
-        df_matchups['wins'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_build_lineups.loc[x['build_lineup'], 'sim_scores']) - numpy.array(df_field_lineups.loc[x['field_lineup'], 'sim_scores'])) >= 0.0), axis=1)
-        df_matchups = df_matchups.drop(['field_lineup'], axis=1)
+        df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
+        df_matchups['wins'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0), axis=1)
+        df_matchups = df_matchups.drop(['field_lineup_id'], axis=1)
         logger.info(f'Matchups took {time.time() - start}s. There are {len(matchups)} matchups.')
 
         start = time.time()
-        df_lineups = df_matchups.groupby('build_lineup').sum()
-        df_lineups['slate_lineup_id'] = df_lineups.index
+        df_lineups = df_matchups.groupby('slate_lineup_id').sum()
         df_lineups['win_rate'] = df_lineups['wins'] / (build.sim.iterations * field_lineups.count())
-        df_lineups['median'] = df_lineups.apply(lambda x: numpy.median(numpy.array(df_build_lineups.loc[x['slate_lineup_id'], 'sim_scores'])), axis=1)
-        df_lineups['s75'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_build_lineups.loc[x['slate_lineup_id'], 'sim_scores']), 75.0), axis=1)
-        df_lineups['s90'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_build_lineups.loc[x['slate_lineup_id'], 'sim_scores']), 90.0), axis=1)
+        df_lineups = df_lineups[(df_lineups.win_rate >= 0.58)]
+        df_lineups['slate_lineup_id'] = df_lineups.index
+        df_lineups['median'] = df_lineups.apply(lambda x: numpy.median(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']])), axis=1)
+        df_lineups['s75'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]), 75.0), axis=1)
+        df_lineups['s90'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]), 90.0), axis=1)
         df_lineups['build_id'] = build.id
         df_lineups = df_lineups.drop(['wins'], axis=1)
         logger.info(df_lineups)
@@ -2160,6 +2172,9 @@ def execute_h2h_workflow(build_id, task_id):
         # Task implementation goes here
         build = models.SlateBuild.objects.get(id=build_id)
 
+        build.matchups.all().delete()
+        build.lineups.all().delete()
+
         start = time.time()
         projections = build.projections.filter(in_play=True).order_by('-slate_player__salary')
         # player_outcomes = pandas.DataFrame([p.sim_scores for p in projections], index=[p.slate_player.slate_player_id for p in projections], dtype='float16')
@@ -2184,14 +2199,14 @@ def execute_h2h_workflow(build_id, task_id):
         logger.info(f'Filtered slate lineups took {time.time() - start}s')
         
         start = time.time()
-        df_build_lineups = pandas.DataFrame(slate_lineups.values_list('player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'), index=list(slate_lineups.values_list('id', flat=True)))
-        df_build_lineups['build_id'] = build.id
-        df_build_lineups['slate_lineup_id'] = df_build_lineups.index
-        df_build_lineups = df_build_lineups.apply(pandas.to_numeric, downcast='unsigned')
+        df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'), index=list(slate_lineups.values_list('id', flat=True)))
+        df_slate_lineups['build_id'] = build.id
+        df_slate_lineups['slate_lineup_id'] = df_slate_lineups.index
+        df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='unsigned')
         logger.info(f'  Initial dataframe took {time.time() - start}s')
         start = time.time()
-        df_build_lineups = df_build_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
-        df_build_lineups = df_build_lineups.apply(pandas.to_numeric, downcast='float')
+        df_slate_lineups = df_slate_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
+        df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='float')
         logger.info(f'  Sim scores took {time.time() - start}s')
 
         start = time.time()
@@ -2209,10 +2224,10 @@ def execute_h2h_workflow(build_id, task_id):
         start = time.time()
         matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
         df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
-        df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_build_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
+        df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
+        df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
         df_matchups['build_id'] = build.id
         df_matchups = df_matchups.apply(pandas.to_numeric, downcast='float')
-        logger.info(df_matchups)
         logger.info(f'Matchups took {time.time() - start}s. There are {len(matchups)} matchups.')
 
         start = time.time()
@@ -2226,7 +2241,20 @@ def execute_h2h_workflow(build_id, task_id):
         )
         engine = sqlalchemy.create_engine(database_url, echo=False)
         df_matchups.to_sql('nascar_slatebuildlineupmatchup', engine, if_exists='append', index=False)
-        logger.info(f'Write to db took {time.time() - start}s')
+        logger.info(f'Write matchups to db took {time.time() - start}s')
+
+        start = time.time()
+        build_lineup_ids = df_matchups.slate_lineup_id.unique()
+        for bl in build_lineup_ids:
+            sim_scores = df_slate_lineups.loc[int(bl)].to_list()
+            models.SlateBuildLineup.objects.create(
+                build=build,
+                slate_lineup_id=bl,
+                median=numpy.median(sim_scores),
+                s75=numpy.percentile(sim_scores, 75),
+                s90=numpy.percentile(sim_scores, 90)
+            )
+        logger.info(f'Adding build lineups took {time.time() - start}s')
 
         task.status = 'success'
         task.content = f'H2H workflow complete'
