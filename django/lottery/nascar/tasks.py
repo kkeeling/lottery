@@ -1782,7 +1782,7 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
         h2h_lineups = pandas.DataFrame.from_records(build.lineups.all().order_by('-median').values(
             'slate_lineup_id', 'slate_lineup__player_1__csv_name', 'slate_lineup__player_2__csv_name', 'slate_lineup__player_3__csv_name', 'slate_lineup__player_4__csv_name', 'slate_lineup__player_5__csv_name', 'slate_lineup__player_6__csv_name', 'slate_lineup__total_salary', 'median', 's75', 's90'
         ))
-        if build.field_lineups.all().count() > 0:
+        if build.field_lineups.all().count() > 0 and build.lineups.all().count() > 0:
             for opponent in opponents:
                 h2h_lineups[opponent] = h2h_lineups.apply(lambda x: build.matchups.get(field_lineup__opponent_handle=opponent, slate_lineup_id=x.loc['slate_lineup_id']).win_rate if build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x['slate_lineup_id']).count() > 0 else math.nan, axis=1)
 
