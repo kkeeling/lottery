@@ -1784,7 +1784,7 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
         ))
         if build.field_lineups.all().count() > 0 and build.lineups.all().count() > 0:
             for opponent in opponents:
-                logger.info(opponent)
+                logger.info(build.matchups.filter(field_lineup__opponent_handle=opponent)
                 h2h_lineups[opponent] = h2h_lineups.apply(lambda x: build.matchups.get(field_lineup__opponent_handle=opponent, slate_lineup_id=x.loc['slate_lineup_id']).win_rate if build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x['slate_lineup_id']).count() > 0 else math.nan, axis=1)
 
         with pandas.ExcelWriter(result_path) as writer:
