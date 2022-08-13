@@ -2251,14 +2251,17 @@ def execute_h2h_workflow(build_id, task_id):
         start = time.time()
         build_lineup_ids = df_matchups.slate_lineup_id.unique()
         for bl in build_lineup_ids:
-            sim_scores = df_slate_lineups.loc[int(bl)].to_list()
-            models.SlateBuildLineup.objects.create(
-                build=build,
-                slate_lineup_id=bl,
-                median=numpy.median(sim_scores),
-                s75=numpy.percentile(sim_scores, 75),
-                s90=numpy.percentile(sim_scores, 90)
-            )
+            try:
+                sim_scores = df_slate_lineups.loc[int(bl)].to_list()
+                models.SlateBuildLineup.objects.create(
+                    build=build,
+                    slate_lineup_id=bl,
+                    median=numpy.median(sim_scores),
+                    s75=numpy.percentile(sim_scores, 75),
+                    s90=numpy.percentile(sim_scores, 90)
+                )
+            except KeyError:
+                pass
         logger.info(f'Adding build lineups took {time.time() - start}s')
 
 
