@@ -9,7 +9,7 @@ from django.db.models import Q
 from nascar import models, filters
 
 def run():
-    build = models.SlateBuild.objects.get(id=4)
+    build = models.SlateBuild.objects.get(id=116)
 
     build.matchups.all().delete()
     build.lineups.all().delete()
