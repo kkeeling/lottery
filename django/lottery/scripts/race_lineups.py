@@ -46,13 +46,13 @@ def run():
     print(f'  Initial dataframe took {time.time() - start}s')
 
     start = time.time()
-    df_slate_lineups['score_1'] = df_slate_lineups[0].map(lambda x: player_outcomes.get(str(x)))
-    df_slate_lineups['score_2'] = df_slate_lineups[1].map(lambda x: player_outcomes.get(str(x)))
-    df_slate_lineups['score_3'] = df_slate_lineups[2].map(lambda x: player_outcomes.get(str(x)))
-    df_slate_lineups['score_4'] = df_slate_lineups[3].map(lambda x: player_outcomes.get(str(x)))
-    df_slate_lineups['score_5'] = df_slate_lineups[4].map(lambda x: player_outcomes.get(str(x)))
-    df_slate_lineups['score_6'] = df_slate_lineups[5].map(lambda x: player_outcomes.get(str(x)))
-    df_slate_lineups['scores'] = df_slate_lineups['score_1'] + df_slate_lineups['score_2'] + df_slate_lineups['score_3'] + df_slate_lineups['score_4'] + df_slate_lineups['score_5'] + df_slate_lineups['score_6']
+    df_slate_lineups['score_1'] = df_slate_lineups[0].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_slate_lineups['score_2'] = df_slate_lineups[1].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_slate_lineups['score_3'] = df_slate_lineups[2].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_slate_lineups['score_4'] = df_slate_lineups[3].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_slate_lineups['score_5'] = df_slate_lineups[4].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_slate_lineups['score_6'] = df_slate_lineups[5].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_slate_lineups['scores'] = (df_slate_lineups['score_1'] + df_slate_lineups['score_2'] + df_slate_lineups['score_3'] + df_slate_lineups['score_4'] + df_slate_lineups['score_5'] + df_slate_lineups['score_6']).apply(pandas.to_numeric, downcast='float')
     df_slate_lineups = df_slate_lineups.drop([
         'score_1',
         'score_2',
@@ -76,13 +76,13 @@ def run():
     df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='unsigned')
     print(f'  Initial dataframe took {time.time() - start}s')
     start = time.time()
-    df_field_lineups['score_1'] = df_field_lineups[0].map(lambda x: player_outcomes.get(str(x)))
-    df_field_lineups['score_2'] = df_field_lineups[1].map(lambda x: player_outcomes.get(str(x)))
-    df_field_lineups['score_3'] = df_field_lineups[2].map(lambda x: player_outcomes.get(str(x)))
-    df_field_lineups['score_4'] = df_field_lineups[3].map(lambda x: player_outcomes.get(str(x)))
-    df_field_lineups['score_5'] = df_field_lineups[4].map(lambda x: player_outcomes.get(str(x)))
-    df_field_lineups['score_6'] = df_field_lineups[5].map(lambda x: player_outcomes.get(str(x)))
-    df_field_lineups['scores'] = df_field_lineups['score_1'] + df_field_lineups['score_2'] + df_field_lineups['score_3'] + df_field_lineups['score_4'] + df_field_lineups['score_5'] + df_field_lineups['score_6']
+    df_field_lineups['score_1'] = df_field_lineups[0].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_field_lineups['score_2'] = df_field_lineups[1].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_field_lineups['score_3'] = df_field_lineups[2].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_field_lineups['score_4'] = df_field_lineups[3].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_field_lineups['score_5'] = df_field_lineups[4].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_field_lineups['score_6'] = df_field_lineups[5].map(lambda x: player_outcomes.get(str(x))).apply(pandas.to_numeric, downcast='float')
+    df_field_lineups['scores'] = (df_field_lineups['score_1'] + df_field_lineups['score_2'] + df_field_lineups['score_3'] + df_field_lineups['score_4'] + df_field_lineups['score_5'] + df_field_lineups['score_6']).apply(pandas.to_numeric, downcast='float')
     df_field_lineups = df_field_lineups.drop([
         'score_1',
         'score_2',
@@ -100,16 +100,16 @@ def run():
     start = time.time()
     matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
     df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
-    df_matchups['slate_lineup_scores'] = df_matchups['slate_lineup_id'].map(lambda x: numpy.array(df_slate_lineups.loc[x]['scores']))
+    df_matchups['slate_lineup_scores'] = df_matchups['slate_lineup_id'].map(lambda x: numpy.array(df_slate_lineups.loc[x]['scores'])).apply(pandas.to_numeric, downcast='float')
     # df_matchups['field_scores'] = df_matchups['field_lineup_id'].map(lambda x: numpy.array(df_field_lineups.loc[x]['scores']))
     # df_matchups['diffs'] = numpy.array(df_matchups['slate_lineup_scores']) - numpy.array(df_matchups['field_scores'])
     # df_matchups['win_rate'] = df_matchups['diffs'].map(lambda x: numpy.count_nonzero(x > 0.0) / build.sim.iterations)
     # df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
     # df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
     df_matchups['build_id'] = build.id
-    df_matchups = df_matchups.drop([
-        'diffs'
-    ], axis=1)
+    # df_matchups = df_matchups.drop([
+    #     'diffs'
+    # ], axis=1)
     # df_matchups = df_matchups.apply(pandas.to_numeric, downcast='float')
     print(df_matchups.info(verbose=True, memory_usage='deep'))
     print(df_matchups)
