@@ -9,7 +9,8 @@ from django.db.models import Q
 from nascar import models, filters
 
 def run():
-    build = models.SlateBuild.objects.get(id=116)
+    build = models.SlateBuild.objects.get(id=4)
+    # build = models.SlateBuild.objects.get(id=116)
 
     build.matchups.all().delete()
     build.lineups.all().delete()
@@ -67,24 +68,50 @@ def run():
     # print(df_slate_lineups.info(verbose=True, memory_usage='deep'))
     print(f'  Sim scores took {time.time() - start}s')
 
-    # start = time.time()
-    # field_lineups = build.field_lineups.all().order_by('id')
-    # print(f'Getting field lineups took {time.time() - start}s.')
-    # start = time.time()
-    # df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__player_1', 'slate_lineup__player_2', 'slate_lineup__player_3', 'slate_lineup__player_4', 'slate_lineup__player_5', 'slate_lineup__player_6'), index=list(field_lineups.values_list('id', flat=True)))
-    # df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='unsigned')
-    # print(f'  Initial dataframe took {time.time() - start}s')
-    # start = time.time()
+    start = time.time()
+    field_lineups = build.field_lineups.all().order_by('id')
+    print(f'Getting field lineups took {time.time() - start}s.')
+    start = time.time()
+    df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__player_1', 'slate_lineup__player_2', 'slate_lineup__player_3', 'slate_lineup__player_4', 'slate_lineup__player_5', 'slate_lineup__player_6'), index=list(field_lineups.values_list('id', flat=True)))
+    df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='unsigned')
+    print(f'  Initial dataframe took {time.time() - start}s')
+    start = time.time()
+    df_field_lineups['score_1'] = df_field_lineups[0].map(lambda x: player_outcomes.get(str(x)))
+    df_field_lineups['score_2'] = df_field_lineups[1].map(lambda x: player_outcomes.get(str(x)))
+    df_field_lineups['score_3'] = df_field_lineups[2].map(lambda x: player_outcomes.get(str(x)))
+    df_field_lineups['score_4'] = df_field_lineups[3].map(lambda x: player_outcomes.get(str(x)))
+    df_field_lineups['score_5'] = df_field_lineups[4].map(lambda x: player_outcomes.get(str(x)))
+    df_field_lineups['score_6'] = df_field_lineups[5].map(lambda x: player_outcomes.get(str(x)))
+    df_field_lineups['scores'] = df_field_lineups['score_1'] + df_field_lineups['score_2'] + df_field_lineups['score_3'] + df_field_lineups['score_4'] + df_field_lineups['score_5'] + df_field_lineups['score_6']
+    df_field_lineups = df_field_lineups.drop([
+        'score_1',
+        'score_2',
+        'score_3',
+        'score_4',
+        'score_5',
+        'score_6',
+    ], axis=1)
     # df_field_lineups = df_field_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
     # df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='float')
-    # print(f'  Sim scores took {time.time() - start}s')
+    print(df_field_lineups.info(verbose=True, memory_usage='deep'))
+    print(df_field_lineups)
+    print(f'  Sim scores took {time.time() - start}s')
 
-    # start = time.time()
-    # matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
-    # df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
+    start = time.time()
+    matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
+    df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
+    df_matchups['slate_lineup_scores'] = df_matchups['slate_lineup_id'].map(lambda x: numpy.array(df_slate_lineups.loc[x]['scores']))
+    df_matchups['field_scores'] = df_matchups['field_lineup_id'].map(lambda x: numpy.array(df_field_lineups.loc[x]['scores']))
+    df_matchups['diffs'] = numpy.array(df_matchups['slate_lineup_scores']) - numpy.array(df_matchups['field_scores'])
+    df_matchups['win_rate'] = df_matchups['diffs'].map(lambda x: numpy.count_nonzero(x > 0.0) / build.sim.iterations)
     # df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
-    # df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
-    # df_matchups['build_id'] = build.id
+    df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
+    df_matchups['build_id'] = build.id
+    df_matchups = df_matchups.drop([
+        'diffs'
+    ], axis=1)
     # df_matchups = df_matchups.apply(pandas.to_numeric, downcast='float')
-    # print(f'Matchups took {time.time() - start}s. There are {len(matchups)} matchups.')
+    print(df_matchups.info(verbose=True, memory_usage='deep'))
+    print(df_matchups)
+    print(f'Matchups took {time.time() - start}s. There are {len(matchups)} matchups.')
 
