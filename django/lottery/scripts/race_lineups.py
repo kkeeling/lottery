@@ -1,3 +1,4 @@
+import gc
 import itertools
 import time
 
@@ -9,8 +10,8 @@ from django.db.models import Q
 from nascar import models, filters
 
 def run():
-    # build = models.SlateBuild.objects.get(id=4)
-    build = models.SlateBuild.objects.get(id=116)
+    build = models.SlateBuild.objects.get(id=4)
+    # build = models.SlateBuild.objects.get(id=116)
 
     build.matchups.all().delete()
     build.lineups.all().delete()
@@ -61,6 +62,7 @@ def run():
         'score_5',
         'score_6',
     ], axis=1)
+    gc.collect()
     print(df_slate_lineups.info(verbose=True, memory_usage='deep'))
     print(df_slate_lineups)
     # df_slate_lineups = df_slate_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
@@ -91,6 +93,7 @@ def run():
         'score_5',
         'score_6',
     ], axis=1)
+    gc.collect()
     # df_field_lineups = df_field_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
     # df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='float')
     print(df_field_lineups.info(verbose=True, memory_usage='deep'))
@@ -101,16 +104,24 @@ def run():
     matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
     df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
     df_matchups['slate_lineup_scores'] = df_matchups['slate_lineup_id'].map(lambda x: numpy.array(df_slate_lineups.loc[x]['scores'])).apply(pandas.to_numeric, downcast='float')
+    del df_slate_lineups
+    gc.collect()
+    
     df_matchups['field_scores'] = df_matchups['field_lineup_id'].map(lambda x: numpy.array(df_field_lineups.loc[x]['scores'])).apply(pandas.to_numeric, downcast='float')
+    del df_field_lineups
+    gc.collect()
+
     df_matchups['diffs'] = numpy.array(df_matchups['slate_lineup_scores']) - numpy.array(df_matchups['field_scores'])
     df_matchups = df_matchups.drop([
         'slate_lineup_scores',
         'field_scores'
     ], axis=1)
+    gc.collect()
     df_matchups['win_rate'] = df_matchups['diffs'].map(lambda x: numpy.count_nonzero(x > 0.0) / build.sim.iterations).apply(pandas.to_numeric, downcast='float')
     df_matchups = df_matchups.drop([
         'diffs'
     ], axis=1)
+    gc.collect()
     # df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
     df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
     df_matchups['build_id'] = build.id
