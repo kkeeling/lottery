@@ -103,9 +103,9 @@ def run():
     df_matchups['slate_lineup_scores'] = df_matchups['slate_lineup_id'].map(lambda x: numpy.array(df_slate_lineups.loc[x]['scores']))
     df_matchups['field_scores'] = df_matchups['field_lineup_id'].map(lambda x: numpy.array(df_field_lineups.loc[x]['scores']))
     df_matchups['diffs'] = numpy.array(df_matchups['slate_lineup_scores']) - numpy.array(df_matchups['field_scores'])
-    df_matchups['win_rate'] = df_matchups['diffs'].map(lambda x: numpy.count_nonzero(x > 0.0) / build.sim.iterations)
+    # df_matchups['win_rate'] = df_matchups['diffs'].map(lambda x: numpy.count_nonzero(x > 0.0) / build.sim.iterations)
     # df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
-    df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
+    # df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
     df_matchups['build_id'] = build.id
     df_matchups = df_matchups.drop([
         'diffs'
