@@ -13,8 +13,8 @@ def run():
     # build = models.SlateBuild.objects.get(id=4)
     build = models.SlateBuild.objects.get(id=116)
 
-    build.matchups.all().delete()
-    build.lineups.all().delete()
+    # build.matchups.all().delete()
+    # build.lineups.all().delete()
 
     start = time.time()
     projections = build.projections.filter(in_play=True).order_by('-slate_player__salary')
