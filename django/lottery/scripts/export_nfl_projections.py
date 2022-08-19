@@ -29,6 +29,7 @@ def run():
     df = pd.DataFrame(data={
         'week': [s.slate.week.num for s in slate_players],
         'player': [s.name for s in slate_players],
+        'pos': [s.site_pos for s in slate_players],
         '4for4': [s.four4four[0].projection if len(s.four4four) > 0 else None for s in slate_players],
         'etr': [s.etr[0].projection if len(s.etr) > 0 else None for s in slate_players],
         'awesemo': [s.awesemo[0].projection if len(s.awesemo) > 0 else None for s in slate_players],
