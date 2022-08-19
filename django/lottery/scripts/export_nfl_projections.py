@@ -12,7 +12,8 @@ from nfl import models
 def run():
     slate_players = models.SlatePlayer.objects.filter(
         slate__week__slate_year=2021,
-        slate__site='fanduel'
+        slate__site='fanduel',
+        slate__is_main_slate=True
     ).prefetch_related(
         Prefetch('raw_projections', queryset=models.SlatePlayerRawProjection.objects.filter(projection_site='4for4'), to_attr='four4four')
     ).prefetch_related(
@@ -25,8 +26,6 @@ def run():
         Prefetch('raw_projections', queryset=models.SlatePlayerRawProjection.objects.filter(projection_site='rg'), to_attr='rg')
     ).order_by('slate__week__num', 'site_pos', 'name')
 
-    print(slate_players[0].four4four)
-    print(slate_players[0].awesemo)
     df = pd.DataFrame(data={
         'week': [s.slate.week.num for s in slate_players],
         'player': [s.name for s in slate_players],
