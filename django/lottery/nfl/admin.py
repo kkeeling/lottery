@@ -2229,8 +2229,10 @@ class SlateBuildAdmin(admin.ModelAdmin):
     search_fields = ('slate__name',)
     actions = [
         'reset',
-        # 'prepare_projections',
-        # 'prepare_construction',
+        'qs_prepare_projections',
+        'qs_prepare_construction',
+        'qs_flatten_projections',
+        # 'qs_build',
         'reallocate_stacks',
         'analyze_lineups',
         'rate_lineups',
@@ -2387,6 +2389,23 @@ class SlateBuildAdmin(admin.ModelAdmin):
             messages.success(request, 'Reset {}.'.format(build))
     reset.short_description = 'Reset selected builds'
 
+    def qs_prepare_projections(self, request, queryset):
+        group([
+            tasks.prepare_projections_for_build.si(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Prepare Projections',
+                    user = request.user
+                ).id
+            ) for build in queryset
+        ])()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Preparing projections')
+    qs_prepare_projections.short_description = 'Prepare projections for selected builds'
+
     def prepare_projections(self, request, pk):
         context = dict(
            # Include common variables for rendering the admin template.
@@ -2409,6 +2428,46 @@ class SlateBuildAdmin(admin.ModelAdmin):
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def qs_prepare_construction(self, request, queryset):
+        for build in queryset:
+            build.groups.all().delete()
+            build.stacks.all().delete()
+
+        group([
+            chord([
+                tasks.create_groups_for_build.s(
+                    build.id, 
+                    BackgroundTask.objects.create(
+                        name='Create Groups',
+                        user=request.user
+                    ).id
+                ),
+                group([
+                    tasks.create_stacks_for_qb.s(
+                        build.id, 
+                        qb.id, 
+                        build.projections.filter(
+                            slate_player__site_pos='QB', 
+                            in_play=True
+                        ).aggregate(
+                            total_projection=Sum('projection')
+                        ).get('total_projection')) for qb in build.projections.filter(slate_player__site_pos='QB', in_play=True)
+                ])
+            ], tasks.prepare_construction_complete.s(
+                build.id, 
+                BackgroundTask.objects.create(
+                    name='Prepare Construction',
+                    user=request.user
+                ).id
+            )) for build in queryset
+        ])()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Preparing stacks and groups')
+    qs_prepare_construction.short_description = 'Prepare construction for selected builds'
 
     def prepare_construction(self, request, pk):
         context = dict(
@@ -2469,6 +2528,23 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 request,
                 messages.WARNING,
                 'Reallocating stacks for {}. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once they are ready.'.format(str(build)))
+    
+    def qs_flatten_projections(self, request, queryset):
+        group([
+            tasks.flatten_exposure.si(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Flatten Exposures',
+                    user = request.user
+                ).id
+            ) for build in queryset
+        ])()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Flattening Exposures')
+    qs_flatten_projections.short_description = 'Flatten projections for selected builds'
 
     def flatten_exposures(self, request, pk):
         context = dict(
