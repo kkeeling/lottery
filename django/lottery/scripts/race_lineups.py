@@ -36,14 +36,14 @@ def run():
     ).annotate(
         pos_sum=F('player_1__builds__starting_position') + F('player_2__builds__starting_position') + F('player_3__builds__starting_position') + F('player_4__builds__starting_position') + F('player_5__builds__starting_position') + F('player_6__builds__starting_position')
     )
-    slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups.filter(pos_sum__gte=120)).qs.order_by('id')
+    slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups.filter(pos_sum__gte=150)).qs.order_by('id')
     print(f'Filtered slate lineups took {time.time() - start}s. There are {slate_lineups.count()} lineups.')
 
     start = time.time()
     df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'), index=list(slate_lineups.values_list('id', flat=True)))
     df_slate_lineups['build_id'] = build.id
     df_slate_lineups['slate_lineup_id'] = df_slate_lineups.index
-    df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='unsigned')
+    # df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='unsigned')
     print(f'  Initial dataframe took {time.time() - start}s')
 
     start = time.time()
