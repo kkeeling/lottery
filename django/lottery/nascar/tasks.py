@@ -2182,7 +2182,7 @@ def execute_h2h_workflow(build_id, task_id):
         # player_outcomes = pandas.DataFrame([p.sim_scores for p in projections], index=[p.slate_player.slate_player_id for p in projections], dtype='float16')
         player_outcomes = {}
         for p in projections:
-            player_outcomes[p.slate_player.slate_player_id] = numpy.array(p.sim_scores)
+            player_outcomes[p.slate_player.slate_player_id] = numpy.array(p.sim_scores[:1000])
         logger.info(f'Getting player outcomes took {time.time() - start}s')
 
         start = time.time()
