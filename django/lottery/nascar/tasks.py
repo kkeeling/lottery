@@ -2189,12 +2189,12 @@ def execute_h2h_workflow(build_id, task_id):
                 Q(player_6_id__in=not_in_play)
             )
         )  
-        slate_lineups = filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs.order_by('id')
+        slate_lineups = list(filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs.order_by('id').values_list('id', flat=True))
         logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {slate_lineups.count()} lineups.')
 
         chunk_size = 10000
         chord([
-            compare_lineups_h2h.si(list(slate_lineups.values_list('id', flat=True))[i:i+chunk_size], build.id) for i in range(0, slate_lineups.count(), chunk_size)
+            compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, slate_lineups.count(), chunk_size)
         ], complete_h2h_workflow.si(task.id))()
     except Exception as e:
         if task is not None:
