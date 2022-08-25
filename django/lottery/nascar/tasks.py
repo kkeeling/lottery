@@ -2194,7 +2194,7 @@ def execute_h2h_workflow(build_id, task_id):
 
         chunk_size = 10000
         chord([
-            compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, 20000, chunk_size)
+            compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, int(len(slate_lineups)/4), chunk_size)
         ], complete_h2h_workflow.si(task.id))()
     except Exception as e:
         if task is not None:
