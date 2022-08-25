@@ -2192,10 +2192,10 @@ def execute_h2h_workflow(build_id, task_id):
         slate_lineups = list(filters.SlateLineupFilter(models.BUILD_TYPE_FILTERS.get(build.build_type), possible_lineups).qs.order_by('id').values_list('id', flat=True))
         logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(slate_lineups)} lineups.')
 
-        chunk_size = 10000
-        chord([
-            compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, len(slate_lineups), chunk_size)
-        ], complete_h2h_workflow.si(task.id))()
+        # chunk_size = 10000
+        # chord([
+        #     compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, len(slate_lineups), chunk_size)
+        # ], complete_h2h_workflow.si(task.id))()
     except Exception as e:
         if task is not None:
             task.status = 'error'
@@ -2251,11 +2251,11 @@ def compare_lineups_h2h(lineup_ids, build_id):
     matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
     df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
     df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
+    logger.info(df_matchups)
     df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
     df_matchups['build_id'] = build.id
     df_matchups = df_matchups.apply(pandas.to_numeric, downcast='float')
-    logger.info(df_matchups)
-    logger.info(f'Matchups took {time.time() - start}s. There are {len(matchups)} matchups.')
+    logger.info(f'Matchups took {time.time() - start}s. There are {df_matchups.size} matchups.')
 
     start = time.time()
     user = settings.DATABASES['default']['USER']
