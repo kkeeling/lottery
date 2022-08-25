@@ -1705,6 +1705,7 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         'get_flex', 
         'get_dst',
         'salary',
+        'get_game_z',
         'ev',
         'get_std',
         'actual',
@@ -1729,6 +1730,14 @@ class SlateBuildActualsLineupAdmin(admin.ModelAdmin):
         return str(obj.stack)
     get_game_stack.short_description = 'Game Stack'
     get_game_stack.admin_order_field = 'stack'
+
+    def get_game_z(self, obj):
+        game = obj.qb.slate_player.slate_game
+        if game is None or game.zscore is None:
+            return None
+        return '{:.2f}'.format(game.zscore)
+    get_game_z.short_description = 'Game-z'
+    get_game_z.admin_order_field = 'qb__slate_player__slate_game__zscore'
 
     def get_game_stack_rank(self, obj):
         if obj.stack is None:
