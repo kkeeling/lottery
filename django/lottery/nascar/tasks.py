@@ -1770,11 +1770,6 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
             'player_1__dk_name', 'player_2__dk_name', 'player_3__dk_name', 'player_4__dk_name', 'player_5__dk_name', 'player_6__dk_name', 'total_salary', 'median', 's75', 's90', 'count', 'dup_projection'
         ))
 
-        # Cash  Lineups
-        cash_lineups = pandas.DataFrame.from_records(race_sim.builds.get(build_type='cash').lineups.all().order_by('-win_rate').values(
-            'slate_lineup__player_1__csv_name', 'slate_lineup__player_2__csv_name', 'slate_lineup__player_3__csv_name', 'slate_lineup__player_4__csv_name', 'slate_lineup__player_5__csv_name', 'slate_lineup__player_6__csv_name', 'slate_lineup__total_salary', 'median', 's75', 's90', 'win_rate'
-        ))
-
         # H2h Lineups
         build = race_sim.builds.get(build_type='h2h')
         opponents = list(build.field_lineups.all().values_list('opponent_handle', flat=True))
@@ -1790,7 +1785,6 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
             df_dk.to_excel(writer, sheet_name='DK')
             df_dk_raw.to_excel(writer, sheet_name='DK Raw')
             optimal_lineups.to_excel(writer, sheet_name='GPP Lineups')
-            cash_lineups.to_excel(writer, sheet_name='Cash Lineups')
             h2h_lineups.to_excel(writer, sheet_name='H2H Lineups')
 
         logger.info(f'export took {time.time() - start}s')
