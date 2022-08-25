@@ -1950,6 +1950,7 @@ def export_stacks(stack_ids, result_path, result_url, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids)
+        logger.info(stacks[0].game)
 
         stacks_df = pandas.DataFrame.from_records(stacks.values(
             'id',
@@ -1991,6 +1992,7 @@ def export_stacks(stack_ids, result_path, result_url, task_id):
             'game_zscore',
             'actual',
         ])
+        logger.info(stacks_df)
 
         stacks_df.to_excel(result_path)
 
