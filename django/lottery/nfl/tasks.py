@@ -1898,7 +1898,7 @@ def export_lineups_for_analysis(lineup_ids, result_path, result_url, task_id, us
             'wr3__slate_player__name', 
             'te__slate_player__name', 
             'flex__slate_player__name', 
-            'dst__name', 
+            'dst__slate_player__name', 
             'salary',
             'mean',
             'std',
@@ -1951,9 +1951,48 @@ def export_stacks(stack_ids, result_path, result_url, task_id):
 
         stacks = models.SlateBuildStack.objects.filter(id__in=stack_ids)
 
-        lineups_df = pandas.DataFrame.from_records(stacks.values())
+        stacks_df = pandas.DataFrame.from_records(stacks.values(
+            'id',
+            'build_id',
+            'game__game__home_team',
+            'game__game__away_team',
+            'build_order',
+            'rank',
+            'qb__slate_player__name',
+            'player_1__slate_player__name',
+            'player_2__slate_player__name',
+            'opp_player__slate_player__name',
+            'mini_player_1__slate_player__name',
+            'mini_player_2__slate_player__name',
+            'contains_top_pc',
+            'salary',
+            'projection',
+            'count',
+            'times_used',
+            'qb__slate_player__slate_game__zscore',
+            'actual',
+        ), columns=[
+            'build_id',
+            'home_team',
+            'away_team',
+            'build_order',
+            'rank',
+            'qb',
+            'player_1',
+            'player_2',
+            'opp_player',
+            'mini_player_1',
+            'mini_player_2',
+            'contains_top_pc',
+            'salary',
+            'projection',
+            'count',
+            'times_used',
+            'game_zscore',
+            'actual',
+        ])
 
-        lineups_df.to_excel(result_path)
+        stacks_df.to_excel(result_path)
 
         task.status = 'download'
         task.content = result_url

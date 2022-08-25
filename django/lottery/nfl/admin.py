@@ -1935,10 +1935,15 @@ class SlateBuildStackAdmin(admin.ModelAdmin):
     )
 
     raw_id_fields = (
+        'build',
         'qb',
         'player_1',
         'player_2',
         'opp_player',
+        'mini_player_1',
+        'mini_player_2',
+        'game',
+        'mini_game',
     )
 
     actions = [
