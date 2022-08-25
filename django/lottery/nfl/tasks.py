@@ -1885,7 +1885,43 @@ def export_lineups_for_analysis(lineup_ids, result_path, result_url, task_id, us
         else:
             lineups = models.SlateBuildLineup.objects.filter(id__in=lineup_ids).select_related('build__slate__week').annotate(week=F('build__slate__week__num'), year=F('build__slate__week__slate_year'))
 
-        lineups_df = pandas.DataFrame.from_records(lineups.values())
+        lineups_df = pandas.DataFrame.from_records(lineups.values(
+            'id', 
+            'build_id', 
+            'stack__qb__name', 
+            'stack__build_order', 
+            'qb__name', 
+            'rb1__name', 
+            'rb2__name', 
+            'wr1__name', 
+            'wr2__name', 
+            'wr3__name', 
+            'te__name', 
+            'flex__name', 
+            'dst__name', 
+            'salary',
+            'mean',
+            'std',
+            'actual'
+        ), columns=[
+            'id', 
+            'build_id', 
+            'stack', 
+            'stack_build_order', 
+            'qb', 
+            'rb1', 
+            'rb2', 
+            'wr1', 
+            'wr2', 
+            'wr3', 
+            'te', 
+            'flex', 
+            'dst', 
+            'salary',
+            'mean',
+            'std',
+            'actual'
+        ])
 
         lineups_df.to_excel(result_path)
 
