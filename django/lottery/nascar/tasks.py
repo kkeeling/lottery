@@ -2214,7 +2214,7 @@ def compare_lineups_h2h(lineup_ids, build_id):
     projections = build.projections.filter(in_play=True).order_by('-slate_player__salary')
     player_outcomes = {}
     for p in projections:
-        player_outcomes[p.slate_player.slate_player_id] = numpy.array(p.sim_scores[:1000])
+        player_outcomes[p.slate_player.slate_player_id] = numpy.array(p.sim_scores)
     logger.info(f'Getting player outcomes took {time.time() - start}s')
 
     start = time.time()
