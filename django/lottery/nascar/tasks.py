@@ -2188,7 +2188,7 @@ def execute_h2h_workflow(build_id, task_id):
 
         chunk_size = 10000
         chord([
-            compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id, i) for i in range(0, len(slate_lineups), chunk_size)
+            compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, len(slate_lineups), chunk_size)
         ], complete_h2h_workflow.si(task.id))()
     except Exception as e:
         if task is not None:
@@ -2201,7 +2201,7 @@ def execute_h2h_workflow(build_id, task_id):
 
 
 @shared_task
-def compare_lineups_h2h(lineup_ids, build_id, index):
+def compare_lineups_h2h(lineup_ids, build_id):
     build = models.SlateBuild.objects.get(id=build_id)
 
     start = time.time()
@@ -2244,7 +2244,7 @@ def compare_lineups_h2h(lineup_ids, build_id, index):
     start = time.time()
     matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
     df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
-    df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) >= 0.0) / build.sim.iterations, axis=1)
+    df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
     # logger.info(df_matchups)
     df_matchups = df_matchups[(df_matchups.win_rate >= 0.50)]
     df_matchups['build_id'] = build.id
@@ -2279,7 +2279,6 @@ def compare_lineups_h2h(lineup_ids, build_id, index):
         except KeyError:
             pass
     logger.info(f'Adding build lineups took {time.time() - start}s')
-    logger.info(f'Index {index} complete.')
 
 
 @shared_task
