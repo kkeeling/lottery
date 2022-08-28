@@ -2011,7 +2011,7 @@ def create_slate_lineups(slate_id, task_id):
         df_lineups = df_lineups.apply(pandas.to_numeric, downcast='unsigned')
         logger.info(f'Salary took {time.time() - start}s')
         start = time.time()
-        df_lineups = df_lineups[(df_lineups.total_salary <= 50000) & (df_lineups.total_salary >= 30000)]
+        df_lineups = df_lineups[(df_lineups.total_salary <= 50000) & (df_lineups.total_salary >= 48000)]
         logger.info(f'Filtering took {time.time() - start}s.')
         start = time.time()
 
@@ -2244,7 +2244,7 @@ def compare_lineups_h2h(lineup_ids, build_id):
     start = time.time()
     matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
     df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
-    df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
+    df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) >= 0.0) / build.sim.iterations, axis=1)
     # logger.info(df_matchups)
     df_matchups = df_matchups[(df_matchups.win_rate >= 0.50)]
     df_matchups['build_id'] = build.id
