@@ -120,16 +120,16 @@ BUILD_TYPES = (
 
 BUILD_TYPE_FILTERS = {
     'cash': {
-        'total_salary__gte': 48500
+        'total_salary__gte': 30000
     },
     'h2h': {
-        'total_salary__gte': 49800
+        'total_salary__gte': 30000
     },
     'se': {
-        'total_salary__gte': 48500
+        'total_salary__gte': 30000
     },
     'mme': {
-        'total_salary__gte': 48000
+        'total_salary__gte': 30000
     }
 }
 
