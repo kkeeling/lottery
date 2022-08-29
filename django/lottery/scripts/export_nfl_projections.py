@@ -37,7 +37,7 @@ def run():
         'awesemo': [s.awesemo[0].projection if len(s.awesemo) > 0 else None for s in slate_players],
         'tda': [s.tda[0].projection if len(s.tda) > 0 else None for s in slate_players],
         'rg': [s.rg[0].projection if len(s.rg) > 0 else None for s in slate_players],
-        'sabersim': [s.sabersim[0].projection if len(s.rg) > 0 else None for s in slate_players],
+        'sabersim': [s.sabersim[0].projection if len(s.sabersim) > 0 else None for s in slate_players],
         'actual': [s.fantasy_points for s in slate_players]
     })
 
