@@ -24,6 +24,8 @@ def run():
         Prefetch('raw_projections', queryset=models.SlatePlayerRawProjection.objects.filter(projection_site='tda'), to_attr='tda')
     ).prefetch_related(
         Prefetch('raw_projections', queryset=models.SlatePlayerRawProjection.objects.filter(projection_site='rg'), to_attr='rg')
+    ).prefetch_related(
+        Prefetch('raw_projections', queryset=models.SlatePlayerRawProjection.objects.filter(projection_site='sabersim'), to_attr='sabersim')
     ).order_by('slate__week__num', 'site_pos', 'name')
 
     df = pd.DataFrame(data={
@@ -35,6 +37,7 @@ def run():
         'awesemo': [s.awesemo[0].projection if len(s.awesemo) > 0 else None for s in slate_players],
         'tda': [s.tda[0].projection if len(s.tda) > 0 else None for s in slate_players],
         'rg': [s.rg[0].projection if len(s.rg) > 0 else None for s in slate_players],
+        'sabersim': [s.sabersim[0].projection if len(s.rg) > 0 else None for s in slate_players],
         'actual': [s.fantasy_points for s in slate_players]
     })
 
