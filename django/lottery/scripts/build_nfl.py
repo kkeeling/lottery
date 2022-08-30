@@ -77,9 +77,9 @@ def run():
         other_combos = list(itertools.combinations(other_players.values_list('id', flat=True), 2))
         print(f'  There are {len(other_combos)} possible combos of 4 non-stacked players. Calculation took {time.time() - start}s')
 
-        # Get 10000 random lineups
+        # Get 1000 random lineups
         start = time.time()
-        for i in range(0, 100):
+        for i in range(0, 1000):
             l, total_salary = get_random_lineup(build, qb, stack_combos, mini_combos, other_combos, tes, dsts)
 
             '''
@@ -91,7 +91,7 @@ def run():
 
             lineups.append(l)
         print(f'  Lineup selection took {time.time() - start}s')
-    
+
     df_lineups = pd.DataFrame(lineups)
     df_lineups.to_csv('data/lineups.csv')
 

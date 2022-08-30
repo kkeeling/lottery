@@ -12,8 +12,8 @@ from django.db.models import Q, F
 from nascar import models, filters
 
 def run():
-    build = models.SlateBuild.objects.get(id=4)
-    # build = models.SlateBuild.objects.get(id=122)
+    # build = models.SlateBuild.objects.get(id=4)
+    build = models.SlateBuild.objects.get(id=122)
 
     start = time.time()
     not_in_play = build.projections.filter(in_play=False).values_list('slate_player_id', flat=True)
@@ -69,12 +69,20 @@ def run():
 
     start = time.time()
     df_matchups = pandas.concat([df_field_lineups, df_slate_lineups])
-    print(df_matchups)
-    print(df_matchups.rank(method="min", ascending=False))
+    # print(df_matchups)
+    # print(df_matchups.rank(method="min", ascending=False))
+    # print(df_matchups.rank(method="min", ascending=False).iloc[0:field_lineups.count()])
+    # print(df_matchups.rank(method="min", ascending=False).iloc[field_lineups.count():field_lineups.count()+slate_lineups.count()])
+    # print(df_matchups.rank(method="min", ascending=False).iloc[0:field_lineups.count()].min(axis=0))
+    df_matchups = df_matchups.rank(method="min", ascending=False).iloc[field_lineups.count():field_lineups.count()+slate_lineups.count()] <= df_matchups.rank(method="min", ascending=False).iloc[0:field_lineups.count()].min(axis=0)
+    df_matchups['win_count'] = df_matchups.apply(lambda x: numpy.count_nonzero(x), axis=1)
+    df_matchups['win_rate'] = df_matchups['win_count'] / build.sim.iterations
     # matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
     # df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
     # df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
     # df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
     # df_matchups['build_id'] = build.id
     # df_matchups = df_matchups.apply(pandas.to_numeric, downcast='float')
-    print(f'Matchups took {time.time() - start}s. There are {df_matchups.size} matchups.')
+    df_win_rates = df_matchups.filter(['win_count','win_rate'], axis=1)
+    print(df_win_rates)
+    print(f'Matchups took {time.time() - start}s.')
