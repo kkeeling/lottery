@@ -1039,6 +1039,20 @@ class SlateBuildAdmin(admin.ModelAdmin):
                 messages.WARNING,
                 f'Running H2H Workflow'
             )
+        elif build.build_type == 'se':
+            tasks.execute_se_workflow.delay(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Run SE Workflow',
+                    user=request.user
+                ).id
+            )
+
+            messages.add_message(
+                request,
+                messages.WARNING,
+                f'Running SE Workflow'
+            )
         else:
             messages.add_message(
                 request,

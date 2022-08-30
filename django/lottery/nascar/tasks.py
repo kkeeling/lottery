@@ -2374,12 +2374,10 @@ def compare_lineups_se(lineup_ids, build_id):
     df_slate_lineups['slate_lineup_id'] = df_slate_lineups.index
     df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='unsigned')
     logger.info(f'  Initial dataframe took {time.time() - start}s')
-    # logger.info(f'{player_outcomes.get(str(df_slate_lineups.loc[2009202, 0]))[0]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 1]))[0]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 2]))[0]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 3]))[0]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 4]))[0]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 5]))[0]}')
-    # logger.info(f'{player_outcomes.get(str(df_slate_lineups.loc[2009202, 0]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 1]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 2]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 3]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 4]))[1]} + {player_outcomes.get(str(df_slate_lineups.loc[2009202, 5]))[1]}')
+
     start = time.time()
     df_slate_lineups = df_slate_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])), axis=1, result_type='expand')
     df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='float')
-    # logger.info(df_slate_lineups.loc[2009202])
     logger.info(f'  Sim scores took {time.time() - start}s')
 
     start = time.time()
@@ -2395,14 +2393,19 @@ def compare_lineups_se(lineup_ids, build_id):
     logger.info(f'  Sim scores took {time.time() - start}s')
 
     start = time.time()
-    matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
-    df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
-    df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / build.sim.iterations, axis=1)
-    # logger.info(df_matchups)
-    df_matchups = df_matchups[(df_matchups.win_rate >= 0.58)]
-    df_matchups['build_id'] = build.id
-    df_matchups = df_matchups.apply(pandas.to_numeric, downcast='float')
-    logger.info(f'Matchups took {time.time() - start}s. There are {df_matchups.size} matchups.')
+    df_matchups = pandas.concat([df_field_lineups, df_slate_lineups])
+    df_matchups = df_matchups.rank(method="min", ascending=False).iloc[field_lineups.count():field_lineups.count()+slate_lineups.count()] <= df_matchups.rank(method="min", ascending=False).iloc[0:field_lineups.count()].min(axis=0)
+    df_matchups['win_count'] = df_matchups.apply(lambda x: numpy.count_nonzero(x), axis=1)
+    df_matchups['win_rate'] = df_matchups['win_count'] / build.sim.iterations
+
+    df_lineups = df_matchups.filter(['win_rate'], axis=1)
+    df_lineups['slate_lineup_id'] = df_lineups.index
+    df_lineups['median'] = df_lineups.apply(lambda x: numpy.median(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']])), axis=1)
+    df_lineups['s75'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]), 75.0), axis=1)
+    df_lineups['s90'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]), 90.0), axis=1)
+    df_lineups['build_id'] = build.id
+
+    logger.info(f'Matchups took {time.time() - start}s.')
 
     start = time.time()
     user = settings.DATABASES['default']['USER']
@@ -2414,24 +2417,8 @@ def compare_lineups_se(lineup_ids, build_id):
         database_name=database_name,
     )
     engine = sqlalchemy.create_engine(database_url, echo=False)
-    df_matchups.to_sql('nascar_slatebuildlineupmatchup', engine, if_exists='append', index=False)
-    logger.info(f'Write matchups to db took {time.time() - start}s')
-
-    start = time.time()
-    build_lineup_ids = df_matchups.slate_lineup_id.unique()
-    for bl in build_lineup_ids:
-        try:
-            sim_scores = df_slate_lineups.loc[int(bl)].to_list()
-            models.SlateBuildLineup.objects.create(
-                build=build,
-                slate_lineup_id=bl,
-                median=numpy.median(sim_scores),
-                s75=numpy.percentile(sim_scores, 75),
-                s90=numpy.percentile(sim_scores, 90)
-            )
-        except KeyError:
-            pass
-    logger.info(f'Adding build lineups took {time.time() - start}s')
+    df_lineups.to_sql('nascar_slatebuildlineup', engine, if_exists='append', index=False)
+    logger.info(f'Adding build lineups took {time.time() - start}s. There are {len(df_lineups.index)} lineups.')
 
 
 @shared_task
@@ -2446,12 +2433,12 @@ def complete_se_workflow(task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         task.status = 'success'
-        task.content = f'H2H workflow complete'
+        task.content = f'SE workflow complete'
         task.save()
     except Exception as e:
         if task is not None:
             task.status = 'error'
-            task.content = f'There was a problem running cash workflow: {e}'
+            task.content = f'There was a problem running se workflow: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
