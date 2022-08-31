@@ -1752,15 +1752,15 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
         race_sim = models.RaceSim.objects.get(id=sim_id)
 
         # DK
-        df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[f'D {d.dk_name}' for d in race_sim.outcomes.all()]).transpose()
+        # df_dk_raw = pandas.DataFrame([d.dk_scores for d in race_sim.outcomes.all()], index=[f'D {d.dk_name}' for d in race_sim.outcomes.all()]).transpose()
         df_dk = pandas.DataFrame(data={
             'sal': [d.dk_salary for d in race_sim.outcomes.all()],
             'start': [d.starting_position for d in race_sim.outcomes.all()],
-            '50p': [numpy.percentile(d.dk_scores, float(50)) for d in race_sim.outcomes.all()],
-            '60p': [numpy.percentile(d.dk_scores, float(60)) for d in race_sim.outcomes.all()],
-            '70p': [numpy.percentile(d.dk_scores, float(70)) for d in race_sim.outcomes.all()],
-            '80p': [numpy.percentile(d.dk_scores, float(80)) for d in race_sim.outcomes.all()],
-            '90p': [numpy.percentile(d.dk_scores, float(90)) for d in race_sim.outcomes.all()],
+            # '50p': [numpy.percentile(d.dk_scores, float(50)) for d in race_sim.outcomes.all()],
+            # '60p': [numpy.percentile(d.dk_scores, float(60)) for d in race_sim.outcomes.all()],
+            # '70p': [numpy.percentile(d.dk_scores, float(70)) for d in race_sim.outcomes.all()],
+            # '80p': [numpy.percentile(d.dk_scores, float(80)) for d in race_sim.outcomes.all()],
+            # '90p': [numpy.percentile(d.dk_scores, float(90)) for d in race_sim.outcomes.all()],
             'gto': [d.gto for d in race_sim.outcomes.all()],
             'op': [d.dk_op for d in race_sim.outcomes.all()]
         }, index=[d.dk_name for d in race_sim.outcomes.all()])
@@ -1796,8 +1796,8 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
             se_lineups = pandas.DataFrame([])
 
         with pandas.ExcelWriter(result_path) as writer:
-            df_dk.to_excel(writer, sheet_name='DK')
-            df_dk_raw.to_excel(writer, sheet_name='DK Raw')
+            df_dk.to_excel(writer, sheet_name='Drivers')
+            # df_dk_raw.to_excel(writer, sheet_name='DK Raw')
             optimal_lineups.to_excel(writer, sheet_name='GPP Lineups')
             h2h_lineups.to_excel(writer, sheet_name='H2H Lineups')
             se_lineups.to_excel(writer, sheet_name='SE Lineups')
