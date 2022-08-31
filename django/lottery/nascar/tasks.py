@@ -1771,21 +1771,36 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
         ))
 
         # H2h Lineups
-        build = race_sim.builds.get(build_type='h2h')
-        opponents = list(build.field_lineups.all().values_list('opponent_handle', flat=True))
-        opponents = list(set(opponents))
-        h2h_lineups = pandas.DataFrame.from_records(build.lineups.all().order_by('-median').values(
-            'slate_lineup_id', 'slate_lineup__player_1__csv_name', 'slate_lineup__player_2__csv_name', 'slate_lineup__player_3__csv_name', 'slate_lineup__player_4__csv_name', 'slate_lineup__player_5__csv_name', 'slate_lineup__player_6__csv_name', 'slate_lineup__total_salary', 'median', 's75', 's90'
-        ))
-        if build.field_lineups.all().count() > 0 and build.lineups.all().count() > 0:
-            for opponent in opponents:
-                h2h_lineups[opponent] = h2h_lineups.apply(lambda x: build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x.loc['slate_lineup_id'])[0].win_rate if build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x['slate_lineup_id']).count() > 0 else math.nan, axis=1)
+        try:
+            build = race_sim.builds.get(build_type='h2h')
+            opponents = list(build.field_lineups.all().values_list('opponent_handle', flat=True))
+            opponents = list(set(opponents))
+            h2h_lineups = pandas.DataFrame.from_records(build.lineups.all().order_by('-median').values(
+                'slate_lineup_id', 'slate_lineup__player_1__csv_name', 'slate_lineup__player_2__csv_name', 'slate_lineup__player_3__csv_name', 'slate_lineup__player_4__csv_name', 'slate_lineup__player_5__csv_name', 'slate_lineup__player_6__csv_name', 'slate_lineup__total_salary', 'median', 's75', 's90'
+            ))
+            if build.field_lineups.all().count() > 0 and build.lineups.all().count() > 0:
+                for opponent in opponents:
+                    h2h_lineups[opponent] = h2h_lineups.apply(lambda x: build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x.loc['slate_lineup_id'])[0].win_rate if build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x['slate_lineup_id']).count() > 0 else math.nan, axis=1)
+        except:
+            h2h_lineups = pandas.DataFrame([])
+
+        # SE Lineups
+        try:
+            build = race_sim.builds.get(build_type='se')
+            opponents = list(build.field_lineups.all().values_list('opponent_handle', flat=True))
+            opponents = list(set(opponents))
+            se_lineups = pandas.DataFrame.from_records(build.lineups.all().order_by('-median').values(
+                'slate_lineup_id', 'slate_lineup__player_1__csv_name', 'slate_lineup__player_2__csv_name', 'slate_lineup__player_3__csv_name', 'slate_lineup__player_4__csv_name', 'slate_lineup__player_5__csv_name', 'slate_lineup__player_6__csv_name', 'slate_lineup__total_salary', 'median', 's75', 's90', 'win_rate'
+            ))
+        except:
+            se_lineups = pandas.DataFrame([])
 
         with pandas.ExcelWriter(result_path) as writer:
             df_dk.to_excel(writer, sheet_name='DK')
             df_dk_raw.to_excel(writer, sheet_name='DK Raw')
             optimal_lineups.to_excel(writer, sheet_name='GPP Lineups')
             h2h_lineups.to_excel(writer, sheet_name='H2H Lineups')
+            se_lineups.to_excel(writer, sheet_name='SE Lineups')
 
         logger.info(f'export took {time.time() - start}s')
         task.status = 'download'
