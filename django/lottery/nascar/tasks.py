@@ -1787,8 +1787,6 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
         # SE Lineups
         try:
             build = race_sim.builds.get(build_type='se')
-            opponents = list(build.field_lineups.all().values_list('opponent_handle', flat=True))
-            opponents = list(set(opponents))
             se_lineups = pandas.DataFrame.from_records(build.lineups.all().order_by('-median').values(
                 'slate_lineup_id', 'slate_lineup__player_1__csv_name', 'slate_lineup__player_2__csv_name', 'slate_lineup__player_3__csv_name', 'slate_lineup__player_4__csv_name', 'slate_lineup__player_5__csv_name', 'slate_lineup__player_6__csv_name', 'slate_lineup__total_salary', 'median', 's75', 's90', 'win_rate'
             ))
@@ -2412,6 +2410,7 @@ def compare_lineups_se(lineup_ids, build_id):
     df_matchups = df_matchups.rank(method="min", ascending=False).iloc[field_lineups.count():field_lineups.count()+slate_lineups.count()] <= df_matchups.rank(method="min", ascending=False).iloc[0:field_lineups.count()].min(axis=0)
     df_matchups['win_count'] = df_matchups.apply(lambda x: numpy.count_nonzero(x), axis=1)
     df_matchups['win_rate'] = df_matchups['win_count'] / build.sim.iterations
+    df_matchups = df_matchups[(df_matchups.win_rate >= 0.20)]
 
     df_lineups = df_matchups.filter(['win_rate'], axis=1)
     df_lineups['slate_lineup_id'] = df_lineups.index
