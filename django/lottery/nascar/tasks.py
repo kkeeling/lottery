@@ -1848,6 +1848,7 @@ def process_build(build_id, task_id):
                 projection.s75 = numpy.percentile(projection.sim_scores, float(75))
                 projection.gto = sim_driver.gto
                 projection.op = sim_driver.dk_op if build.slate.site == 'draftkings' else sim_driver.fd_op
+                projection.in_play = projection.projection > 0.0
                 # print(f'{projection} - {projection.op}')
                 projection.save()
 
