@@ -1764,13 +1764,17 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
             'gto': [d.gto for d in race_sim.outcomes.all()],
             'op': [d.dk_op for d in race_sim.outcomes.all()]
         }, index=[d.dk_name for d in race_sim.outcomes.all()])
+        logger.info(f'Drivers took {time.time() - start}s')
 
         # Optimal Lineups
+        start = time.time()
         optimal_lineups = pandas.DataFrame.from_records(race_sim.sim_lineups.all().values(
             'player_1__dk_name', 'player_2__dk_name', 'player_3__dk_name', 'player_4__dk_name', 'player_5__dk_name', 'player_6__dk_name', 'total_salary', 'median', 's75', 's90', 'count', 'dup_projection'
         ))
+        logger.info(f'Optimal lineups took {time.time() - start}s')
 
         # H2h Lineups
+        start = time.time()
         try:
             build = race_sim.builds.get(build_type='h2h')
             opponents = list(build.field_lineups.all().values_list('opponent_handle', flat=True))
@@ -1783,8 +1787,10 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
                     h2h_lineups[opponent] = h2h_lineups.apply(lambda x: build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x.loc['slate_lineup_id'])[0].win_rate if build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x['slate_lineup_id']).count() > 0 else math.nan, axis=1)
         except:
             h2h_lineups = pandas.DataFrame([])
+        logger.info(f'H2H lineups took {time.time() - start}s')
 
         # SE Lineups
+        start = time.time()
         try:
             build = race_sim.builds.get(build_type='se')
             se_lineups = pandas.DataFrame.from_records(build.lineups.all().order_by('-median').values(
@@ -1792,7 +1798,9 @@ def export_dk_results(sim_id, result_path, result_url, task_id):
             ))
         except:
             se_lineups = pandas.DataFrame([])
+        logger.info(f'SE lineups took {time.time() - start}s')
 
+        start = time.time()
         with pandas.ExcelWriter(result_path) as writer:
             df_dk.to_excel(writer, sheet_name='Drivers')
             # df_dk_raw.to_excel(writer, sheet_name='DK Raw')
