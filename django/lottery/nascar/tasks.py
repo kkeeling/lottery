@@ -2422,17 +2422,18 @@ def compare_lineups_se(lineup_ids, build_id):
     df_matchups = df_matchups[(df_matchups.win_rate >= 0.20)]
 
     df_lineups = df_matchups.filter(['win_rate'], axis=1)
-    df_lineups['slate_lineup_id'] = df_lineups.index
-    try:
-        df_lineups['median'] = df_lineups.apply(lambda x: numpy.median(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']])), axis=1)
-        df_lineups['s75'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]), 75.0), axis=1)
-        df_lineups['s90'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]), 90.0), axis=1)
-    except:
-        df_lineups['median'] = None
-        df_lineups['s75'] = None
-        df_lineups['s90'] = None
-        logger.info(df_lineups)
-    df_lineups['build_id'] = build.id
+    if not df_lineups.empty:
+        df_lineups['slate_lineup_id'] = df_lineups.index
+        try:
+            df_lineups['median'] = df_lineups.apply(lambda x: numpy.median(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']])), axis=1)
+            df_lineups['s75'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]), 75.0), axis=1)
+            df_lineups['s90'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]), 90.0), axis=1)
+        except:
+            df_lineups['median'] = None
+            df_lineups['s75'] = None
+            df_lineups['s90'] = None
+            logger.info(df_lineups)
+        df_lineups['build_id'] = build.id
 
     logger.info(f'Matchups took {time.time() - start}s.')
 

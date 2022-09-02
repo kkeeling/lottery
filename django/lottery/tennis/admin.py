@@ -314,6 +314,19 @@ class AliasAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(models.WinRateLookup)
+class WinRateLookup(admin.ModelAdmin):
+    list_display = (
+        'implied_odds',
+        'wta_odds',
+        'wta_ss_odds',
+        'atp3_odds',
+        'atp3_ss_odds',
+        'atp5_odds',
+        'atp5_ss_odds',
+    )
+
+
 @admin.register(models.MissingAlias)
 class MissingAliasAdmin(admin.ModelAdmin):
     list_display = (

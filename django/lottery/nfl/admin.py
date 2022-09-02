@@ -646,7 +646,10 @@ class SlateAdmin(admin.ModelAdmin):
         'site',
         'get_num_games',
         'get_players_link',
+        'get_lineups_link',
         'get_contest_link',
+        'make_lineups_button',
+        'export_button',
         'sim_button',
     )
     list_editable = (
@@ -668,18 +671,32 @@ class SlateAdmin(admin.ModelAdmin):
         'export_game_sims',
     ]
     inlines = (SlateProjectionSheetInline, SlatePlayerOwnershipProjectionSheetInline, SlateGameInline, )
-    fields = (
-        'datetime',
-        'end_datetime',
-        'name',
-        'is_main_slate',
+    fieldsets = (
+        (None,  {
+            'fields': (
+                ('datetime', 'end_datetime'),
+                'name',
+                'is_main_slate',
+                'week',
+                'site',
+                ('salaries_sheet_type', 'salaries'),
+            )
+        }),
+        ('In Play Thresholds',  {
+            'fields': (
+                'in_play_criteria',
+            )
+        }),
+        ('For Completed Slates',  {
+            'fields': (
+                'is_complete',
+                'fc_actuals_sheet',        
+            )
+        }),
+    )
+    raw_id_fields = (
         'week',
-        'site',
-        'salaries_sheet_type',
-        'salaries',
-        'player_outcomes',
-        'is_complete',
-        'fc_actuals_sheet',        
+        'in_play_criteria',
     )
 
     def save_model(self, request, obj, form, change):
@@ -783,7 +800,9 @@ class SlateAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         my_urls = [
-            path('slate-simulate/<int:pk>/', self.simulate, name="admin_slate_simulate"),
+            path('nfl-slate-simulate/<int:pk>/', self.simulate, name="admin_nfl_slate_simulate"),
+            path('nfl-slate-make-lineups/<int:pk>/', self.make_lineups, name="admin_nfl_slate_make_lineups"),
+            path('nfl-slate-export/<int:pk>/', self.export_lineups, name="admin_nfl_slate_export_lineups"),
         ]
         return my_urls + urls
     
@@ -801,8 +820,14 @@ class SlateAdmin(admin.ModelAdmin):
     def get_players_link(self, obj):
         if obj.players.all().count() == 0:
             return None
-        return mark_safe('<a href="/admin/nfl/slateplayer/?slate__id__exact={}">Players</a>'.format(obj.id))
+        return mark_safe('<a href="/admin/nfl/slateplayerprojection/?slate_player__slate__name={}">Players</a>'.format(obj.name))
     get_players_link.short_description = 'Players'
+
+    def get_lineups_link(self, obj):
+        if obj.possible_lineups.all().count() == 0:
+            return None
+        return mark_safe('<a href="/admin/nfl/slatelineup/?slate__id={}">Lineups</a>'.format(obj.id))
+    get_lineups_link.short_description = 'Lineups'
 
     def process_slates(self, request, queryset):
         for slate in queryset:
@@ -900,6 +925,49 @@ class SlateAdmin(admin.ModelAdmin):
             request,
             messages.WARNING,
             'Simulating player outcomes for {}'.format(str(slate)))
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def make_lineups(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        slate = get_object_or_404(models.Slate, pk=pk)
+
+        tasks.create_slate_lineups.delay(
+            slate.id,
+            BackgroundTask.objects.create(
+                name="Make All Lineups",
+                user=request.user
+            ).id
+        )
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Making all lineups for {}'.format(str(slate)))
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def export_lineups(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        slate = get_object_or_404(models.Slate, pk=pk)
+
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your exports are being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your exports are ready.')
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
@@ -1069,8 +1137,6 @@ class SlatePlayerAdmin(admin.ModelAdmin):
         'site_pos',
         'salary',
         'fantasy_points',
-        'ownership',
-        'slate_game',
     )
     search_fields = ('name',)
     list_filter = (
@@ -1141,25 +1207,20 @@ class SlatePlayerBuildExposureAdmin(admin.ModelAdmin):
 class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     list_display = (
         'get_player_name',
-        'get_slate',
         'get_player_salary',
         'get_player_position',
         'get_player_team',
-        'get_player_opponent',
+        'get_slate',
         'get_player_game',
         'get_player_game_z',
         'projection',
+        'in_play',
         'zscore',
         'ceiling',
         'floor',
         'stdev',
         'get_ownership_projection',
-        'get_rating',
         'adjusted_opportunity',
-        'get_player_value',
-        'balanced_projection',
-        'get_balanced_player_value',
-        'rb_group',
         'get_game_total',
         'get_team_total',
         'get_spread',
@@ -1178,6 +1239,9 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         ('slate_player__slate__site', DropdownFilter),
     )
     raw_id_fields = ['slate_player']
+    list_editable = (
+        'in_play',
+    )
     actions = ['export']
 
     def get_queryset(self, request):
@@ -1523,6 +1587,85 @@ class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
         
         return response
     export.short_description = 'Export selected player projections'
+
+
+@admin.register(models.SlateLineup)
+class SlateLineupAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_qb',
+        'get_rb1',
+        'get_rb2',
+        'get_wr1',
+        'get_wr2',
+        'get_wr3',
+        'get_te',
+        'get_flex',
+        'get_dst',
+        'total_salary',
+    )
+
+    search_fields = (
+        'qb__slate_player__name',
+        'rb1__slate_player__name',
+        'rb2__slate_player__name',
+        'wr1__slate_player__name',
+        'wr2__slate_player__name',
+        'wr3__slate_player__name',
+        'te__slate_player__name',
+        'flex__slate_player__name',
+        'dst__slate_player__name',
+    )
+
+    list_filter = (
+        'slate',
+    )
+    raw_id_fields = (
+        'qb',
+        'rb1',
+        'rb2',
+        'wr1',
+        'wr2',
+        'wr3',
+        'te',
+        'flex',
+        'dst',
+    )
+
+    def get_qb(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.qb.get_team_color(), obj.qb))
+    get_qb.short_description = 'QB'
+
+    def get_rb1(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.rb1.get_team_color(), obj.rb1))
+    get_rb1.short_description = 'RB1'
+
+    def get_rb2(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.rb2.get_team_color(), obj.rb2))
+    get_rb2.short_description = 'RB2'
+
+    def get_wr1(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.wr1.get_team_color(), obj.wr1))
+    get_wr1.short_description = 'WR1'
+
+    def get_wr2(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.wr2.get_team_color(), obj.wr2))
+    get_wr2.short_description = 'WR2'
+
+    def get_wr3(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.wr3.get_team_color(), obj.wr3))
+    get_wr3.short_description = 'WR3'
+
+    def get_te(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.te.get_team_color(), obj.te))
+    get_te.short_description = 'TE'
+
+    def get_flex(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.flex.get_team_color(), obj.flex))
+    get_flex.short_description = 'FLEX'
+
+    def get_dst(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.dst.get_team_color(), obj.dst))
+    get_dst.short_description = 'DST'
 
 
 @admin.register(models.SlateBuildGroup)

@@ -1,13 +1,16 @@
 import csv
 import datetime
-import logging
+import itertools
 import json
+import logging
 import math
 import numpy
 import os
 import pandas
 import pandasql
+import random
 import scipy
+import sqlalchemy
 import sys
 import time
 import traceback
@@ -2303,6 +2306,188 @@ def process_slate_players(chained_result, slate_id, task_id):
 
 
 @shared_task
+def create_slate_lineups(slate_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        # Task implementation goes here
+        slate = models.Slate.objects.get(id=slate_id)
+        dst_label = slate.dst_label
+
+        start = time.time()
+        slate.possible_lineups.all().delete()
+        logger.info(f'Deleting lineups took {time.time() - start}s')
+        
+        start = time.time()
+        slate_players = slate.players.filter(projection__in_play=True).order_by('-salary')
+        salaries = {}
+        for p in slate_players:
+            salaries[p.player_id] = p.salary
+        logger.info(f'Finding players and salaries took {time.time() - start}s. There are {slate_players.count()} players in the player pool.')
+
+        start = time.time()
+        qbs = list(slate.get_projections().filter(
+            slate_player__site_pos='QB',
+            in_play=True
+        ).order_by('-projection').values_list('slate_player__id', flat=True))
+        rbs = list(slate.get_projections().filter(
+            slate_player__site_pos='RB',
+            in_play=True
+        ).order_by('-projection').values_list('slate_player__id', flat=True))
+        wrs = list(slate.get_projections().filter(
+            slate_player__site_pos='WR',
+            in_play=True
+        ).order_by('-projection').values_list('slate_player__id', flat=True))
+        tes = list(slate.get_projections().filter(
+            slate_player__site_pos='TE',
+            in_play=True
+        ).order_by('-projection').values_list('slate_player__id', flat=True))
+        dsts = list(slate.get_projections().filter(
+            slate_player__site_pos=dst_label,
+            in_play=True
+        ).order_by('-projection').values_list('slate_player__id', flat=True))
+        logger.info(f'Filtering player positions took {time.time() - start}s')
+
+        chord([
+            create_lineup_combos_for_qb.si(slate.id, qb, rbs, wrs, tes, dsts, 1000) for qb in qbs
+        ], complete_slate_lineups.si(task_id))()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem creating lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def create_lineup_combos_for_qb(slate_id, qb_id, rb_ids, wr_ids, te_ids, dst_ids, num_combos):
+    def get_random_lineup(slate, qb_id, rb_combos, wr_combos, tes, flexes, dsts):
+        random_rbs = rb_combos[random.randrange(0, len(rb_combos))]
+        random_wrs = wr_combos[random.randrange(0, len(wr_combos))]
+        random_te = tes[random.randrange(0, len(tes))]
+        random_flex = flexes[random.randrange(0, len(flexes))]
+        random_dst = dsts[random.randrange(0, len(dsts))]
+
+        l = [qb_id, random_rbs[0], random_rbs[1], random_wrs[0], random_wrs[1], random_wrs[2], random_te, random_flex, random_dst]
+        total_salary = slate.get_projections().filter(
+            slate_player_id__in=l
+        ).aggregate(total_salary=Sum('slate_player__salary')).get('total_salary')
+
+        return (l, total_salary)
+
+    def is_lineup_valid(slate, l):
+        players = slate.get_projections().filter(
+            slate_player_id__in=l
+        )
+        
+        num_wrs = players.aggregate(num_wrs=Count('slate_player__site_pos', filter=Q(slate_player__site_pos='WR'))).get('num_wrs')
+        if num_wrs > 4:
+            return False
+        
+        num_rbs = players.aggregate(num_rbs=Count('slate_player__site_pos', filter=Q(slate_player__site_pos='RB'))).get('num_rbs')
+        if num_rbs > 5:
+            return False
+
+        visited = set()
+        dup = [x for x in l if x in visited or (visited.add(x) or False)]
+        if len(dup) > 0:
+            return False
+
+        return True
+
+    slate = models.Slate.objects.get(id=slate_id)
+    salary_thresholds = slate.salary_thresholds
+    lineups = []
+
+    start = time.time()
+    rb_combos = list(itertools.combinations(rb_ids, 2))
+    logger.info(f'RB combos took {time.time() - start}s. There are {len(rb_combos)} combinations.')
+
+    start = time.time()
+    wr_combos = list(itertools.combinations(wr_ids, 3))
+    logger.info(f'WR combos took {time.time() - start}s. There are {len(wr_combos)} combinations.')
+
+    start = time.time()
+    for _ in range(0, num_combos):
+        l, total_salary = get_random_lineup(slate, qb_id, rb_combos, wr_combos, te_ids, list(rb_ids) + list(wr_ids), dst_ids)
+
+        '''
+        TODO: Add additional constraints
+            - No duplicate lineups
+        '''
+        while (total_salary < salary_thresholds[0] or total_salary > salary_thresholds[1] or not is_lineup_valid(slate, l)):
+            l, total_salary = get_random_lineup(slate, qb_id, rb_combos, wr_combos, te_ids, list(rb_ids) + list(wr_ids), dst_ids)
+
+        l.append(total_salary)  ## append total salary to end of lineup array so we can make a dataframe
+        lineups.append(l)
+    logger.info(f'  Lineup selection took {time.time() - start}s')
+
+    start = time.time()
+    df_lineups = pandas.DataFrame(lineups, columns=[
+        'qb_id',
+        'rb1_id',
+        'rb2_id',
+        'wr1_id',
+        'wr2_id',
+        'wr3_id',
+        'te_id',
+        'flex_id',
+        'dst_id',
+        'total_salary',
+    ])
+    df_lineups['slate_id'] = slate_id
+    logger.info(f'Dataframe took {time.time() - start}s')
+    logger.info(df_lineups)
+
+    start = time.time()
+    user = settings.DATABASES['default']['USER']
+    password = settings.DATABASES['default']['PASSWORD']
+    database_name = settings.DATABASES['default']['NAME']
+    database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
+        user=user,
+        password=password,
+        database_name=database_name,
+    )
+
+    engine = sqlalchemy.create_engine(database_url, echo=False)
+    df_lineups.to_sql('nfl_slatelineup', engine, if_exists='append', index=False)
+    logger.info(f'Storage took {time.time() - start}s')
+
+
+@shared_task
+def complete_slate_lineups(task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        task.status = 'success'
+        task.content = f'All possible lineups created.'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem creating slate lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def process_projection_sheet(chained_result, sheet_id, task_id):
     task = None
 
@@ -2477,8 +2662,10 @@ def handle_base_projections(chained_results, slate_id, task_id):
                 projection.stdev = ao_projection.stdev if ao_projection is not None else 0.0
                 projection.adjusted_opportunity=ao_projection.adjusted_opportunity if ao_projection is not None else 0.0
                 projection.save()
+
             except models.SlatePlayerRawProjection.DoesNotExist:
-                pass
+                projection.in_play = False
+                projection.save()
 
         task.status = 'success'
         task.content = 'Base Projections processed.'

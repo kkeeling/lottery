@@ -76,6 +76,7 @@ SURFACE_CHOICES = (
     ('Grass', 'Grass')
 )
 
+# Tennis Match Data
 
 class Player(models.Model):
     HAND_CHOICES = (
@@ -1161,6 +1162,9 @@ class Match(models.Model):
         return self.loser.get_break_rate(timeframe=timeframe, startingFrom=self.tourney_date)        
 
 
+# Alias
+
+
 class Alias(models.Model):
     dk_name = models.CharField(max_length=255, null=True, blank=True)
     fd_name = models.CharField(max_length=255, null=True, blank=True)
@@ -1276,29 +1280,7 @@ class MissingAlias(models.Model):
     create_new_alias_button.short_description = ''
 
 
-class SlateBuildConfig(models.Model):
-    OPTIMIZE_CHOICES = (
-        ('implied_win_pct', 'Implied Win %'),
-        ('sim_win_pct', 'Simulated Win %'),
-        ('projection', 'Median Projection'),
-        ('s90', 'Ceiling Projection'),
-    )
-    name = models.CharField(max_length=255)
-    site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='draftkings')
-    randomness = models.DecimalField(decimal_places=2, max_digits=2, default=0.75)
-    uniques = models.IntegerField(default=1)
-    min_salary = models.IntegerField(default=0)
-    optimize_by = models.CharField(max_length=50, choices=OPTIMIZE_CHOICES, default='implied_win_pct')
-    lineup_multiplier = models.IntegerField(default=1)
-    clean_lineups_by = models.CharField(max_length=15, choices=OPTIMIZE_CHOICES, default='implied_win_pct')
-
-    class Meta:
-        verbose_name = 'Build Config'
-        verbose_name_plural = 'Build Configs'
-        ordering = ['id']
-    
-    def __str__(self):
-        return '{}'.format(self.name)
+# Pinnacle
 
 
 class PinnacleMatch(models.Model):
@@ -1314,6 +1296,31 @@ class PinnacleMatch(models.Model):
     class Meta:
         verbose_name = 'Pinnacle Match'
         verbose_name_plural = 'Pinnacle Matches'
+
+    @property
+    def favorite(self):
+        odds = self.odds.all().order_by('-create_at')[0]
+        if odds.home_price < odds.away_price:
+            fav = self.home_participant
+            fav_odds = odds.home_price
+        else:
+            fav = self.away_participant
+            fav_odds = odds.away_price
+        
+        return (fav, fav_odds)
+
+    @property
+    def underdog(self):
+        odds = self.odds.all().order_by('-create_at')[0]
+        if odds.home_price >= odds.away_price:
+            dog = self.home_participant
+            dog_odds = odds.home_price
+        else:
+            dog = self.away_participant
+            dog_odds = odds.away_price
+        
+        return (dog, dog_odds)
+        
 
     def get_odds_for_player(self, player):
         alias = player.aliases.all()[0]
@@ -1339,12 +1346,55 @@ class PinnacleMatchOdds(models.Model):
         return self.match.event
 
 
+# Lookups
+
+class WinRateLookup(models.Model):
+    implied_odds = models.FloatField(default=0.0)
+    wta_odds = models.FloatField(default=0.0)
+    wta_ss_odds = models.FloatField(default=0.0)
+    atp3_odds = models.FloatField(default=0.0)
+    atp3_ss_odds = models.FloatField(default=0.0)
+    atp5_odds = models.FloatField(default=0.0)
+    atp5_ss_odds = models.FloatField(default=0.0)
+
+    def __str__(self):
+        return f'{self.implied_odds * 100}% Implied Odds'
+
+
+# Slates
+
+class SlateBuildConfig(models.Model):
+    OPTIMIZE_CHOICES = (
+        ('implied_win_pct', 'Implied Win %'),
+        ('sim_win_pct', 'Simulated Win %'),
+        ('projection', 'Median Projection'),
+        ('s90', 'Ceiling Projection'),
+    )
+    name = models.CharField(max_length=255)
+    site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='draftkings')
+    randomness = models.DecimalField(decimal_places=2, max_digits=2, default=0.75)
+    uniques = models.IntegerField(default=1)
+    min_salary = models.IntegerField(default=0)
+    optimize_by = models.CharField(max_length=50, choices=OPTIMIZE_CHOICES, default='implied_win_pct')
+    lineup_multiplier = models.IntegerField(default=1)
+    clean_lineups_by = models.CharField(max_length=15, choices=OPTIMIZE_CHOICES, default='implied_win_pct')
+
+    class Meta:
+        verbose_name = 'Build Config'
+        verbose_name_plural = 'Build Configs'
+        ordering = ['id']
+    
+    def __str__(self):
+        return '{}'.format(self.name)
+
+
 class Slate(models.Model):
     datetime = models.DateTimeField()
     name = models.CharField(max_length=255, verbose_name='Slate')
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='draftkings')
     is_main_slate = models.BooleanField(default=False)
     last_match_datetime = models.DateTimeField(blank=True, null=True)
+    input_file = models.FileField(upload_to='uploads/sim_input_files', blank=True, null=True)
     salaries = models.FileField(upload_to='uploads/salaries', blank=True, null=True)
     entries = models.FileField(upload_to='uploads/entries', blank=True, null=True)
     target_score = models.DecimalField(max_digits=5, decimal_places=2, db_index=True, default=0.0, verbose_name='Target')
@@ -1649,6 +1699,11 @@ class SlateMatch(models.Model):
 
     def __str__(self):
         return '{}: {}'.format(str(self.slate), str(self.match))
+
+    @property
+    def tour(self):
+        alias1 = Alias.objects.get(pinn_name=self.match.home_participant)
+        return alias1.player.tour
 
     def common_opponents(self, surface, timeframe_in_weeks=52):
         alias1 = Alias.objects.get(pinn_name=self.match.home_participant)

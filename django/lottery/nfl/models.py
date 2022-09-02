@@ -413,9 +413,14 @@ class Slate(models.Model):
 
     salaries_sheet_type = models.CharField(max_length=255, choices=SHEET_TYPES, default='site')
     salaries = models.FileField(upload_to='uploads/salaries', blank=True, null=True)
+    
+    # in play thresholds
+    in_play_criteria = models.ForeignKey('PlayerSelectionCriteria', on_delete=models.SET_NULL, related_name='slates', verbose_name='IPC', null=True, blank=True)
 
+    # sim outcomes
     player_outcomes = models.FileField(upload_to='uploads/sims', blank=True, null=True)
 
+    # actual outcomes
     fc_actuals_sheet = models.FileField(verbose_name='FC Actuals CSV', upload_to='uploads/actuals', blank=True, null=True)
 
     class Meta:
@@ -423,6 +428,21 @@ class Slate(models.Model):
 
     def __str__(self):
         return '{}'.format(self.name) if self.name is not None else '{}'.format(self.datetime)
+
+    @property
+    def dst_label(self):
+        return 'D' if self.site == 'fanduel' else 'DST'
+
+    @property
+    def salary_thresholds(self):
+        if self.site == 'draftkings':
+            return (48500, 50000)
+        elif self.site == 'fanduel':
+            return (58500, 60000)
+        elif self.site == 'yahoo':
+            return (190, 200)
+        else:
+            raise Exception(f'Unsupported site {self.site}')
 
     @property
     def teams(self):
@@ -603,6 +623,7 @@ class Slate(models.Model):
             projection.zscore = zscores[index]
             projection.ao_zscore = ao_zscores[index] if ao_zscores is not None else 0.0
             projection.ceiling_zscore = ceiling_zscores[index] if ceiling_zscores is not None else 0.0
+            projection.in_play = self.in_play_criteria.meets_threshold(projection)
             projection.save()        
 
     def flatten_base_projections(self):
@@ -624,10 +645,22 @@ class Slate(models.Model):
                 traceback.print_exc()
 
     def sim_button(self):
-        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Sim</a>',
-            reverse_lazy("admin:admin_slate_simulate", args=[self.pk])
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Simulate Games</a>',
+            reverse_lazy("admin:admin_nfl_slate_simulate", args=[self.pk])
         )
     sim_button.short_description = ''
+
+    def make_lineups_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #bf3030; font-weight: bold; padding: 10px 15px;">Make Lineups</a>',
+            reverse_lazy("admin:admin_nfl_slate_make_lineups", args=[self.pk])
+        )
+    make_lineups_button.short_description = ''
+    
+    def export_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #5b80b2; font-weight: bold; padding: 10px 15px;">Export Lineups</a>',
+            reverse_lazy("admin:admin_nfl_slate_export_lineups", args=[self.pk])
+        )
+    export_button.short_description = ''
 
 
 class SlateGame(models.Model):
@@ -1267,6 +1300,46 @@ class SlatePlayerRawProjection(models.Model):
 
     def get_opponent(self):
         return self.slate_player.get_opponent()
+ 
+        
+class SlateLineup(models.Model):
+    slate = models.ForeignKey(Slate, related_name='possible_lineups', on_delete=models.CASCADE)
+    qb = models.ForeignKey(SlatePlayer, db_index=True, related_name='qb', on_delete=models.CASCADE)
+    rb1 = models.ForeignKey(SlatePlayer, db_index=True, related_name='rb1', on_delete=models.CASCADE)
+    rb2 = models.ForeignKey(SlatePlayer, db_index=True, related_name='rb2', on_delete=models.CASCADE)
+    wr1 = models.ForeignKey(SlatePlayer, db_index=True, related_name='wr1', on_delete=models.CASCADE)
+    wr2 = models.ForeignKey(SlatePlayer, db_index=True, related_name='wr2', on_delete=models.CASCADE)
+    wr3 = models.ForeignKey(SlatePlayer, db_index=True, related_name='wr3', on_delete=models.CASCADE)
+    te = models.ForeignKey(SlatePlayer, db_index=True, related_name='te', on_delete=models.CASCADE)
+    flex = models.ForeignKey(SlatePlayer, db_index=True, related_name='flex', on_delete=models.CASCADE)
+    dst = models.ForeignKey(SlatePlayer, db_index=True, related_name='dst', on_delete=models.CASCADE)
+    total_salary = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = 'Slate Lineup'
+        verbose_name_plural = 'Slate Lineups'
+        ordering = ['-total_salary']
+
+    def __str__(self):
+        return f'{self.qb} {self.rb1} {self.rb2} {self.wr1} {self.wr2} {self.wr3} {self.te} {self.flex} {self.dst}'
+
+    @property
+    def players(self):
+        return [
+            self.qb, 
+            self.rb1,
+            self.rb2,
+            self.wr1,
+            self.wr2,
+            self.wr3,
+            self.te,
+            self.flex,
+            self.dst
+        ]
+
+    def simulate(self):
+        self.total_salary = sum([p.salary for p in self.players])
+        self.save()
 
 
 # Rules & Configuration
@@ -1398,32 +1471,34 @@ class PlayerSelectionCriteria(models.Model):
         verbose_name = 'In-Play Criteria'
         verbose_name_plural = 'In-Play Criteria'
 
-    def meets_threshold(self, build_projection):
+    def meets_threshold(self, projection):
         # variables used in threshold equations
 
         # TODO: Make this expose various objects to allow more flexibility in conditionals, instead of hardcoding the specific variables
         locals = {
-            'projection': float(build_projection.projection),
-            'ownership_projection': float(build_projection.ownership_projection),
-            'team_total': float(build_projection.team_total) if build_projection.team_total is not None else 0.0,
-            'game_total': float(build_projection.game_total) if build_projection.game_total is not None else 0.0,
-            'game_zscore': float(build_projection.game.zscore) if build_projection.game is not None and build_projection.game.zscore is not None else 0.0,
-            'spread': float(build_projection.spread) if build_projection.spread is not None else 0.0,
-            'adjusted_opportunity': float(build_projection.adjusted_opportunity),
-            'position_rank': build_projection.position_rank,
-            'zscore': float(build_projection.zscore) if build_projection.zscore else 0.0,
-            'ao_zscore': float(build_projection.ao_zscore) if build_projection.ao_zscore else 0.0
+            'projection': float(projection.projection),
+            'ownership_projection': float(projection.ownership_projection),
+            'team_total': float(projection.team_total) if projection.team_total is not None else 0.0,
+            'game_total': float(projection.game_total) if projection.game_total is not None else 0.0,
+            'game_zscore': float(projection.game.zscore) if projection.game is not None and projection.game.zscore is not None else 0.0,
+            'spread': float(projection.spread) if projection.spread is not None else 0.0,
+            'adjusted_opportunity': float(projection.adjusted_opportunity),
+            'position_rank': projection.position_rank,
+            'zscore': float(projection.zscore) if projection.zscore else 0.0,
+            'ao_zscore': float(projection.ao_zscore) if projection.ao_zscore else 0.0
         }
 
-        if build_projection.slate_player.site_pos == 'QB' and self.qb_threshold is not None and self.qb_threshold != '':
+        if projection.projection == 0.0:
+            return False
+        elif projection.slate_player.site_pos == 'QB' and self.qb_threshold is not None and self.qb_threshold != '':
             return eval(self.qb_threshold, {'__builtins__': {}}, locals)
-        elif build_projection.slate_player.site_pos == 'RB' and self.rb_threshold is not None and self.rb_threshold != '':
+        elif projection.slate_player.site_pos == 'RB' and self.rb_threshold is not None and self.rb_threshold != '':
             return eval(self.rb_threshold, {'__builtins__': {}}, locals)
-        elif build_projection.slate_player.site_pos == 'WR' and self.wr_threshold is not None and self.wr_threshold != '':
+        elif projection.slate_player.site_pos == 'WR' and self.wr_threshold is not None and self.wr_threshold != '':
             return eval(self.wr_threshold, {'__builtins__': {}}, locals)
-        elif build_projection.slate_player.site_pos == 'TE' and self.te_threshold is not None and self.te_threshold != '':
+        elif projection.slate_player.site_pos == 'TE' and self.te_threshold is not None and self.te_threshold != '':
             return eval(self.te_threshold, {'__builtins__': {}}, locals)
-        elif (build_projection.slate_player.site_pos == 'D' or build_projection.slate_player.site_pos == 'DST') and self.dst_threshold is not None and self.dst_threshold != '':
+        elif (projection.slate_player.site_pos == 'D' or projection.slate_player.site_pos == 'DST') and self.dst_threshold is not None and self.dst_threshold != '':
             return eval(self.dst_threshold, {'__builtins__': {}}, locals)
         
         return True
