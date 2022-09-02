@@ -2355,7 +2355,7 @@ def create_slate_lineups(slate_id, task_id):
         logger.info(f'Filtering player positions took {time.time() - start}s')
 
         chord([
-            create_lineup_combos_for_qb.si(slate.id, qb, rbs, wrs, tes, dsts, 1000) for qb in qbs
+            create_lineup_combos_for_qb.si(slate.id, qb, rbs, wrs, tes, dsts, 10000) for qb in qbs
         ], complete_slate_lineups.si(task_id))()
 
     except Exception as e:
