@@ -914,6 +914,7 @@ class SlateLineupAdmin(admin.ModelAdmin):
         'player_6',
     )
 
+
 @admin.register(models.SlatePlayer)
 class SlatePlayerAdmin(admin.ModelAdmin):
     list_display = (
@@ -1275,12 +1276,17 @@ class SlateBuildFieldLineupAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
-        'lineup__player_1__slate_player__name',
-        'lineup__player_2__slate_player__name',
-        'lineup__player_3__slate_player__name',
-        'lineup__player_4__slate_player__name',
-        'lineup__player_5__slate_player__name',
-        'lineup__player_6__slate_player__name',
+        'slate_lineup__player_1__slate_player__name',
+        'slate_lineup__player_2__slate_player__name',
+        'slate_lineup__player_3__slate_player__name',
+        'slate_lineup__player_4__slate_player__name',
+        'slate_lineup__player_5__slate_player__name',
+        'slate_lineup__player_6__slate_player__name',
+    )
+
+    raw_id_fields = (
+        'slate_lineup',
+        'build',
     )
 
     def get_lineup(self, obj):
@@ -1302,12 +1308,17 @@ class SlateBuildLineupMatchupAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
-        'slate_lineup__lineup__player_1__slate_player__name',
-        'slate_lineup__lineup__player_2__slate_player__name',
-        'slate_lineup__lineup__player_3__slate_player__name',
-        'slate_lineup__lineup__player_4__slate_player__name',
-        'slate_lineup__lineup__player_5__slate_player__name',
-        'slate_lineup__lineup__player_6__slate_player__name',
+        'slate_lineup__player_1__slate_player__name',
+        'slate_lineup__player_2__slate_player__name',
+        'slate_lineup__player_3__slate_player__name',
+        'slate_lineup__player_4__slate_player__name',
+        'slate_lineup__player_5__slate_player__name',
+        'slate_lineup__player_6__slate_player__name',
+    )
+
+    raw_id_fields = (
+        'slate_lineup',
+        'build',
     )
 
     def get_lineup(self, obj):

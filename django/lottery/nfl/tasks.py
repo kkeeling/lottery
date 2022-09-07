@@ -9,6 +9,7 @@ import os
 import pandas
 import pandasql
 import random
+import re
 import scipy
 import sqlalchemy
 import sys
@@ -2481,6 +2482,84 @@ def complete_slate_lineups(task_id):
         if task is not None:
             task.status = 'error'
             task.content = f'There was a problem creating slate lineups: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def process_build(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        build = models.SlateBuild.objects.get(id=build_id)
+        player_sim_scores = {}
+
+        # load field lineups, if any
+        if build.field_lineup_upload:
+            build.field_lineups_to_beat.all().delete()
+
+            with open(build.field_lineups_to_beat.path, mode='r') as lineups_file:
+                csv_reader = csv.reader(lineups_file)
+
+                for index, row in enumerate(csv_reader):
+                    if index > 0:  # skip header
+                        handle = row[0]
+                        qb = re.findall(r'\([0-9]*\)', row[1])[0].replace('(', '').replace(')', '')
+                        rb1 = re.findall(r'\([0-9]*\)', row[2])[0].replace('(', '').replace(')', '')
+                        rb2 = re.findall(r'\([0-9]*\)', row[3])[0].replace('(', '').replace(')', '')
+                        wr1 = re.findall(r'\([0-9]*\)', row[4])[0].replace('(', '').replace(')', '')
+                        wr2 = re.findall(r'\([0-9]*\)', row[5])[0].replace('(', '').replace(')', '')
+                        wr3 = re.findall(r'\([0-9]*\)', row[6])[0].replace('(', '').replace(')', '')
+                        te = re.findall(r'\([0-9]*\)', row[7])[0].replace('(', '').replace(')', '')
+                        flex = re.findall(r'\([0-9]*\)', row[8])[0].replace('(', '').replace(')', '')
+                        dst = re.findall(r'\([0-9]*\)', row[9])[0].replace('(', '').replace(')', '')
+
+                        # find this lineup in all possible lineups
+                        slate_lineup = build.slate.possible_lineups.filter(
+                           qb__slate_player_id=qb,
+                           rb1__slate_player_id__in=[rb1, rb2, flex],
+                           rb2__slate_player_id__in=[rb1, rb2, flex],
+                           wr1__slate_player_id__in=[wr1, wr2, wr3, flex],
+                           wr2__slate_player_id__in=[wr1, wr2, wr3, flex],
+                           wr3__slate_player_id__in=[wr1, wr2, wr3, flex],
+                           te__slate_player_id__in=[te, flex],
+                           flex__slate_player_id__in=[rb1, rb2, wr1, wr2, wr3, te],
+                           dst__slate_player_id=dst
+                        )
+
+                        if slate_lineup.count() == 0:
+                            raise Exception(f'No valid lineup found for {handle} among all possible lineups.')
+                        elif slate_lineup.count() > 1:
+                            raise Exception(f'There were {slate_lineup.count()} duplicate lineups found for {handle} among all possible lineups.')
+
+                        lineup = models.FieldLineupToBeat.objects.create(
+                            build=build,
+                            opponent_handle=handle,
+                            slate_lineup=slate_lineup[0]
+                        )
+
+                        # sim_scores = numpy.array(player_sim_scores[player_1]) + numpy.array(player_sim_scores[player_2]) + numpy.array(player_sim_scores[player_3]) + numpy.array(player_sim_scores[player_4]) + numpy.array(player_sim_scores[player_5]) + numpy.array(player_sim_scores[player_6])
+                        # lineup.median = numpy.median(sim_scores)
+                        # lineup.s75 = numpy.percentile(sim_scores, float(75))
+                        # lineup.s90 = numpy.percentile(sim_scores, float(90))
+                        # lineup.save()
+
+        task.status = 'success'
+        task.content = f'{build} processed.'
+        task.save()
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was an error processing your build: {e}'
             task.save()
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))

@@ -482,6 +482,18 @@ class SlatePlayerOwnershipProjectionSheetInline(admin.TabularInline):
     extra = 0
 
 
+class FieldLineupToBeatpInline(admin.TabularInline):
+    model = models.FieldLineupToBeat
+    extra = 0
+    fields = (
+        'opponent_handle',
+        'slate_lineup',
+    )
+    raw_id_fields = (
+        'slate_lineup',
+    )
+
+
 # Admins
 
 
@@ -647,7 +659,7 @@ class SlateAdmin(admin.ModelAdmin):
         'get_num_games',
         'get_players_link',
         'get_lineups_link',
-        'get_contest_link',
+        'get_builds_link',
         'make_lineups_button',
         'export_button',
         'sim_button',
@@ -828,6 +840,12 @@ class SlateAdmin(admin.ModelAdmin):
             return None
         return mark_safe('<a href="/admin/nfl/slatelineup/?slate__id={}">Lineups</a>'.format(obj.id))
     get_lineups_link.short_description = 'Lineups'
+
+    def get_builds_link(self, obj):
+        if obj.players.all().count() > 0:
+            return mark_safe('<a href="/admin/nfl/findwinnerbuild/?slate__id={}">Builds</a>'.format(obj.id))
+        return 'None'
+    get_builds_link.short_description = 'Builds'
 
     def process_slates(self, request, queryset):
         for slate in queryset:
@@ -1666,6 +1684,215 @@ class SlateLineupAdmin(admin.ModelAdmin):
     def get_dst(self, obj):
         return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.dst.get_team_color(), obj.dst))
     get_dst.short_description = 'DST'
+
+
+@admin.register(models.FindWinnerBuild)
+class FindWinnerBuildAdmin(admin.ModelAdmin):
+    date_hierarchy = 'slate__datetime'
+    list_display = (
+        'slate',
+        'build_type',
+        'get_projections_link',
+        'get_lineups_link',
+        'get_field_lineups_link',
+        'get_matchup_lineups_link',
+        'build_button',
+        'export_button',
+    )
+    list_filter = (
+        ('slate', RelatedDropdownFilter),
+    )
+    raw_id_fields = (
+        'slate',
+    )
+    search_fields = ('slate__name',)
+    inlines = [
+        FieldLineupToBeatpInline
+    ]
+
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('nfl-slatebuild-build/<int:pk>/', self.build, name="admin_nfl_slatebuild_build"),
+            # path('nfl-slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_nfl_slatebuild_export"),
+        ]
+        return my_urls + urls
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.process_build(request, obj)
+
+    def process_build(self, request, build):
+        chain(
+            tasks.process_build.si(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Process Build',
+                    user=request.user
+                ).id
+            )
+        )()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your build is being initialized. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the slate is ready.')
+
+    def build(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        build = models.SlateBuild.objects.get(pk=pk)
+
+        # if build.build_type == 'cash':
+        #     tasks.execute_cash_workflow.delay(
+        #         build.id,
+        #         BackgroundTask.objects.create(
+        #             name='Run Cash Workflow',
+        #             user=request.user
+        #         ).id
+        #     )
+
+        #     messages.add_message(
+        #         request,
+        #         messages.WARNING,
+        #         f'Running Cash Workflow'
+        #     )
+        # elif build.build_type == 'h2h':
+        #     tasks.execute_h2h_workflow.delay(
+        #         build.id,
+        #         BackgroundTask.objects.create(
+        #             name='Run H2H Workflow',
+        #             user=request.user
+        #         ).id
+        #     )
+
+        #     messages.add_message(
+        #         request,
+        #         messages.WARNING,
+        #         f'Running H2H Workflow'
+        #     )
+        # elif build.build_type == 'se':
+        #     tasks.execute_se_workflow.delay(
+        #         build.id,
+        #         BackgroundTask.objects.create(
+        #             name='Run SE Workflow',
+        #             user=request.user
+        #         ).id
+        #     )
+
+        #     messages.add_message(
+        #         request,
+        #         messages.WARNING,
+        #         f'Running SE Workflow'
+        #     )
+        # else:
+        #     messages.add_message(
+        #         request,
+        #         messages.ERRROR,
+        #         f'{build.build_type} is not supported yet'
+        #     )
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def get_projections_link(self, obj):
+        if obj.slate.get_projections().count() > 0:
+            return mark_safe('<a href="/admin/nfl/slateplayerprojection/?slate_player__slate__name={}">Players</a>'.format(obj.name))
+        return 'None'
+    get_projections_link.short_description = 'Projections'
+
+    def get_lineups_link(self, obj):
+        if obj.winning_lineups.all().count() > 0:
+            return mark_safe('<a href="/admin/nfl/winninglineup/?build__id__exact={}">Lineups</a>'.format(obj.id))
+        return 'None'
+    get_lineups_link.short_description = 'Lineups'
+
+    def get_field_lineups_link(self, obj):
+        if obj.field_lineups_to_beat.all().count() > 0:
+            return mark_safe('<a href="/admin/nfl/fieldlineuptobeat/?build__id__exact={}">Field</a>'.format(obj.id))
+        return 'None'
+    get_field_lineups_link.short_description = 'Field Lineups'
+
+    def get_matchup_lineups_link(self, obj):
+        if obj.matchups.all().count() > 0:
+            return mark_safe('<a href="/admin/nfl/slatebuildlineupmatchup/?build__id__exact={}">Matchups</a>'.format(obj.id))
+        return 'None'
+    get_matchup_lineups_link.short_description = 'Matchups'
+
+
+@admin.register(models.WinningLineup)
+class WinningLineupAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_lineup',
+        'get_salary',
+        'median',
+        's75',
+        's90',
+        'get_win_rate',
+    )
+
+    search_fields = (
+        'lineup__qb__slate_player__name',
+        'lineup__rb1__slate_player__name',
+        'lineup__rb2__slate_player__name',
+        'lineup__wr1__slate_player__name',
+        'lineup__wr2__slate_player__name',
+        'lineup__wr3__slate_player__name',
+        'lineup__te__slate_player__name',
+        'lineup__flex__slate_player__name',
+        'lineup__dst__slate_player__name',
+    )
+
+    def get_lineup(self, obj):
+        return mark_safe(f'{obj.slate_lineup.qb}<br />{obj.slate_lineup.rb1}<br />{obj.slate_lineup.rb2}<br />{obj.slate_lineup.wr1}<br />{obj.slate_lineup.wr2}<br />{obj.slate_lineup.wr3}<br />{obj.slate_lineup.te}<br />{obj.slate_lineup.flex}<br />{obj.slate_lineup.dst}')
+    get_lineup.short_description = ''
+
+    def get_salary(self, obj):
+        return obj.slate_lineup.total_salary
+    get_salary.short_description = 'salary'
+    get_salary.admin_order_field = 'slate_lineup__total_salary'
+
+    def get_win_rate(self, obj):
+        return '{:.2f}%'.format(obj.win_rate * 100)
+    get_win_rate.short_description = 'win %'
+    get_win_rate.admin_order_field = 'win_rate'
+
+
+@admin.register(models.FieldLineupToBeat)
+class FieldLineupToBeatAdmin(admin.ModelAdmin):
+    list_display = (
+        'opponent_handle',
+        'get_lineup',
+        'get_salary',
+        'median',
+        's75',
+        's90',
+    )
+
+    search_fields = (
+        'lineup__qb__slate_player__name',
+        'lineup__rb1__slate_player__name',
+        'lineup__rb2__slate_player__name',
+        'lineup__wr1__slate_player__name',
+        'lineup__wr2__slate_player__name',
+        'lineup__wr3__slate_player__name',
+        'lineup__te__slate_player__name',
+        'lineup__flex__slate_player__name',
+        'lineup__dst__slate_player__name',
+    )
+
+    def get_lineup(self, obj):
+        return mark_safe(f'{obj.slate_lineup.qb}<br />{obj.slate_lineup.rb1}<br />{obj.slate_lineup.rb2}<br />{obj.slate_lineup.wr1}<br />{obj.slate_lineup.wr2}<br />{obj.slate_lineup.wr3}<br />{obj.slate_lineup.te}<br />{obj.slate_lineup.flex}<br />{obj.slate_lineup.dst}')
+    get_lineup.short_description = ''
+
+    def get_salary(self, obj):
+        return obj.slate_lineup.total_salary
+    get_salary.short_description = 'salary'
+    get_salary.admin_order_field = 'slate_lineup__total_salary'
 
 
 @admin.register(models.SlateBuildGroup)

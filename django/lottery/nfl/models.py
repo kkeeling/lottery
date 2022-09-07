@@ -78,6 +78,58 @@ RANK_BY_CHOICES = (
 
 GREAT_BUILD_CASH_THRESHOLD = 0.3
 
+BUILD_TYPES = (
+    ('h2h', 'Head-to-Head'),
+    ('cash', '50/50s'),
+    ('se', 'Hi-Stakes SE'),
+    ('mme', 'MME'),
+)
+
+BUILD_TYPE_FILTERS_DK = {
+    'cash': {
+        'total_salary__gte': 49500
+    },
+    'h2h': {
+        'total_salary__gte': 49500
+    },
+    'se': {
+        'total_salary__gte': 49000
+    },
+    'mme': {
+        'total_salary__gte': 48500
+    }
+}
+
+BUILD_TYPE_FILTERS_FD = {
+    'cash': {
+        'total_salary__gte': 59500
+    },
+    'h2h': {
+        'total_salary__gte': 59500
+    },
+    'se': {
+        'total_salary__gte': 59000
+    },
+    'mme': {
+        'total_salary__gte': 58500
+    }
+}
+
+BUILD_TYPE_FILTERS_YH = {
+    'cash': {
+        'total_salary__gte': 197
+    },
+    'h2h': {
+        'total_salary__gte': 197
+    },
+    'se': {
+        'total_salary__gte': 195
+    },
+    'mme': {
+        'total_salary__gte': 190
+    }
+}
+
 
 class Median(Aggregate):
     function = 'PERCENTILE_CONT'
@@ -1694,6 +1746,117 @@ class GroupImportSheet(models.Model):
 
 
 # Builds
+
+
+class FindWinnerBuild(models.Model):
+    slate = models.ForeignKey(Slate, related_name='find_winner_builds', on_delete=models.CASCADE)
+    build_type = models.CharField(max_length=10, choices=BUILD_TYPES, default='h2h')
+    created = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    field_lineup_upload = models.FileField(upload_to='uploads/field_lineups', blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'Find Winner Build'
+        verbose_name_plural = 'Find Winner Builds'
+
+    def __str__(self):
+        return f'{self.slate.name}'
+
+    def num_lineups_created(self):
+        return self.lineups.all().count()
+    num_lineups_created.short_description = 'created'
+
+    def num_field_lineups(self):
+        return self.field_lineups.all().count()
+    num_field_lineups.short_description = 'field'
+
+    def build_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Build</a>',
+            reverse_lazy("admin:admin_nfl_findwinnerbuild_build", args=[self.pk])
+        )
+    build_button.short_description = ''
+    
+    def export_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #5b80b2; font-weight: bold; padding: 10px 15px;">Export</a>',
+            reverse_lazy("admin:admin_nfl_findwinnerbuild_export", args=[self.pk])
+        )
+    export_button.short_description = ''
+ 
+        
+class WinningLineup(models.Model):
+    build = models.ForeignKey(FindWinnerBuild, verbose_name='Build', related_name='winning_lineups', on_delete=models.CASCADE)
+    slate_lineup = models.ForeignKey(SlateLineup, verbose_name='Lineup', related_name='winner_builds', on_delete=models.CASCADE)
+    win_rate = models.FloatField(db_index=True, default=0.0)
+    median = models.FloatField(db_index=True, default=0.0)
+    s75 = models.FloatField(db_index=True, default=0.0)
+    s90 = models.FloatField(db_index=True, default=0.0)
+
+    class Meta:
+        verbose_name = 'Lineup'
+        verbose_name_plural = 'Lineups'
+        ordering = ['-median']
+
+    def __str__(self):
+        return f'{self.slate_lineup}'
+
+    @property
+    def players(self):
+        return [
+            self.slate_lineup.qb, 
+            self.slate_lineup.rb1, 
+            self.slate_lineup.rb2, 
+            self.slate_lineup.wr1, 
+            self.slate_lineup.wr2, 
+            self.slate_lineup.wr3,
+            self.slate_lineup.te,
+            self.slate_lineup.flex,
+            self.slate_lineup.dst,
+        ]
+
+
+class FieldLineupToBeat(models.Model):
+    build = models.ForeignKey(FindWinnerBuild, verbose_name='Build', related_name='field_lineups_to_beat', on_delete=models.CASCADE)
+    opponent_handle = models.CharField(max_length=100, blank=True, null=True)
+    slate_lineup = models.ForeignKey(SlateLineup, verbose_name='Lineup', related_name='field_lineups_to_beat', blank=True, null=True, on_delete=models.CASCADE)
+    median = models.FloatField(db_index=True, default=0.0)
+    s75 = models.FloatField(db_index=True, default=0.0)
+    s90 = models.FloatField(db_index=True, default=0.0)
+
+    class Meta:
+        verbose_name = 'Field Lineup'
+        verbose_name_plural = 'Field Lineups'
+        ordering = ['-median']
+
+    def __str__(self):
+        return f'{self.slate_lineup}'
+
+    @property
+    def players(self):
+        return [
+            self.slate_lineup.qb, 
+            self.slate_lineup.rb1, 
+            self.slate_lineup.rb2, 
+            self.slate_lineup.wr1, 
+            self.slate_lineup.wr2, 
+            self.slate_lineup.wr3,
+            self.slate_lineup.te,
+            self.slate_lineup.flex,
+            self.slate_lineup.dst,
+        ]
+
+
+class LineupMatchup(models.Model):
+    build = models.ForeignKey(FindWinnerBuild, verbose_name='Build', related_name='matchups', on_delete=models.CASCADE)
+    slate_lineup = models.ForeignKey(SlateLineup, related_name='matchups', on_delete=models.CASCADE)
+    field_lineup = models.ForeignKey(FieldLineupToBeat, related_name='matchups', on_delete=models.CASCADE)
+    win_rate = models.FloatField(db_index=True, default=0.0)
+
+    class Meta:
+        verbose_name = 'Lineup Matchup'
+        verbose_name_plural = 'Lineup Matchups'
+        ordering = ['-win_rate']
+
+    def __str__(self):
+        return f'Lineup {self.slate_lineup.id} vs. {self.field_lineup.opponent_handle}'
 
 
 class SlateBuild(models.Model):
