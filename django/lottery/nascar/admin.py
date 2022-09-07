@@ -1318,6 +1318,7 @@ class SlateBuildLineupMatchupAdmin(admin.ModelAdmin):
 
     raw_id_fields = (
         'slate_lineup',
+        'field_lineup',
         'build',
     )
 
