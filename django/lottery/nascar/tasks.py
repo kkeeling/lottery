@@ -2447,7 +2447,7 @@ def compare_lineups_se(lineup_ids, build_id):
         database_name=database_name,
     )
     engine = sqlalchemy.create_engine(database_url, echo=False)
-    df_lineups.to_sql('nascar_slatebuildlineup', engine, if_exists='append', index=False)
+    df_lineups.to_sql('nascar_slatebuildlineup', engine, if_exists='append', index=False, chunksize=1000)
     logger.info(f'Adding build lineups took {time.time() - start}s. There are {len(df_lineups.index)} lineups.')
 
 
