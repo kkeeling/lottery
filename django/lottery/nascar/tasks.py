@@ -2270,7 +2270,7 @@ def compare_lineups_h2h(lineup_ids, build_id):
     # logger.info(df_matchups)
     df_matchups = df_matchups[(df_matchups.win_rate >= 0.50)]
     df_matchups['build_id'] = build.id
-    df_matchups = df_matchups.apply(pandas.to_numeric, downcast='float')
+    # df_matchups = df_matchups.apply(pandas.to_numeric, downcast='float')
     logger.info(f'Matchups took {time.time() - start}s. There are {df_matchups.size} matchups.')
 
     start = time.time()
@@ -2283,7 +2283,7 @@ def compare_lineups_h2h(lineup_ids, build_id):
         database_name=database_name,
     )
     engine = sqlalchemy.create_engine(database_url, echo=False)
-    df_matchups.to_sql('nascar_slatebuildlineupmatchup', engine, if_exists='append', index=False)
+    df_matchups.to_sql('nascar_slatebuildlineupmatchup', engine, if_exists='append', index=False, chunksize=1000)
     logger.info(f'Write matchups to db took {time.time() - start}s')
 
     start = time.time()
