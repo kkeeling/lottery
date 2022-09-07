@@ -1327,7 +1327,7 @@ class SlateBuildLineupMatchupAdmin(admin.ModelAdmin):
     get_lineup.short_description = ''
 
     def get_opponent(self, obj):
-        return f'{obj.field_lineup.opponent_handle}'
+        return mark_safe(f'{obj.field_lineup.player_1}<br />{obj.field_lineup.player_2}<br />{obj.field_lineup.player_3}<br />{obj.field_lineup.player_4}<br />{obj.field_lineup.player_5}<br />{obj.field_lineup.player_6}')
     get_opponent.short_description = 'vs.'
 
     def get_win_rate(self, obj):
