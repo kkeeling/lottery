@@ -1308,12 +1308,12 @@ class SlateBuildLineupMatchupAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
-        'slate_lineup__player_1__slate_player__name',
-        'slate_lineup__player_2__slate_player__name',
-        'slate_lineup__player_3__slate_player__name',
-        'slate_lineup__player_4__slate_player__name',
-        'slate_lineup__player_5__slate_player__name',
-        'slate_lineup__player_6__slate_player__name',
+        'slate_lineup__player_1__name',
+        'slate_lineup__player_2__name',
+        'slate_lineup__player_3__name',
+        'slate_lineup__player_4__name',
+        'slate_lineup__player_5__name',
+        'slate_lineup__player_6__name',
     )
 
     raw_id_fields = (
