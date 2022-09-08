@@ -39,6 +39,8 @@ from . import tasks
 
 BuildEval = namedtuple('BuildEval', ['top_score', 'total_cashes', 'total_one_pct', 'total_half_pct', 'binked'])
 
+SIM_ITERATIONS = 10000
+
 SITE_OPTIONS = (
     ('draftkings', 'DraftKings'),
     ('fanduel', 'Fanduel'),
@@ -835,6 +837,7 @@ class SlatePlayer(models.Model):
     player_id = models.CharField(max_length=255, null=True, blank=True)
     slate = models.ForeignKey(Slate, related_name='players', on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
+    csv_name = models.CharField(max_length=255, null=True, blank=True)
     salary = models.IntegerField()
     site_pos = models.CharField(max_length=5)
     team = models.CharField(max_length=4)
@@ -918,6 +921,10 @@ class SlatePlayerProjection(models.Model):
     rb_group = models.PositiveIntegerField('RBG', null=True, blank=True)
     balanced_projection = models.DecimalField('BP', null=True, blank=True, max_digits=5, decimal_places=2, default=0.0)
     sim_scores = ArrayField(models.DecimalField(max_digits=5, decimal_places=2), null=True, blank=True)
+    s20 = models.FloatField(db_index=True, default=0.0)
+    median = models.FloatField(db_index=True, default=0.0)
+    s75 = models.FloatField(db_index=True, default=0.0)
+    s90 = models.FloatField(db_index=True, default=0.0)
     in_play = models.BooleanField(default=True)
     stack_only = models.BooleanField(default=False, verbose_name='SO', help_text='Player is only in pool when stacked with QB or opposing QB')
     qb_stack_only = models.BooleanField(default=False, verbose_name='SwQB', help_text='Generate QB stacks with this player')

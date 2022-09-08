@@ -980,7 +980,23 @@ class SlateAdmin(admin.ModelAdmin):
         )
 
         slate = get_object_or_404(models.Slate, pk=pk)
+        result_file = f'{slate} -- Lineups.csv'
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
 
+        task = BackgroundTask.objects.create(
+            name='Export Lineups',
+            user=request.user
+        )
+
+        tasks.export_slate_lineups.delay(
+            list(slate.possible_lineups.all().values_list('id', flat=True)),
+            result_path,
+            result_url,
+            task.id
+        )
 
         messages.add_message(
             request,
@@ -1228,15 +1244,11 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_salary',
         'get_player_position',
         'get_player_team',
-        'get_slate',
         'get_player_game',
         'get_player_game_z',
         'projection',
         'in_play',
         'zscore',
-        'ceiling',
-        'floor',
-        'stdev',
         'get_ownership_projection',
         'adjusted_opportunity',
         'get_game_total',
@@ -1255,6 +1267,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'slate_player__slate__is_main_slate',
         ('slate_player__slate__name', DropdownFilter),
         ('slate_player__slate__site', DropdownFilter),
+        'in_play',
     )
     raw_id_fields = ['slate_player']
     list_editable = (
@@ -1266,6 +1279,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         qs = qs.annotate(
             slate=F('slate_player__slate'), 
+            player_name=F('slate_player__name'), 
             site_pos=F('slate_player__site_pos'), 
             player_salary=F('slate_player__salary'),
             player_game=F('slate_player__slate_game')
@@ -1278,13 +1292,14 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         return super(SlatePlayerProjectionAdmin, self).get_changelist_form(request, **kwargs)
 
     def get_slate(self, obj):
-        return obj.slate_player.slate
+        return obj.slate
     get_slate.short_description = 'Slate'
     get_slate.admin_order_field = 'slate_player__slate__name'
 
     def get_player_name(self, obj):
-        return obj.slate_player.name
+        return obj.player_name
     get_player_name.short_description = 'Player'
+    get_player_name.admin_order_field = 'player_name'
 
     def get_player_salary(self, obj):
         return obj.player_salary
@@ -1292,9 +1307,9 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_player_salary.admin_order_field = 'player_salary'
 
     def get_player_position(self, obj):
-        return obj.slate_player.site_pos
+        return obj.site_pos
     get_player_position.short_description = 'Pos'
-    get_player_position.admin_order_field = 'slate_player__site_pos'
+    get_player_position.admin_order_field = 'site_pos'
 
     def get_player_team(self, obj):
         return obj.slate_player.team
@@ -1383,28 +1398,24 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_actual_score.admin_order_field = 'slate_player__fantasy_points'
 
     def get_median_sim_score(self, obj):
-        if obj.sim_scores and len(obj.sim_scores) > 0:
-            return numpy.median(obj.sim_scores)
-        return None
+        return '{:.2f}'.format(obj.median)
     get_median_sim_score.short_description = 'sMU'
+    get_median_sim_score.admin_order_field = 'median'
 
     def get_floor_sim_score(self, obj):
-        if obj.sim_scores and len(obj.sim_scores) > 0:
-            return '{:.2f}'.format(obj.get_percentile_sim_score(10))
-        return None
-    get_floor_sim_score.short_description = 'sFLR'
+        return '{:.2f}'.format(obj.floor)
+    get_floor_sim_score.short_description = 's20'
+    get_floor_sim_score.admin_order_field = 's20'
 
     def get_75th_percentile_sim_score(self, obj):
-        if obj.sim_scores and len(obj.sim_scores) > 0:
-            return '{:.2f}'.format(obj.get_percentile_sim_score(75))
-        return None
+        return '{:.2f}'.format(obj.s75)
     get_75th_percentile_sim_score.short_description = 's75'
+    get_75th_percentile_sim_score.admin_order_field = 's75'
 
     def get_ceiling_sim_score(self, obj):
-        if obj.sim_scores and len(obj.sim_scores) > 0:
-            return '{:.2f}'.format(obj.get_percentile_sim_score(90))
-        return None
-    get_ceiling_sim_score.short_description = 'sCEIL'
+        return '{:.2f}'.format(obj.s90)
+    get_ceiling_sim_score.short_description = 's90'
+    get_ceiling_sim_score.admin_order_field = 's90'
 
     def export(self, request, queryset):
         task = BackgroundTask()
@@ -1697,7 +1708,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         'get_field_lineups_link',
         'get_matchup_lineups_link',
         'build_button',
-        'export_button',
+        # 'export_button',
     )
     list_filter = (
         ('slate', RelatedDropdownFilter),
@@ -1713,8 +1724,8 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         my_urls = [
-            path('nfl-slatebuild-build/<int:pk>/', self.build, name="admin_nfl_slatebuild_build"),
-            # path('nfl-slatebuild-export/<int:pk>/', self.export_for_upload, name="admin_nfl_slatebuild_export"),
+            path('nfl-findwinnerbuild-build/<int:pk>/', self.build, name="admin_nfl_findwinnerbuild_build"),
+            # path('nfl-findwinnerbuild-export/<int:pk>/', self.build, name="admin_nfl_findwinnerbuild_export"),
         ]
         return my_urls + urls
 
@@ -1745,36 +1756,22 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
            # Anything else you want in the context...
         )
 
-        build = models.SlateBuild.objects.get(pk=pk)
+        build = models.FindWinnerBuild.objects.get(pk=pk)
 
-        # if build.build_type == 'cash':
-        #     tasks.execute_cash_workflow.delay(
-        #         build.id,
-        #         BackgroundTask.objects.create(
-        #             name='Run Cash Workflow',
-        #             user=request.user
-        #         ).id
-        #     )
+        if build.build_type == 'h2h':
+            tasks.execute_h2h_workflow.delay(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Run H2H Workflow',
+                    user=request.user
+                ).id
+            )
 
-        #     messages.add_message(
-        #         request,
-        #         messages.WARNING,
-        #         f'Running Cash Workflow'
-        #     )
-        # elif build.build_type == 'h2h':
-        #     tasks.execute_h2h_workflow.delay(
-        #         build.id,
-        #         BackgroundTask.objects.create(
-        #             name='Run H2H Workflow',
-        #             user=request.user
-        #         ).id
-        #     )
-
-        #     messages.add_message(
-        #         request,
-        #         messages.WARNING,
-        #         f'Running H2H Workflow'
-        #     )
+            messages.add_message(
+                request,
+                messages.WARNING,
+                f'Running H2H Workflow'
+            )
         # elif build.build_type == 'se':
         #     tasks.execute_se_workflow.delay(
         #         build.id,
@@ -1801,7 +1798,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
 
     def get_projections_link(self, obj):
         if obj.slate.get_projections().count() > 0:
-            return mark_safe('<a href="/admin/nfl/slateplayerprojection/?slate_player__slate__name={}">Players</a>'.format(obj.name))
+            return mark_safe('<a href="/admin/nfl/slateplayerprojection/?slate_player__slate__name={}">Players</a>'.format(obj.slate.name))
         return 'None'
     get_projections_link.short_description = 'Projections'
 
@@ -1819,7 +1816,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
 
     def get_matchup_lineups_link(self, obj):
         if obj.matchups.all().count() > 0:
-            return mark_safe('<a href="/admin/nfl/slatebuildlineupmatchup/?build__id__exact={}">Matchups</a>'.format(obj.id))
+            return mark_safe('<a href="/admin/nfl/lineupmatchup/?build__id__exact={}">Matchups</a>'.format(obj.id))
         return 'None'
     get_matchup_lineups_link.short_description = 'Matchups'
 
@@ -1893,6 +1890,46 @@ class FieldLineupToBeatAdmin(admin.ModelAdmin):
         return obj.slate_lineup.total_salary
     get_salary.short_description = 'salary'
     get_salary.admin_order_field = 'slate_lineup__total_salary'
+
+
+@admin.register(models.LineupMatchup)
+class LineupMatchupAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_lineup',
+        'get_opponent',
+        'get_win_rate',
+    )
+
+    search_fields = (
+        'slate_lineup__qb__name',
+        'slate_lineup__rb1__name',
+        'slate_lineup__rb2__name',
+        'slate_lineup__wr1__name',
+        'slate_lineup__wr2__name',
+        'slate_lineup__wr3__name',
+        'slate_lineup__te__name',
+        'slate_lineup__flex__name',
+        'slate_lineup__dst__name',
+    )
+
+    raw_id_fields = (
+        'slate_lineup',
+        'field_lineup',
+        'build',
+    )
+
+    def get_lineup(self, obj):
+        return mark_safe(f'{obj.slate_lineup.qb}<br />{obj.slate_lineup.rb1}<br />{obj.slate_lineup.rb2}<br />{obj.slate_lineup.wr1}<br />{obj.slate_lineup.wr2}<br />{obj.slate_lineup.wr3}<br />{obj.slate_lineup.te}<br />{obj.slate_lineup.flex}<br />{obj.slate_lineup.dst}')
+    get_lineup.short_description = ''
+
+    def get_opponent(self, obj):
+        return mark_safe(f'{obj.field_lineup.slate_lineup.qb}<br />{obj.field_lineup.slate_lineup.rb1}<br />{obj.field_lineup.slate_lineup.rb2}<br />{obj.field_lineup.slate_lineup.wr1}<br />{obj.field_lineup.slate_lineup.wr2}<br />{obj.field_lineup.slate_lineup.wr3}<br />{obj.field_lineup.slate_lineup.te}<br />{obj.field_lineup.slate_lineup.flex}<br />{obj.field_lineup.slate_lineup.dst}')
+    get_opponent.short_description = 'vs.'
+
+    def get_win_rate(self, obj):
+        return '{:.2f}%'.format(obj.win_rate * 100)
+    get_win_rate.short_description = 'win %'
+    get_win_rate.admin_order_field = 'win_rate'
 
 
 @admin.register(models.SlateBuildGroup)

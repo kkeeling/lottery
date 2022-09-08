@@ -1,5 +1,6 @@
 import csv
 import datetime
+import decimal
 import itertools
 import json
 import logging
@@ -154,7 +155,7 @@ def simulate_game(game_id, task_id):
 
         game = models.SlateGame.objects.get(id=game_id)
 
-        N = 10000
+        N = models.SIM_ITERATIONS
         if game.slate.site == 'fanduel':
             dst_label = 'D' 
         elif game.slate.site == 'yahoo':
@@ -162,6 +163,7 @@ def simulate_game(game_id, task_id):
         else:
             dst_label = 'DST' 
 
+        # set up correlation
         r_df = get_corr_matrix(game.slate.site)
         c_target = r_df.to_numpy()
         r0 = [0] * c_target.shape[0]
@@ -169,165 +171,409 @@ def simulate_game(game_id, task_id):
         rand_Nmv = mv_norm.rvs(N) 
         rand_U = scipy.stats.norm.cdf(rand_Nmv)
 
+        # initialize variables
+        home_qb = None
+        home_rb1 = None
+        home_rb2 = None
+        home_rb3 = None
+        home_wr1 = None
+        home_wr2 = None
+        home_wr3 = None
+        home_wr4 = None
+        home_wr5 = None
+        home_te1 = None
+        home_te2 = None
+        home_dst = None
+        away_qb = None
+        away_rb1 = None
+        away_rb2 = None
+        away_rb3 = None
+        away_wr1 = None
+        away_wr2 = None
+        away_wr3 = None
+        away_wr4 = None
+        away_wr5 = None
+        away_te1 = None
+        away_te2 = None
+        away_dst = None
+        home_qb_rv = None 
+        home_rb1_rv = None 
+        home_rb2_rv = None 
+        home_rb3_rv = None 
+        home_wr1_rv = None 
+        home_wr2_rv = None 
+        home_wr3_rv = None 
+        home_wr4_rv = None 
+        home_wr5_rv = None 
+        home_te1_rv = None 
+        home_te2_rv = None 
+        home_dst_rv = None 
+        away_qb_rv = None 
+        away_rb1_rv = None 
+        away_rb2_rv = None 
+        away_rb3_rv = None 
+        away_wr1_rv = None 
+        away_wr2_rv = None 
+        away_wr3_rv = None 
+        away_wr4_rv = None 
+        away_wr5_rv = None 
+        away_te1_rv = None 
+        away_te2_rv = None 
+        away_dst_rv = None 
+
+        # Set up game players
         home_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_home_players().values_list('id', flat=True))
         away_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_away_players().values_list('id', flat=True))
 
-        home_qb = home_players.filter(slate_player__site_pos='QB').order_by('-projection', '-slate_player__salary')[0]
-        home_rb1 = home_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[0]
-        home_rb2 = home_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[1]
-        home_rb3 = home_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[2]
-        home_wr1 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[0]
-        home_wr2 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[1]
-        home_wr3 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[2]
-        home_wr4 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[3]
-        home_wr5 = home_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[4]
-        home_te1 = home_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[0]
-        home_te2 = home_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[1]
-        home_dst = home_players.filter(slate_player__site_pos=dst_label).order_by('-projection', '-slate_player__salary')[0]
+        home_qbs = home_players.filter(slate_player__site_pos='QB').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
+        home_rbs = home_players.filter(slate_player__site_pos='RB').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
+        home_wrs = home_players.filter(slate_player__site_pos='WR').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
+        home_tes = home_players.filter(slate_player__site_pos='TE').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
+        home_dsts = home_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
 
-        away_qb = away_players.filter(slate_player__site_pos='QB').order_by('-projection', '-slate_player__salary')[0]
-        away_rb1 = away_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[0]
-        away_rb2 = away_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[1]
-        away_rb3 = away_players.filter(slate_player__site_pos='RB').order_by('-projection', '-slate_player__salary')[2]
-        away_wr1 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[0]
-        away_wr2 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[1]
-        away_wr3 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[2]
-        away_wr4 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[3]
-        away_wr5 = away_players.filter(slate_player__site_pos='WR').order_by('-projection', '-slate_player__salary')[4]
-        away_te1 = away_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[0]
-        away_te2 = away_players.filter(slate_player__site_pos='TE').order_by('-projection', '-slate_player__salary')[1]
-        away_dst = away_players.filter(slate_player__site_pos=dst_label).order_by('-projection', '-slate_player__salary')[0]
+        home_qb = home_qbs[0]
+        home_rb1 = home_rbs[0]
+        home_rb2 = home_rbs[1]
+        if home_rbs.count() > 2:
+            home_rb3 = home_rbs[2]
+        home_wr1 = home_wrs[0]
+        home_wr2 = home_wrs[1]
+        if home_wrs.count() > 2:
+            home_wr3 = home_wrs[2]
+        if home_wrs.count() > 3:
+            home_wr4 = home_wrs[3]
+        if home_wrs.count() > 4:
+            home_wr5 = home_wrs[4]
+        home_te1 = home_tes[0]
+        if home_tes.count() > 1:
+            home_te2 = home_tes[1]
+        home_dst = home_dsts[0]
+
+        away_qbs = away_players.filter(slate_player__site_pos='QB').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
+        away_rbs = away_players.filter(slate_player__site_pos='RB').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
+        away_wrs = away_players.filter(slate_player__site_pos='WR').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
+        away_tes = away_players.filter(slate_player__site_pos='TE').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
+        away_dsts = away_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
+
+        away_qb = away_qbs[0]
+        away_rb1 = away_rbs[0]
+        away_rb2 = away_rbs[1]
+        if away_rbs.count() > 2:
+            away_rb3 = away_rbs[2]
+        away_wr1 = away_wrs[0]
+        away_wr2 = away_wrs[1]
+        if away_wrs.count() > 2:
+            away_wr3 = away_wrs[2]
+        if away_wrs.count() > 3:
+            away_wr4 = away_wrs[3]
+        if away_wrs.count() > 4:
+            away_wr5 = away_wrs[4]
+        away_te1 = away_tes[0]
+        if away_tes.count() > 1:
+            away_te2 = away_tes[1]
+        away_dst = away_dsts[0]
+
+        # Simulate
 
         home_qb_rv = scipy.stats.gamma((float(home_qb.projection)/float(home_qb.stdev))**2, scale=(float(home_qb.stdev)**2)/float(home_qb.projection))
         home_rb1_rv = scipy.stats.gamma((float(home_rb1.projection)/float(home_rb1.stdev))**2, scale=(float(home_rb1.stdev)**2)/float(home_rb1.projection))
         home_rb2_rv = scipy.stats.gamma((float(home_rb2.projection)/float(home_rb2.stdev))**2, scale=(float(home_rb2.stdev)**2)/float(home_rb2.projection))
-        home_rb3_rv = scipy.stats.gamma((float(home_rb3.projection)/float(home_rb3.stdev))**2, scale=(float(home_rb3.stdev)**2)/float(home_rb3.projection))
+        if home_rb3:
+            home_rb3_rv = scipy.stats.gamma((float(home_rb3.projection)/float(home_rb3.stdev))**2, scale=(float(home_rb3.stdev)**2)/float(home_rb3.projection))
         home_wr1_rv = scipy.stats.gamma((float(home_wr1.projection)/float(home_wr1.stdev))**2, scale=(float(home_wr1.stdev)**2)/float(home_wr1.projection))
         home_wr2_rv = scipy.stats.gamma((float(home_wr2.projection)/float(home_wr2.stdev))**2, scale=(float(home_wr2.stdev)**2)/float(home_wr2.projection))
         home_wr3_rv = scipy.stats.gamma((float(home_wr3.projection)/float(home_wr3.stdev))**2, scale=(float(home_wr3.stdev)**2)/float(home_wr3.projection))
-        home_wr4_rv = scipy.stats.gamma((float(home_wr4.projection)/float(home_wr4.stdev))**2, scale=(float(home_wr4.stdev)**2)/float(home_wr4.projection))
-        home_wr5_rv = scipy.stats.gamma((float(home_wr5.projection)/float(home_wr5.stdev))**2, scale=(float(home_wr5.stdev)**2)/float(home_wr5.projection))
+        if home_wr4:
+            home_wr4_rv = scipy.stats.gamma((float(home_wr4.projection)/float(home_wr4.stdev))**2, scale=(float(home_wr4.stdev)**2)/float(home_wr4.projection))
+        if home_wr5:
+            home_wr5_rv = scipy.stats.gamma((float(home_wr5.projection)/float(home_wr5.stdev))**2, scale=(float(home_wr5.stdev)**2)/float(home_wr5.projection))
         home_te1_rv = scipy.stats.gamma((float(home_te1.projection)/float(home_te1.stdev))**2, scale=(float(home_te1.stdev)**2)/float(home_te1.projection))
-        home_te2_rv = scipy.stats.gamma((float(home_te2.projection)/float(home_te2.stdev))**2, scale=(float(home_te2.stdev)**2)/float(home_te2.projection))
+        if home_te2:
+            home_te2_rv = scipy.stats.gamma((float(home_te2.projection)/float(home_te2.stdev))**2, scale=(float(home_te2.stdev)**2)/float(home_te2.projection))
         home_dst_rv = scipy.stats.gamma((float(home_dst.projection)/float(home_dst.stdev))**2, scale=(float(home_dst.stdev)**2)/float(home_dst.projection))
+        
         away_qb_rv = scipy.stats.gamma((float(away_qb.projection)/float(away_qb.stdev))**2, scale=(float(away_qb.stdev)**2)/float(away_qb.projection))
         away_rb1_rv = scipy.stats.gamma((float(away_rb1.projection)/float(away_rb1.stdev))**2, scale=(float(away_rb1.stdev)**2)/float(away_rb1.projection))
         away_rb2_rv = scipy.stats.gamma((float(away_rb2.projection)/float(away_rb2.stdev))**2, scale=(float(away_rb2.stdev)**2)/float(away_rb2.projection))
-        away_rb3_rv = scipy.stats.gamma((float(away_rb3.projection)/float(away_rb3.stdev))**2, scale=(float(away_rb3.stdev)**2)/float(away_rb3.projection))
+        if away_rb3:
+            away_rb3_rv = scipy.stats.gamma((float(away_rb3.projection)/float(away_rb3.stdev))**2, scale=(float(away_rb3.stdev)**2)/float(away_rb3.projection))
         away_wr1_rv = scipy.stats.gamma((float(away_wr1.projection)/float(away_wr1.stdev))**2, scale=(float(away_wr1.stdev)**2)/float(away_wr1.projection))
         away_wr2_rv = scipy.stats.gamma((float(away_wr2.projection)/float(away_wr2.stdev))**2, scale=(float(away_wr2.stdev)**2)/float(away_wr2.projection))
         away_wr3_rv = scipy.stats.gamma((float(away_wr3.projection)/float(away_wr3.stdev))**2, scale=(float(away_wr3.stdev)**2)/float(away_wr3.projection))
-        away_wr4_rv = scipy.stats.gamma((float(away_wr4.projection)/float(away_wr4.stdev))**2, scale=(float(away_wr4.stdev)**2)/float(away_wr4.projection))
-        away_wr5_rv = scipy.stats.gamma((float(away_wr5.projection)/float(away_wr5.stdev))**2, scale=(float(away_wr5.stdev)**2)/float(away_wr5.projection))
+        if away_wr4:
+            away_wr4_rv = scipy.stats.gamma((float(away_wr4.projection)/float(away_wr4.stdev))**2, scale=(float(away_wr4.stdev)**2)/float(away_wr4.projection))
+        if away_wr5:
+            away_wr5_rv = scipy.stats.gamma((float(away_wr5.projection)/float(away_wr5.stdev))**2, scale=(float(away_wr5.stdev)**2)/float(away_wr5.projection))
         away_te1_rv = scipy.stats.gamma((float(away_te1.projection)/float(away_te1.stdev))**2, scale=(float(away_te1.stdev)**2)/float(away_te1.projection))
-        away_te2_rv = scipy.stats.gamma((float(away_te2.projection)/float(away_te2.stdev))**2, scale=(float(away_te2.stdev)**2)/float(away_te2.projection))
+        if away_te2:
+            away_te2_rv = scipy.stats.gamma((float(away_te2.projection)/float(away_te2.stdev))**2, scale=(float(away_te2.stdev)**2)/float(away_te2.projection))
         away_dst_rv = scipy.stats.gamma((float(away_dst.projection)/float(away_dst.stdev))**2, scale=(float(away_dst.stdev)**2)/float(away_dst.projection))
 
-        rand_home_qb = home_qb_rv.ppf(rand_U[:, 0])
-        rand_home_rb1 = home_rb1_rv.ppf(rand_U[:, 1])
-        rand_home_rb2 = home_rb2_rv.ppf(rand_U[:, 2])
-        rand_home_rb3 = home_rb3_rv.ppf(rand_U[:, 3])
-        rand_home_wr1 = home_wr1_rv.ppf(rand_U[:, 4])
-        rand_home_wr2 = home_wr2_rv.ppf(rand_U[:, 5])
-        rand_home_wr3 = home_wr3_rv.ppf(rand_U[:, 6])
-        rand_home_wr4 = home_wr4_rv.ppf(rand_U[:, 7])
-        rand_home_wr5 = home_wr5_rv.ppf(rand_U[:, 8])
-        rand_home_te1 = home_te1_rv.ppf(rand_U[:, 9])
-        rand_home_te2 = home_te2_rv.ppf(rand_U[:, 10])
-        rand_home_dst = home_dst_rv.ppf(rand_U[:, 11])
-        rand_away_qb = away_qb_rv.ppf(rand_U[:, 12])
-        rand_away_rb1 = away_rb1_rv.ppf(rand_U[:, 13])
-        rand_away_rb2 = away_rb2_rv.ppf(rand_U[:, 14])
-        rand_away_rb3 = away_rb3_rv.ppf(rand_U[:, 15])
-        rand_away_wr1 = away_wr1_rv.ppf(rand_U[:, 16])
-        rand_away_wr2 = away_wr2_rv.ppf(rand_U[:, 17])
-        rand_away_wr3 = away_wr3_rv.ppf(rand_U[:, 18])
-        rand_away_wr4 = away_wr4_rv.ppf(rand_U[:, 19])
-        rand_away_wr5 = away_wr5_rv.ppf(rand_U[:, 20])
-        rand_away_te1 = away_te1_rv.ppf(rand_U[:, 21])
-        rand_away_te2 = away_te2_rv.ppf(rand_U[:, 22])
-        rand_away_dst = away_dst_rv.ppf(rand_U[:, 23])
+        arr = []
 
-        df_scores = pandas.DataFrame([
-            rand_home_qb,
-            rand_home_rb1,
-            rand_home_rb2,
-            rand_home_rb3,
-            rand_home_wr1,
-            rand_home_wr2,
-            rand_home_wr3,
-            rand_home_wr4,
-            rand_home_wr5,
-            rand_home_te1,
-            rand_home_te2,
-            rand_home_dst,
-            rand_away_qb,
-            rand_away_rb1,
-            rand_away_rb2,
-            rand_away_rb3,
-            rand_away_wr1,
-            rand_away_wr2,
-            rand_away_wr3,
-            rand_away_wr4,
-            rand_away_wr5,
-            rand_away_te1,
-            rand_away_te2,
-            rand_away_dst,
-        ])
-        print(game)
-        print(df_scores)
+        i = 0
+        rand_home_qb = home_qb_rv.ppf(rand_U[:,i])
+        arr.append(rand_home_qb)
+
+        i += 1
+        rand_home_rb1 = home_rb1_rv.ppf(rand_U[:,i])
+        arr.append(rand_home_rb1)
+
+        i += 1
+        rand_home_rb2 = home_rb2_rv.ppf(rand_U[:,i])
+        arr.append(rand_home_rb2)
+
+        if home_rb3_rv:
+            i += 1
+            rand_home_rb3 = home_rb3_rv.ppf(rand_U[:,i])
+            arr.append(rand_home_rb3)
+
+        i += 1
+        rand_home_wr1 = home_wr1_rv.ppf(rand_U[:,i])
+        arr.append(rand_home_wr1)
+
+        i += 1
+        rand_home_wr2 = home_wr2_rv.ppf(rand_U[:,i])
+        arr.append(rand_home_wr2)
+
+        i += 1
+        rand_home_wr3 = home_wr3_rv.ppf(rand_U[:,i])
+        arr.append(rand_home_wr3)
+
+        if home_wr4_rv:
+            i += 1
+            rand_home_wr4 = home_wr4_rv.ppf(rand_U[:,i])
+            arr.append(rand_home_wr4)
+
+        if home_wr5_rv:
+            i += 1
+            rand_home_wr5 = home_wr5_rv.ppf(rand_U[:,i])
+            arr.append(rand_home_wr5)
+
+        i += 1
+        rand_home_te1 = home_te1_rv.ppf(rand_U[:,i])
+        arr.append(rand_home_te1)
+
+        if home_te2_rv:
+            i += 1
+            rand_home_te2 = home_te2_rv.ppf(rand_U[:, i])
+            arr.append(rand_home_te2)
+
+        i += 1
+        rand_home_dst = home_dst_rv.ppf(rand_U[:, i])
+        arr.append(rand_home_dst)
+
+        i += 1
+        rand_away_qb = away_qb_rv.ppf(rand_U[:,i])
+        arr.append(rand_away_qb)
+
+        i += 1
+        rand_away_rb1 = away_rb1_rv.ppf(rand_U[:,i])
+        arr.append(rand_away_rb1)
+
+        i += 1
+        rand_away_rb2 = away_rb2_rv.ppf(rand_U[:,i])
+        arr.append(rand_away_rb2)
+
+        if away_rb3_rv:
+            i += 1
+            rand_away_rb3 = away_rb3_rv.ppf(rand_U[:,i])
+            arr.append(rand_away_rb3)
+
+        i += 1
+        rand_away_wr1 = away_wr1_rv.ppf(rand_U[:,i])
+        arr.append(rand_away_wr1)
+
+        i += 1
+        rand_away_wr2 = away_wr2_rv.ppf(rand_U[:,i])
+        arr.append(rand_away_wr2)
+
+        i += 1
+        rand_away_wr3 = away_wr3_rv.ppf(rand_U[:,i])
+        arr.append(rand_away_wr3)
+
+        if away_wr4_rv:
+            i += 1
+            rand_away_wr4 = away_wr4_rv.ppf(rand_U[:,i])
+            arr.append(rand_away_wr4)
+
+        if away_wr5_rv:
+            i += 1
+            rand_away_wr5 = away_wr5_rv.ppf(rand_U[:,i])
+            arr.append(rand_away_wr5)
+
+        i += 1
+        rand_away_te1 = away_te1_rv.ppf(rand_U[:,i])
+        arr.append(rand_away_te1)
+
+        if away_te2_rv:
+            i += 1
+            rand_away_te2 = away_te2_rv.ppf(rand_U[:, i])
+            arr.append(rand_away_te2)
+
+        i += 1
+        rand_away_dst = away_dst_rv.ppf(rand_U[:, i])
+        arr.append(rand_away_dst)
+
+        df_scores = pandas.DataFrame(arr)
+        # logger.info(game)
+        # logger.info(df_scores)
 
         game.game_sim = json.dumps(df_scores.to_json())
         game.save()
         
         # assign outcomes to players
         home_qb.sim_scores = numpy.round(rand_home_qb, 2).tolist()
+        home_qb.median = numpy.median(home_qb.sim_scores)
+        home_qb.s20 = numpy.percentile(home_qb.sim_scores, 20)
+        home_qb.s75 = numpy.percentile(home_qb.sim_scores, 75)
+        home_qb.s90 = numpy.percentile(home_qb.sim_scores, 90)
         home_qb.save()
         home_rb1.sim_scores = numpy.round(rand_home_rb1, 2).tolist()
+        home_rb1.median = numpy.median(home_rb1.sim_scores)
+        home_rb1.s20 = numpy.percentile(home_rb1.sim_scores, 20)
+        home_rb1.s75 = numpy.percentile(home_rb1.sim_scores, 75)
+        home_rb1.s90 = numpy.percentile(home_rb1.sim_scores, 90)
         home_rb1.save()
         home_rb2.sim_scores = numpy.round(rand_home_rb2, 2).tolist()
+        home_rb2.median = numpy.median(home_rb2.sim_scores)
+        home_rb2.s20 = numpy.percentile(home_rb2.sim_scores, 20)
+        home_rb2.s75 = numpy.percentile(home_rb2.sim_scores, 75)
+        home_rb2.s90 = numpy.percentile(home_rb2.sim_scores, 90)
         home_rb2.save()
-        home_rb3.sim_scores = numpy.round(rand_home_rb3, 2).tolist()
-        home_rb3.save()
+        if home_rb3:
+            home_rb3.sim_scores = numpy.round(rand_home_rb3, 2).tolist()
+            home_rb3.median = numpy.median(home_rb3.sim_scores)
+            home_rb3.s20 = numpy.percentile(home_rb3.sim_scores, 20)
+            home_rb3.s75 = numpy.percentile(home_rb3.sim_scores, 75)
+            home_rb3.s90 = numpy.percentile(home_rb3.sim_scores, 90)
+            home_rb3.save()
         home_wr1.sim_scores = numpy.round(rand_home_wr1, 2).tolist()
+        home_wr1.median = numpy.median(home_wr1.sim_scores)
+        home_wr1.s20 = numpy.percentile(home_wr1.sim_scores, 20)
+        home_wr1.s75 = numpy.percentile(home_wr1.sim_scores, 75)
+        home_wr1.s90 = numpy.percentile(home_wr1.sim_scores, 90)
         home_wr1.save()
         home_wr2.sim_scores = numpy.round(rand_home_wr2, 2).tolist()
+        home_wr2.median = numpy.median(home_wr2.sim_scores)
+        home_wr2.s20 = numpy.percentile(home_wr2.sim_scores, 20)
+        home_wr2.s75 = numpy.percentile(home_wr2.sim_scores, 75)
+        home_wr2.s90 = numpy.percentile(home_wr2.sim_scores, 90)
         home_wr2.save()
         home_wr3.sim_scores = numpy.round(rand_home_wr3, 2).tolist()
+        home_wr3.median = numpy.median(home_wr3.sim_scores)
+        home_wr3.s20 = numpy.percentile(home_wr3.sim_scores, 20)
+        home_wr3.s75 = numpy.percentile(home_wr3.sim_scores, 75)
+        home_wr3.s90 = numpy.percentile(home_wr3.sim_scores, 90)
         home_wr3.save()
-        home_wr4.sim_scores = numpy.round(rand_home_wr4, 2).tolist()
-        home_wr4.save()
-        home_wr5.sim_scores = numpy.round(rand_home_wr5, 2).tolist()
-        home_wr5.save()
+        if home_wr4:
+            home_wr4.sim_scores = numpy.round(rand_home_wr4, 2).tolist()
+            home_wr4.median = numpy.median(home_wr4.sim_scores)
+            home_wr4.s20 = numpy.percentile(home_wr4.sim_scores, 20)
+            home_wr4.s75 = numpy.percentile(home_wr4.sim_scores, 75)
+            home_wr4.s90 = numpy.percentile(home_wr4.sim_scores, 90)
+            home_wr4.save()
+        if home_wr5:
+            home_wr5.sim_scores = numpy.round(rand_home_wr5, 2).tolist()
+            home_wr5.median = numpy.median(home_wr5.sim_scores)
+            home_wr5.s20 = numpy.percentile(home_wr5.sim_scores, 20)
+            home_wr5.s75 = numpy.percentile(home_wr5.sim_scores, 75)
+            home_wr5.s90 = numpy.percentile(home_wr5.sim_scores, 90)
+            home_wr5.save()
         home_te1.sim_scores = numpy.round(rand_home_te1, 2).tolist()
+        home_te1.median = numpy.median(home_te1.sim_scores)
+        home_te1.s20 = numpy.percentile(home_te1.sim_scores, 20)
+        home_te1.s75 = numpy.percentile(home_te1.sim_scores, 75)
+        home_te1.s90 = numpy.percentile(home_te1.sim_scores, 90)
         home_te1.save()
-        home_te2.sim_scores = numpy.round(rand_home_te2, 2).tolist()
-        home_te2.save()
+        if home_te2:
+            home_te2.sim_scores = numpy.round(rand_home_te2, 2).tolist()
+            home_te2.median = numpy.median(home_te2.sim_scores)
+            home_te2.s20 = numpy.percentile(home_te2.sim_scores, 20)
+            home_te2.s75 = numpy.percentile(home_te2.sim_scores, 75)
+            home_te2.s90 = numpy.percentile(home_te2.sim_scores, 90)
+            home_te2.save()
         home_dst.sim_scores = numpy.round(rand_home_dst, 2).tolist()
+        home_dst.median = numpy.median(home_dst.sim_scores)
+        home_dst.s20 = numpy.percentile(home_dst.sim_scores, 20)
+        home_dst.s75 = numpy.percentile(home_dst.sim_scores, 75)
+        home_dst.s90 = numpy.percentile(home_dst.sim_scores, 90)
         home_dst.save()
         away_qb.sim_scores = numpy.round(rand_away_qb, 2).tolist()
+        away_qb.median = numpy.median(away_qb.sim_scores)
+        away_qb.s20 = numpy.percentile(away_qb.sim_scores, 20)
+        away_qb.s75 = numpy.percentile(away_qb.sim_scores, 75)
+        away_qb.s90 = numpy.percentile(away_qb.sim_scores, 90)
         away_qb.save()
         away_rb1.sim_scores = numpy.round(rand_away_rb1, 2).tolist()
+        away_rb1.median = numpy.median(away_rb1.sim_scores)
+        away_rb1.s20 = numpy.percentile(away_rb1.sim_scores, 20)
+        away_rb1.s75 = numpy.percentile(away_rb1.sim_scores, 75)
+        away_rb1.s90 = numpy.percentile(away_rb1.sim_scores, 90)
         away_rb1.save()
         away_rb2.sim_scores = numpy.round(rand_away_rb2, 2).tolist()
+        away_rb2.median = numpy.median(away_rb2.sim_scores)
+        away_rb2.s20 = numpy.percentile(away_rb2.sim_scores, 20)
+        away_rb2.s75 = numpy.percentile(away_rb2.sim_scores, 75)
+        away_rb2.s90 = numpy.percentile(away_rb2.sim_scores, 90)
         away_rb2.save()
-        away_rb3.sim_scores = numpy.round(rand_away_rb3, 2).tolist()
-        away_rb3.save()
+        if away_rb3:
+            away_rb3.sim_scores = numpy.round(rand_away_rb3, 2).tolist()
+            away_rb3.median = numpy.median(away_rb3.sim_scores)
+            away_rb3.s20 = numpy.percentile(away_rb3.sim_scores, 20)
+            away_rb3.s75 = numpy.percentile(away_rb3.sim_scores, 75)
+            away_rb3.s90 = numpy.percentile(away_rb3.sim_scores, 90)
+            away_rb3.save()
         away_wr1.sim_scores = numpy.round(rand_away_wr1, 2).tolist()
+        away_wr1.median = numpy.median(away_wr1.sim_scores)
+        away_wr1.s20 = numpy.percentile(away_wr1.sim_scores, 20)
+        away_wr1.s75 = numpy.percentile(away_wr1.sim_scores, 75)
+        away_wr1.s90 = numpy.percentile(away_wr1.sim_scores, 90)
         away_wr1.save()
         away_wr2.sim_scores = numpy.round(rand_away_wr2, 2).tolist()
+        away_wr2.median = numpy.median(away_wr2.sim_scores)
+        away_wr2.s20 = numpy.percentile(away_wr2.sim_scores, 20)
+        away_wr2.s75 = numpy.percentile(away_wr2.sim_scores, 75)
+        away_wr2.s90 = numpy.percentile(away_wr2.sim_scores, 90)
         away_wr2.save()
         away_wr3.sim_scores = numpy.round(rand_away_wr3, 2).tolist()
+        away_wr3.median = numpy.median(away_wr3.sim_scores)
+        away_wr3.s20 = numpy.percentile(away_wr3.sim_scores, 20)
+        away_wr3.s75 = numpy.percentile(away_wr3.sim_scores, 75)
+        away_wr3.s90 = numpy.percentile(away_wr3.sim_scores, 90)
         away_wr3.save()
-        away_wr4.sim_scores = numpy.round(rand_away_wr4, 2).tolist()
-        away_wr4.save()
-        away_wr5.sim_scores = numpy.round(rand_away_wr5, 2).tolist()
-        away_wr5.save()
+        if away_wr4:
+            away_wr4.sim_scores = numpy.round(rand_away_wr4, 2).tolist()
+            away_wr4.median = numpy.median(away_wr4.sim_scores)
+            away_wr4.s20 = numpy.percentile(away_wr4.sim_scores, 20)
+            away_wr4.s75 = numpy.percentile(away_wr4.sim_scores, 75)
+            away_wr4.s90 = numpy.percentile(away_wr4.sim_scores, 90)
+            away_wr4.save()
+        if away_wr5:
+            away_wr5.sim_scores = numpy.round(rand_away_wr5, 2).tolist()
+            away_wr5.median = numpy.median(away_wr5.sim_scores)
+            away_wr5.s20 = numpy.percentile(away_wr5.sim_scores, 20)
+            away_wr5.s75 = numpy.percentile(away_wr5.sim_scores, 75)
+            away_wr5.s90 = numpy.percentile(away_wr5.sim_scores, 90)
+            away_wr5.save()
         away_te1.sim_scores = numpy.round(rand_away_te1, 2).tolist()
+        away_te1.median = numpy.median(away_te1.sim_scores)
+        away_te1.s20 = numpy.percentile(away_te1.sim_scores, 20)
+        away_te1.s75 = numpy.percentile(away_te1.sim_scores, 75)
+        away_te1.s90 = numpy.percentile(away_te1.sim_scores, 90)
         away_te1.save()
-        away_te2.sim_scores = numpy.round(rand_away_te2, 2).tolist()
-        away_te2.save()
+        if away_te2:
+            away_te2.sim_scores = numpy.round(rand_away_te2, 2).tolist()
+            away_te2.median = numpy.median(away_te2.sim_scores)
+            away_te2.s20 = numpy.percentile(away_te2.sim_scores, 20)
+            away_te2.s75 = numpy.percentile(away_te2.sim_scores, 75)
+            away_te2.s90 = numpy.percentile(away_te2.sim_scores, 90)
+            away_te2.save()
         away_dst.sim_scores = numpy.round(rand_away_dst, 2).tolist()
+        away_dst.median = numpy.median(away_dst.sim_scores)
+        away_dst.s20 = numpy.percentile(away_dst.sim_scores, 20)
+        away_dst.s75 = numpy.percentile(away_dst.sim_scores, 75)
+        away_dst.s90 = numpy.percentile(away_dst.sim_scores, 90)
         away_dst.save()
 
         task.status = 'success'
@@ -504,6 +750,155 @@ def execute_build(build_id, user_id):
     user = User.objects.get(pk=user_id)
 
     build.execute_build(user)
+
+
+@shared_task
+def execute_h2h_workflow(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        
+        from . import filters
+
+        # Task implementation goes here
+        build = models.FindWinnerBuild.objects.get(id=build_id)
+
+        build.matchups.all().delete()
+        build.winning_lineups.all().delete()
+
+        build_filter = None
+        if build.slate.site == 'draftkings':
+            build_filter = models.BUILD_TYPE_FILTERS_DK.get(build.build_type)
+        elif build.slate.site == 'fanduel':
+            build_filter = models.BUILD_TYPE_FILTERS_FD.get(build.build_type)
+        else:
+            build_filter = models.BUILD_TYPE_FILTERS_YH.get(build.build_type)
+
+        start = time.time()
+        possible_lineups = build.slate.possible_lineups 
+        slate_lineups = list(filters.SlateLineupFilter(build_filter, possible_lineups).qs.order_by('id').values_list('id', flat=True))
+        logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(slate_lineups)} lineups.')
+
+        chunk_size = 5000
+        chord([
+            compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, len(slate_lineups), chunk_size)
+        ], complete_h2h_workflow.si(task.id))()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem running h2h workflow: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def compare_lineups_h2h(lineup_ids, build_id):
+    build = models.FindWinnerBuild.objects.get(id=build_id)
+
+    start = time.time()
+    projections = build.slate.get_projections().filter(in_play=True).order_by('-slate_player__salary')
+    player_outcomes = {}
+    for p in projections:
+        player_outcomes[p.slate_player.player_id] = numpy.array(p.sim_scores)
+    logger.info(f'Getting player outcomes took {time.time() - start}s')
+
+    start = time.time()
+    slate_lineups = models.SlateLineup.objects.filter(id__in=lineup_ids).order_by('id')
+    logger.info(f'Getting slate lineups took {time.time() - start}s')
+    
+    start = time.time()
+    df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('qb__player_id', 'rb1__player_id', 'rb2__player_id', 'wr1__player_id', 'wr2__player_id', 'wr3__player_id', 'te__player_id', 'flex__player_id', 'dst__player_id'), index=list(slate_lineups.values_list('id', flat=True)))
+    df_slate_lineups['build_id'] = build.id
+    df_slate_lineups['slate_lineup_id'] = df_slate_lineups.index
+    df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='unsigned')
+    logger.info(f'  Initial dataframe took {time.time() - start}s')
+
+    start = time.time()
+    df_slate_lineups = df_slate_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])) + player_outcomes.get(str(x[6])) + player_outcomes.get(str(x[7])) + player_outcomes.get(str(x[8])), axis=1, result_type='expand')
+    df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='float')
+    logger.info(f'  Sim scores took {time.time() - start}s')
+
+    start = time.time()
+    field_lineups = build.field_lineups_to_beat.all().order_by('id')
+    logger.info(f'Getting field lineups took {time.time() - start}s.')
+
+    start = time.time()
+    df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__qb__player_id', 'slate_lineup__rb1__player_id', 'slate_lineup__rb2__player_id', 'slate_lineup__wr1__player_id', 'slate_lineup__wr2__player_id', 'slate_lineup__wr3__player_id', 'slate_lineup__te__player_id', 'slate_lineup__flex__player_id', 'slate_lineup__dst__player_id'), index=list(field_lineups.values_list('id', flat=True)))
+    df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='unsigned')
+    logger.info(f'  Initial dataframe took {time.time() - start}s')
+
+    start = time.time()
+    df_field_lineups = df_field_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])) + player_outcomes.get(str(x[6])) + player_outcomes.get(str(x[7])) + player_outcomes.get(str(x[8])), axis=1, result_type='expand')
+    df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='float')
+    logger.info(f'  Sim scores took {time.time() - start}s')
+
+    start = time.time()
+    matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
+    df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
+    df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) >= 0.0) / models.SIM_ITERATIONS, axis=1)
+    df_matchups = df_matchups[(df_matchups.win_rate >= 0.50)]
+    df_matchups['build_id'] = build.id
+    logger.info(f'Matchups took {time.time() - start}s. There are {df_matchups.size} matchups.')
+
+    start = time.time()
+    user = settings.DATABASES['default']['USER']
+    password = settings.DATABASES['default']['PASSWORD']
+    database_name = settings.DATABASES['default']['NAME']
+    database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
+        user=user,
+        password=password,
+        database_name=database_name,
+    )
+    engine = sqlalchemy.create_engine(database_url, echo=False)
+    df_matchups.to_sql('nfl_lineupmatchup', engine, if_exists='append', index=False, chunksize=1000)
+    logger.info(f'Write matchups to db took {time.time() - start}s')
+
+    start = time.time()
+    build_lineup_ids = df_matchups.slate_lineup_id.unique()
+    for bl in build_lineup_ids:
+        try:
+            sim_scores = df_slate_lineups.loc[int(bl)].to_list()
+            models.WinningLineup.objects.create(
+                build=build,
+                slate_lineup_id=bl,
+                median=numpy.median(sim_scores),
+                s75=numpy.percentile(sim_scores, 75),
+                s90=numpy.percentile(sim_scores, 90)
+            )
+        except KeyError:
+            pass
+    logger.info(f'Adding build lineups took {time.time() - start}s')
+
+
+@shared_task
+def complete_h2h_workflow(task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        task.status = 'success'
+        task.content = f'H2H workflow complete'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem running cash workflow: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
 @shared_task
@@ -1943,6 +2338,60 @@ def export_lineups_for_analysis(lineup_ids, result_path, result_url, task_id, us
 
 
 @shared_task
+def export_slate_lineups(lineup_ids, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        lineups = models.SlateLineup.objects.filter(
+            id__in=lineup_ids
+        ).annotate(
+            qb_name=F('qb__csv_name'),
+            rb1_name=F('rb1__csv_name'),
+            rb2_name=F('rb2__csv_name'),
+            wr1_name=F('wr1__csv_name'),
+            wr2_name=F('wr2__csv_name'),
+            wr3_name=F('wr3__csv_name'),
+            te_name=F('te__csv_name'),
+            flex_name=F('flex__csv_name'),
+            dst_name=F('dst__csv_name'),
+        )
+
+        lineups_df = pandas.DataFrame.from_records(lineups.values(
+            'qb_name', 
+            'rb1_name', 
+            'rb2_name', 
+            'wr1_name', 
+            'wr2_name', 
+            'wr3_name', 
+            'te_name', 
+            'flex_name', 
+            'dst_name', 
+            'total_salary'
+        ))
+
+        logger.info(lineups_df)
+        lineups_df.to_csv(result_path)
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def export_stacks(stack_ids, result_path, result_url, task_id):
     task = None
 
@@ -2203,6 +2652,7 @@ def process_slate_players(chained_result, slate_id, task_id):
                         player_id = row['Id']
                         site_pos = row['Position']
                         player_name = row['Nickname'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
+                        csv_name = f'{player_id}:{player_name}'
                         salary = int(row['Salary'])
                         game = row['Game'].replace('@', '_').replace('JAX', 'JAC')
                         team = row['Team']
@@ -2214,6 +2664,7 @@ def process_slate_players(chained_result, slate_id, task_id):
                         player_id = row[13]
                         site_pos = row[10]
                         player_name = row[12].strip()
+                        csv_name = f'{player_name} ({player_id})'
                         salary = row[15]
                         game = row[16].replace('@', '_').replace('JAX', 'JAC')
                         game = game[:game.find(' ')]
@@ -2226,6 +2677,7 @@ def process_slate_players(chained_result, slate_id, task_id):
                         player_id = row['ID']
                         site_pos = row['Position']
                         player_name = f'{row["First Name"]} {row["Last Name"]}'.replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team').strip()
+                        csv_name = f'{player_id} - ({player_name})'
                         salary = int(row["Salary"])
                         game = row['Game'].replace('@', '_').replace('JAX', 'JAC')
                         team = 'JAC' if row['Team'] == 'JAX' else row['Team']
@@ -2283,6 +2735,7 @@ def process_slate_players(chained_result, slate_id, task_id):
                     slate_player.player_id = player_id
                     slate_player.salary = salary
                     slate_player.site_pos = site_pos
+                    slate_player.csv_name = csv_name
                     # slate_player.game = game
                     slate_player.slate_game = slate_player.get_slate_game()
                     slate_player.save()
@@ -2355,9 +2808,13 @@ def create_slate_lineups(slate_id, task_id):
         ).order_by('-projection').values_list('slate_player__id', flat=True))
         logger.info(f'Filtering player positions took {time.time() - start}s')
 
-        chord([
-            create_lineup_combos_for_qb.si(slate.id, qb, rbs, wrs, tes, dsts, 100000) for qb in qbs
-        ], complete_slate_lineups.si(task_id))()
+        cycles = 100
+        jobs = []
+
+        for i in range(0, cycles):
+            jobs = jobs + [create_lineup_combos_for_qb.si(slate.id, qb, rbs, wrs, tes, dsts, 1000) for qb in qbs]
+
+        chord(jobs, complete_slate_lineups.si(task_id))()
 
     except Exception as e:
         if task is not None:
@@ -2390,14 +2847,23 @@ def create_lineup_combos_for_qb(slate_id, qb_id, rb_ids, wr_ids, te_ids, dst_ids
             slate_player_id__in=l
         )
         
+        num_qbs = players.aggregate(num_qbs=Count('slate_player__site_pos', filter=Q(slate_player__site_pos='QB'))).get('num_qbs')
+        if num_qbs > 1:
+            return False
+        
         num_wrs = players.aggregate(num_wrs=Count('slate_player__site_pos', filter=Q(slate_player__site_pos='WR'))).get('num_wrs')
         if num_wrs > 4:
             return False
         
         num_rbs = players.aggregate(num_rbs=Count('slate_player__site_pos', filter=Q(slate_player__site_pos='RB'))).get('num_rbs')
-        if num_rbs > 5:
+        if num_rbs > 3:
+            return False
+        
+        num_tes = players.aggregate(num_tes=Count('slate_player__site_pos', filter=Q(slate_player__site_pos='TE'))).get('num_tes')
+        if num_tes > 2:
             return False
 
+        # prevent duplicate players
         visited = set()
         dup = [x for x in l if x in visited or (visited.add(x) or False)]
         if len(dup) > 0:
@@ -2447,7 +2913,6 @@ def create_lineup_combos_for_qb(slate_id, qb_id, rb_ids, wr_ids, te_ids, dst_ids
     ])
     df_lineups['slate_id'] = slate_id
     logger.info(f'Dataframe took {time.time() - start}s')
-    logger.info(df_lineups)
 
     start = time.time()
     user = settings.DATABASES['default']['USER']
@@ -2499,58 +2964,64 @@ def process_build(build_id, task_id):
             time.sleep(0.2)
             task = BackgroundTask.objects.get(id=task_id)
 
-        build = models.SlateBuild.objects.get(id=build_id)
+        build = models.FindWinnerBuild.objects.get(id=build_id)
         player_sim_scores = {}
 
-        # load field lineups, if any
-        if build.field_lineup_upload:
-            build.field_lineups_to_beat.all().delete()
+        # get the player outcomes
+        for p in build.slate.get_projections():
+            player_sim_scores[p.slate_player.player_id] = p.sim_scores
 
-            with open(build.field_lineups_to_beat.path, mode='r') as lineups_file:
-                csv_reader = csv.reader(lineups_file)
+        if build.slate.site == 'draftkings':
+            # load field lineups, if any
+            if build.field_lineup_upload:
+                build.field_lineups_to_beat.all().delete()
 
-                for index, row in enumerate(csv_reader):
-                    if index > 0:  # skip header
-                        handle = row[0]
-                        qb = re.findall(r'\([0-9]*\)', row[1])[0].replace('(', '').replace(')', '')
-                        rb1 = re.findall(r'\([0-9]*\)', row[2])[0].replace('(', '').replace(')', '')
-                        rb2 = re.findall(r'\([0-9]*\)', row[3])[0].replace('(', '').replace(')', '')
-                        wr1 = re.findall(r'\([0-9]*\)', row[4])[0].replace('(', '').replace(')', '')
-                        wr2 = re.findall(r'\([0-9]*\)', row[5])[0].replace('(', '').replace(')', '')
-                        wr3 = re.findall(r'\([0-9]*\)', row[6])[0].replace('(', '').replace(')', '')
-                        te = re.findall(r'\([0-9]*\)', row[7])[0].replace('(', '').replace(')', '')
-                        flex = re.findall(r'\([0-9]*\)', row[8])[0].replace('(', '').replace(')', '')
-                        dst = re.findall(r'\([0-9]*\)', row[9])[0].replace('(', '').replace(')', '')
+                with open(build.field_lineup_upload.path, mode='r') as lineups_file:
+                    csv_reader = csv.reader(lineups_file)
 
-                        # find this lineup in all possible lineups
-                        slate_lineup = build.slate.possible_lineups.filter(
-                           qb__slate_player_id=qb,
-                           rb1__slate_player_id__in=[rb1, rb2, flex],
-                           rb2__slate_player_id__in=[rb1, rb2, flex],
-                           wr1__slate_player_id__in=[wr1, wr2, wr3, flex],
-                           wr2__slate_player_id__in=[wr1, wr2, wr3, flex],
-                           wr3__slate_player_id__in=[wr1, wr2, wr3, flex],
-                           te__slate_player_id__in=[te, flex],
-                           flex__slate_player_id__in=[rb1, rb2, wr1, wr2, wr3, te],
-                           dst__slate_player_id=dst
-                        )
+                    for index, row in enumerate(csv_reader):
+                        if index > 0:  # skip header
+                            handle = row[0]
+                            qb = re.findall(r'\([0-9]*\)', row[1])[0].replace('(', '').replace(')', '')
+                            rb1 = re.findall(r'\([0-9]*\)', row[2])[0].replace('(', '').replace(')', '')
+                            rb2 = re.findall(r'\([0-9]*\)', row[3])[0].replace('(', '').replace(')', '')
+                            wr1 = re.findall(r'\([0-9]*\)', row[4])[0].replace('(', '').replace(')', '')
+                            wr2 = re.findall(r'\([0-9]*\)', row[5])[0].replace('(', '').replace(')', '')
+                            wr3 = re.findall(r'\([0-9]*\)', row[6])[0].replace('(', '').replace(')', '')
+                            te = re.findall(r'\([0-9]*\)', row[7])[0].replace('(', '').replace(')', '')
+                            flex = re.findall(r'\([0-9]*\)', row[8])[0].replace('(', '').replace(')', '')
+                            dst = re.findall(r'\([0-9]*\)', row[9])[0].replace('(', '').replace(')', '')
 
-                        if slate_lineup.count() == 0:
-                            raise Exception(f'No valid lineup found for {handle} among all possible lineups.')
-                        elif slate_lineup.count() > 1:
-                            raise Exception(f'There were {slate_lineup.count()} duplicate lineups found for {handle} among all possible lineups.')
+                            # find this lineup in all possible lineups
+                            slate_lineup = build.slate.possible_lineups.filter(
+                                qb__player_id=qb,
+                                rb1__player_id__in=[rb1, rb2, flex],
+                                rb2__player_id__in=[rb1, rb2, flex],
+                                wr1__player_id__in=[wr1, wr2, wr3, flex],
+                                wr2__player_id__in=[wr1, wr2, wr3, flex],
+                                wr3__player_id__in=[wr1, wr2, wr3, flex],
+                                te__player_id__in=[te, flex],
+                                flex__player_id__in=[rb1, rb2, wr1, wr2, wr3, te, flex],
+                                dst__player_id=dst
+                            )
 
-                        lineup = models.FieldLineupToBeat.objects.create(
-                            build=build,
-                            opponent_handle=handle,
-                            slate_lineup=slate_lineup[0]
-                        )
+                            if slate_lineup.count() == 0:
+                                # TODO: Validate it is a valid lineup and then add it (since we don't make ALL lineups)
+                                raise Exception(f'No valid lineup found for {handle} among all possible lineups.')
+                            elif slate_lineup.count() > 1:
+                                raise Exception(f'There were {slate_lineup.count()} duplicate lineups found for {handle} among all possible lineups.')
 
-                        # sim_scores = numpy.array(player_sim_scores[player_1]) + numpy.array(player_sim_scores[player_2]) + numpy.array(player_sim_scores[player_3]) + numpy.array(player_sim_scores[player_4]) + numpy.array(player_sim_scores[player_5]) + numpy.array(player_sim_scores[player_6])
-                        # lineup.median = numpy.median(sim_scores)
-                        # lineup.s75 = numpy.percentile(sim_scores, float(75))
-                        # lineup.s90 = numpy.percentile(sim_scores, float(90))
-                        # lineup.save()
+                            lineup = models.FieldLineupToBeat.objects.create(
+                                build=build,
+                                opponent_handle=handle,
+                                slate_lineup=slate_lineup[0]
+                            )
+
+                            sim_scores = numpy.array(player_sim_scores[qb]) + numpy.array(player_sim_scores[rb1]) + numpy.array(player_sim_scores[rb2]) + numpy.array(player_sim_scores[wr1]) + numpy.array(player_sim_scores[wr2]) + numpy.array(player_sim_scores[wr3]) + numpy.array(player_sim_scores[te]) + numpy.array(player_sim_scores[flex]) + numpy.array(player_sim_scores[dst])
+                            lineup.median = numpy.median(sim_scores)
+                            lineup.s75 = numpy.percentile(sim_scores, decimal.Decimal(75))
+                            lineup.s90 = numpy.percentile(sim_scores, decimal.Decimal(90))
+                            lineup.save()
 
         task.status = 'success'
         task.content = f'{build} processed.'
