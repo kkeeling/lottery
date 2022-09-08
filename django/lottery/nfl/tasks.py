@@ -2808,7 +2808,7 @@ def create_slate_lineups(slate_id, task_id):
         ).order_by('-projection').values_list('slate_player__id', flat=True))
         logger.info(f'Filtering player positions took {time.time() - start}s')
 
-        cycles = 100
+        cycles = 10
         jobs = []
 
         for i in range(0, cycles):
