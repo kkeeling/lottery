@@ -427,7 +427,7 @@ def simulate_game(game_id, task_id):
         arr.append(rand_away_dst)
 
         df_scores = pandas.DataFrame(arr)
-        # logger.info(game)
+        logger.info(game)
         # logger.info(df_scores)
 
         game.game_sim = json.dumps(df_scores.to_json())
@@ -2386,7 +2386,6 @@ def export_slate_lineups(lineup_ids, result_path, result_url, task_id):
             'total_salary'
         ))
 
-        logger.info(lineups_df)
         lineups_df.to_csv(result_path)
 
         task.status = 'download'
