@@ -3092,7 +3092,7 @@ def process_build(build_id, task_id):
                                 )
                                 slate_lineup.simulate()
 
-                                if slate_lineup.total_salary > build.slate.salary_threshold[1]:
+                                if slate_lineup.total_salary > build.slate.salary_thresholds[1]:
                                     raise Exception(f'Lineup for {handle} exceeds salary cap.')
 
                                 slate_lineup = [slate_lineup]
