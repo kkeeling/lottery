@@ -165,6 +165,7 @@ def simulate_game(game_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         game = models.SlateGame.objects.get(id=game_id)
+        logger.info(game)
 
         N = models.SIM_ITERATIONS
         if game.slate.site == 'fanduel':
@@ -427,7 +428,6 @@ def simulate_game(game_id, task_id):
         arr.append(rand_away_dst)
 
         df_scores = pandas.DataFrame(arr)
-        logger.info(game)
         # logger.info(df_scores)
 
         game.game_sim = json.dumps(df_scores.to_json())
