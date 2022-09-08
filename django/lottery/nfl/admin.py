@@ -649,6 +649,7 @@ class SheetColumnHeadersAdmin(admin.ModelAdmin):
 
 @admin.register(models.Slate)
 class SlateAdmin(admin.ModelAdmin):
+    date_hierarchy = 'datetime'
     list_display = (
         'datetime',
         'name',
