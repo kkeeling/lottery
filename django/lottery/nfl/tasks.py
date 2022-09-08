@@ -8,7 +8,6 @@ import math
 import numpy
 import os
 import pandas
-from django.lottery.nascar.models import SlateLineup
 import pandasql
 import random
 import re
