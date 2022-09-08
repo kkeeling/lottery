@@ -490,11 +490,11 @@ class Slate(models.Model):
     @property
     def salary_thresholds(self):
         if self.site == 'draftkings':
-            return (48500, 50000)
+            return (49500, 50000)
         elif self.site == 'fanduel':
-            return (58500, 60000)
+            return (59500, 60000)
         elif self.site == 'yahoo':
-            return (190, 200)
+            return (195, 200)
         else:
             raise Exception(f'Unsupported site {self.site}')
 
