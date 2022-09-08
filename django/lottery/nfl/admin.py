@@ -661,9 +661,9 @@ class SlateAdmin(admin.ModelAdmin):
         'get_players_link',
         'get_lineups_link',
         'get_builds_link',
+        'sim_button',
         'make_lineups_button',
         'export_button',
-        'sim_button',
     )
     list_editable = (
         'is_main_slate',
