@@ -40,6 +40,17 @@ from lottery.celery import app
 
 logger = logging.getLogger(__name__)
 
+user = settings.DATABASES['default']['USER']
+password = settings.DATABASES['default']['PASSWORD']
+database_name = settings.DATABASES['default']['NAME']
+database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
+    user=user,
+    password=password,
+    database_name=database_name,
+)
+
+engine = sqlalchemy.create_engine(database_url, echo=False)
+
 
 # ensures that tasks only run once at most!
 @contextmanager
@@ -2808,7 +2819,7 @@ def create_slate_lineups(slate_id, task_id):
         ).order_by('-projection').values_list('slate_player__id', flat=True))
         logger.info(f'Filtering player positions took {time.time() - start}s')
 
-        cycles = 10
+        cycles = 20
         jobs = []
 
         for i in range(0, cycles):
@@ -2915,17 +2926,18 @@ def create_lineup_combos_for_qb(slate_id, qb_id, rb_ids, wr_ids, te_ids, dst_ids
     logger.info(f'Dataframe took {time.time() - start}s')
 
     start = time.time()
-    user = settings.DATABASES['default']['USER']
-    password = settings.DATABASES['default']['PASSWORD']
-    database_name = settings.DATABASES['default']['NAME']
-    database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
-        user=user,
-        password=password,
-        database_name=database_name,
-    )
+    # user = settings.DATABASES['default']['USER']
+    # password = settings.DATABASES['default']['PASSWORD']
+    # database_name = settings.DATABASES['default']['NAME']
+    # database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
+    #     user=user,
+    #     password=password,
+    #     database_name=database_name,
+    # )
 
-    engine = sqlalchemy.create_engine(database_url, echo=False)
+    # engine = sqlalchemy.create_engine(database_url, echo=False)
     df_lineups.to_sql('nfl_slatelineup', engine, if_exists='append', index=False)
+    
     logger.info(f'Storage took {time.time() - start}s')
 
 
