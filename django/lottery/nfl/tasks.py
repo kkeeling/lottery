@@ -8,6 +8,7 @@ import math
 import numpy
 import os
 import pandas
+from django.lottery.nascar.models import SlateLineup
 import pandasql
 import random
 import re
@@ -3078,8 +3079,24 @@ def process_build(build_id, task_id):
                             )
 
                             if slate_lineup.count() == 0:
-                                # TODO: Validate it is a valid lineup and then add it (since we don't make ALL lineups)
-                                raise Exception(f'No valid lineup found for {handle} among all possible lineups.')
+                                slate_lineup = models.SlateLineup.objects.create(
+                                    slate=build.slate,
+                                    qb=models.SlatePlayer.objects.get(player_id=qb),
+                                    rb1=models.SlatePlayer.objects.get(player_id=rb1),
+                                    rb2=models.SlatePlayer.objects.get(player_id=rb2),
+                                    wr1=models.SlatePlayer.objects.get(player_id=wr1),
+                                    wr2=models.SlatePlayer.objects.get(player_id=wr2),
+                                    wr3=models.SlatePlayer.objects.get(player_id=wr3),
+                                    te=models.SlatePlayer.objects.get(player_id=te),
+                                    flex=models.SlatePlayer.objects.get(player_id=flex),
+                                    dst=models.SlatePlayer.objects.get(player_id=dst)
+                                )
+                                slate_lineup.simulate()
+
+                                if slate_lineup.total_salary > build.slate.salary_threshold[1]:
+                                    raise Exception(f'Lineup for {handle} exceeds salary cap.')
+
+                                slate_lineup = [slate_lineup]
                             elif slate_lineup.count() > 1:
                                 raise Exception(f'There were {slate_lineup.count()} duplicate lineups found for {handle} among all possible lineups.')
 
