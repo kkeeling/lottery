@@ -261,11 +261,11 @@ def simulate_game(game_id, task_id):
             home_te2 = home_tes[1]
         home_dst = home_dsts[0]
 
-        away_qbs = away_players.filter(slate_player__site_pos='QB').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
-        away_rbs = away_players.filter(slate_player__site_pos='RB').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
-        away_wrs = away_players.filter(slate_player__site_pos='WR').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
-        away_tes = away_players.filter(slate_player__site_pos='TE').exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
-        away_dsts = away_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).order_by('-projection', '-slate_player__salary')
+        away_qbs = away_players.filter(slate_player__site_pos='QB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        away_rbs = away_players.filter(slate_player__site_pos='RB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        away_wrs = away_players.filter(slate_player__site_pos='WR').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        away_tes = away_players.filter(slate_player__site_pos='TE').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        away_dsts = away_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
 
         away_qb = away_qbs[0]
         away_rb1 = away_rbs[0]
