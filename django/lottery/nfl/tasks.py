@@ -795,7 +795,7 @@ def execute_h2h_workflow(build_id, task_id):
         slate_lineups = list(filters.SlateLineupFilter(build_filter, possible_lineups).qs.order_by('id').values_list('id', flat=True))
         logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(slate_lineups)} lineups.')
 
-        chunk_size = 5000
+        chunk_size = 7500
         chord([
             compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, len(slate_lineups), chunk_size)
         ], complete_h2h_workflow.si(task.id))()
@@ -854,7 +854,7 @@ def compare_lineups_h2h(lineup_ids, build_id):
     matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
     df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
     df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) >= 0.0) / models.SIM_ITERATIONS, axis=1)
-    df_matchups = df_matchups[(df_matchups.win_rate >= 0.50)]
+    df_matchups = df_matchups[(df_matchups.win_rate >= 0.60)]
     df_matchups['build_id'] = build.id
     logger.info(f'Matchups took {time.time() - start}s. There are {df_matchups.size} matchups.')
 
@@ -908,6 +908,67 @@ def complete_h2h_workflow(task_id):
             task.content = f'There was a problem running cash workflow: {e}'
             task.save()
 
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def export_build_lineups(build_id, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        build = models.FindWinnerBuild.objects.get(id=build_id)
+
+        if build.build_type == 'h2h':
+            # H2h Lineups
+            start = time.time()
+            try:
+                opponents = list(build.field_lineups_to_beat.all().values_list('opponent_handle', flat=True))
+                opponents = list(set(opponents))
+                winning_lineups = pandas.DataFrame.from_records(build.winning_lineups.all().order_by('-median').values(
+                    'slate_lineup_id', 
+                    'slate_lineup__qb__csv_name', 
+                    'slate_lineup__rb1__csv_name', 
+                    'slate_lineup__rb2__csv_name', 
+                    'slate_lineup__wr1__csv_name', 
+                    'slate_lineup__wr2__csv_name', 
+                    'slate_lineup__wr3__csv_name', 
+                    'slate_lineup__te__csv_name', 
+                    'slate_lineup__flex__csv_name', 
+                    'slate_lineup__dst__csv_name', 
+                    'slate_lineup__total_salary', 
+                    'median', 
+                    's75', 
+                    's90'
+                ))
+                if build.field_lineups_to_beat.all().count() > 0 and build.winning_lineups.all().count() > 0:
+                    for opponent in opponents:
+                        winning_lineups[opponent] = winning_lineups.apply(lambda x: build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x.loc['slate_lineup_id'])[0].win_rate if build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x['slate_lineup_id']).count() > 0 else math.nan, axis=1)
+            except:
+                winning_lineups = pandas.DataFrame([])
+            logger.info(f'Lineups took {time.time() - start}s')
+
+        start = time.time()
+        with pandas.ExcelWriter(result_path) as writer:
+            winning_lineups.to_excel(writer, sheet_name='Lineups')
+
+        logger.info(f'export took {time.time() - start}s')
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 

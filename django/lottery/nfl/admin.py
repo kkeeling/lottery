@@ -1709,7 +1709,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         'get_field_lineups_link',
         'get_matchup_lineups_link',
         'build_button',
-        # 'export_button',
+        'export_button',
     )
     list_filter = (
         ('slate', RelatedDropdownFilter),
@@ -1726,7 +1726,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         urls = super().get_urls()
         my_urls = [
             path('nfl-findwinnerbuild-build/<int:pk>/', self.build, name="admin_nfl_findwinnerbuild_build"),
-            # path('nfl-findwinnerbuild-export/<int:pk>/', self.build, name="admin_nfl_findwinnerbuild_export"),
+            path('nfl-findwinnerbuild-export/<int:pk>/', self.export, name="admin_nfl_findwinnerbuild_export"),
         ]
         return my_urls + urls
 
@@ -1793,6 +1793,41 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         #         messages.ERRROR,
         #         f'{build.build_type} is not supported yet'
         #     )
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def export(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        build = models.FindWinnerBuild.objects.get(pk=pk)
+
+        result_file = f'{build} -- {build.build_type} Lineups.xlsx'
+        result_path = os.path.join(settings.MEDIA_ROOT, 'temp', request.user.username)
+        os.makedirs(result_path, exist_ok=True)
+        result_path = os.path.join(result_path, result_file)
+        result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
+
+        task = BackgroundTask.objects.create(
+            name=f'Export {build.build_type} Lineups',
+            user=request.user
+        )
+
+        tasks.export_build_lineups.delay(
+            build.id,
+            result_path,
+            result_url,
+            task.id
+        )
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your exports are being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your exports are ready.')
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
