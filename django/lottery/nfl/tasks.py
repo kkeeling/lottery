@@ -175,6 +175,7 @@ def simulate_game(game_id, task_id):
         else:
             dst_label = 'DST' 
 
+
         # set up correlation
         r_df = get_corr_matrix(game.slate.site)
         c_target = r_df.to_numpy()
@@ -294,7 +295,8 @@ def simulate_game(game_id, task_id):
             home_rb3_rv = scipy.stats.gamma((float(home_rb3.projection)/float(home_rb3.stdev))**2, scale=(float(home_rb3.stdev)**2)/float(home_rb3.projection))
         home_wr1_rv = scipy.stats.gamma((float(home_wr1.projection)/float(home_wr1.stdev))**2, scale=(float(home_wr1.stdev)**2)/float(home_wr1.projection))
         home_wr2_rv = scipy.stats.gamma((float(home_wr2.projection)/float(home_wr2.stdev))**2, scale=(float(home_wr2.stdev)**2)/float(home_wr2.projection))
-        home_wr3_rv = scipy.stats.gamma((float(home_wr3.projection)/float(home_wr3.stdev))**2, scale=(float(home_wr3.stdev)**2)/float(home_wr3.projection))
+        if home_wr3:
+            home_wr3_rv = scipy.stats.gamma((float(home_wr3.projection)/float(home_wr3.stdev))**2, scale=(float(home_wr3.stdev)**2)/float(home_wr3.projection))
         if home_wr4:
             home_wr4_rv = scipy.stats.gamma((float(home_wr4.projection)/float(home_wr4.stdev))**2, scale=(float(home_wr4.stdev)**2)/float(home_wr4.projection))
         if home_wr5:
@@ -311,7 +313,8 @@ def simulate_game(game_id, task_id):
             away_rb3_rv = scipy.stats.gamma((float(away_rb3.projection)/float(away_rb3.stdev))**2, scale=(float(away_rb3.stdev)**2)/float(away_rb3.projection))
         away_wr1_rv = scipy.stats.gamma((float(away_wr1.projection)/float(away_wr1.stdev))**2, scale=(float(away_wr1.stdev)**2)/float(away_wr1.projection))
         away_wr2_rv = scipy.stats.gamma((float(away_wr2.projection)/float(away_wr2.stdev))**2, scale=(float(away_wr2.stdev)**2)/float(away_wr2.projection))
-        away_wr3_rv = scipy.stats.gamma((float(away_wr3.projection)/float(away_wr3.stdev))**2, scale=(float(away_wr3.stdev)**2)/float(away_wr3.projection))
+        if away_wr3:
+            away_wr3_rv = scipy.stats.gamma((float(away_wr3.projection)/float(away_wr3.stdev))**2, scale=(float(away_wr3.stdev)**2)/float(away_wr3.projection))
         if away_wr4:
             away_wr4_rv = scipy.stats.gamma((float(away_wr4.projection)/float(away_wr4.stdev))**2, scale=(float(away_wr4.stdev)**2)/float(away_wr4.projection))
         if away_wr5:
@@ -348,9 +351,10 @@ def simulate_game(game_id, task_id):
         rand_home_wr2 = home_wr2_rv.ppf(rand_U[:,i])
         arr.append(rand_home_wr2)
 
-        i += 1
-        rand_home_wr3 = home_wr3_rv.ppf(rand_U[:,i])
-        arr.append(rand_home_wr3)
+        if home_wr3_rv:
+            i += 1
+            rand_home_wr3 = home_wr3_rv.ppf(rand_U[:,i])
+            arr.append(rand_home_wr3)
 
         if home_wr4_rv:
             i += 1
@@ -400,9 +404,10 @@ def simulate_game(game_id, task_id):
         rand_away_wr2 = away_wr2_rv.ppf(rand_U[:,i])
         arr.append(rand_away_wr2)
 
-        i += 1
-        rand_away_wr3 = away_wr3_rv.ppf(rand_U[:,i])
-        arr.append(rand_away_wr3)
+        if away_wr3_rv:
+            i += 1
+            rand_away_wr3 = away_wr3_rv.ppf(rand_U[:,i])
+            arr.append(rand_away_wr3)
 
         if away_wr4_rv:
             i += 1
@@ -471,12 +476,13 @@ def simulate_game(game_id, task_id):
         home_wr2.s75 = numpy.percentile(home_wr2.sim_scores, 75)
         home_wr2.s90 = numpy.percentile(home_wr2.sim_scores, 90)
         home_wr2.save()
-        home_wr3.sim_scores = numpy.round(rand_home_wr3, 2).tolist()
-        home_wr3.median = numpy.median(home_wr3.sim_scores)
-        home_wr3.s20 = numpy.percentile(home_wr3.sim_scores, 20)
-        home_wr3.s75 = numpy.percentile(home_wr3.sim_scores, 75)
-        home_wr3.s90 = numpy.percentile(home_wr3.sim_scores, 90)
-        home_wr3.save()
+        if home_wr3:
+            home_wr3.sim_scores = numpy.round(rand_home_wr3, 2).tolist()
+            home_wr3.median = numpy.median(home_wr3.sim_scores)
+            home_wr3.s20 = numpy.percentile(home_wr3.sim_scores, 20)
+            home_wr3.s75 = numpy.percentile(home_wr3.sim_scores, 75)
+            home_wr3.s90 = numpy.percentile(home_wr3.sim_scores, 90)
+            home_wr3.save()
         if home_wr4:
             home_wr4.sim_scores = numpy.round(rand_home_wr4, 2).tolist()
             home_wr4.median = numpy.median(home_wr4.sim_scores)
@@ -547,12 +553,13 @@ def simulate_game(game_id, task_id):
         away_wr2.s75 = numpy.percentile(away_wr2.sim_scores, 75)
         away_wr2.s90 = numpy.percentile(away_wr2.sim_scores, 90)
         away_wr2.save()
-        away_wr3.sim_scores = numpy.round(rand_away_wr3, 2).tolist()
-        away_wr3.median = numpy.median(away_wr3.sim_scores)
-        away_wr3.s20 = numpy.percentile(away_wr3.sim_scores, 20)
-        away_wr3.s75 = numpy.percentile(away_wr3.sim_scores, 75)
-        away_wr3.s90 = numpy.percentile(away_wr3.sim_scores, 90)
-        away_wr3.save()
+        if away_wr3:
+            away_wr3.sim_scores = numpy.round(rand_away_wr3, 2).tolist()
+            away_wr3.median = numpy.median(away_wr3.sim_scores)
+            away_wr3.s20 = numpy.percentile(away_wr3.sim_scores, 20)
+            away_wr3.s75 = numpy.percentile(away_wr3.sim_scores, 75)
+            away_wr3.s90 = numpy.percentile(away_wr3.sim_scores, 90)
+            away_wr3.save()
         if away_wr4:
             away_wr4.sim_scores = numpy.round(rand_away_wr4, 2).tolist()
             away_wr4.median = numpy.median(away_wr4.sim_scores)
