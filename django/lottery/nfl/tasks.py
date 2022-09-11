@@ -1323,7 +1323,7 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
     )
     team_has_all_stack_only = (am1_players.count() == team_players.count())
 
-    if build.configuration.game_stack_size == 3:
+    if build.configuration.game_stack_size == 3 or opp_players.count() == 0:
         # For each player, loop over opposing player to make a group for each possible stack combination
         count = 0
         for (index, player) in enumerate(team_players):
