@@ -3302,9 +3302,9 @@ def handle_base_projections(chained_results, slate_id, task_id):
 
                 projection.projection = raw_projection.projection
                 projection.balanced_projection = raw_projection.projection
-                projection.floor = ao_projection.floor if ao_projection is not None else 0.0
-                projection.ceiling = ao_projection.ceiling if ao_projection is not None else 0.0
-                projection.stdev = ao_projection.stdev if ao_projection is not None else 0.0
+                projection.floor = raw_projection.floor if raw_projection is not None else 0.0
+                projection.ceiling = raw_projection.ceiling if raw_projection is not None else 0.0
+                projection.stdev = raw_projection.stdev if raw_projection is not None else 0.0
                 projection.adjusted_opportunity=ao_projection.adjusted_opportunity if ao_projection is not None else 0.0
                 projection.save()
 
