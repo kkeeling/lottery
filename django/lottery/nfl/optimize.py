@@ -2,6 +2,7 @@ import csv
 import datetime
 import decimal
 import math
+import logging
 from numpy.core.fromnumeric import trace
 import pandas
 import random
@@ -19,6 +20,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import CountVectorizer
 
 from . import optimizer_settings
+
+logger = logging.getLogger(__name__)
 
 GameInfo = namedtuple('GameInfo', ['home_team', 'away_team', 'starts_at', 'game_started'])
 
@@ -453,7 +456,7 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
         for_optimals=for_optimals
     )
     optimizer.load_players(players_list)
-    print('  Loaded {} players.'.format(len(players_list)))
+    logger.info('  Loaded {} players.'.format(len(players_list)))
 
     lineups = []
 
@@ -524,7 +527,7 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
             try:
                 optimizer.add_player_to_lineup(player)
             except exceptions.LineupOptimizerException as e:
-                print(e)
+                logger.info(e)
 
     # RBs from Same Game
     if not config.allow_rbs_from_same_game:
@@ -543,10 +546,10 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
             lineups.append(lineup)
             count += 1
     except exceptions.LineupOptimizerException:
-        traceback.print_exc()
-        print('Cannot generate more lineups for: {}'.format(stack.qb.name))
+        traceback.logger.info_exc()
+        logger.info('Cannot generate more lineups for: {}'.format(stack.qb.name))
 
-    print('created {} lineups'.format(len(lineups)))
+    logger.info('created {} lineups'.format(len(lineups)))
 
     return lineups
 
