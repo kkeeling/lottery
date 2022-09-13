@@ -74,7 +74,7 @@ PROJECTION_SITES = (
 
 PROJECTION_WEIGHTS = {
     '4for4': 0.30,
-    'awesemo': 0.40,
+    'rg': 0.40,
     'etr': 0.40,
 }
 
