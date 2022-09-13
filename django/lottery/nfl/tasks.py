@@ -3034,11 +3034,11 @@ def create_slate_lineups(slate_id, task_id):
             player_outcomes[p.slate_player.id] = p.sim_scores
         logger.info(f'Getting player outcomes took {time.time() - start}s')
 
-        cycles = 10
+        cycles = slate.num_cycles
         jobs = []
 
         for _ in range(0, cycles):
-            jobs = jobs + [create_lineup_combos_for_qb.si(slate.id, qb, rb_combos, wr_combos, tes, rbs + wrs, dsts, player_outcomes, 1000) for qb in qbs]
+            jobs = jobs + [create_lineup_combos_for_qb.si(slate.id, qb, rb_combos, wr_combos, tes, rbs + wrs, dsts, player_outcomes, slate.lineups_per_cycle) for qb in qbs]
 
         chord(jobs, complete_slate_lineups.si(task_id))()
 
@@ -3420,15 +3420,24 @@ def handle_base_projections(chained_results, slate_id, task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         slate = models.Slate.objects.get(id=slate_id)
-        primary_sheet = slate.projections.get(is_primary=True)
-        raw_projections = models.SlatePlayerRawProjection.objects.filter(
-            slate_player__slate=slate,
-            projection_site=primary_sheet.projection_site
-        )
+
+        # raw_projections = models.SlatePlayerRawProjection.objects.filter(
+        #     slate_player__slate=slate
+        # )
         ao_projections = models.SlatePlayerRawProjection.objects.filter(
             slate_player__slate=slate,
             projection_site='4for4'
         )
+
+        # primary_sheet = slate.projections.get(is_primary=True)
+        # primary_projections = models.SlatePlayerRawProjection.objects.filter(
+        #     slate_player__slate=slate,
+        #     projection_site=primary_sheet.projection_site
+        # )
+        # ao_projections = models.SlatePlayerRawProjection.objects.filter(
+        #     slate_player__slate=slate,
+        #     projection_site='4for4'
+        # )
         
         for slate_player in slate.players.all():
             (projection, _) = models.SlatePlayerProjection.objects.get_or_create(
@@ -3436,9 +3445,10 @@ def handle_base_projections(chained_results, slate_id, task_id):
             )
 
             try:
-                raw_projection = raw_projections.get(slate_player=slate_player)
+                raw_projections = slate_player.raw_projections.all()
 
                 try:
+                    # primary_projection = primary_projections.get(slate_player=slate_player)
                     ao_projection = ao_projections.get(slate_player=slate_player)
                 except models.SlatePlayerRawProjection.DoesNotExist:
                     rg_projections = models.SlatePlayerRawProjection.objects.filter(
@@ -3450,11 +3460,42 @@ def handle_base_projections(chained_results, slate_id, task_id):
                     else:
                         ao_projection = None
 
-                projection.projection = raw_projection.projection
-                projection.balanced_projection = raw_projection.projection
-                projection.floor = raw_projection.floor if raw_projection is not None else 0.0
-                projection.ceiling = raw_projection.ceiling if raw_projection is not None else 0.0
-                projection.stdev = raw_projection.stdev if raw_projection is not None else 0.0
+                agg_projs = []
+                agg_floors = []
+                agg_ceils = []
+                agg_stds = []
+                for s in models.PROJECTION_WEIGHTS.keys():
+                    try:
+                        raw_proj = raw_projections.get(projection_site=s)
+
+                        # logger.info(f'  {raw_proj} -- {models.PROJECTION_WEIGHTS[s] * 100}')
+                        for _ in range(0, int(models.PROJECTION_WEIGHTS[s] * 100)):
+                            agg_projs.append(raw_proj.projection)
+
+                        if raw_proj.floor is not None:
+                            for _ in range(0, int(models.PROJECTION_WEIGHTS[s] * 100)):
+                                agg_floors.append(raw_proj.floor)
+
+                        if raw_proj.ceiling is not None:
+                            for _ in range(0, int(models.PROJECTION_WEIGHTS[s] * 100)):
+                                agg_ceils.append(raw_proj.ceiling)
+
+                        if raw_proj.stdev is not None:
+                            for _ in range(0, int(models.PROJECTION_WEIGHTS[s] * 100)):
+                                agg_stds.append(raw_proj.stdev)
+                    except:
+                        pass
+                    
+                    agg_proj = numpy.mean(agg_projs) if len(agg_projs) > 0 else 0.0
+                    agg_floor = numpy.mean(agg_floors) if len(agg_floors) > 0 else 0.0
+                    agg_ceil = numpy.mean(agg_ceils) if len(agg_ceils) > 0 else 0.0
+                    agg_std = numpy.mean(agg_stds) if len(agg_stds) > 0 else 0.0
+                
+                projection.projection = agg_proj
+                projection.balanced_projection = agg_proj
+                projection.floor = agg_floor
+                projection.ceiling = agg_ceil
+                projection.stdev = agg_std
                 projection.adjusted_opportunity=ao_projection.adjusted_opportunity if ao_projection is not None else 0.0
                 projection.save()
 

@@ -72,6 +72,12 @@ PROJECTION_SITES = (
     ('sabersim', 'Saber Sim'),
 )
 
+PROJECTION_WEIGHTS = {
+    '4for4': 0.30,
+    'awesemo': 0.40,
+    'etr': 0.40,
+}
+
 RANK_BY_CHOICES = (
     ('projection', 'Projection'),
     ('median', 'Median'),
@@ -470,6 +476,10 @@ class Slate(models.Model):
     
     # in play thresholds
     in_play_criteria = models.ForeignKey('PlayerSelectionCriteria', on_delete=models.SET_NULL, related_name='slates', verbose_name='IPC', null=True, blank=True)
+
+    # lineup creation
+    lineups_per_cycle = models.IntegerField(default=1000)
+    num_cycles = models.IntegerField(default=10)
 
     # sim outcomes
     player_outcomes = models.FileField(upload_to='uploads/sims', blank=True, null=True)

@@ -654,6 +654,8 @@ class SlateAdmin(admin.ModelAdmin):
         'datetime',
         'name',
         'week',
+        'num_cycles',
+        'lineups_per_cycle',
         'is_main_slate',
         'is_complete',
         'site',
@@ -698,6 +700,12 @@ class SlateAdmin(admin.ModelAdmin):
         ('In Play Thresholds',  {
             'fields': (
                 'in_play_criteria',
+            )
+        }),
+        ('Lineup Sampling',  {
+            'fields': (
+                'num_cycles',
+                'lineups_per_cycle',
             )
         }),
         ('For Completed Slates',  {
