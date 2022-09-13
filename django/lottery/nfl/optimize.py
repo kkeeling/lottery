@@ -546,7 +546,6 @@ def optimize_for_stack(site, stack, projections, slate_teams, config, num_lineup
             lineups.append(lineup)
             count += 1
     except exceptions.LineupOptimizerException:
-        traceback.logger.info_exc()
         logger.info('Cannot generate more lineups for: {}'.format(stack.qb.name))
 
     logger.info('created {} lineups'.format(len(lineups)))

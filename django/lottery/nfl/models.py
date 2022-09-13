@@ -1373,6 +1373,7 @@ class SlateLineup(models.Model):
     flex = models.ForeignKey(SlatePlayer, db_index=True, related_name='flex', on_delete=models.CASCADE)
     dst = models.ForeignKey(SlatePlayer, db_index=True, related_name='dst', on_delete=models.CASCADE)
     total_salary = models.IntegerField(default=0)
+    sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
 
     class Meta:
         verbose_name = 'Slate Lineup'

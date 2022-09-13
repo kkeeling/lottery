@@ -802,7 +802,7 @@ def execute_h2h_workflow(build_id, task_id):
         slate_lineups = list(filters.SlateLineupFilter(build_filter, possible_lineups).qs.order_by('id').values_list('id', flat=True))
         logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(slate_lineups)} lineups.')
 
-        chunk_size = 5000
+        chunk_size = 500
         chord([
             compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, len(slate_lineups), chunk_size)
         ], complete_h2h_workflow.si(task.id))()
@@ -831,50 +831,49 @@ def compare_lineups_h2h(lineup_ids, build_id):
     slate_lineups = models.SlateLineup.objects.filter(id__in=lineup_ids).order_by('id')
     logger.info(f'Getting slate lineups took {time.time() - start}s')
     
+    for l in slate_lineups:
+        if l.sim_scores is None:
+            logger.info(f'{l.id} - SIM SCORES ARE NULL')
+    
     start = time.time()
-    df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('qb__player_id', 'rb1__player_id', 'rb2__player_id', 'wr1__player_id', 'wr2__player_id', 'wr3__player_id', 'te__player_id', 'flex__player_id', 'dst__player_id'), index=list(slate_lineups.values_list('id', flat=True)))
-    df_slate_lineups['build_id'] = build.id
-    df_slate_lineups['slate_lineup_id'] = df_slate_lineups.index
-    df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='unsigned')
+    # df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('qb__player_id', 'rb1__player_id', 'rb2__player_id', 'wr1__player_id', 'wr2__player_id', 'wr3__player_id', 'te__player_id', 'flex__player_id', 'dst__player_id'), index=list(slate_lineups.values_list('id', flat=True)))
+    df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('sim_scores', flat=True), index=list(slate_lineups.values_list('id', flat=True)), dtype=numpy.float16)
+    # df_slate_lineups['build_id'] = build.id
+    # df_slate_lineups['slate_lineup_id'] = df_slate_lineups.index
+    # df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='unsigned')
     logger.info(f'  Initial dataframe took {time.time() - start}s')
+    # logger.info(df_slate_lineups)
 
-    start = time.time()
-    df_slate_lineups = df_slate_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])) + player_outcomes.get(str(x[6])) + player_outcomes.get(str(x[7])) + player_outcomes.get(str(x[8])), axis=1, result_type='expand')
-    df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='float')
-    logger.info(f'  Sim scores took {time.time() - start}s')
+    # start = time.time()
+    # df_slate_lineups = df_slate_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])) + player_outcomes.get(str(x[6])) + player_outcomes.get(str(x[7])) + player_outcomes.get(str(x[8])), axis=1, result_type='expand')
+    # df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='float')
+    # logger.info(f'  Sim scores took {time.time() - start}s')
 
     start = time.time()
     field_lineups = build.field_lineups_to_beat.all().order_by('id')
     logger.info(f'Getting field lineups took {time.time() - start}s.')
 
     start = time.time()
-    df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__qb__player_id', 'slate_lineup__rb1__player_id', 'slate_lineup__rb2__player_id', 'slate_lineup__wr1__player_id', 'slate_lineup__wr2__player_id', 'slate_lineup__wr3__player_id', 'slate_lineup__te__player_id', 'slate_lineup__flex__player_id', 'slate_lineup__dst__player_id'), index=list(field_lineups.values_list('id', flat=True)))
-    df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='unsigned')
+    df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__sim_scores', flat=True), index=list(field_lineups.values_list('id', flat=True)), dtype=numpy.float16)
+    # df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__qb__player_id', 'slate_lineup__rb1__player_id', 'slate_lineup__rb2__player_id', 'slate_lineup__wr1__player_id', 'slate_lineup__wr2__player_id', 'slate_lineup__wr3__player_id', 'slate_lineup__te__player_id', 'slate_lineup__flex__player_id', 'slate_lineup__dst__player_id'), index=list(field_lineups.values_list('id', flat=True)))
+    # df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='unsigned')
     logger.info(f'  Initial dataframe took {time.time() - start}s')
+    # logger.info(df_field_lineups)
 
-    start = time.time()
-    df_field_lineups = df_field_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])) + player_outcomes.get(str(x[6])) + player_outcomes.get(str(x[7])) + player_outcomes.get(str(x[8])), axis=1, result_type='expand')
-    df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='float')
-    logger.info(f'  Sim scores took {time.time() - start}s')
+    # start = time.time()
+    # df_field_lineups = df_field_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])) + player_outcomes.get(str(x[6])) + player_outcomes.get(str(x[7])) + player_outcomes.get(str(x[8])), axis=1, result_type='expand')
+    # df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='float')
+    # logger.info(f'  Sim scores took {time.time() - start}s')
 
     start = time.time()
     matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
     df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
     df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) >= 0.0) / models.SIM_ITERATIONS, axis=1)
-    df_matchups = df_matchups[(df_matchups.win_rate > 0.50)]
+    df_matchups = df_matchups[(df_matchups.win_rate > 0.55)]
     df_matchups['build_id'] = build.id
     logger.info(f'Matchups took {time.time() - start}s. There are {df_matchups.size} matchups.')
 
     start = time.time()
-    # user = settings.DATABASES['default']['USER']
-    # password = settings.DATABASES['default']['PASSWORD']
-    # database_name = settings.DATABASES['default']['NAME']
-    # database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
-    #     user=user,
-    #     password=password,
-    #     database_name=database_name,
-    # )
-    # engine = sqlalchemy.create_engine(database_url, echo=False)
     df_matchups.to_sql('nfl_lineupmatchup', engine, if_exists='append', index=False, chunksize=1000)
     logger.info(f'Write matchups to db took {time.time() - start}s')
 
@@ -2850,47 +2849,62 @@ def create_slate_lineups(slate_id, task_id):
 
         # Task implementation goes here
         slate = models.Slate.objects.get(id=slate_id)
-        dst_label = slate.dst_label
 
         start = time.time()
         slate.possible_lineups.all().delete()
-        logger.info(f'Deleting lineups took {time.time() - start}s')
-        
+        logger.info(f'Deleting existing lineups took {time.time() - start}s')
+        dst_label = slate.dst_label
+
         start = time.time()
         slate_players = slate.players.filter(projection__in_play=True).order_by('-salary')
         salaries = {}
         for p in slate_players:
-            salaries[p.player_id] = p.salary
+            salaries[p.id] = p.salary
         logger.info(f'Finding players and salaries took {time.time() - start}s. There are {slate_players.count()} players in the player pool.')
 
         start = time.time()
         qbs = list(slate.get_projections().filter(
             slate_player__site_pos='QB',
             in_play=True
-        ).order_by('-projection').values_list('slate_player__id', flat=True))
+        ).order_by('-projection').values_list('slate_player_id', flat=True))
         rbs = list(slate.get_projections().filter(
             slate_player__site_pos='RB',
             in_play=True
-        ).order_by('-projection').values_list('slate_player__id', flat=True))
+        ).order_by('-projection').values_list('slate_player_id', flat=True))
         wrs = list(slate.get_projections().filter(
             slate_player__site_pos='WR',
             in_play=True
-        ).order_by('-projection').values_list('slate_player__id', flat=True))
+        ).order_by('-projection').values_list('slate_player_id', flat=True))
         tes = list(slate.get_projections().filter(
             slate_player__site_pos='TE',
             in_play=True
-        ).order_by('-projection').values_list('slate_player__id', flat=True))
+        ).order_by('-projection').values_list('slate_player_id', flat=True))
         dsts = list(slate.get_projections().filter(
             slate_player__site_pos=dst_label,
             in_play=True
-        ).order_by('-projection').values_list('slate_player__id', flat=True))
+        ).order_by('-projection').values_list('slate_player_id', flat=True))
         logger.info(f'Filtering player positions took {time.time() - start}s')
 
-        cycles = 20
+        start = time.time()
+        rb_combos = list(itertools.combinations(rbs, 2))
+        logger.info(f'RB combos took {time.time() - start}s. There are {len(rb_combos)} combinations.')
+
+        start = time.time()
+        wr_combos = list(itertools.combinations(wrs, 3))
+        logger.info(f'WR combos took {time.time() - start}s. There are {len(wr_combos)} combinations.')
+
+        start = time.time()
+        projections = slate.get_projections().filter(in_play=True).order_by('-slate_player__salary')
+        player_outcomes = {}
+        for p in projections:
+            player_outcomes[p.slate_player.id] = p.sim_scores
+        logger.info(f'Getting player outcomes took {time.time() - start}s')
+
+        cycles = 10
         jobs = []
 
-        for i in range(0, cycles):
-            jobs = jobs + [create_lineup_combos_for_qb.si(slate.id, qb, rbs, wrs, tes, dsts, 1000) for qb in qbs]
+        for _ in range(0, cycles):
+            jobs = jobs + [create_lineup_combos_for_qb.si(slate.id, qb, rb_combos, wr_combos, tes, rbs + wrs, dsts, player_outcomes, 1000) for qb in qbs]
 
         chord(jobs, complete_slate_lineups.si(task_id))()
 
@@ -2905,7 +2919,7 @@ def create_slate_lineups(slate_id, task_id):
 
 
 @shared_task
-def create_lineup_combos_for_qb(slate_id, qb_id, rb_ids, wr_ids, te_ids, dst_ids, num_combos):
+def create_lineup_combos_for_qb(slate_id, qb_id, rb_combos, wr_combos, te_ids, flexes, dst_ids, player_outcomes, num_combos):
     def get_random_lineup(slate, qb_id, rb_combos, wr_combos, tes, flexes, dsts):
         random_rbs = rb_combos[random.randrange(0, len(rb_combos))]
         random_wrs = wr_combos[random.randrange(0, len(wr_combos))]
@@ -2949,28 +2963,21 @@ def create_lineup_combos_for_qb(slate_id, qb_id, rb_ids, wr_ids, te_ids, dst_ids
 
         return True
 
+    logger.info(f'qb = {qb_id}')
     slate = models.Slate.objects.get(id=slate_id)
     salary_thresholds = slate.salary_thresholds
     lineups = []
 
     start = time.time()
-    rb_combos = list(itertools.combinations(rb_ids, 2))
-    logger.info(f'RB combos took {time.time() - start}s. There are {len(rb_combos)} combinations.')
-
-    start = time.time()
-    wr_combos = list(itertools.combinations(wr_ids, 3))
-    logger.info(f'WR combos took {time.time() - start}s. There are {len(wr_combos)} combinations.')
-
-    start = time.time()
     for _ in range(0, num_combos):
-        l, total_salary = get_random_lineup(slate, qb_id, rb_combos, wr_combos, te_ids, list(rb_ids) + list(wr_ids), dst_ids)
+        l, total_salary = get_random_lineup(slate, qb_id, rb_combos, wr_combos, te_ids, flexes, dst_ids)
 
         '''
         TODO: Add additional constraints
             - No duplicate lineups
         '''
         while (total_salary < salary_thresholds[0] or total_salary > salary_thresholds[1] or not is_lineup_valid(slate, l)):
-            l, total_salary = get_random_lineup(slate, qb_id, rb_combos, wr_combos, te_ids, list(rb_ids) + list(wr_ids), dst_ids)
+            l, total_salary = get_random_lineup(slate, qb_id, rb_combos, wr_combos, te_ids, flexes, dst_ids)
 
         l.append(total_salary)  ## append total salary to end of lineup array so we can make a dataframe
         lineups.append(l)
@@ -2990,7 +2997,11 @@ def create_lineup_combos_for_qb(slate_id, qb_id, rb_ids, wr_ids, te_ids, dst_ids
         'total_salary',
     ])
     df_lineups['slate_id'] = slate_id
-    logger.info(f'Dataframe took {time.time() - start}s')
+    logger.info(f'  Dataframe took {time.time() - start}s')
+
+    start = time.time()
+    df_lineups['sim_scores'] = df_lineups.apply(lambda x: list(numpy.array(player_outcomes.get(str(x['qb_id'])), numpy.float64) + numpy.array(player_outcomes.get(str(x['rb1_id'])), numpy.float64) + numpy.array(player_outcomes.get(str(x['rb2_id'])), numpy.float64) + numpy.array(player_outcomes.get(str(x['wr1_id'])), numpy.float64) + numpy.array(player_outcomes.get(str(x['wr2_id'])), numpy.float64) + numpy.array(player_outcomes.get(str(x['wr3_id'])), numpy.float64) + numpy.array(player_outcomes.get(str(x['te_id'])), numpy.float64) + numpy.array(player_outcomes.get(str(x['flex_id'])), numpy.float64) + numpy.array(player_outcomes.get(str(x['dst_id'])), numpy.float64)), axis=1)
+    logger.info(f'  Sim scores took {time.time() - start}s')
 
     start = time.time()
     # user = settings.DATABASES['default']['USER']
@@ -3003,9 +3014,9 @@ def create_lineup_combos_for_qb(slate_id, qb_id, rb_ids, wr_ids, te_ids, dst_ids
     # )
 
     # engine = sqlalchemy.create_engine(database_url, echo=False)
-    df_lineups.to_sql('nfl_slatelineup', engine, if_exists='append', index=False)
+    df_lineups.to_sql('nfl_slatelineup', engine, if_exists='append', index=False, chunksize=1000)
     
-    logger.info(f'Storage took {time.time() - start}s')
+    logger.info(f'  Storage took {time.time() - start}s')
 
 
 @shared_task
@@ -3071,6 +3082,9 @@ def process_build(build_id, task_id):
                             flex = re.findall(r'\([0-9]*\)', row[8])[0].replace('(', '').replace(')', '')
                             dst = re.findall(r'\([0-9]*\)', row[9])[0].replace('(', '').replace(')', '')
 
+                            # score the lineup
+                            sim_scores = numpy.array(player_sim_scores[qb], dtype=numpy.float64) + numpy.array(player_sim_scores[rb1], dtype=numpy.float64) + numpy.array(player_sim_scores[rb2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr1], dtype=numpy.float64) + numpy.array(player_sim_scores[wr2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr3], dtype=numpy.float64) + numpy.array(player_sim_scores[te], dtype=numpy.float64) + numpy.array(player_sim_scores[flex], dtype=numpy.float64) + numpy.array(player_sim_scores[dst], dtype=numpy.float64)
+
                             # find this lineup in all possible lineups
                             slate_lineup = build.slate.possible_lineups.filter(
                                 qb__player_id=qb,
@@ -3101,6 +3115,9 @@ def process_build(build_id, task_id):
 
                                 if slate_lineup.total_salary > build.slate.salary_thresholds[1]:
                                     raise Exception(f'Lineup for {handle} exceeds salary cap.')
+                                
+                                slate_lineup.sim_scores = sim_scores.tolist()
+                                slate_lineup.save()
 
                                 slate_lineup = [slate_lineup]
                             elif slate_lineup.count() > 1:
@@ -3112,10 +3129,9 @@ def process_build(build_id, task_id):
                                 slate_lineup=slate_lineup[0]
                             )
 
-                            sim_scores = numpy.array(player_sim_scores[qb]) + numpy.array(player_sim_scores[rb1]) + numpy.array(player_sim_scores[rb2]) + numpy.array(player_sim_scores[wr1]) + numpy.array(player_sim_scores[wr2]) + numpy.array(player_sim_scores[wr3]) + numpy.array(player_sim_scores[te]) + numpy.array(player_sim_scores[flex]) + numpy.array(player_sim_scores[dst])
                             lineup.median = numpy.median(sim_scores)
-                            lineup.s75 = numpy.percentile(sim_scores, decimal.Decimal(75))
-                            lineup.s90 = numpy.percentile(sim_scores, decimal.Decimal(90))
+                            lineup.s75 = numpy.percentile(sim_scores, 75)
+                            lineup.s90 = numpy.percentile(sim_scores, 90)
                             lineup.save()
 
         task.status = 'success'

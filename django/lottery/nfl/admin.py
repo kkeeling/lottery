@@ -1271,9 +1271,9 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'in_play',
     )
     raw_id_fields = ['slate_player']
-    list_editable = (
-        'in_play',
-    )
+    # list_editable = (
+    #     'in_play',
+    # )
     actions = ['export']
 
     def get_queryset(self, request):
@@ -3414,11 +3414,8 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'projection',
         'get_player_zscore',
         'get_ceiling',
-        'get_player_ceiling_zscore',
         'get_4for4_proj',
-        'get_awesemo_proj',
         'get_etr_proj',
-        'get_tda_proj',
         'get_median_sim_score',
         'get_exposure',
         'get_ownership_projection',
