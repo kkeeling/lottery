@@ -3497,6 +3497,7 @@ def handle_base_projections(chained_results, slate_id, task_id):
                 projection.ceiling = agg_ceil
                 projection.stdev = agg_std
                 projection.adjusted_opportunity=ao_projection.adjusted_opportunity if ao_projection is not None else 0.0
+                projection.in_play = slate.in_play_criteria.meets_threshold(projection)
                 projection.save()
 
             except models.SlatePlayerRawProjection.DoesNotExist:
