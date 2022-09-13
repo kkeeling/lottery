@@ -802,7 +802,7 @@ def execute_h2h_workflow(build_id, task_id):
         slate_lineups = list(filters.SlateLineupFilter(build_filter, possible_lineups).qs.order_by('id').values_list('id', flat=True))
         logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(slate_lineups)} lineups.')
 
-        chunk_size = 500
+        chunk_size = 10000
         chord([
             compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, len(slate_lineups), chunk_size)
         ], complete_h2h_workflow.si(task.id))()
@@ -820,12 +820,12 @@ def execute_h2h_workflow(build_id, task_id):
 def compare_lineups_h2h(lineup_ids, build_id):
     build = models.FindWinnerBuild.objects.get(id=build_id)
 
-    start = time.time()
-    projections = build.slate.get_projections().filter(in_play=True).order_by('-slate_player__salary')
-    player_outcomes = {}
-    for p in projections:
-        player_outcomes[p.slate_player.player_id] = numpy.array(p.sim_scores)
-    logger.info(f'Getting player outcomes took {time.time() - start}s')
+    # start = time.time()
+    # projections = build.slate.get_projections().filter(in_play=True).order_by('-slate_player__salary')
+    # player_outcomes = {}
+    # for p in projections:
+    #     player_outcomes[p.slate_player.player_id] = numpy.array(p.sim_scores)
+    # logger.info(f'Getting player outcomes took {time.time() - start}s')
 
     start = time.time()
     slate_lineups = models.SlateLineup.objects.filter(id__in=lineup_ids).order_by('id')
@@ -836,18 +836,9 @@ def compare_lineups_h2h(lineup_ids, build_id):
             logger.info(f'{l.id} - SIM SCORES ARE NULL')
     
     start = time.time()
-    # df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('qb__player_id', 'rb1__player_id', 'rb2__player_id', 'wr1__player_id', 'wr2__player_id', 'wr3__player_id', 'te__player_id', 'flex__player_id', 'dst__player_id'), index=list(slate_lineups.values_list('id', flat=True)))
     df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('sim_scores', flat=True), index=list(slate_lineups.values_list('id', flat=True)), dtype=numpy.float16)
-    # df_slate_lineups['build_id'] = build.id
-    # df_slate_lineups['slate_lineup_id'] = df_slate_lineups.index
-    # df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='unsigned')
     logger.info(f'  Initial dataframe took {time.time() - start}s')
     # logger.info(df_slate_lineups)
-
-    # start = time.time()
-    # df_slate_lineups = df_slate_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])) + player_outcomes.get(str(x[6])) + player_outcomes.get(str(x[7])) + player_outcomes.get(str(x[8])), axis=1, result_type='expand')
-    # df_slate_lineups = df_slate_lineups.apply(pandas.to_numeric, downcast='float')
-    # logger.info(f'  Sim scores took {time.time() - start}s')
 
     start = time.time()
     field_lineups = build.field_lineups_to_beat.all().order_by('id')
@@ -855,15 +846,8 @@ def compare_lineups_h2h(lineup_ids, build_id):
 
     start = time.time()
     df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__sim_scores', flat=True), index=list(field_lineups.values_list('id', flat=True)), dtype=numpy.float16)
-    # df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__qb__player_id', 'slate_lineup__rb1__player_id', 'slate_lineup__rb2__player_id', 'slate_lineup__wr1__player_id', 'slate_lineup__wr2__player_id', 'slate_lineup__wr3__player_id', 'slate_lineup__te__player_id', 'slate_lineup__flex__player_id', 'slate_lineup__dst__player_id'), index=list(field_lineups.values_list('id', flat=True)))
-    # df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='unsigned')
     logger.info(f'  Initial dataframe took {time.time() - start}s')
     # logger.info(df_field_lineups)
-
-    # start = time.time()
-    # df_field_lineups = df_field_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])) + player_outcomes.get(str(x[6])) + player_outcomes.get(str(x[7])) + player_outcomes.get(str(x[8])), axis=1, result_type='expand')
-    # df_field_lineups = df_field_lineups.apply(pandas.to_numeric, downcast='float')
-    # logger.info(f'  Sim scores took {time.time() - start}s')
 
     start = time.time()
     matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
@@ -919,6 +903,130 @@ def complete_h2h_workflow(task_id):
 
 
 @shared_task
+def execute_se_workflow(build_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        
+        from . import filters
+
+        # Task implementation goes here
+        build = models.FindWinnerBuild.objects.get(id=build_id)
+
+        build.winning_lineups.all().delete()
+
+        build_filter = None
+        if build.slate.site == 'draftkings':
+            build_filter = models.BUILD_TYPE_FILTERS_DK.get(build.build_type)
+        elif build.slate.site == 'fanduel':
+            build_filter = models.BUILD_TYPE_FILTERS_FD.get(build.build_type)
+        else:
+            build_filter = models.BUILD_TYPE_FILTERS_YH.get(build.build_type)
+
+        start = time.time()
+        possible_lineups = build.slate.possible_lineups 
+        slate_lineups = list(filters.SlateLineupFilter(build_filter, possible_lineups).qs.order_by('id').values_list('id', flat=True))
+        logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(slate_lineups)} lineups.')
+
+        chunk_size = 500
+        chord([
+            compare_lineups_se.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, len(slate_lineups), chunk_size)
+        ], complete_se_workflow.si(task.id))()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem running SE workflow: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
+def compare_lineups_se(lineup_ids, build_id):
+    build = models.FindWinnerBuild.objects.get(id=build_id)
+
+
+    start = time.time()
+    slate_lineups = models.SlateLineup.objects.filter(id__in=lineup_ids).order_by('id')
+    logger.info(f'Getting slate lineups took {time.time() - start}s')
+    
+    for l in slate_lineups:
+        if l.sim_scores is None:
+            logger.info(f'{l.id} - SIM SCORES ARE NULL')
+    
+    start = time.time()
+    df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('sim_scores', flat=True), index=list(slate_lineups.values_list('id', flat=True)), dtype=numpy.float16)
+    logger.info(f'  Initial dataframe took {time.time() - start}s')
+    # logger.info(df_slate_lineups)
+
+    start = time.time()
+    field_lineups = build.field_lineups_to_beat.all().order_by('id')
+    logger.info(f'Getting field lineups took {time.time() - start}s.')
+
+    start = time.time()
+    df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__sim_scores', flat=True), index=list(field_lineups.values_list('id', flat=True)), dtype=numpy.float16)
+    logger.info(f'  Initial dataframe took {time.time() - start}s')
+    # logger.info(df_field_lineups)
+
+    start = time.time()
+    df_matchups = pandas.concat([df_field_lineups, df_slate_lineups])
+    df_matchups = df_matchups.rank(method="min", ascending=False).iloc[field_lineups.count():field_lineups.count()+slate_lineups.count()] <= df_matchups.rank(method="min", ascending=False).iloc[0:field_lineups.count()].min(axis=0)
+    df_matchups['win_count'] = df_matchups.apply(lambda x: numpy.count_nonzero(x), axis=1)
+    df_matchups['win_rate'] = df_matchups['win_count'] / models.SIM_ITERATIONS
+    df_matchups = df_matchups[(df_matchups.win_rate >= 0.20)]
+
+    df_lineups = df_matchups.filter(['win_rate'], axis=1)
+    if not df_lineups.empty:
+        df_lineups['slate_lineup_id'] = df_lineups.index
+        try:
+            df_lineups['median'] = df_lineups.apply(lambda x: numpy.median(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']])), axis=1)
+            df_lineups['s75'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]), 75.0), axis=1)
+            df_lineups['s90'] = df_lineups.apply(lambda x: numpy.percentile(numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]), 90.0), axis=1)
+        except:
+            df_lineups['median'] = None
+            df_lineups['s75'] = None
+            df_lineups['s90'] = None
+            logger.info(df_lineups)
+        df_lineups['build_id'] = build.id
+
+    logger.info(f'Matchups took {time.time() - start}s.')
+
+    start = time.time()
+    df_lineups.to_sql('nfl_winninglineup', engine, if_exists='append', index=False, chunksize=1000)
+    logger.info(f'Adding build lineups took {time.time() - start}s. There are {len(df_lineups.index)} lineups.')
+
+
+@shared_task
+def complete_se_workflow(task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        task.status = 'success'
+        task.content = f'SE workflow complete'
+        task.save()
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem running se workflow: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def export_build_lineups(build_id, result_path, result_url, task_id):
     task = None
 
@@ -958,7 +1066,33 @@ def export_build_lineups(build_id, result_path, result_url, task_id):
                         winning_lineups[opponent] = winning_lineups.apply(lambda x: build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x.loc['slate_lineup_id'])[0].win_rate if build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x['slate_lineup_id']).count() > 0 else math.nan, axis=1)
             except:
                 winning_lineups = pandas.DataFrame([])
-            logger.info(f'Lineups took {time.time() - start}s')
+        elif build.build_type == 'se':
+            # H2h Lineups
+            start = time.time()
+            try:
+                winning_lineups = pandas.DataFrame.from_records(build.winning_lineups.all().order_by('-median').values(
+                    'slate_lineup_id', 
+                    'slate_lineup__qb__csv_name', 
+                    'slate_lineup__rb1__csv_name', 
+                    'slate_lineup__rb2__csv_name', 
+                    'slate_lineup__wr1__csv_name', 
+                    'slate_lineup__wr2__csv_name', 
+                    'slate_lineup__wr3__csv_name', 
+                    'slate_lineup__te__csv_name', 
+                    'slate_lineup__flex__csv_name', 
+                    'slate_lineup__dst__csv_name', 
+                    'slate_lineup__total_salary', 
+                    'median', 
+                    's75', 
+                    's90',
+                    'win_rate'
+                ))
+            except:
+                winning_lineups = pandas.DataFrame([])
+        else:
+            raise Exception(f'{build.build_type} is not yet supported.')
+
+        logger.info(f'Lineups took {time.time() - start}s')
 
         start = time.time()
         with pandas.ExcelWriter(result_path) as writer:
