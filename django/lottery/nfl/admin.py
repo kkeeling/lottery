@@ -1282,9 +1282,9 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'in_play',
     )
     raw_id_fields = ['slate_player']
-    # list_editable = (
-    #     'in_play',
-    # )
+    list_editable = (
+        'in_play',
+    )
     actions = ['export']
 
     def get_queryset(self, request):
@@ -1415,7 +1415,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_median_sim_score.admin_order_field = 'median'
 
     def get_floor_sim_score(self, obj):
-        return '{:.2f}'.format(obj.floor)
+        return '{:.2f}'.format(obj.s20)
     get_floor_sim_score.short_description = 's20'
     get_floor_sim_score.admin_order_field = 's20'
 
