@@ -1729,9 +1729,6 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         'slate',
     )
     search_fields = ('slate__name',)
-    inlines = [
-        FieldLineupToBeatpInline
-    ]
 
     def get_urls(self):
         urls = super().get_urls()
