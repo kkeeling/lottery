@@ -3227,15 +3227,15 @@ def process_build(build_id, task_id):
                             if slate_lineup.count() == 0:
                                 slate_lineup = models.SlateLineup.objects.create(
                                     slate=build.slate,
-                                    qb=models.SlatePlayer.objects.get(player_id=qb),
-                                    rb1=models.SlatePlayer.objects.get(player_id=rb1),
-                                    rb2=models.SlatePlayer.objects.get(player_id=rb2),
-                                    wr1=models.SlatePlayer.objects.get(player_id=wr1),
-                                    wr2=models.SlatePlayer.objects.get(player_id=wr2),
-                                    wr3=models.SlatePlayer.objects.get(player_id=wr3),
-                                    te=models.SlatePlayer.objects.get(player_id=te),
-                                    flex=models.SlatePlayer.objects.get(player_id=flex),
-                                    dst=models.SlatePlayer.objects.get(player_id=dst)
+                                    qb=models.SlatePlayer.objects.get(slate=build.slate, player_id=qb),
+                                    rb1=models.SlatePlayer.objects.get(slate=build.slate, player_id=rb1),
+                                    rb2=models.SlatePlayer.objects.get(slate=build.slate, player_id=rb2),
+                                    wr1=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr1),
+                                    wr2=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr2),
+                                    wr3=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr3),
+                                    te=models.SlatePlayer.objects.get(slate=build.slate, player_id=te),
+                                    flex=models.SlatePlayer.objects.get(slate=build.slate, player_id=flex),
+                                    dst=models.SlatePlayer.objects.get(slate=build.slate, player_id=dst)
                                 )
                                 slate_lineup.simulate()
 
@@ -3299,15 +3299,15 @@ def process_build(build_id, task_id):
                             if slate_lineup.count() == 0:
                                 slate_lineup = models.SlateLineup.objects.create(
                                     slate=build.slate,
-                                    qb=models.SlatePlayer.objects.get(player_id=qb),
-                                    rb1=models.SlatePlayer.objects.get(player_id=rb1),
-                                    rb2=models.SlatePlayer.objects.get(player_id=rb2),
-                                    wr1=models.SlatePlayer.objects.get(player_id=wr1),
-                                    wr2=models.SlatePlayer.objects.get(player_id=wr2),
-                                    wr3=models.SlatePlayer.objects.get(player_id=wr3),
-                                    te=models.SlatePlayer.objects.get(player_id=te),
-                                    flex=models.SlatePlayer.objects.get(player_id=flex),
-                                    dst=models.SlatePlayer.objects.get(player_id=dst)
+                                    qb=models.SlatePlayer.objects.get(slate=build.slate, player_id=qb),
+                                    rb1=models.SlatePlayer.objects.get(slate=build.slate, player_id=rb1),
+                                    rb2=models.SlatePlayer.objects.get(slate=build.slate, player_id=rb2),
+                                    wr1=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr1),
+                                    wr2=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr2),
+                                    wr3=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr3),
+                                    te=models.SlatePlayer.objects.get(slate=build.slate, player_id=te),
+                                    flex=models.SlatePlayer.objects.get(slate=build.slate, player_id=flex),
+                                    dst=models.SlatePlayer.objects.get(slate=build.slate, player_id=dst)
                                 )
                                 slate_lineup.simulate()
 
