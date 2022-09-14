@@ -802,7 +802,7 @@ def execute_h2h_workflow(build_id, task_id):
         # slate_lineups = list(filters.SlateLineupFilter(build_filter, possible_lineups).qs.order_by('id').values_list('id', flat=True))
         logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(possible_lineups)} lineups.')
 
-        chunk_size = 1
+        chunk_size = 100
         chord([
             compare_lineups_h2h.si(possible_lineups[i:i+chunk_size], build.id) for i in range(0, len(possible_lineups), chunk_size)
         ], complete_h2h_workflow.si(task.id))()
