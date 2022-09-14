@@ -175,7 +175,6 @@ def simulate_game(game_id, task_id):
         else:
             dst_label = 'DST' 
 
-
         # set up correlation
         r_df = get_corr_matrix(game.slate.site)
         c_target = r_df.to_numpy()
@@ -802,7 +801,7 @@ def execute_h2h_workflow(build_id, task_id):
         slate_lineups = list(filters.SlateLineupFilter(build_filter, possible_lineups).qs.order_by('id').values_list('id', flat=True))
         logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(slate_lineups)} lineups.')
 
-        chunk_size = 10000
+        chunk_size = 5000
         chord([
             compare_lineups_h2h.si(slate_lineups[i:i+chunk_size], build.id) for i in range(0, len(slate_lineups), chunk_size)
         ], complete_h2h_workflow.si(task.id))()
@@ -819,13 +818,6 @@ def execute_h2h_workflow(build_id, task_id):
 @shared_task
 def compare_lineups_h2h(lineup_ids, build_id):
     build = models.FindWinnerBuild.objects.get(id=build_id)
-
-    # start = time.time()
-    # projections = build.slate.get_projections().filter(in_play=True).order_by('-slate_player__salary')
-    # player_outcomes = {}
-    # for p in projections:
-    #     player_outcomes[p.slate_player.player_id] = numpy.array(p.sim_scores)
-    # logger.info(f'Getting player outcomes took {time.time() - start}s')
 
     start = time.time()
     slate_lineups = models.SlateLineup.objects.filter(id__in=lineup_ids).order_by('id')
@@ -3215,6 +3207,78 @@ def process_build(build_id, task_id):
                             te = re.findall(r'\([0-9]*\)', row[7])[0].replace('(', '').replace(')', '')
                             flex = re.findall(r'\([0-9]*\)', row[8])[0].replace('(', '').replace(')', '')
                             dst = re.findall(r'\([0-9]*\)', row[9])[0].replace('(', '').replace(')', '')
+
+                            # score the lineup
+                            sim_scores = numpy.array(player_sim_scores[qb], dtype=numpy.float64) + numpy.array(player_sim_scores[rb1], dtype=numpy.float64) + numpy.array(player_sim_scores[rb2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr1], dtype=numpy.float64) + numpy.array(player_sim_scores[wr2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr3], dtype=numpy.float64) + numpy.array(player_sim_scores[te], dtype=numpy.float64) + numpy.array(player_sim_scores[flex], dtype=numpy.float64) + numpy.array(player_sim_scores[dst], dtype=numpy.float64)
+
+                            # find this lineup in all possible lineups
+                            slate_lineup = build.slate.possible_lineups.filter(
+                                qb__player_id=qb,
+                                rb1__player_id__in=[rb1, rb2, flex],
+                                rb2__player_id__in=[rb1, rb2, flex],
+                                wr1__player_id__in=[wr1, wr2, wr3, flex],
+                                wr2__player_id__in=[wr1, wr2, wr3, flex],
+                                wr3__player_id__in=[wr1, wr2, wr3, flex],
+                                te__player_id__in=[te, flex],
+                                flex__player_id__in=[rb1, rb2, wr1, wr2, wr3, te, flex],
+                                dst__player_id=dst
+                            )
+
+                            if slate_lineup.count() == 0:
+                                slate_lineup = models.SlateLineup.objects.create(
+                                    slate=build.slate,
+                                    qb=models.SlatePlayer.objects.get(player_id=qb),
+                                    rb1=models.SlatePlayer.objects.get(player_id=rb1),
+                                    rb2=models.SlatePlayer.objects.get(player_id=rb2),
+                                    wr1=models.SlatePlayer.objects.get(player_id=wr1),
+                                    wr2=models.SlatePlayer.objects.get(player_id=wr2),
+                                    wr3=models.SlatePlayer.objects.get(player_id=wr3),
+                                    te=models.SlatePlayer.objects.get(player_id=te),
+                                    flex=models.SlatePlayer.objects.get(player_id=flex),
+                                    dst=models.SlatePlayer.objects.get(player_id=dst)
+                                )
+                                slate_lineup.simulate()
+
+                                if slate_lineup.total_salary > build.slate.salary_thresholds[1]:
+                                    raise Exception(f'Lineup for {handle} exceeds salary cap.')
+                                
+                                slate_lineup.sim_scores = sim_scores.tolist()
+                                slate_lineup.save()
+
+                                slate_lineup = [slate_lineup]
+                            elif slate_lineup.count() > 1:
+                                raise Exception(f'There were {slate_lineup.count()} duplicate lineups found for {handle} among all possible lineups.')
+
+                            lineup = models.FieldLineupToBeat.objects.create(
+                                build=build,
+                                opponent_handle=handle,
+                                slate_lineup=slate_lineup[0]
+                            )
+
+                            lineup.median = numpy.median(sim_scores)
+                            lineup.s75 = numpy.percentile(sim_scores, 75)
+                            lineup.s90 = numpy.percentile(sim_scores, 90)
+                            lineup.save()
+        elif build.slate.site == 'fanduel':
+            # load field lineups, if any
+            if build.field_lineup_upload:
+                build.field_lineups_to_beat.all().delete()
+
+                with open(build.field_lineup_upload.path, mode='r') as lineups_file:
+                    csv_reader = csv.reader(lineups_file)
+
+                    for index, row in enumerate(csv_reader):
+                        if index > 0:  # skip header
+                            handle = row[0]
+                            qb = re.findall(r'[0-9-]*', row[1])[0].replace('(', '').replace(')', '')
+                            rb1 = re.findall(r'[0-9-]*', row[2])[0].replace('(', '').replace(')', '')
+                            rb2 = re.findall(r'[0-9-]*', row[3])[0].replace('(', '').replace(')', '')
+                            wr1 = re.findall(r'[0-9-]*', row[4])[0].replace('(', '').replace(')', '')
+                            wr2 = re.findall(r'[0-9-]*', row[5])[0].replace('(', '').replace(')', '')
+                            wr3 = re.findall(r'[0-9-]*', row[6])[0].replace('(', '').replace(')', '')
+                            te = re.findall(r'[0-9-]*', row[7])[0].replace('(', '').replace(')', '')
+                            flex = re.findall(r'[0-9-]*', row[8])[0].replace('(', '').replace(')', '')
+                            dst = re.findall(r'[0-9-]*', row[9])[0].replace('(', '').replace(')', '')
 
                             # score the lineup
                             sim_scores = numpy.array(player_sim_scores[qb], dtype=numpy.float64) + numpy.array(player_sim_scores[rb1], dtype=numpy.float64) + numpy.array(player_sim_scores[rb2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr1], dtype=numpy.float64) + numpy.array(player_sim_scores[wr2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr3], dtype=numpy.float64) + numpy.array(player_sim_scores[te], dtype=numpy.float64) + numpy.array(player_sim_scores[flex], dtype=numpy.float64) + numpy.array(player_sim_scores[dst], dtype=numpy.float64)

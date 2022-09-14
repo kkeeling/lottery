@@ -935,7 +935,7 @@ class SlatePlayerProjection(models.Model):
     median = models.FloatField(db_index=True, default=0.0)
     s75 = models.FloatField(db_index=True, default=0.0)
     s90 = models.FloatField(db_index=True, default=0.0)
-    in_play = models.BooleanField(default=True)
+    in_play = models.BooleanField(default=False)
     stack_only = models.BooleanField(default=False, verbose_name='SO', help_text='Player is only in pool when stacked with QB or opposing QB')
     qb_stack_only = models.BooleanField(default=False, verbose_name='SwQB', help_text='Generate QB stacks with this player')
     opp_qb_stack_only = models.BooleanField(default=False, verbose_name='SwOQB', help_text='Generate Opp QB stacks with this player')
