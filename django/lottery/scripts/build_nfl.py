@@ -156,7 +156,6 @@ def run():
 
         start = time.time()
         df_lineups['sim_scores'] = df_lineups.apply(lambda x: player_outcomes.get(str(x[0])) + player_outcomes.get(str(x[1])) + player_outcomes.get(str(x[2])) + player_outcomes.get(str(x[3])) + player_outcomes.get(str(x[4])) + player_outcomes.get(str(x[5])) + player_outcomes.get(str(x[6])) + player_outcomes.get(str(x[7])) + player_outcomes.get(str(x[8])), axis=1)
-        # df_lineups_sim_scores = df_lineups_sim_scores.apply(pd.to_numeric, downcast='float')
         print(f'Sim scores took {time.time() - start}s')
         print(df_lineups)
 

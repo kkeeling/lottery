@@ -1060,7 +1060,7 @@ def export_build_lineups(build_id, result_path, result_url, task_id):
             except:
                 winning_lineups = pandas.DataFrame([])
         elif build.build_type == 'se':
-            # H2h Lineups
+            # SE Lineups
             start = time.time()
             try:
                 winning_lineups = pandas.DataFrame.from_records(build.winning_lineups.all().order_by('-median').values(
@@ -1086,6 +1086,7 @@ def export_build_lineups(build_id, result_path, result_url, task_id):
             raise Exception(f'{build.build_type} is not yet supported.')
 
         logger.info(f'Lineups took {time.time() - start}s')
+        logger.info(winning_lineups)
 
         start = time.time()
         with pandas.ExcelWriter(result_path) as writer:
@@ -3407,7 +3408,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                 ceiling_projection = row[headers.column_ceiling_projection] if headers.column_ceiling_projection is not None and row[headers.column_ceiling_projection] != '' else 0.0
                 rush_att_projection = row[headers.column_rush_att_projection] if headers.column_rush_att_projection is not None and row[headers.column_rush_att_projection] != '' else 0.0
                 rec_projection = row[headers.column_rec_projection] if headers.column_rec_projection is not None and row[headers.column_rec_projection] != '' else 0.0
-                ownership_projection = float(row[headers.column_own_projection]) if headers.column_own_projection is not None and row[headers.column_own_projection] != '' else 0.0
+                ownership_projection = float(row[headers.column_own_projection]) if headers.column_own_projection is not None and row[headers.column_own_projection] != '' and row[headers.column_own_projection] != '-' else 0.0
 
                 if sheet.projection_site == 'etr':
                     ownership_projection /= 100.0
@@ -3449,7 +3450,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                                 floor=flr,
                                 ceiling=ceil,
                                 stdev=stdev,
-                                ownership_projection=float(ownership_projection),
+                                ownership_projection=float(ownership_projection) if float(ownership_projection) < 1.0 else float(ownership_projection)/100.0,
                                 adjusted_opportunity=float(rec_projection) * 2.75 + float(rush_att_projection) if sheet.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection)
                             )
                             
@@ -3529,11 +3530,11 @@ def handle_base_projections(chained_results, slate_id, task_id):
                 agg_floors = []
                 agg_ceils = []
                 agg_stds = []
+                agg_owns = []
                 for s in models.PROJECTION_WEIGHTS.keys():
                     try:
                         raw_proj = raw_projections.get(projection_site=s)
 
-                        # logger.info(f'  {raw_proj} -- {models.PROJECTION_WEIGHTS[s] * 100}')
                         for _ in range(0, int(models.PROJECTION_WEIGHTS[s] * 100)):
                             agg_projs.append(raw_proj.projection)
 
@@ -3548,6 +3549,10 @@ def handle_base_projections(chained_results, slate_id, task_id):
                         if raw_proj.stdev is not None:
                             for _ in range(0, int(models.PROJECTION_WEIGHTS[s] * 100)):
                                 agg_stds.append(raw_proj.stdev)
+
+                        if raw_proj.ownership_projection is not None:
+                            for _ in range(0, int(models.OWNERSHIP_PROJECTION_WEIGHTS[s] * 100)):
+                                agg_owns.append(raw_proj.ownership_projection)
                     except:
                         pass
                     
@@ -3555,12 +3560,14 @@ def handle_base_projections(chained_results, slate_id, task_id):
                     agg_floor = numpy.mean(agg_floors) if len(agg_floors) > 0 else 0.0
                     agg_ceil = numpy.mean(agg_ceils) if len(agg_ceils) > 0 else 0.0
                     agg_std = numpy.mean(agg_stds) if len(agg_stds) > 0 else 0.0
+                    agg_own = numpy.mean(agg_owns) if len(agg_owns) > 0 else 0.0
                 
                 projection.projection = agg_proj
                 projection.balanced_projection = agg_proj
                 projection.floor = agg_floor
                 projection.ceiling = agg_ceil
                 projection.stdev = agg_std
+                projection.ownership_projection = agg_own
                 projection.adjusted_opportunity=ao_projection.adjusted_opportunity if ao_projection is not None else 0.0
                 projection.in_play = slate.in_play_criteria.meets_threshold(projection)
                 projection.save()
@@ -3626,8 +3633,9 @@ def process_ownership_sheet(chained_results, sheet_id, task_id):
                         )
 
                         if ownership_projection is not None and ownership_projection != '':
-                            (projection, created) = models.SlatePlayerProjection.objects.get_or_create(
+                            (projection, _) = models.SlatePlayerRawProjection.objects.get_or_create(
                                 slate_player=slate_player,
+                                projection_site=sheet.slate.site
                             )
 
                             ownership_projection = float(ownership_projection) / 100.0

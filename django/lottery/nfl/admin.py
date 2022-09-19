@@ -801,12 +801,12 @@ class SlateAdmin(admin.ModelAdmin):
                         name='Process Base Projections',
                         user=request.user
                 ).id),
-                group([
-                    tasks.process_ownership_sheet.s(s.id, BackgroundTask.objects.create(
-                        name=f'Process Ownership Projections from {s.projection_site}',
-                        user=request.user
-                    ).id) for s in slate.ownership_projections_sheets.all()
-                ]),
+                # group([
+                #     tasks.process_ownership_sheet.s(s.id, BackgroundTask.objects.create(
+                #         name=f'Process Ownership Projections from {s.projection_site}',
+                #         user=request.user
+                #     ).id) for s in slate.ownership_projections_sheets.all()
+                # ]),
                 tasks.assign_zscores_to_players.s(slate.id, BackgroundTask.objects.create(
                         name='Assign Z-Scores to Players',
                         user=request.user

@@ -78,6 +78,11 @@ PROJECTION_WEIGHTS = {
     'etr': 0.40,
 }
 
+OWNERSHIP_PROJECTION_WEIGHTS = {
+    'rg': 0.50,
+    'etr': 0.50,
+}
+
 RANK_BY_CHOICES = (
     ('projection', 'Projection'),
     ('median', 'Median'),
