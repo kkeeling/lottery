@@ -2033,7 +2033,7 @@ def create_slate_lineups(slate_id, task_id):
         df_lineups = df_lineups.apply(pandas.to_numeric, downcast='unsigned')
         logger.info(f'Salary took {time.time() - start}s')
         start = time.time()
-        df_lineups = df_lineups[(df_lineups.total_salary <= 50000) & (df_lineups.total_salary >= 48000)]
+        df_lineups = df_lineups[(df_lineups.total_salary <= 50000) & (df_lineups.total_salary >= 38500)]
         logger.info(f'Filtering took {time.time() - start}s.')
         start = time.time()
 
