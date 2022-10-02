@@ -378,11 +378,9 @@ header {
                     .done(function(response) {
                         projection_table.rows.add(response.results).draw();
 
-                        /*
                         if (response.next != null) {
                             fetchProjections(page+1)
                         }
-                        */
                     });
                 }
 
