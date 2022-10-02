@@ -117,6 +117,7 @@ class BuildPlayerProjectionSerializer(serializers.ModelSerializer):
             'opp_qb_stack_only',
             'disallow_ministack',
             'use_as_antileverage',
+            'exposure',
         )
 
     def get_etr_projection(self, obj):
