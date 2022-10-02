@@ -662,7 +662,8 @@ class SlateAdmin(admin.ModelAdmin):
         'get_num_games',
         'get_players_link',
         'get_lineups_link',
-        'get_builds_link',
+        'get_mme_builds_link',
+        'get_h2h_builds_link',
         'sim_button',
         'make_lineups_button',
         'export_button',
@@ -850,11 +851,17 @@ class SlateAdmin(admin.ModelAdmin):
         return mark_safe('<a href="/admin/nfl/slatelineup/?slate__id={}">Lineups</a>'.format(obj.id))
     get_lineups_link.short_description = 'Lineups'
 
-    def get_builds_link(self, obj):
+    def get_mme_builds_link(self, obj):
         if obj.players.all().count() > 0:
-            return mark_safe('<a href="/admin/nfl/findwinnerbuild/?slate__id={}">Builds</a>'.format(obj.id))
+            return mark_safe('<a href="/admin/nfl/slatebuild/?slate__id={}">MME</a>'.format(obj.id))
         return 'None'
-    get_builds_link.short_description = 'Builds'
+    get_mme_builds_link.short_description = 'MME'
+
+    def get_h2h_builds_link(self, obj):
+        if obj.players.all().count() > 0:
+            return mark_safe('<a href="/admin/nfl/findwinnerbuild/?slate__id={}">H2H/Cash/SE</a>'.format(obj.id))
+        return 'None'
+    get_h2h_builds_link.short_description = 'H2H/Cash/SE'
 
     def process_slates(self, request, queryset):
         for slate in queryset:
@@ -3416,41 +3423,41 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_salary',
         'get_player_position',
         'get_player_team',
-        'get_player_opponent',
+        # 'get_player_opponent',
         'get_player_game',
         'get_player_game_z',
         'projection',
         'get_player_zscore',
         'get_ceiling',
         'get_4for4_proj',
-        'get_etr_proj',
-        'get_median_sim_score',
-        'get_exposure',
-        'get_ownership_projection',
-        'get_etr_ownership_projection',
-        'get_ss_ownership_projection',
-        'get_rg_ownership_projection',
-        'get_player_ao',
-        'get_player_ao_zscore',
-        'value',
+        # 'get_etr_proj',
+        # 'get_median_sim_score',
+        # 'get_exposure',
+        # 'get_ownership_projection',
+        # 'get_etr_ownership_projection',
+        # 'get_ss_ownership_projection',
+        # 'get_rg_ownership_projection',
+        # 'get_player_ao',
+        # 'get_player_ao_zscore',
+        # 'value',
         'balanced_projection',
         'balanced_value',
         'rb_group',
-        'get_game_total',
-        'get_team_total',
-        'get_spread',
-        'get_num_pass_catchers',
+        # 'get_game_total',
+        # 'get_team_total',
+        # 'get_spread',
+        # 'get_num_pass_catchers',
         'in_play',
         'stack_only',
         'qb_stack_only',
         'opp_qb_stack_only',
         'disallow_ministack',
         'use_as_antileverage',
-        'locked',
-        'min_exposure',
-        'max_exposure',
-        'get_actual_score',
-        'get_actual_ownership'
+        # 'locked',
+        # 'min_exposure',
+        # 'max_exposure',
+        # 'get_actual_score',
+        # 'get_actual_ownership'
     )
     list_editable = (
         'in_play',
@@ -3462,9 +3469,9 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
         'opp_qb_stack_only',
         'disallow_ministack',
         'use_as_antileverage',
-        'min_exposure',
-        'max_exposure',
-        'locked',
+        # 'min_exposure',
+        # 'max_exposure',
+        # 'locked',
     )
     search_fields = ('slate_player__name',)
     list_filter = (
@@ -3491,12 +3498,16 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     change_list_template = 'admin/nfl/build_player_projection_changelist.html'
 
     def get_queryset(self, request):
-        qs = super().get_queryset(request).select_related('slate_player__projection')
+        qs = super().get_queryset(request)
         qs = qs.annotate(
             slate=F('slate_player__slate'), 
             site_pos=F('slate_player__site_pos'), 
             player_salary=F('slate_player__salary'),
-            actual_own=F('slate_player__ownership'),       
+            actual_own=F('slate_player__ownership'),   
+            player_game=F('slate_player__slate_game__game'),
+            home_team=F('slate_player__slate_game__game__home_team'),
+            away_team=F('slate_player__slate_game__game__away_team'),
+            game_z=F('slate_player__slate_game__zscore'),
         )
         # qs = qs.annotate(
         #     player_value=ExpressionWrapper(F('projection')/(F('player_salary')/1000), output_field=FloatField())
@@ -3549,12 +3560,12 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
     get_player_opponent.short_description = 'Opp'
 
     def get_player_game(self, obj):
-        game = obj.slate_player.slate_game
+        game = obj.player_game
         if game is None:
             return None
-        return mark_safe('<a href="/admin/nfl/game/{}/">{}@{}</a>'.format(game.game.id, game.game.away_team, game.game.home_team))
+        return mark_safe('<a href="/admin/nfl/game/{}/">{}@{}</a>'.format(obj.player_game, obj.away_team, obj.home_team))
     get_player_game.short_description = 'Game'
-    get_player_game.admin_order_field = 'slate_player__slate_game'
+    get_player_game.admin_order_field = 'player_game'
 
     def get_player_zscore(self, obj):
         proj = obj.slate_player.projection
@@ -3598,11 +3609,11 @@ class BuildPlayerProjectionAdmin(admin.ModelAdmin):
 
     def get_player_game_z(self, obj):
         game = obj.slate_player.slate_game
-        if game is None or game.zscore is None:
+        if obj.game_z is None:
             return None
-        return '{:.2f}'.format(game.zscore)
+        return '{:.2f}'.format(obj.game_z)
     get_player_game_z.short_description = 'Game-z'
-    get_player_game_z.admin_order_field = 'slate_player__slate_game__zscore'
+    get_player_game_z.admin_order_field = 'game_z'
 
     def get_game_total(self, obj):
         return obj.game_total

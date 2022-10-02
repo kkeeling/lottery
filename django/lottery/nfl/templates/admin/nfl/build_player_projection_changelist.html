@@ -1,9 +1,13 @@
 {% extends "admin/change_list.html" %}
-{% load i18n admin_static admin_list %}
+{% load i18n static admin_static admin_list %}
 {% load slate_build %}
 
 {% block extrastyle %}
 {{ block.super }}
+<!-- Include the core CSS, this is needed by the grid -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/jqc-1.12.4/dt-1.12.1/b-2.2.3/sl-1.4.0/datatables.min.css"/>
+<link rel="stylesheet" type="text/css" href="{% static 'admin/css/editor.dataTables.css' %}">
+ 
 <style type="text/css">
 header {
     text-align: center;
@@ -23,64 +27,459 @@ header {
 </style>
 {% endblock %}
 
-{% block object-tools %}
-{% if build %}
-    <script type="text/javascript">
-    $(document).ready(function() {
-        var site = "{{ build.slate.site }}";
+{% block extrahead %}
+{{ block.super }}
+<script type="text/javascript" src="https://cdn.datatables.net/v/dt/jqc-1.12.4/dt-1.12.1/b-2.2.3/sl-1.4.0/datatables.min.js"></script>
+<script type="text/javascript" src="{% static 'admin/js/dataTables.editor.js' %}"></script>
 
-        $("input[name$='balanced_projection']" ).change(function() {
-            var elementName = $(this).attr('name');
-            var otherElementName = elementName.replace('balanced_projection', 'balanced_value');
+{% endblock %}
 
-            var balancedProjection = $(this).val();
-            var salary = $(this).parent().parent().find(".field-get_player_salary").text();
-            var otherElement = $("input[name='" + otherElementName + "']" );
+{% block content %}
+    {% block object-tools %}
+    {% if build %}
+        <script type="text/javascript">
+            $(document).ready(function() {
+                var site = "{{ build.slate.site }}";
+
+                editor = new $.fn.dataTable.Editor( {
+                    ajax: function ( method, url, data, success, error ) {
+                        let id = Object.getOwnPropertyNames(data.data)[0];
+                        let jsonData = data.data[id];
+
+                        $.ajax( {
+                            type: "PUT",
+                            url:  `/api/nfl/build-player-projection/${id}/`,
+                            data: jsonData,
+                            dataType: "json",
+                            success: function (json) {
+                                success( json );
+                            },
+                            error: function (xhr, error, thrown) {
+                                error( xhr, error, thrown );
+                            }
+                        } );
+                    },
+                    table: "#example",
+                    idSrc:  'id',
+                    fields: [ {
+                            label: "Balanced Projection:",
+                            name: "balanced_projection"
+                        }, {
+                            label: "Balanced Value:",
+                            name: "balanced_value"
+                        }, {
+                            label: "In Play:",
+                            name: "in_play",
+                            type: "checkbox",
+                            separator: "",
+                            options:   [
+                                { label: '', value: true }
+                            ],
+                            unselectedValue: false
+                        }, {
+                            label: "Stack Only:",
+                            name: "stack_only",
+                            type: "checkbox",
+                            separator: "",
+                            options:   [
+                                { label: '', value: true }
+                            ],
+                            unselectedValue: false
+                        }, {
+                            label: "Stack w/ QB:",
+                            name: "qb_stack_only",
+                            type: "checkbox",
+                            separator: "",
+                            options:   [
+                                { label: '', value: true }
+                            ],
+                            unselectedValue: false
+                        }, {
+                            label: "Stack w/ Opp. QB:",
+                            name: "opp_qb_stack_only",
+                            type: "checkbox",
+                            separator: "",
+                            options:   [
+                                { label: '', value: true }
+                            ],
+                            unselectedValue: false
+                        }, {
+                            label: "Disallow Mini-Stack:",
+                            name: "disallow_ministack",
+                            type: "checkbox",
+                            separator: "",
+                            options:   [
+                                { label: '', value: true }
+                            ],
+                            unselectedValue: false
+                        }, {
+                            label: "Use As Anti-Leverage:",
+                            name: "use_as_antileverage",
+                            type: "checkbox",
+                            separator: "",
+                            options:   [
+                                { label: '', value: true }
+                            ],
+                            unselectedValue: false
+                        }
+                    ]
+                } );
+
+                // Activate an inline edit on click of a table cell
+                /*
+                $('#example').on( 'click', 'tbody td:not(:first-child)', function (e) {
+                    editor.inline( this, {
+                        buttons: { label: '&gt;', fn: function () { this.submit(); } }
+                    } );
+                } );
+                */
             
-            var value;
-            if (site == "yahoo") {
-                value = (balancedProjection/salary).toFixed(4);
-            } else {
-                value = (balancedProjection/(salary/1000)).toFixed(4);
-            }
-            otherElement.val(value);
-        });
+                var projection_table = $('#example').DataTable( {
+                    createdRow: function(row, data, dataIndex) {
+                        this.api()
+                            .columns()
+                            .every(function () {
+                                var column = this;
+                                if (column.index() == 2 || column.index() == 5) {
+                                    var select = $('<select><option value=""></option></select>')
+                                        .appendTo($(column.header()).empty())
+                                        .on('change', function () {
+                                            var val = $.fn.dataTable.util.escapeRegex($(this).val());
+                
+                                            column.search(val ? '^' + val + '$' : '', true, false).draw();
+                                        });
+                
+                                    column
+                                        .data()
+                                        .unique()
+                                        .sort()
+                                        .each(function (d, j) {
+                                            select.append('<option value="' + d + '">' + d + '</option>');
+                                        });
+                                }
+                            });
+                    },
+                    dom: "Bfrtip",
+                    processing: true,
+                    lengthMenu: [
+                        [-1, 25, 50, 100],
+                        ['All', 25, 50, 100],
+                    ],
+                    order: [[ 4, 'desc' ]],
+                    columns: [
+                        {
+                            data: null,
+                            defaultContent: '',
+                            className: 'select-checkbox',
+                            orderable: false
+                        },
+                        { data: "slate_player.name" },
+                        { data: "slate_player.site_pos" },
+                        { data: "slate_player.team" },
+                        { 
+                            data: "slate_player.salary",
+                            render: function ( data, type, row ) {
+                                if ( type === 'display' ) {
+                                    return `<div id="${row.id}_salary">`;
+                                }
+                                return data;
+                            },
+                        },
+                        //{ data: "slate_player.salary", render: $.fn.dataTable.render.number( ',', '.', 0, '$' )},
+                        { data: "slate_player.slate_game.display_text" },
+                        { data: "slate_player.slate_game.zscore" },
+                        { data: "slate_player.projection.projection" },
+                        { data: "slate_player.projection.zscore" },
+                        { data: "slate_player.projection.ceiling" },
+                        { data: "etr_projection" },
+                        { data: "awesemo_projection" },
+                        { data: "rg_projection" },
+                        { data: "slate_player.projection.ownership_projection" },
+                        { data: "etr_ownership" },
+                        { data: "awesemo_ownership" },
+                        { data: "rg_ownership" },
+                        { data: "slate_player.projection.adjusted_opportunity" },
+                        { data: "slate_player.projection.ao_zscore" },
+                        { 
+                            data: "balanced_projection",
+                            render: function ( data, type, row ) {
+                                if ( type === 'display' ) {
+                                    return `<input class="editor-active" style="width: 50px;" id="${row.id}_balanced_projection" name="balanced_projection">`;
+                                }
+                                return data;
+                            },
+                        },
+                        { 
+                            data: "balanced_value",
+                            render: function ( data, type, row ) {
+                                if ( type === 'display' ) {
+                                    return `<input class="editor-active" style="width: 40px;" id="${row.id}_balanced_value" name="balanced_value">`;
+                                }
+                                return data;
+                            },
+                        },
+                        { data: "rb_group" },
+                        { 
+                            data: "in_play",
+                            render: function ( data, type, row ) {
+                                if ( type === 'display' ) {
+                                    return `<input type="checkbox" class="editor-active" id="${row.id}_in_play">`;
+                                }
+                                return data;
+                            },
+                        },
+                        { 
+                            data: "stack_only",
+                            render: function ( data, type, row ) {
+                                if ( type === 'display' ) {
+                                    return `<input type="checkbox" class="editor-active" id="${row.id}_stack_only">`;
+                                }
+                                return data;
+                            },
+                        },
+                        { 
+                            data: "qb_stack_only",
+                            render: function ( data, type, row ) {
+                                if ( type === 'display' ) {
+                                    return `<input type="checkbox" class="editor-active" id="${row.id}_swqb">`;
+                                }
+                                return data;
+                            },
+                        },
+                        { 
+                            data: "opp_qb_stack_only",
+                            render: function ( data, type, row ) {
+                                if ( type === 'display' ) {
+                                    return `<input type="checkbox" class="editor-active" id="${row.id}_swoqb">`;
+                                }
+                                return data;
+                            },
+                        },
+                        { 
+                            data: "disallow_ministack",
+                            render: function ( data, type, row ) {
+                                if ( type === 'display' ) {
+                                    return `<input type="checkbox" class="editor-active" id="${row.id}_no_mini">`;
+                                }
+                                return data;
+                            },
+                        },
+                        { 
+                            data: "use_as_antileverage",
+                            render: function ( data, type, row ) {
+                                if ( type === 'display' ) {
+                                    return `<input type="checkbox" class="editor-active" id="${row.id}_anti_lev">`;
+                                }
+                                return data;
+                            },
+                        },
+                    ],
+                    select: {
+                        style:    'os',
+                        selector: 'td:first-child'
+                    },
+                    buttons: [
+                        { extend: "edit",   editor: editor },
+                    ],
+                    rowCallback: function ( row, data ) {
+                        // Set the checked state of the checkbox in the table
+                        $(`#${data.id}_salary`, row).text( data.slate_player.salary );
+                        $(`#${data.id}_balanced_projection`, row).prop( 'value', data.balanced_projection );
+                        $(`#${data.id}_balanced_value`, row).prop( 'value', data.balanced_value );
+                        $(`#${data.id}_in_play`, row).prop( 'checked', data.in_play == 1 );
+                        $(`#${data.id}_stack_only`, row).prop( 'checked', data.stack_only == 1 );
+                        $(`#${data.id}_swqb`, row).prop( 'checked', data.qb_stack_only == 1 );
+                        $(`#${data.id}_swoqb`, row).prop( 'checked', data.opp_qb_stack_only == 1 );
+                        $(`#${data.id}_no_mini`, row).prop( 'checked', data.disallow_ministack == 1 );
+                        $(`#${data.id}_anti_lev`, row).prop( 'checked', data.use_as_antileverage == 1 );
+                    }
+                } );
+                
+                $('#example').on( 'change', 'input.editor-active', function () {
+                    var rowId = this.id.split('_')[0];
+                    var balancedProjection = $(`#${rowId}_balanced_projection`).prop( 'value' );
+                    var balancedValue = $(`#${rowId}_balanced_value`).prop( 'value' );
+                    var salary = $(`#${rowId}_salary`).text();
+                    var value;
 
-        $("input[name$='balanced_value']" ).change(function() {
-            var elementName = $(this).attr('name');
-            var otherElementName = elementName.replace('balanced_value', 'balanced_projection');
+                    if (this.id == `${rowId}_balanced_projection`) {
+                        if (site == "yahoo") {
+                            value = (balancedProjection/salary).toFixed(4);
+                        } else {
+                            value = (balancedProjection/(salary/1000)).toFixed(4);
+                        }
 
-            var balancedValue = $(this).val();
-            var salary = $(this).parent().parent().find(".field-get_player_salary").text();
-            var otherElement = $("input[name='" + otherElementName + "']" );
+                        $(`#${rowId}_balanced_value`).prop( 'value', value );
+                    } else if (this.id == `${rowId}_balanced_value`) {
+                        if (site == "yahoo") {
+                            projection = (balancedValue * salary).toFixed(4);
+                        } else {
+                            projection = (balancedValue * (salary/1000)).toFixed(4);
+                        }
 
-            var projection;
-            if (site == "yahoo") {
-                projection = (balancedValue * salary).toFixed(4);
-            } else {
-                projection = (balancedValue * (salary/1000)).toFixed(4);
-            }
-            otherElement.val(projection);
-        });
-    });
-    
-    </script>
-    <header class="header">
-        <h1>{{ build.slate.week }}</h1>
-        <h2>Status: {{ build.status }}
-        <h2>Progress: {{ build.pct_complete|to_percent:2 }}
-    </header>
-    <section class="dashboard-section">
-        <div class="action">{{ build.prepare_projections_button }}</div>
-        <div class="action">{{ build.prepare_construction_button }}</div>
-        <div class="action">{{ build.flatten_exposure_button }}</div>
-        <div class="action">{{ build.build_button }}</div>
-        <div class="action">{{ build.export_button }}</div>
-        <div class="action"><a href="/admin/nfl/slatebuildtopstack/?build__id__exact={{ build.id }}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Top Stacks</a></div>
-        <div class="action"><a href="/admin/nfl/slatebuildstack/?build__id__exact={{ build.id }}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Stacks</a></div>
-        <div class="action"><a href="/admin/nfl/slatebuildgroup/?build__id__exact={{ build.id }}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Groups</a></div>
-        <div class="action"><a href="/admin/nfl/slatebuildlineup/?build__id__exact={{ build.id }}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Lineups</a></div>
-    </section>
-{% endif %}
-    {{ block.super }}
+                        $(`#${rowId}_balanced_projection`).prop( 'value', projection );
+                    }
+
+                    editor
+                        .edit( $(this).closest('tr'), false )
+                        .set( 'balanced_projection', $(`#${rowId}_balanced_projection`).prop( 'value' ) )
+                        .set( 'balanced_value', $(`#${rowId}_balanced_value`).prop( 'value' ) )
+                        .set( 'in_play', $(`#${rowId}_in_play`).prop( 'checked' ) ? 1 : 0 )
+                        .set( 'stack_only', $(`#${rowId}_stack_only`).prop( 'checked' ) ? 1 : 0 )
+                        .set( 'qb_stack_only', $(`#${rowId}_swqb`).prop( 'checked' ) ? 1 : 0 )
+                        .set( 'opp_qb_stack_only', $(`#${rowId}_swoqb`).prop( 'checked' ) ? 1 : 0 )
+                        .set( 'disallow_ministack', $(`#${rowId}_no_mini`).prop( 'checked' ) ? 1 : 0 )
+                        .set( 'use_as_antileverage', $(`#${rowId}_anti_lev`).prop( 'checked' ) ? 1 : 0 )
+                        .submit();
+                } );
+                
+                /*
+                editor.dependent( ['balanced_projection'], function( val, data, callback, e ) {
+                    var balanced_projection = val;
+                    var salary = data.row.slate_player.salary
+                    var value;
+
+                    if (site == "yahoo") {
+                        value = (balanced_projection/salary).toFixed(4);
+                    } else {
+                        value = (balanced_projection/(salary/1000)).toFixed(4);
+                    }
+
+                    $('#balanced_value', data.row).prop( 'value', value );
+
+                    editor
+                        .edit(data.row, false)
+                        .set( 'balanced_value', value)
+                        .submit();
+
+                    callback(true);
+                } );  
+
+                $("#balanced_projection" ).change(function() {
+                    var elementName = $(this).attr('name');
+                    var otherElementName = elementName.replace('balanced_projection', 'balanced_value');
+
+                    var balancedProjection = $(this).val();
+                    var salary = $(this).parent().parent().find(".field-get_player_salary").text();
+                    var otherElement = $("input[name='" + otherElementName + "']" );
+                    
+                    var value;
+                    if (site == "yahoo") {
+                        value = (balancedProjection/salary).toFixed(4);
+                    } else {
+                        value = (balancedProjection/(salary/1000)).toFixed(4);
+                    }
+                    otherElement.val(value);
+                });
+                */
+
+                function fetchProjections(page) {
+                    $.getJSON(`/api/nfl/slate-build/{{ build.id }}/projections/?page=${page}`)
+                    .done(function(response) {
+                        projection_table.rows.add(response.results).draw();
+
+                        /*
+                        if (response.next != null) {
+                            fetchProjections(page+1)
+                        }
+                        */
+                    });
+                }
+
+                /*
+                $('#example').on( 'click', 'tbody td:not(:first-child)', function (e) {
+                    editor.inline( this );
+                } );
+                */
+
+                fetchProjections(1);
+            });
+        
+        </script>
+        <header class="header">
+            <h1>{{ build.slate.week }}</h1>
+            <h2>Status: {{ build.status }}
+            <h2>Progress: {{ build.pct_complete|to_percent:2 }}
+        </header>
+        <section class="dashboard-section">
+            <div class="action">{{ build.prepare_projections_button }}</div>
+            <div class="action">{{ build.prepare_construction_button }}</div>
+            <div class="action">{{ build.flatten_exposure_button }}</div>
+            <div class="action">{{ build.build_button }}</div>
+            <div class="action">{{ build.export_button }}</div>
+            <div class="action"><a href="/admin/nfl/slatebuildtopstack/?build__id__exact={{ build.id }}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Top Stacks</a></div>
+            <div class="action"><a href="/admin/nfl/slatebuildstack/?build__id__exact={{ build.id }}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Stacks</a></div>
+            <div class="action"><a href="/admin/nfl/slatebuildgroup/?build__id__exact={{ build.id }}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Groups</a></div>
+            <div class="action"><a href="/admin/nfl/slatebuildlineup/?build__id__exact={{ build.id }}" class="link" style="color: #ffffff; background-color: #4fb2d3; font-weight: bold; padding: 10px 15px;">Lineups</a></div>
+        </section>
+    {% endif %}
+        {{ block.super }}
+    {% endblock %}
+
+    <table id="example" class="display" cellspacing="0" width="100%">
+        <thead>
+            <tr>
+                <th></th>
+                <th>Name</th>
+                <th>Pos</th>
+                <th>Tm</th>
+                <th>Sal</th>
+                <th>Gm</th>
+                <th>GmZ</th>
+                <th>Proj</th>
+                <th>Z</th>
+                <th>Ceil</th>
+                <th>ETR</th>
+                <th>A</th>
+                <th>RG</th>
+                <th>OP</th>
+                <th>ETR-OP</th>
+                <th>A-OP</th>
+                <th>RG-OP</th>
+                <th>AO</th>
+                <th>AoZ</th>
+                <th>BP</th>
+                <th>BPV</th>
+                <th>RBG</th>
+                <th>Play</th>
+                <th>SO</th>
+                <th>SwQb</th>
+                <th>SwOppQb</th>
+                <th>No-Mini</th>
+                <th>Anti-Lev</th>
+            </tr>
+        </thead>
+        <tfoot>
+            <tr>
+                <th></th>
+                <th>Name</th>
+                <th>Pos</th>
+                <th>Tm</th>
+                <th>Sal</th>
+                <th>Gm</th>
+                <th>GmZ</th>
+                <th>Proj</th>
+                <th>Z</th>
+                <th>Ceil</th>
+                <th>ETR</th>
+                <th>A</th>
+                <th>RG</th>
+                <th>OP</th>
+                <th>ETR-OP</th>
+                <th>A-OP</th>
+                <th>RG-OP</th>
+                <th>AO</th>
+                <th>AoZ</th>
+                <th>BP</th>
+                <th>BPV</th>
+                <th>RBG</th>
+                <th>Play</th>
+                <th>SO</th>
+                <th>SwQb</th>
+                <th>SwOppQb</th>
+                <th>No-Mini</th>
+                <th>Anti-Lev</th>
+            </tr>
+        </tfoot>
+    </table>
 {% endblock %}

@@ -3,8 +3,12 @@ from django.db.models.expressions import ExpressionWrapper
 from django.db.models.fields import FloatField
 from django.db.models import F, Case, When
 from django.shortcuts import get_object_or_404, render
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework import viewsets
 
-from . import models
+from . import models, serializers
+
 
 def slate_build(request):
     build_id = request.GET.get('build')
@@ -34,3 +38,31 @@ def slate_build(request):
         'dsts': dsts
     }
     return render(request, 'admin/nfl/build.html', data)
+
+
+class SlateBuildViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.SlateBuildSerializer
+    queryset = models.SlateBuild.objects.all()
+    authentication_classes = []
+    permission_classes = []
+
+    @action(methods=['get'], detail=True, permission_classes=[])
+    def projections(self, request, pk=None):
+        build = models.SlateBuild.objects.get(id=pk)
+        queryset = build.projections.filter(projection__gt=4.99)
+        serializer = serializers.BuildPlayerProjectionSerializer(build.projections.all(), many=True)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = serializers.BuildPlayerProjectionSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = serializers.BuildPlayerProjectionSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class BuildPlayerProjectionViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.BuildPlayerProjectionSerializer
+    queryset = models.BuildPlayerProjection.objects.all()
+    authentication_classes = []
+    permission_classes = []
