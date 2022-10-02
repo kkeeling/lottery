@@ -9,21 +9,33 @@
 <link rel="stylesheet" type="text/css" href="{% static 'admin/css/editor.dataTables.css' %}">
  
 <style type="text/css">
-header {
-    text-align: center;
-}
-.table { display:table; }
-.row   { display:table-row; }
-.cell  { display:table-cell; border:1px solid black; padding:3px; width:110px; }
-.exposure {
-    display: inline-block;
-    margin-right: 20px;
-}
-.action {
-    display: inline-block;
-    margin: 20px;
-}
-.value  { width:50px; }
+    header {
+        text-align: center;
+    }
+    .table { display:table; }
+    .row   { display:table-row; }
+    .cell  { display:table-cell; border:1px solid black; padding:3px; width:110px; }
+    .exposure {
+        display: inline-block;
+        margin-right: 20px;
+    }
+    .action {
+        display: inline-block;
+        margin: 20px;
+    }
+    .value  { width:50px; }
+    .progress {
+        margin: auto;
+        width: 100px;
+        height: 100px;
+        position: relative;
+    }
+
+    .progress > svg {
+        height: 100%;
+        display: block;
+    }
+
 </style>
 {% endblock %}
 
@@ -31,6 +43,7 @@ header {
 {{ block.super }}
 <script type="text/javascript" src="https://cdn.datatables.net/v/dt/jqc-1.12.4/dt-1.12.1/b-2.2.3/sl-1.4.0/datatables.min.js"></script>
 <script type="text/javascript" src="{% static 'admin/js/dataTables.editor.js' %}"></script>
+<script type="text/javascript" src="{% static 'admin/js/progressbar.js' %}"></script>
 
 {% endblock %}
 
@@ -40,6 +53,36 @@ header {
         <script type="text/javascript">
             $(document).ready(function() {
                 var site = "{{ build.slate.site }}";
+
+                var bar = new ProgressBar.Circle(progress, {
+                color: '#aaa',
+                // This has to be the same size as the maximum width to
+                // prevent clipping
+                strokeWidth: 4,
+                trailWidth: 1,
+                easing: 'easeInOut',
+                duration: 1400,
+                text: {
+                    autoStyleContainer: false
+                },
+                from: { color: '#aaa', width: 1 },
+                to: { color: '#333', width: 4 },
+                // Set default step function for all animate calls
+                step: function(state, circle) {
+                    circle.path.setAttribute('stroke', state.color);
+                    circle.path.setAttribute('stroke-width', state.width);
+
+                    var value = Math.round(circle.value() * 100);
+                    if (value === 0) {
+                        circle.setText('');
+                    } else {
+                        circle.setText(value);
+                    }
+
+                    }
+                });
+                bar.text.style.fontFamily = '"Raleway", Helvetica, sans-serif';
+                bar.text.style.fontSize = '2rem';
 
                 editor = new $.fn.dataTable.Editor( {
                     ajax: function ( method, url, data, success, error ) {
@@ -273,6 +316,7 @@ header {
                                 return data;
                             },
                         },
+                        { data: "slate_player.fantasy_points" },
                     ],
                     select: {
                         style:    'os',
@@ -332,63 +376,24 @@ header {
                         .set( 'use_as_antileverage', $(`#${rowId}_anti_lev`).prop( 'checked' ) ? 1 : 0 )
                         .submit();
                 } );
-                
-                /*
-                editor.dependent( ['balanced_projection'], function( val, data, callback, e ) {
-                    var balanced_projection = val;
-                    var salary = data.row.slate_player.salary
-                    var value;
-
-                    if (site == "yahoo") {
-                        value = (balanced_projection/salary).toFixed(4);
-                    } else {
-                        value = (balanced_projection/(salary/1000)).toFixed(4);
-                    }
-
-                    $('#balanced_value', data.row).prop( 'value', value );
-
-                    editor
-                        .edit(data.row, false)
-                        .set( 'balanced_value', value)
-                        .submit();
-
-                    callback(true);
-                } );  
-
-                $("#balanced_projection" ).change(function() {
-                    var elementName = $(this).attr('name');
-                    var otherElementName = elementName.replace('balanced_projection', 'balanced_value');
-
-                    var balancedProjection = $(this).val();
-                    var salary = $(this).parent().parent().find(".field-get_player_salary").text();
-                    var otherElement = $("input[name='" + otherElementName + "']" );
-                    
-                    var value;
-                    if (site == "yahoo") {
-                        value = (balancedProjection/salary).toFixed(4);
-                    } else {
-                        value = (balancedProjection/(salary/1000)).toFixed(4);
-                    }
-                    otherElement.val(value);
-                });
-                */
 
                 function fetchProjections(page) {
                     $.getJSON(`/api/nfl/slate-build/{{ build.id }}/projections/?page=${page}`)
                     .done(function(response) {
                         projection_table.rows.add(response.results).draw();
 
+                        var count = response.count;
+                        var completePct = Math.min(page * 25 / count, 1.0);
+
+                        bar.animate(completePct);
+
                         if (response.next != null) {
                             fetchProjections(page+1)
+                        } else {
+                            $('#status').text('Status: Projections Loaded')
                         }
                     });
                 }
-
-                /*
-                $('#example').on( 'click', 'tbody td:not(:first-child)', function (e) {
-                    editor.inline( this );
-                } );
-                */
 
                 fetchProjections(1);
             });
@@ -396,8 +401,8 @@ header {
         </script>
         <header class="header">
             <h1>{{ build.slate.week }}</h1>
-            <h2>Status: {{ build.status }}
-            <h2>Progress: {{ build.pct_complete|to_percent:2 }}
+            <h2 id="status">Status: Loading Projections</h2>
+            <div class="progress" id="progress"></div>
         </header>
         <section class="dashboard-section">
             <div class="action">{{ build.prepare_projections_button }}</div>
@@ -445,6 +450,7 @@ header {
                 <th>SwOppQb</th>
                 <th>No-Mini</th>
                 <th>Anti-Lev</th>
+                <th>Actual</th>
             </tr>
         </thead>
         <tfoot>
@@ -477,6 +483,7 @@ header {
                 <th>SwOppQb</th>
                 <th>No-Mini</th>
                 <th>Anti-Lev</th>
+                <th>Actual</th>
             </tr>
         </tfoot>
     </table>
