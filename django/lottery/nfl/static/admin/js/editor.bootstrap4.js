@@ -1,6 +1,6 @@
 
 /*! Bootstrap integration for DataTables' Editor
- * ©2015 SpryMedia Ltd - datatables.net/license
+ * © SpryMedia Ltd - datatables.net/license
  */
 
 (function( factory ){
@@ -46,40 +46,7 @@
 var DataTable = $.fn.dataTable;
 
 
-
-(function( factory ){
-	if ( typeof define === 'function' && define.amd ) {
-		// AMD
-		define( ['jquery', 'datatables.net-bs4', 'datatables.net-editor'], function ( $ ) {
-			return factory( $, window, document );
-		} );
-	}
-	else if ( typeof exports === 'object' ) {
-		// CommonJS
-		module.exports = function (root, $) {
-			if ( ! root ) {
-				root = window;
-			}
-
-			if ( ! $ || ! $.fn.dataTable ) {
-				$ = require('datatables.net-bs4')(root, $).$;
-			}
-
-			if ( ! $.fn.dataTable.Editor ) {
-				require('datatables.net-editor')(root, $);
-			}
-
-			return factory( $, root, root.document );
-		};
-	}
-	else {
-		// Browser
-		factory( jQuery, window, document );
-	}
-}(function( $, window, document, undefined ) {
-'use strict';
-var DataTable = $.fn.dataTable;
-
+var Editor = DataTable.Editor;
 
 /*
  * Set the default display controller to be our bootstrap control 
@@ -290,10 +257,6 @@ DataTable.Editor.display.bootstrap = $.extend( true, {}, DataTable.Editor.models
 		return dom.content[0];
 	}
 } );
-
-
-return DataTable.Editor;
-}));
 
 
 return Editor;

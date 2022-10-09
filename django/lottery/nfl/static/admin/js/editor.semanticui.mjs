@@ -1,6 +1,6 @@
 
 /*! Semantic UI integration for DataTables' Editor
- * ©2018 SpryMedia Ltd - datatables.net/license
+ * © SpryMedia Ltd - datatables.net/license
  */
 
 import $ from 'jquery';
@@ -9,39 +9,7 @@ import DataTable from 'datatables.net-editor';
 
 
 
-(function( factory ){
-	if ( typeof define === 'function' && define.amd ) {
-		// AMD
-		define( ['jquery', 'datatables.net-se', 'datatables.net-editor'], function ( $ ) {
-			return factory( $, window, document );
-		} );
-	}
-	else if ( typeof exports === 'object' ) {
-		// CommonJS
-		module.exports = function (root, $) {
-			if ( ! root ) {
-				root = window;
-			}
-
-			if ( ! $ || ! $.fn.dataTable ) {
-				$ = require('datatables.net-se')(root, $).$;
-			}
-
-			if ( ! $.fn.dataTable.Editor ) {
-				require('datatables.net-editor')(root, $);
-			}
-
-			return factory( $, root, root.document );
-		};
-	}
-	else {
-		// Browser
-		factory( jQuery, window, document );
-	}
-}(function( $, window, document, undefined ) {
-'use strict';
-var DataTable = $.fn.dataTable;
-
+var Editor = DataTable.Editor;
 
 /*
  * Set the default display controller to be Semantic UI modal
@@ -238,10 +206,6 @@ DataTable.Editor.display.semanticui = $.extend( true, {}, DataTable.Editor.model
 		return dom.modal[0];
 	}
 } );
-
-
-return DataTable.Editor;
-}));
 
 
 export default Editor;

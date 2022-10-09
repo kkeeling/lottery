@@ -1,5 +1,5 @@
 
-/*! DataTables Editor v2.0.9
+/*! DataTables Editor v2.0.10
  *
  * ©2012-2022 SpryMedia Ltd, all rights reserved.
  * License: editor.datatables.net/license
@@ -3731,7 +3731,7 @@ function _ajax(data, success, error, submitParams) {
     }
     if (typeof ajaxSrc === 'function') {
         // As a function, execute it, passing in the required parameters
-        ajaxSrc(null, null, data, success, error);
+        ajaxSrc.call(this, null, null, data, success, error);
         return;
     }
     else if (typeof ajaxSrc === 'string') {
@@ -7073,7 +7073,7 @@ var Editor = /** @class */ (function () {
         uploadMany: uploadMany
     };
     Editor.files = {};
-    Editor.version = '2.0.9';
+    Editor.version = '2.0.10';
     Editor.classes = classNames;
     Editor.Field = Field;
     Editor.DateTime = null;

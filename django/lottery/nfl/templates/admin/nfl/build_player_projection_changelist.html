@@ -53,6 +53,7 @@
         <script type="text/javascript">
             $(document).ready(function() {
                 var site = "{{ build.slate.site }}";
+                var projections = [];
 
                 var bar = new ProgressBar.Circle(progress, {
                 color: '#aaa',
@@ -95,6 +96,7 @@
                             data: jsonData,
                             dataType: "json",
                             success: function (json) {
+                                projection_table.data().row($(`#${id}_salary`).closest('tr')).data(json).draw();
                                 success( json );
                             },
                             error: function (xhr, error, thrown) {
@@ -202,8 +204,16 @@
                                 }
                             });
                     },
+                    /*
+                    ajax: {
+                        url: '/api/nfl/slate-build/{{ build.id }}/projections/',
+                        dataSrc: ''
+                    },
+                    */
                     dom: "Bfrtip",
                     processing: true,
+                    
+                    //data: projections,
                     lengthMenu: [
                         [-1, 25, 50, 100],
                         ['All', 25, 50, 100],
