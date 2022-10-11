@@ -798,7 +798,7 @@ def execute_h2h_workflow(build_id, task_id):
         #     build_filter = models.BUILD_TYPE_FILTERS_FD.get(build.build_type)
         # else:
         #     build_filter = models.BUILD_TYPE_FILTERS_YH.get(build.build_type)
-        num_field_lineups = 10
+        num_field_lineups = 50
 
         chord([
             optimize_for_ownership.si(
