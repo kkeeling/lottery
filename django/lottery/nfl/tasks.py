@@ -820,7 +820,6 @@ def execute_h2h_workflow(build_id, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-
 @shared_task
 def optimize_for_ownership(projection_site, build_id, raw_projections, num_lineups):
     build = models.FindWinnerBuild.objects.get(id=build_id)
@@ -3468,59 +3467,71 @@ def handle_projection_import(import_id, task_id):
 
         success_count = 0
         missing_players = []
-        resp = None
 
-        with requests.Session() as s:
-            headers = []
-            if projection_import.headers is not None:
-                headers = json.loads(projection_import.headers)
+        column_headers = models.SheetColumnHeaders.objects.get(
+            projection_site=projection_import.projection_site,
+            site=projection_import.slate.site
+        )
 
-            req = requests.Request('GET', projection_import.url, headers=headers)
-            prepped = s.prepare_request(req)
-            resp = s.send(prepped)
 
-            logger.info(projection_import.url)
-            logger.info(resp.status_code)
+        if projection_import.url is not None:
+            resp = None
 
-        if resp is not None and resp.status_code < 300:
-            if projection_import.content_type == 'csv':
-                csvString = StringIO(resp.text)
-                df = pandas.read_csv(csvString, sep=',')
-            elif projection_import.content_type == 'json':
-                if resp.json() is list:
-                    df = pandas.read_json(resp.json())
-                    logger.info(df)
-                elif projection_import.projection_site == 'rg':
-                    data = resp.json().get('data').get('source')
-                    df = pandas.DataFrame(list(data.values()))
+            with requests.Session() as s:
+                headers = []
+                if projection_import.headers is not None:
+                    headers = json.loads(projection_import.headers)
 
-            headers = models.SheetColumnHeaders.objects.get(
-                projection_site=projection_import.projection_site,
-                site=projection_import.slate.site
-            )
+                req = requests.Request('GET', projection_import.url, headers=headers)
+                prepped = s.prepare_request(req)
+                resp = s.send(prepped)
 
+                logger.info(projection_import.url)
+                logger.info(resp.status_code)
+
+            if resp is not None and resp.status_code < 300:
+                if projection_import.content_type == 'csv':
+                    csvString = StringIO(resp.text)
+                    df = pandas.read_csv(csvString, sep=',')
+                elif projection_import.content_type == 'json':
+                    if resp.json() is list:
+                        df = pandas.read_json(resp.json())
+                        logger.info(df)
+                    elif projection_import.projection_site == 'rg':
+                        data = resp.json().get('data').get('source')
+                        df = pandas.DataFrame(list(data.values()))
+            else:
+                df = None
+        else:
+            df = pandas.read_csv(projection_import.projection_sheet)
+
+            if projection_import.projection_site == 'etr':
+                column_headers.column_player_name = df.columns[0]
+                column_headers.save()
+
+        if df is not None:
             for index, row in df.iterrows():
-                player_name = row[headers.column_player_name].strip()
+                player_name = row[column_headers.column_player_name].strip()
 
                 if player_name is None:
                     continue
 
-                if row[headers.column_team] is None:
+                if row[column_headers.column_team] is None:
                     continue
 
-                if row[headers.column_team] == 'JAX':
+                if row[column_headers.column_team] == 'JAX':
                     team = 'JAC'
-                elif row[headers.column_team] == 'LA':
+                elif row[column_headers.column_team] == 'LA':
                     team = 'LAR'
                 else:
-                    team = row[headers.column_team].strip()
+                    team = row[column_headers.column_team].strip()
 
-                median_projection = row[headers.column_median_projection] if row[headers.column_median_projection] != '' else 0.0
-                floor_projection = row[headers.column_floor_projection] if headers.column_floor_projection is not None and row[headers.column_floor_projection] != '' else 0.0
-                ceiling_projection = row[headers.column_ceiling_projection] if headers.column_ceiling_projection is not None and row[headers.column_ceiling_projection] != '' else 0.0
-                rush_att_projection = row[headers.column_rush_att_projection] if headers.column_rush_att_projection is not None and row[headers.column_rush_att_projection] != '' else 0.0
-                rec_projection = row[headers.column_rec_projection] if headers.column_rec_projection is not None and row[headers.column_rec_projection] != '' else 0.0
-                ownership_projection = float(row[headers.column_own_projection]) if headers.column_own_projection is not None and row[headers.column_own_projection] != '' and row[headers.column_own_projection] != '-' else 0.0
+                median_projection = row[column_headers.column_median_projection] if row[column_headers.column_median_projection] != '' else 0.0
+                floor_projection = row[column_headers.column_floor_projection] if column_headers.column_floor_projection is not None and row[column_headers.column_floor_projection] != '' else 0.0
+                ceiling_projection = row[column_headers.column_ceiling_projection] if column_headers.column_ceiling_projection is not None and row[column_headers.column_ceiling_projection] != '' else 0.0
+                rush_att_projection = row[column_headers.column_rush_att_projection] if column_headers.column_rush_att_projection is not None and row[column_headers.column_rush_att_projection] != '' else 0.0
+                rec_projection = row[column_headers.column_rec_projection] if column_headers.column_rec_projection is not None and row[column_headers.column_rec_projection] != '' else 0.0
+                ownership_projection = float(row[column_headers.column_own_projection]) if column_headers.column_own_projection is not None and row[column_headers.column_own_projection] != '' and row[column_headers.column_own_projection] != '-' else 0.0
 
                 if projection_import.projection_site == 'etr':
                     ownership_projection /= 100.0
