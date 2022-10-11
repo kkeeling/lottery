@@ -472,6 +472,11 @@ class ContestPrizeInline(admin.TabularInline):
     model = models.ContestPrize
 
 
+class SlateProjectionImportInline(admin.TabularInline):
+    model = models.SlateProjectionImport
+    extra = 0
+
+
 class SlateProjectionSheetInline(admin.TabularInline):
     model = models.SlateProjectionSheet
     extra = 0
@@ -686,7 +691,9 @@ class SlateAdmin(admin.ModelAdmin):
         'analyze_projections',
         'export_game_sims',
     ]
-    inlines = (SlateProjectionSheetInline, SlatePlayerOwnershipProjectionSheetInline, SlateGameInline, )
+    inlines = (
+        SlateProjectionImportInline, 
+    )
     fieldsets = (
         (None,  {
             'fields': (
@@ -698,17 +705,17 @@ class SlateAdmin(admin.ModelAdmin):
                 ('salaries_sheet_type', 'salaries'),
             )
         }),
-        ('In Play Thresholds',  {
-            'fields': (
-                'in_play_criteria',
-            )
-        }),
-        ('Lineup Sampling',  {
-            'fields': (
-                'num_cycles',
-                'lineups_per_cycle',
-            )
-        }),
+        # ('In Play Thresholds',  {
+        #     'fields': (
+        #         'in_play_criteria',
+        #     )
+        # }),
+        # ('Lineup Sampling',  {
+        #     'fields': (
+        #         'num_cycles',
+        #         'lineups_per_cycle',
+        #     )
+        # }),
         ('For Completed Slates',  {
             'fields': (
                 'is_complete',
@@ -790,15 +797,18 @@ class SlateAdmin(admin.ModelAdmin):
             slate_players_task.save()
 
             _ = chain(
-                tasks.find_slate_games.s(slate.id, find_games_task.id), 
-                tasks.process_slate_players.s(slate.id, slate_players_task.id),
+                tasks.find_slate_games.si(slate.id, find_games_task.id), 
+                tasks.process_slate_players.si(slate.id, slate_players_task.id),
                 group([
-                    tasks.process_projection_sheet.s(s.id, BackgroundTask.objects.create(
-                        name=f'Process Projections from {s.projection_site}',
-                        user=request.user
-                    ).id) for s in slate.projections.all()
+                    tasks.handle_projection_import.si(
+                        s.id, 
+                        BackgroundTask.objects.create(
+                            name=f'Process Projections from {s.projection_site}',
+                            user=request.user
+                        ).id
+                    ) for s in slate.projection_imports.all()
                 ]),
-                tasks.handle_base_projections.s(slate.id, BackgroundTask.objects.create(
+                tasks.handle_base_projections.si(slate.id, BackgroundTask.objects.create(
                         name='Process Base Projections',
                         user=request.user
                 ).id),
@@ -808,7 +818,7 @@ class SlateAdmin(admin.ModelAdmin):
                 #         user=request.user
                 #     ).id) for s in slate.ownership_projections_sheets.all()
                 # ]),
-                tasks.assign_zscores_to_players.s(slate.id, BackgroundTask.objects.create(
+                tasks.assign_zscores_to_players.si(slate.id, BackgroundTask.objects.create(
                         name='Assign Z-Scores to Players',
                         user=request.user
                 ).id)
@@ -1269,7 +1279,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'in_play',
         'zscore',
         'get_ownership_projection',
-        'adjusted_opportunity',
+        'get_adjusted_opportunity',
         'get_game_total',
         'get_team_total',
         'get_spread',
@@ -1392,6 +1402,11 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_ownership_projection.short_description = 'OP'
     get_ownership_projection.admin_order_field = 'ownership_orjection'
 
+    def get_adjusted_opportunity(self, obj):
+        return '{:.2f}'.format(round(float(obj.adjusted_opportunity), 2))
+    get_adjusted_opportunity.short_description = 'AO'
+    get_adjusted_opportunity.admin_order_field = 'adjusted_opportunity'
+
     def get_player_value(self, obj):
         return '{:.2f}'.format(float(obj.value))
     get_player_value.short_description = 'Val'
@@ -1471,13 +1486,12 @@ class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
         'get_player_opponent',
         'get_player_game',
         'projection',
+        'get_player_value',
         'ceiling',
         'floor',
         'stdev',
         'get_ownership_projection',
-        'get_rating',
-        'adjusted_opportunity',
-        'get_player_value',
+        'get_adjusted_opportunity',
         'get_actual_score'
     )
     search_fields = ('slate_player__name',)
@@ -1565,7 +1579,12 @@ class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
     def get_ownership_projection(self, obj):
         return '{:.1f}'.format(round(float(obj.ownership_projection) * 100.0, 2))
     get_ownership_projection.short_description = 'OP'
-    get_ownership_projection.admin_order_field = 'ownership_orjection'
+    get_ownership_projection.admin_order_field = 'ownership_projection'
+
+    def get_adjusted_opportunity(self, obj):
+        return '{:.2f}'.format(round(float(obj.adjusted_opportunity), 2))
+    get_adjusted_opportunity.short_description = 'AO'
+    get_adjusted_opportunity.admin_order_field = 'adjusted_opportunity'
 
     def get_spread(self, obj):
         game = obj.slate_player.get_slate_game()
@@ -1912,6 +1931,7 @@ class WinningLineupAdmin(admin.ModelAdmin):
 
 @admin.register(models.FieldLineupToBeat)
 class FieldLineupToBeatAdmin(admin.ModelAdmin):
+    list_per_page = 10
     list_display = (
         'opponent_handle',
         'get_lineup',

@@ -692,7 +692,7 @@ class Slate(models.Model):
             projection.zscore = zscores[index]
             projection.ao_zscore = ao_zscores[index] if ao_zscores is not None else 0.0
             projection.ceiling_zscore = ceiling_zscores[index] if ceiling_zscores is not None else 0.0
-            projection.in_play = self.in_play_criteria.meets_threshold(projection)
+            # projection.in_play = self.in_play_criteria.meets_threshold(projection)
             projection.save()        
 
     def flatten_base_projections(self):
@@ -1695,6 +1695,25 @@ class CeilingProjectionRangeMapping(models.Model):
 
 
 # Importing
+
+
+class SlateProjectionImport(models.Model):
+    CONTENT_TYPES = (
+        ('csv', 'CSV'),
+        ('json', 'JSON'),
+    )
+    slate = models.ForeignKey(Slate, related_name='projection_imports', on_delete=models.CASCADE)
+    projection_site = models.CharField(max_length=255, choices=PROJECTION_SITES, default='4for4')
+    url = models.URLField()
+    headers = models.TextField(blank=True, null=True)
+    content_type = models.CharField(max_length=5, default='csv', choices=CONTENT_TYPES)
+    has_scoring_projections = models.BooleanField(default=True)
+    has_ownership_projections = models.BooleanField(default=True)
+    projection_weight = models.FloatField(default=0.0)
+    ownership_weight = models.FloatField(default=0.0)
+
+    def __str__(self):
+        return f'{self.projection_site}'
 
 
 class SheetColumnHeaders(models.Model):

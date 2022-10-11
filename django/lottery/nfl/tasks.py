@@ -8,9 +8,9 @@ import math
 import numpy
 import os
 import pandas
-import pandasql
 import random
 import re
+import requests
 import scipy
 import sqlalchemy
 import sys
@@ -27,6 +27,8 @@ from django.contrib.messages.api import success
 from django.db.models.aggregates import Count, Sum
 from django.db.models import Q, F
 from django.db import transaction
+
+from io import StringIO
 
 from configuration.models import BackgroundTask
 
@@ -786,26 +788,28 @@ def execute_h2h_workflow(build_id, task_id):
         build = models.FindWinnerBuild.objects.get(id=build_id)
 
         build.matchups.all().delete()
+        build.field_lineups_to_beat.all().delete()
         build.winning_lineups.all().delete()
 
-        build_filter = None
-        if build.slate.site == 'draftkings':
-            build_filter = models.BUILD_TYPE_FILTERS_DK.get(build.build_type)
-        elif build.slate.site == 'fanduel':
-            build_filter = models.BUILD_TYPE_FILTERS_FD.get(build.build_type)
-        else:
-            build_filter = models.BUILD_TYPE_FILTERS_YH.get(build.build_type)
+        # build_filter = None
+        # if build.slate.site == 'draftkings':
+        #     build_filter = models.BUILD_TYPE_FILTERS_DK.get(build.build_type)
+        # elif build.slate.site == 'fanduel':
+        #     build_filter = models.BUILD_TYPE_FILTERS_FD.get(build.build_type)
+        # else:
+        #     build_filter = models.BUILD_TYPE_FILTERS_YH.get(build.build_type)
+        num_field_lineups = 10
 
-        start = time.time()
-        field_lineups = build.field_lineups_to_beat.all().values_list('slate_lineup_id', flat=True)
-        possible_lineups = models.SlateLineup.objects.filter(id__in=field_lineups).order_by('id').values_list('id', flat=True)
-        # slate_lineups = list(filters.SlateLineupFilter(build_filter, possible_lineups).qs.order_by('id').values_list('id', flat=True))
-        logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(possible_lineups)} lineups.')
-
-        chunk_size = 100
         chord([
-            compare_lineups_h2h.si(possible_lineups[i:i+chunk_size], build.id) for i in range(0, len(possible_lineups), chunk_size)
-        ], complete_h2h_workflow.si(task.id))()
+            optimize_for_ownership.si(
+                s.projection_site,
+                build.id,
+                list(models.SlatePlayerRawProjection.objects.filter(
+                    projection_site=s.projection_site,
+                    slate_player__slate=build.slate
+                ).values_list('id', flat=True)), num_field_lineups
+            ) for s in build.slate.projection_imports.all()
+        ], start_h2h_comparison.si(build.id, task.id))()
     except Exception as e:
         if task is not None:
             task.status = 'error'
@@ -814,6 +818,96 @@ def execute_h2h_workflow(build_id, task_id):
 
         logger.error("Unexpected error: " + str(sys.exc_info()[0]))
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+
+@shared_task
+def optimize_for_ownership(projection_site, build_id, raw_projections, num_lineups):
+    build = models.FindWinnerBuild.objects.get(id=build_id)
+    player_sim_scores = {}
+
+    # get the player outcomes
+    for p in build.slate.get_projections():
+        player_sim_scores[p.slate_player.player_id] = p.sim_scores
+
+    lineups = optimize.optimize_for_ownership(
+        build.slate.site,
+        models.SlatePlayerRawProjection.objects.filter(id__in=raw_projections),
+        num_lineups
+    )
+
+    for (index, lineup) in enumerate(lineups):
+        qb = lineup.players[0].id
+        rb1 = lineup.players[1].id
+        rb2 = lineup.players[2].id
+        wr1 = lineup.players[3].id
+        wr2 = lineup.players[4].id
+        wr3 = lineup.players[5].id
+        te = lineup.players[6].id
+        flex = lineup.players[7].id
+        dst = lineup.players[8].id
+
+        # score the lineup
+        sim_scores = numpy.array(player_sim_scores[qb], dtype=numpy.float64) + numpy.array(player_sim_scores[rb1], dtype=numpy.float64) + numpy.array(player_sim_scores[rb2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr1], dtype=numpy.float64) + numpy.array(player_sim_scores[wr2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr3], dtype=numpy.float64) + numpy.array(player_sim_scores[te], dtype=numpy.float64) + numpy.array(player_sim_scores[flex], dtype=numpy.float64) + numpy.array(player_sim_scores[dst], dtype=numpy.float64)
+
+        slate_lineup = build.slate.possible_lineups.filter(
+            qb__player_id=qb,
+            rb1__player_id__in=[rb1, rb2, flex],
+            rb2__player_id__in=[rb1, rb2, flex],
+            wr1__player_id__in=[wr1, wr2, wr3, flex],
+            wr2__player_id__in=[wr1, wr2, wr3, flex],
+            wr3__player_id__in=[wr1, wr2, wr3, flex],
+            te__player_id__in=[te, flex],
+            flex__player_id__in=[rb1, rb2, wr1, wr2, wr3, te, flex],
+            dst__player_id=dst
+        )
+        
+        if slate_lineup.count() == 0:
+            slate_lineup = models.SlateLineup.objects.create(
+                slate=build.slate,
+                qb=models.SlatePlayer.objects.get(slate=build.slate, player_id=qb),
+                rb1=models.SlatePlayer.objects.get(slate=build.slate, player_id=rb1),
+                rb2=models.SlatePlayer.objects.get(slate=build.slate, player_id=rb2),
+                wr1=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr1),
+                wr2=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr2),
+                wr3=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr3),
+                te=models.SlatePlayer.objects.get(slate=build.slate, player_id=te),
+                flex=models.SlatePlayer.objects.get(slate=build.slate, player_id=flex),
+                dst=models.SlatePlayer.objects.get(slate=build.slate, player_id=dst)
+            )
+            slate_lineup.simulate()
+            
+            slate_lineup.sim_scores = sim_scores.tolist()
+            slate_lineup.save()
+
+            slate_lineup = [slate_lineup]
+
+        l = models.FieldLineupToBeat.objects.create(
+            build=build,
+            opponent_handle=f'{projection_site}_{index}',
+            slate_lineup=slate_lineup[0]
+        )
+
+        l.median = numpy.median(sim_scores)
+        l.s75 = numpy.percentile(sim_scores, 75)
+        l.s90 = numpy.percentile(sim_scores, 90)
+        l.save()
+
+
+@shared_task
+def start_h2h_comparison(build_id, task_id):
+    task = BackgroundTask.objects.get(id=task_id)
+    build = models.FindWinnerBuild.objects.get(id=build_id)
+
+    start = time.time()
+    field_lineups = build.field_lineups_to_beat.all().values_list('slate_lineup_id', flat=True)
+    possible_lineups = models.SlateLineup.objects.filter(id__in=field_lineups).order_by('id').values_list('id', flat=True)
+    logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(possible_lineups)} lineups.')
+
+    chunk_size = 100
+    chord([
+        compare_lineups_h2h.si(possible_lineups[i:i+chunk_size], build.id) for i in range(0, len(possible_lineups), chunk_size)
+    ], complete_h2h_workflow.si(task.id))()
 
 
 @shared_task
@@ -845,7 +939,7 @@ def compare_lineups_h2h(lineup_ids, build_id):
     start = time.time()
     matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
     df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
-    df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) >= 0.0) / models.SIM_ITERATIONS, axis=1)
+    df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / models.SIM_ITERATIONS, axis=1)
     df_matchups = df_matchups[(df_matchups.win_rate > 0.55)]
     df_matchups['build_id'] = build.id
     logger.info(f'Matchups took {time.time() - start}s. There are {df_matchups.size} matchups.')
@@ -1057,6 +1151,12 @@ def export_build_lineups(build_id, result_path, result_url, task_id):
                 if build.field_lineups_to_beat.all().count() > 0 and build.winning_lineups.all().count() > 0:
                     for opponent in opponents:
                         winning_lineups[opponent] = winning_lineups.apply(lambda x: build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x.loc['slate_lineup_id'])[0].win_rate if build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x['slate_lineup_id']).count() > 0 else math.nan, axis=1)
+
+                    winning_lineups['median'] = winning_lineups[opponents].median(axis=1)
+                    winning_lineups['win_count'] = winning_lineups[opponents].count(axis=1)
+                    winning_lineups['rating'] = winning_lineups['median'] * (winning_lineups['win_count'] * 2)
+                    winning_lineups = winning_lineups.sort_values(by=['rating'], ascending=False)
+                    logger.info(winning_lineups)
             except:
                 winning_lineups = pandas.DataFrame([])
         elif build.build_type == 'se':
@@ -1086,7 +1186,6 @@ def export_build_lineups(build_id, result_path, result_url, task_id):
             raise Exception(f'{build.build_type} is not yet supported.')
 
         logger.info(f'Lineups took {time.time() - start}s')
-        logger.info(winning_lineups)
 
         start = time.time()
         with pandas.ExcelWriter(result_path) as writer:
@@ -2825,7 +2924,7 @@ def export_field_outcomes(slate_id, result_path, result_url, task_id):
 
 
 @shared_task
-def process_slate_players(chained_result, slate_id, task_id):
+def process_slate_players(slate_id, task_id):
     task = None
 
     try:
@@ -3349,6 +3448,147 @@ def process_build(build_id, task_id):
 
 
 @shared_task
+def handle_projection_import(import_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        projection_import = models.SlateProjectionImport.objects.get(id=import_id)
+
+        # delete previous raw projections
+        models.SlatePlayerRawProjection.objects.filter(
+            projection_site=projection_import.projection_site,
+            slate_player__slate=projection_import.slate
+        ).delete()
+
+        success_count = 0
+        missing_players = []
+        resp = None
+
+        with requests.Session() as s:
+            headers = []
+            if projection_import.headers is not None:
+                headers = json.loads(projection_import.headers)
+
+            req = requests.Request('GET', projection_import.url, headers=headers)
+            prepped = s.prepare_request(req)
+            resp = s.send(prepped)
+
+            logger.info(projection_import.url)
+            logger.info(resp.status_code)
+
+        if resp is not None and resp.status_code < 300:
+            if projection_import.content_type == 'csv':
+                csvString = StringIO(resp.text)
+                df = pandas.read_csv(csvString, sep=',')
+            elif projection_import.content_type == 'json':
+                if resp.json() is list:
+                    df = pandas.read_json(resp.json())
+                    logger.info(df)
+                elif projection_import.projection_site == 'rg':
+                    data = resp.json().get('data').get('source')
+                    df = pandas.DataFrame(list(data.values()))
+
+            headers = models.SheetColumnHeaders.objects.get(
+                projection_site=projection_import.projection_site,
+                site=projection_import.slate.site
+            )
+
+            for index, row in df.iterrows():
+                player_name = row[headers.column_player_name].strip()
+
+                if player_name is None:
+                    continue
+
+                if row[headers.column_team] is None:
+                    continue
+
+                if row[headers.column_team] == 'JAX':
+                    team = 'JAC'
+                elif row[headers.column_team] == 'LA':
+                    team = 'LAR'
+                else:
+                    team = row[headers.column_team].strip()
+
+                median_projection = row[headers.column_median_projection] if row[headers.column_median_projection] != '' else 0.0
+                floor_projection = row[headers.column_floor_projection] if headers.column_floor_projection is not None and row[headers.column_floor_projection] != '' else 0.0
+                ceiling_projection = row[headers.column_ceiling_projection] if headers.column_ceiling_projection is not None and row[headers.column_ceiling_projection] != '' else 0.0
+                rush_att_projection = row[headers.column_rush_att_projection] if headers.column_rush_att_projection is not None and row[headers.column_rush_att_projection] != '' else 0.0
+                rec_projection = row[headers.column_rec_projection] if headers.column_rec_projection is not None and row[headers.column_rec_projection] != '' else 0.0
+                ownership_projection = float(row[headers.column_own_projection]) if headers.column_own_projection is not None and row[headers.column_own_projection] != '' and row[headers.column_own_projection] != '-' else 0.0
+
+                if projection_import.projection_site == 'etr':
+                    ownership_projection /= 100.0
+                    alias = models.Alias.find_alias(player_name, projection_import.slate.site)
+                elif projection_import.projection_site == 'rg':
+                    ownership_projection /= 100.0
+                    alias = models.Alias.find_alias(player_name, projection_import.projection_site)
+                elif projection_import.projection_site == 'sabersim':
+                    ownership_projection /= 100.0
+                    alias = models.Alias.find_alias(player_name, projection_import.projection_site)
+                else:
+                    alias = models.Alias.find_alias(player_name, projection_import.projection_site)
+                
+                if alias is not None:
+                    try:
+                        slate_player = models.SlatePlayer.objects.get(
+                            slate=projection_import.slate,
+                            name=alias.get_alias(projection_import.slate.site),
+                            team=team
+                        )
+
+                        if median_projection != '':
+                            mu = float(median_projection)
+
+                            if floor_projection is not None and ceiling_projection is not None:
+                                ceil = float(ceiling_projection)
+                                flr = float(floor_projection)
+
+                                stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
+                            else:
+                                ceil = None
+                                flr = None
+                                stdev = None
+
+                            models.SlatePlayerRawProjection.objects.create(
+                                slate_player=slate_player,
+                                projection_site=projection_import.projection_site,
+                                projection=mu,
+                                value=mu / (slate_player.salary / 1000),
+                                floor=flr,
+                                ceiling=ceil,
+                                stdev=stdev,
+                                ownership_projection=float(ownership_projection) if float(ownership_projection) < 1.0 else float(ownership_projection)/100.0,
+                                adjusted_opportunity=float(rec_projection) * 2.75 + float(rush_att_projection) if projection_import.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection)
+                            )
+                            
+                            success_count += 1
+                    except models.SlatePlayer.DoesNotExist:
+                        pass
+                else:
+                    missing_players.append(player_name)
+
+        task.status = 'success'
+        task.content = '{} projections have been successfully added to {} for {}.'.format(success_count, str(projection_import.slate), projection_import.projection_site) if len(missing_players) == 0 else '{} players have been successfully added to {} for {}. {} players could not be identified.'.format(success_count, str(projection_import.slate), projection_import.projection_site, len(missing_players))
+        task.link = '/admin/nfl/missingalias/' if len(missing_players) > 0 else None
+        task.save()        
+
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = 'There was a importing your {} projections: {}'.format(projection_import.projection_site, str(e))
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
+@shared_task
 def process_projection_sheet(chained_result, sheet_id, task_id):
     task = None
 
@@ -3475,7 +3715,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
 
 
 @shared_task
-def handle_base_projections(chained_results, slate_id, task_id):
+def handle_base_projections(slate_id, task_id):
     task = None
 
     try:
@@ -3531,27 +3771,30 @@ def handle_base_projections(chained_results, slate_id, task_id):
                 agg_ceils = []
                 agg_stds = []
                 agg_owns = []
-                for s in models.PROJECTION_WEIGHTS.keys():
+                
+                for proj_import in slate.projection_imports.filter(projection_weight__gt=0.0):
+                    s = proj_import.projection_site
+
                     try:
                         raw_proj = raw_projections.get(projection_site=s)
 
-                        for _ in range(0, int(models.PROJECTION_WEIGHTS[s] * 100)):
+                        for _ in range(0, int(proj_import.projection_weight * 100)):
                             agg_projs.append(raw_proj.projection)
 
                         if raw_proj.floor is not None:
-                            for _ in range(0, int(models.PROJECTION_WEIGHTS[s] * 100)):
+                            for _ in range(0, int(proj_import.projection_weight * 100)):
                                 agg_floors.append(raw_proj.floor)
 
                         if raw_proj.ceiling is not None:
-                            for _ in range(0, int(models.PROJECTION_WEIGHTS[s] * 100)):
+                            for _ in range(0, int(proj_import.projection_weight * 100)):
                                 agg_ceils.append(raw_proj.ceiling)
 
                         if raw_proj.stdev is not None:
-                            for _ in range(0, int(models.PROJECTION_WEIGHTS[s] * 100)):
+                            for _ in range(0, int(proj_import.projection_weight * 100)):
                                 agg_stds.append(raw_proj.stdev)
 
                         if raw_proj.ownership_projection is not None:
-                            for _ in range(0, int(models.OWNERSHIP_PROJECTION_WEIGHTS[s] * 100)):
+                            for _ in range(0, int(proj_import.ownership_weight * 100)):
                                 agg_owns.append(raw_proj.ownership_projection)
                     except:
                         pass
@@ -3569,9 +3812,8 @@ def handle_base_projections(chained_results, slate_id, task_id):
                 projection.stdev = agg_std
                 projection.ownership_projection = agg_own
                 projection.adjusted_opportunity=ao_projection.adjusted_opportunity if ao_projection is not None else 0.0
-                projection.in_play = slate.in_play_criteria.meets_threshold(projection)
+                # projection.in_play = slate.in_play_criteria.meets_threshold(projection)
                 projection.save()
-
             except models.SlatePlayerRawProjection.DoesNotExist:
                 projection.in_play = False
                 projection.save()
@@ -3932,7 +4174,7 @@ def find_slate_games(slate_id, task_id):
 
 
 @shared_task
-def assign_zscores_to_players(chained_results, slate_id, task_id):
+def assign_zscores_to_players(slate_id, task_id):
     task = None
 
     try:

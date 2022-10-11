@@ -85,6 +85,69 @@ def optimize(site, projections, num_lineups=1):
     return lineups
 
 
+def optimize_for_ownership(site, projections, num_lineups=1):
+    if site == 'fanduel':
+        optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
+        min_salary = 59500
+    elif site == 'draftkings':
+        optimizer = get_optimizer(Site.DRAFTKINGS, Sport.FOOTBALL)
+        min_salary = 49500
+    elif site == 'yahoo':
+        optimizer = get_optimizer(Site.YAHOO, Sport.FOOTBALL)
+        min_salary = 198
+    else:
+        raise Exception('{} is not a supported dfs site.'.format(site))
+
+    player_list = []
+
+    for player_projection in projections:
+        if ' ' in player_projection.name:
+            first, last = player_projection.name.split(' ', 1)
+        else:
+            first = player_projection.name
+            last = ''
+
+        if player_projection.slate_player.slate_game is None:
+            continue
+        
+        slate_game = player_projection.slate_player.slate_game.game
+        game_info = GameInfo(
+            home_team=slate_game.home_team, 
+            away_team=slate_game.away_team,
+            starts_at=slate_game.game_date,
+            game_started=False
+        )
+
+        player = Player(
+            player_projection.slate_player.player_id,
+            first,
+            'DST' if player_projection.position == 'DST' else last,
+            ['D' if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel' else player_projection.position],
+            player_projection.team,
+            player_projection.salary,
+            float(player_projection.ownership_projection),
+            game_info=game_info
+        )
+
+        player_list.append(player)
+    
+    optimizer.load_players(player_list)
+    optimizer.set_min_salary_cap(min_salary)
+    
+    lineups = []
+    try:
+        optimized_lineups = optimizer.optimize(
+            n=num_lineups 
+        )
+
+        for lineup in optimized_lineups:
+            lineups.append(lineup)
+    except exceptions.LineupOptimizerException:
+        traceback.print_exc()
+
+    return lineups
+
+
 def naked_simulate(site, projections, config, player_sim_index=0, optimals_per_sim_outcome=10):
     lineups = []
 
