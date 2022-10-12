@@ -3957,7 +3957,8 @@ def process_actuals_sheet(slate_id, task_id):
 
             headers = models.SheetColumnHeaders.objects.get(
                 projection_site='fc',
-                site=slate.site
+                site=slate.site,
+                use_for_data_feed=False
             )
 
             for row in csv_reader:

@@ -1900,7 +1900,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
 
 @admin.register(models.WinningLineup)
 class WinningLineupAdmin(admin.ModelAdmin):
-    list_per_page = 25
+    list_per_page = 10
     list_display = (
         'get_lineup',
         'get_salary',
@@ -1910,6 +1910,7 @@ class WinningLineupAdmin(admin.ModelAdmin):
         'get_win_rate',
         'win_count',
         'rating',
+        'get_actual_score',
     )
 
     search_fields = (
@@ -1937,6 +1938,11 @@ class WinningLineupAdmin(admin.ModelAdmin):
         return '{:.2f}%'.format(obj.win_rate * 100)
     get_win_rate.short_description = 'win %'
     get_win_rate.admin_order_field = 'win_rate'
+
+    def get_actual_score(self, obj):
+        return obj.slate_lineup.qb.fantasy_points + obj.slate_lineup.rb1.fantasy_points + obj.slate_lineup.rb2.fantasy_points + obj.slate_lineup.wr1.fantasy_points + obj.slate_lineup.wr2.fantasy_points + obj.slate_lineup.wr3.fantasy_points + obj.slate_lineup.te.fantasy_points + obj.slate_lineup.flex.fantasy_points + obj.slate_lineup.dst.fantasy_points
+    get_actual_score.short_description = 'actual'
+
 
 
 @admin.register(models.FieldLineupToBeat)

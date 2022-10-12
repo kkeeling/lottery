@@ -1840,7 +1840,7 @@ class WinningLineup(models.Model):
     class Meta:
         verbose_name = 'Lineup'
         verbose_name_plural = 'Lineups'
-        ordering = ['-median']
+        ordering = ['-rating']
 
     def __str__(self):
         return f'{self.slate_lineup}'
