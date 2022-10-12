@@ -639,6 +639,7 @@ class SheetColumnHeadersAdmin(admin.ModelAdmin):
     list_display = (
         'projection_site',
         'site',
+        'use_for_data_feed',
         'column_player_name',
         'column_team',
         'column_median_projection',
@@ -649,6 +650,12 @@ class SheetColumnHeadersAdmin(admin.ModelAdmin):
         'column_own_projection',
         'column_ownership',
         'column_score',
+    )
+
+    list_filter = (
+        'projection_site',
+        'site',
+        'use_for_data_feed',
     )
 
 
@@ -1893,6 +1900,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
 
 @admin.register(models.WinningLineup)
 class WinningLineupAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = (
         'get_lineup',
         'get_salary',
@@ -1900,6 +1908,8 @@ class WinningLineupAdmin(admin.ModelAdmin):
         's75',
         's90',
         'get_win_rate',
+        'win_count',
+        'rating',
     )
 
     search_fields = (
@@ -1965,6 +1975,7 @@ class FieldLineupToBeatAdmin(admin.ModelAdmin):
 
 @admin.register(models.LineupMatchup)
 class LineupMatchupAdmin(admin.ModelAdmin):
+    list_per_page = 25
     list_display = (
         'get_lineup',
         'get_opponent',

@@ -903,7 +903,7 @@ def start_h2h_comparison(build_id, task_id):
     possible_lineups = models.SlateLineup.objects.filter(id__in=field_lineups).order_by('id').values_list('id', flat=True)
     logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(possible_lineups)} lineups.')
 
-    chunk_size = 100
+    chunk_size = 10
     chord([
         compare_lineups_h2h.si(possible_lineups[i:i+chunk_size], build.id) for i in range(0, len(possible_lineups), chunk_size)
     ], complete_h2h_workflow.si(task.id))()
@@ -924,7 +924,7 @@ def compare_lineups_h2h(lineup_ids, build_id):
     start = time.time()
     df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('sim_scores', flat=True), index=list(slate_lineups.values_list('id', flat=True)), dtype=numpy.float16)
     logger.info(f'  Initial dataframe took {time.time() - start}s')
-    # logger.info(df_slate_lineups)
+    logger.info(df_slate_lineups)
 
     start = time.time()
     field_lineups = build.field_lineups_to_beat.all().order_by('id')
@@ -939,7 +939,7 @@ def compare_lineups_h2h(lineup_ids, build_id):
     matchups  = list(itertools.product(slate_lineups.values_list('id', flat=True), field_lineups.values_list('id', flat=True)))
     df_matchups = pandas.DataFrame(matchups, columns=['slate_lineup_id', 'field_lineup_id'])
     df_matchups['win_rate'] = df_matchups.apply(lambda x: numpy.count_nonzero((numpy.array(df_slate_lineups.loc[x['slate_lineup_id']]) - numpy.array(df_field_lineups.loc[x['field_lineup_id']])) > 0.0) / models.SIM_ITERATIONS, axis=1)
-    df_matchups = df_matchups[(df_matchups.win_rate > 0.55)]
+    # df_matchups = df_matchups[(df_matchups.win_rate > 0.55)]
     df_matchups['build_id'] = build.id
     logger.info(f'Matchups took {time.time() - start}s. There are {df_matchups.size} matchups.')
 
@@ -952,12 +952,21 @@ def compare_lineups_h2h(lineup_ids, build_id):
     for bl in build_lineup_ids:
         try:
             sim_scores = df_slate_lineups.loc[int(bl)].to_list()
+            opponents = list(build.field_lineups_to_beat.all().values_list('opponent_handle', flat=True))
+            opponents = list(set(opponents))
+            win_rates = list(build.matchups.filter(slate_lineup_id=bl).values_list('win_rate', flat=True))
+            rake_free_win_rates = list(filter(lambda wr: wr >= 0.55, win_rates))
+
+            logger.info(rake_free_win_rates)
             models.WinningLineup.objects.create(
                 build=build,
                 slate_lineup_id=bl,
                 median=numpy.median(sim_scores),
                 s75=numpy.percentile(sim_scores, 75),
-                s90=numpy.percentile(sim_scores, 90)
+                s90=numpy.percentile(sim_scores, 90),
+                win_rate=numpy.median(rake_free_win_rates) if len(rake_free_win_rates) > 0 else 0.0,
+                win_count=len(rake_free_win_rates) if len(rake_free_win_rates) > 0 else 0.0,
+                rating=numpy.median(rake_free_win_rates) * (2 * len(rake_free_win_rates)) if len(rake_free_win_rates) > 0 else 0.0
             )
         except KeyError:
             pass
@@ -1147,12 +1156,13 @@ def export_build_lineups(build_id, result_path, result_url, task_id):
                     's75', 
                     's90'
                 ))
+
                 if build.field_lineups_to_beat.all().count() > 0 and build.winning_lineups.all().count() > 0:
                     for opponent in opponents:
                         winning_lineups[opponent] = winning_lineups.apply(lambda x: build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x.loc['slate_lineup_id'])[0].win_rate if build.matchups.filter(field_lineup__opponent_handle=opponent, slate_lineup_id=x['slate_lineup_id']).count() > 0 else math.nan, axis=1)
 
                     winning_lineups['median'] = winning_lineups[opponents].median(axis=1)
-                    winning_lineups['win_count'] = winning_lineups[opponents].count(axis=1)
+                    winning_lineups['win_count'] = winning_lineups[opponents > 0.55].count(axis=1)
                     winning_lineups['rating'] = winning_lineups['median'] * (winning_lineups['win_count'] * 2)
                     winning_lineups = winning_lineups.sort_values(by=['rating'], ascending=False)
                     logger.info(winning_lineups)
@@ -3468,14 +3478,14 @@ def handle_projection_import(import_id, task_id):
         success_count = 0
         missing_players = []
 
-        column_headers = models.SheetColumnHeaders.objects.get(
-            projection_site=projection_import.projection_site,
-            site=projection_import.slate.site
-        )
-
-
         if projection_import.url is not None:
             resp = None
+
+            column_headers = models.SheetColumnHeaders.objects.get(
+                projection_site=projection_import.projection_site,
+                site=projection_import.slate.site,
+                use_for_data_feed=True
+            )
 
             with requests.Session() as s:
                 headers = []
@@ -3504,6 +3514,12 @@ def handle_projection_import(import_id, task_id):
                 df = None
         else:
             df = pandas.read_csv(projection_import.projection_sheet)
+
+            column_headers = models.SheetColumnHeaders.objects.get(
+                projection_site=projection_import.projection_site,
+                site=projection_import.slate.site,
+                use_for_data_feed=False
+            )
 
             if projection_import.projection_site == 'etr':
                 column_headers.column_player_name = df.columns[0]
@@ -3553,7 +3569,7 @@ def handle_projection_import(import_id, task_id):
                             team=team
                         )
 
-                        if median_projection != '':
+                        if median_projection is not None and median_projection != '' and median_projection > 0.0:
                             mu = float(median_projection)
 
                             if floor_projection is not None and ceiling_projection is not None:
@@ -3666,7 +3682,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                     alias = models.Alias.find_alias(player_name, sheet.slate.site)
                 elif sheet.projection_site == 'rg':
                     ownership_projection /= 100.0
-                    alias = models.Alias.find_alias(player_name, sheet.projection_site)
+                    alias = models.Alias.find_alias(player_name, sheet.slate.site)
                 elif sheet.projection_site == 'sabersim':
                     ownership_projection /= 100.0
                     alias = models.Alias.find_alias(player_name, sheet.projection_site)

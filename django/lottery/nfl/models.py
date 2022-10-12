@@ -1720,6 +1720,7 @@ class SlateProjectionImport(models.Model):
 class SheetColumnHeaders(models.Model):
     projection_site = models.CharField(max_length=255, choices=PROJECTION_SITES, default='4for4')
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
+    use_for_data_feed = models.BooleanField(default=False)
     column_player_name = models.CharField(max_length=50)
     column_team = models.CharField(max_length=50)
     column_median_projection = models.CharField(max_length=50)
@@ -1734,6 +1735,7 @@ class SheetColumnHeaders(models.Model):
     class Meta:
         verbose_name = 'Column Headers'
         verbose_name_plural = 'Column Headers'
+        ordering = ['projection_site']
 
 
     def __str__(self):
@@ -1829,6 +1831,8 @@ class WinningLineup(models.Model):
     build = models.ForeignKey(FindWinnerBuild, verbose_name='Build', related_name='winning_lineups', on_delete=models.CASCADE)
     slate_lineup = models.ForeignKey(SlateLineup, verbose_name='Lineup', related_name='winner_builds', on_delete=models.CASCADE)
     win_rate = models.FloatField(db_index=True, default=0.0)
+    win_count = models.IntegerField(db_index=True, default=0)
+    rating = models.FloatField(db_index=True, default=0.0)
     median = models.FloatField(db_index=True, default=0.0)
     s75 = models.FloatField(db_index=True, default=0.0)
     s90 = models.FloatField(db_index=True, default=0.0)
