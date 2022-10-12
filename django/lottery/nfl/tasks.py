@@ -3554,7 +3554,7 @@ def handle_projection_import(import_id, task_id):
                     alias = models.Alias.find_alias(player_name, projection_import.slate.site)
                 elif projection_import.projection_site == 'rg':
                     ownership_projection /= 100.0
-                    alias = models.Alias.find_alias(player_name, projection_import.projection_site)
+                    alias = models.Alias.find_alias(player_name, projection_import.slate.site)
                 elif projection_import.projection_site == 'sabersim':
                     ownership_projection /= 100.0
                     alias = models.Alias.find_alias(player_name, projection_import.projection_site)
