@@ -2996,13 +2996,17 @@ def process_slate_players(slate_id, task_id):
                 elif slate.salaries_sheet_type == 'fantasycruncher':
                     site = 'fc'
                     player_id = uuid.uuid4()
+                    player_name = row['Player'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
                     if slate.site == 'fanduel' and row['Pos'] == 'DST':
                         site_pos = 'D'
+                        csv_name = f'{player_id}:{player_name}'
                     elif slate.site == 'yahoo' and row['Pos'] == 'DST':
                         site_pos = 'DEF'
+                        csv_name = f'{player_id} - ({player_name})'
                     else:
                         site_pos = row['Pos']
-                    player_name = row['Player'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
+                        csv_name = f'{player_name} ({player_id})'
+
                     salary = int(row['Salary'])                    
                     team = row['Team']
                     opp = row['Opp']
