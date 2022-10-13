@@ -4,6 +4,7 @@ import datetime
 import decimal
 import difflib
 import math
+from tabnanny import verbose
 import numpy
 import pandas
 import pandasql
@@ -1712,6 +1713,7 @@ class SlateProjectionImport(models.Model):
     has_ownership_projections = models.BooleanField(default=True)
     projection_weight = models.FloatField(default=0.0)
     ownership_weight = models.FloatField(default=0.0)
+    field_lineup_count = models.IntegerField('# Field Lineups', default=50)
 
     def __str__(self):
         return f'{self.projection_site}'

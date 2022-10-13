@@ -133,6 +133,21 @@ def optimize_for_ownership(site, projections, num_lineups=1):
     
     optimizer.load_players(player_list)
     optimizer.set_min_salary_cap(min_salary)
+
+    group_player_list = []
+    for player in projections.filter(slate_player__site_pos='TE'): 
+        p = optimizer.get_player_by_id(player.slate_player.player_id)
+
+        if p is not None:
+            group_player_list.append(p)
+    
+    if len(group_player_list) > 0:
+        opto_group = PlayersGroup(
+            group_player_list, 
+            min_from_group=1,
+            max_from_group=1
+        )
+        optimizer.add_players_group(opto_group)
     
     lineups = []
     try:

@@ -798,7 +798,6 @@ def execute_h2h_workflow(build_id, task_id):
         #     build_filter = models.BUILD_TYPE_FILTERS_FD.get(build.build_type)
         # else:
         #     build_filter = models.BUILD_TYPE_FILTERS_YH.get(build.build_type)
-        num_field_lineups = 50
 
         chord([
             optimize_for_ownership.si(
@@ -807,7 +806,7 @@ def execute_h2h_workflow(build_id, task_id):
                 list(models.SlatePlayerRawProjection.objects.filter(
                     projection_site=s.projection_site,
                     slate_player__slate=build.slate
-                ).values_list('id', flat=True)), num_field_lineups
+                ).values_list('id', flat=True)), s.field_lineup_count
             ) for s in build.slate.projection_imports.all()
         ], start_h2h_comparison.si(build.id, task.id))()
     except Exception as e:
