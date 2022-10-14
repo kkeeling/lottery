@@ -1940,7 +1940,7 @@ class WinningLineupAdmin(admin.ModelAdmin):
     get_win_rate.admin_order_field = 'win_rate'
 
     def get_actual_score(self, obj):
-        if obj.slate_lineup.qb.fantasy_points is None:
+        if obj.slate_lineup.qb.fantasy_points is None or obj.slate_lineup.rb1.fantasy_points is None or obj.slate_lineup.rb2.fantasy_points is None or obj.slate_lineup.wr1.fantasy_points is None or obj.slate_lineup.wr2.fantasy_points is None or obj.slate_lineup.wr3.fantasy_points is None or obj.slate_lineup.te.fantasy_points is None or obj.slate_lineup.flex.fantasy_points is None or obj.slate_lineup.dst.fantasy_points is None:
             return None
         return obj.slate_lineup.qb.fantasy_points + obj.slate_lineup.rb1.fantasy_points + obj.slate_lineup.rb2.fantasy_points + obj.slate_lineup.wr1.fantasy_points + obj.slate_lineup.wr2.fantasy_points + obj.slate_lineup.wr3.fantasy_points + obj.slate_lineup.te.fantasy_points + obj.slate_lineup.flex.fantasy_points + obj.slate_lineup.dst.fantasy_points
     get_actual_score.short_description = 'actual'
