@@ -125,7 +125,7 @@ def optimize_for_ownership(site, projections, num_lineups=1):
             ['D' if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel' else player_projection.position],
             player_projection.team,
             player_projection.salary,
-            float(player_projection.projection),
+            float(player_projection.ownership_projection),
             game_info=game_info
         )
 
