@@ -1520,11 +1520,11 @@ class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
         'get_player_team',
         'get_player_opponent',
         'get_player_game',
-        'projection',
+        'get_projection',
         'get_player_value',
-        'ceiling',
-        'floor',
-        'stdev',
+        'get_ceiling',
+        'get_floor',
+        'get_stdev',
         'get_ownership_projection',
         'get_adjusted_opportunity',
         'get_actual_score'
@@ -1591,6 +1591,41 @@ class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
     get_player_game.short_description = 'Game'
     get_player_game.admin_order_field = 'slate_player__game'
 
+    def get_projection(self, obj):
+        if obj.projection is None:
+            return None
+        return '{:.2f}'.format(obj.projection)
+    get_projection.short_description = 'Proj'
+    get_projection.admin_order_field = 'projection'
+
+    def get_player_value(self, obj):
+        if obj.value is None:
+            return None
+        return '{:.2f}'.format(float(obj.value))
+    get_player_value.short_description = 'Val'
+    get_player_value.admin_order_field = 'value'
+
+    def get_ceiling(self, obj):
+        if obj.ceiling is None:
+            return None
+        return '{:.2f}'.format(obj.ceiling)
+    get_ceiling.short_description = 'Ceil'
+    get_ceiling.admin_order_field = 'ceil'
+
+    def get_floor(self, obj):
+        if obj.floor is None:
+            return None
+        return '{:.2f}'.format(obj.floor)
+    get_floor.short_description = 'Flr'
+    get_floor.admin_order_field = 'floor'
+
+    def get_stdev(self, obj):
+        if obj.stdev is None:
+            return None
+        return '{:.2f}'.format(obj.stdev)
+    get_stdev.short_description = 'Stdev'
+    get_stdev.admin_order_field = 'stdev'
+
     def get_proj_percentile(self, obj):
         return '{:.2f}'.format(obj.proj_percentile * 100)
     get_proj_percentile.short_description = 'proj rank'
@@ -1629,11 +1664,6 @@ class SlatePlayerRawProjectionAdmin(admin.ModelAdmin):
         
         return game.game.home_spread if obj.slate_player.team == game.game.home_team else game.game.away_spread
     get_spread.short_description = 'Spread'
-
-    def get_player_value(self, obj):
-        return '{:.2f}'.format(float(obj.value))
-    get_player_value.short_description = 'Val'
-    get_player_value.admin_order_field = 'value'
 
     def get_num_pass_catchers(self, obj):
         if obj.slate_player.site_pos == 'QB':
