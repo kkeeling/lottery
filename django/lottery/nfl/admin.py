@@ -1279,10 +1279,10 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_team',
         'get_player_game',
         'get_player_game_z',
-        # 'projection',
-        # 'ceiling',
-        # 'floor',
-        # 'stdev',
+        'get_projection',
+        'get_ceiling',
+        'get_floor',
+        'get_stdev',
         'in_play',
         'zscore',
         'get_ownership_projection',
@@ -1371,6 +1371,34 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         return '{:.2f}'.format(game.zscore)
     get_player_game_z.short_description = 'Game-z'
     get_player_game_z.admin_order_field = 'slate_player__slate_game__zscore'
+
+    def get_projection(self, obj):
+        if obj.projection:
+            return None
+        return '{:.2f}'.format(obj.projection)
+    get_projection.short_description = 'Proj'
+    get_projection.admin_order_field = 'projection'
+
+    def get_ceiling(self, obj):
+        if obj.ceiling:
+            return None
+        return '{:.2f}'.format(obj.ceiling)
+    get_ceiling.short_description = 'Ceil'
+    get_ceiling.admin_order_field = 'ceil'
+
+    def get_floor(self, obj):
+        if obj.floor:
+            return None
+        return '{:.2f}'.format(obj.floor)
+    get_floor.short_description = 'Flr'
+    get_floor.admin_order_field = 'floor'
+
+    def get_stdev(self, obj):
+        if obj.stdev:
+            return None
+        return '{:.2f}'.format(obj.stdev)
+    get_stdev.short_description = 'Stdev'
+    get_stdev.admin_order_field = 'stdev'
 
     def get_game_total(self, obj):
         return obj.game_total
