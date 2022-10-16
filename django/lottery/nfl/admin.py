@@ -1373,28 +1373,28 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
     get_player_game_z.admin_order_field = 'slate_player__slate_game__zscore'
 
     def get_projection(self, obj):
-        if obj.projection:
+        if obj.projection is None:
             return None
         return '{:.2f}'.format(obj.projection)
     get_projection.short_description = 'Proj'
     get_projection.admin_order_field = 'projection'
 
     def get_ceiling(self, obj):
-        if obj.ceiling:
+        if obj.ceiling is None:
             return None
         return '{:.2f}'.format(obj.ceiling)
     get_ceiling.short_description = 'Ceil'
     get_ceiling.admin_order_field = 'ceil'
 
     def get_floor(self, obj):
-        if obj.floor:
+        if obj.floor is None:
             return None
         return '{:.2f}'.format(obj.floor)
     get_floor.short_description = 'Flr'
     get_floor.admin_order_field = 'floor'
 
     def get_stdev(self, obj):
-        if obj.stdev:
+        if obj.stdev is None:
             return None
         return '{:.2f}'.format(obj.stdev)
     get_stdev.short_description = 'Stdev'
