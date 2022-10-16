@@ -3811,19 +3811,19 @@ def handle_base_projections(slate_id, task_id):
                         for _ in range(0, int(proj_import.projection_weight * 100)):
                             agg_projs.append(raw_proj.projection)
 
-                        if raw_proj.floor is not None:
+                        if raw_proj.floor is not None and raw_proj.floor != '':
                             for _ in range(0, int(proj_import.projection_weight * 100)):
                                 agg_floors.append(raw_proj.floor)
 
-                        if raw_proj.ceiling is not None:
+                        if raw_proj.ceiling is not None and raw_proj.ceiling != '':
                             for _ in range(0, int(proj_import.projection_weight * 100)):
                                 agg_ceils.append(raw_proj.ceiling)
 
-                        if raw_proj.stdev is not None:
+                        if raw_proj.stdev is not None and raw_proj.stdev != '':
                             for _ in range(0, int(proj_import.projection_weight * 100)):
                                 agg_stds.append(raw_proj.stdev)
 
-                        if raw_proj.ownership_projection is not None:
+                        if raw_proj.ownership_projection is not None and raw_proj.ownership_projection != '':
                             for _ in range(0, int(proj_import.ownership_weight * 100)):
                                 agg_owns.append(raw_proj.ownership_projection)
                     except:
