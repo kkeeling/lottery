@@ -3535,7 +3535,7 @@ def handle_projection_import(import_id, task_id):
                 if player_name is None:
                     continue
 
-                if row[column_headers.column_team] is None:
+                if row[column_headers.column_team] is None or row[column_headers.column_team] == '':
                     continue
 
                 if row[column_headers.column_team] == 'JAX':
