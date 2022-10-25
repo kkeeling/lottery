@@ -589,6 +589,10 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 alias.fc_name = missing_alias.player_name
             elif missing_alias.site == 'rts':
                 alias.rts_name = missing_alias.player_name
+            elif missing_alias.site == 'yahoo':
+                alias.yahoo_name = missing_alias.player_name
+            elif missing_alias.site == 'sabersim':
+                alias.ss_name = missing_alias.player_name
             
             alias.save()
 
@@ -604,7 +608,9 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 fd_name=missing_alias.player_name,
                 etr_name=missing_alias.player_name,
                 rts_name=missing_alias.player_name,
-                rg_name=missing_alias.player_name
+                rg_name=missing_alias.player_name,
+                yahoo_name=missing_alias.player_name,
+                ss_name=missing_alias.player_name
             )
 
             self.message_user(request, 'New alias created: {}'.format(str(alias)), level=messages.INFO)
@@ -627,7 +633,9 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 fd_name=missing_alias.player_name,
                 etr_name=missing_alias.player_name,
                 rts_name=missing_alias.player_name,
-                rg_name=missing_alias.player_name
+                rg_name=missing_alias.player_name,
+                yahoo_name=missing_alias.player_name,
+                ss_name=missing_alias.player_name
             )
 
         self.message_user(request, '{} new aliases created.'.format(count), level=messages.INFO)
@@ -676,6 +684,7 @@ class SlateAdmin(admin.ModelAdmin):
         'get_lineups_link',
         'get_mme_builds_link',
         'get_h2h_builds_link',
+        'update_button',
         'sim_button',
         'make_lineups_button',
         'export_button',
@@ -842,6 +851,7 @@ class SlateAdmin(admin.ModelAdmin):
             path('nfl-slate-simulate/<int:pk>/', self.simulate, name="admin_nfl_slate_simulate"),
             path('nfl-slate-make-lineups/<int:pk>/', self.make_lineups, name="admin_nfl_slate_make_lineups"),
             path('nfl-slate-export/<int:pk>/', self.export_lineups, name="admin_nfl_slate_export_lineups"),
+            path('nfl-slate-update/<int:pk>/', self.update_slate, name="admin_nfl_slate_update"),
         ]
         return my_urls + urls
     
@@ -952,6 +962,20 @@ class SlateAdmin(admin.ModelAdmin):
             messages.WARNING,
             'Your exports are being compiled. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once your exports are ready.')
     export_game_sims.short_description = 'Export Game Sims from selected Slates'
+
+    def update_slate(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        slate = get_object_or_404(models.Slate, pk=pk)
+
+        self.process_slate(request, slate)
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
 
     def simulate(self, request, pk):
         context = dict(

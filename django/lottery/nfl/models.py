@@ -684,7 +684,7 @@ class Slate(models.Model):
     def calc_player_zscores(self, position):
         projections = list(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0).values_list('projection', flat=True))
         ceiling_projections = list(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0).values_list('ceiling', flat=True))
-        ao_projections = list(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0).values_list('adjusted_opportunity', flat=True)) if position == 'RB' else None
+        ao_projections = list(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0, adjusted_opportunity__gt=0.0).values_list('adjusted_opportunity', flat=True)) if position == 'RB' else None
         zscores = scipy.stats.zscore(projections)
         ao_zscores = scipy.stats.zscore(ao_projections) if ao_projections is not None and len(ao_projections) > 0 else None
         ceiling_zscores = scipy.stats.zscore(ceiling_projections) if ceiling_projections is not None and len(ceiling_projections) > 0 else None
@@ -713,6 +713,12 @@ class Slate(models.Model):
                 projection.save()
             except:
                 traceback.print_exc()
+
+    def update_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #2e0b51; font-weight: bold; padding: 10px 15px;">Update</a>',
+            reverse_lazy("admin:admin_nfl_slate_update", args=[self.pk])
+        )
+    update_button.short_description = ''
 
     def sim_button(self):
         return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Simulate Games</a>',
@@ -1724,8 +1730,8 @@ class SheetColumnHeaders(models.Model):
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
     use_for_data_feed = models.BooleanField(default=False)
     column_player_name = models.CharField(max_length=50)
-    column_team = models.CharField(max_length=50)
-    column_median_projection = models.CharField(max_length=50)
+    column_team = models.CharField(max_length=50, blank=True, null=True)
+    column_median_projection = models.CharField(max_length=50, blank=True, null=True)
     column_floor_projection = models.CharField(max_length=50, blank=True, null=True)
     column_ceiling_projection = models.CharField(max_length=50, blank=True, null=True)
     column_rush_att_projection = models.CharField(max_length=50, blank=True, null=True)

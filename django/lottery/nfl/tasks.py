@@ -807,7 +807,7 @@ def execute_h2h_workflow(build_id, task_id):
                     projection_site=s.projection_site,
                     slate_player__slate=build.slate
                 ).values_list('id', flat=True)), s.field_lineup_count
-            ) for s in build.slate.projection_imports.all()
+            ) for s in build.slate.projection_imports.filter(field_lineup_count__gt=0)
         ], start_h2h_comparison.si(build.id, task.id))()
     except Exception as e:
         if task is not None:
@@ -2982,7 +2982,7 @@ def process_slate_players(slate_id, task_id):
                         game = game[:game.find(' ')]
                         team = 'JAC' if row[17] == 'JAX' else row[17]
                     elif slate.site == 'yahoo':
-                        if success_count < 8:
+                        if success_count < 6:
                             success_count += 1
                             continue
                         
@@ -3545,7 +3545,7 @@ def handle_projection_import(import_id, task_id):
                 else:
                     team = row[column_headers.column_team].strip()
 
-                median_projection = row[column_headers.column_median_projection] if row[column_headers.column_median_projection] != '' else 0.0
+                median_projection = row[column_headers.column_median_projection] if column_headers.column_median_projection is not None and row[column_headers.column_median_projection] != '' else 0.0
                 floor_projection = row[column_headers.column_floor_projection] if column_headers.column_floor_projection is not None and row[column_headers.column_floor_projection] != '' else 0.0
                 ceiling_projection = row[column_headers.column_ceiling_projection] if column_headers.column_ceiling_projection is not None and row[column_headers.column_ceiling_projection] != '' else 0.0
                 rush_att_projection = row[column_headers.column_rush_att_projection] if column_headers.column_rush_att_projection is not None and row[column_headers.column_rush_att_projection] != '' else 0.0
@@ -3558,6 +3558,9 @@ def handle_projection_import(import_id, task_id):
                 elif projection_import.projection_site == 'rg':
                     ownership_projection /= 100.0
                     alias = models.Alias.find_alias(player_name, projection_import.slate.site)
+                elif projection_import.projection_site == 'awesemo_own':
+                    ownership_projection /= 100.0
+                    alias = models.Alias.find_alias(player_name, projection_import.projection_site)
                 elif projection_import.projection_site == 'sabersim':
                     ownership_projection /= 100.0
                     alias = models.Alias.find_alias(player_name, projection_import.projection_site)
@@ -3572,6 +3575,11 @@ def handle_projection_import(import_id, task_id):
                             team=team
                         )
 
+                        mu = 0.0
+                        ceil = 0.0
+                        flr = 0.0
+                        stdev = 0.0
+
                         if median_projection is not None and median_projection != '' and median_projection > 0.0:
                             mu = float(median_projection)
 
@@ -3580,24 +3588,20 @@ def handle_projection_import(import_id, task_id):
                                 flr = float(floor_projection)
 
                                 stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
-                            else:
-                                ceil = None
-                                flr = None
-                                stdev = None
 
-                            models.SlatePlayerRawProjection.objects.create(
-                                slate_player=slate_player,
-                                projection_site=projection_import.projection_site,
-                                projection=mu,
-                                value=mu / (slate_player.salary / 1000),
-                                floor=flr,
-                                ceiling=ceil,
-                                stdev=stdev,
-                                ownership_projection=float(ownership_projection) if float(ownership_projection) < 1.0 else float(ownership_projection)/100.0,
-                                adjusted_opportunity=float(rec_projection) * 2.75 + float(rush_att_projection) if projection_import.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection)
-                            )
+                        models.SlatePlayerRawProjection.objects.create(
+                            slate_player=slate_player,
+                            projection_site=projection_import.projection_site,
+                            projection=mu,
+                            value=mu / (slate_player.salary / 1000),
+                            floor=flr,
+                            ceiling=ceil,
+                            stdev=stdev,
+                            ownership_projection=float(ownership_projection) if float(ownership_projection) < 1.0 else float(ownership_projection)/100.0,
+                            adjusted_opportunity=float(rec_projection) * 2.75 + float(rush_att_projection) if projection_import.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection)
+                        )
                             
-                            success_count += 1
+                        success_count += 1
                     except models.SlatePlayer.DoesNotExist:
                         pass
                 else:
