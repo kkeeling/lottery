@@ -3545,12 +3545,12 @@ def handle_projection_import(import_id, task_id):
                 else:
                     team = row[column_headers.column_team].strip()
 
-                median_projection = row[column_headers.column_median_projection] if column_headers.column_median_projection is not None and row[column_headers.column_median_projection] != '' else 0.0
-                floor_projection = row[column_headers.column_floor_projection] if column_headers.column_floor_projection is not None and row[column_headers.column_floor_projection] != '' else 0.0
-                ceiling_projection = row[column_headers.column_ceiling_projection] if column_headers.column_ceiling_projection is not None and row[column_headers.column_ceiling_projection] != '' else 0.0
-                rush_att_projection = row[column_headers.column_rush_att_projection] if column_headers.column_rush_att_projection is not None and row[column_headers.column_rush_att_projection] != '' else 0.0
-                rec_projection = row[column_headers.column_rec_projection] if column_headers.column_rec_projection is not None and row[column_headers.column_rec_projection] != '' else 0.0
-                ownership_projection = float(row[column_headers.column_own_projection]) if column_headers.column_own_projection is not None and row[column_headers.column_own_projection] != '' and row[column_headers.column_own_projection] != '-' else 0.0
+                median_projection = row[column_headers.column_median_projection] if column_headers.column_median_projection is not None and row[column_headers.column_median_projection] != '' and not math.isnan(row[column_headers.column_median_projection]) else 0.0
+                floor_projection = row[column_headers.column_floor_projection] if column_headers.column_floor_projection is not None and row[column_headers.column_floor_projection] != '' and not math.isnan(row[column_headers.column_floor_projection]) else 0.0
+                ceiling_projection = row[column_headers.column_ceiling_projection] if column_headers.column_ceiling_projection is not None and row[column_headers.column_ceiling_projection] != '' and not math.isnan(row[column_headers.column_ceiling_projection]) else 0.0
+                rush_att_projection = row[column_headers.column_rush_att_projection] if column_headers.column_rush_att_projection is not None and row[column_headers.column_rush_att_projection] != '' and not math.isnan(row[column_headers.column_rush_att_projection]) else 0.0
+                rec_projection = row[column_headers.column_rec_projection] if column_headers.column_rec_projection is not None and row[column_headers.column_rec_projection] != '' and not math.isnan(row[column_headers.column_rec_projection]) else 0.0
+                ownership_projection = float(row[column_headers.column_own_projection]) if column_headers.column_own_projection is not None and row[column_headers.column_own_projection] != '' and row[column_headers.column_own_projection] != '-' and not math.isnan(row[column_headers.column_own_projection]) else 0.0
 
                 if projection_import.projection_site == 'etr':
                     ownership_projection /= 100.0
@@ -3677,7 +3677,7 @@ def process_projection_sheet(chained_result, sheet_id, task_id):
                 else:
                     team = row[headers.column_team].strip()
 
-                median_projection = row[headers.column_median_projection] if row[headers.column_median_projection] != '' else 0.0
+                median_projection = row[headers.column_median_projection] if row[headers.column_median_projection] is not None else 0.0
                 floor_projection = row[headers.column_floor_projection] if headers.column_floor_projection is not None and row[headers.column_floor_projection] != '' else 0.0
                 ceiling_projection = row[headers.column_ceiling_projection] if headers.column_ceiling_projection is not None and row[headers.column_ceiling_projection] != '' else 0.0
                 rush_att_projection = row[headers.column_rush_att_projection] if headers.column_rush_att_projection is not None and row[headers.column_rush_att_projection] != '' else 0.0
