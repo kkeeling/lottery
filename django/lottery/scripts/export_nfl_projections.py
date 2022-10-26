@@ -12,7 +12,7 @@ from nfl import models
 def run():
     slate_players = models.SlatePlayer.objects.filter(
         slate__week__slate_year=2021,
-        slate__site='fanduel',
+        slate__site='draftkings',
         slate__is_main_slate=True
     ).prefetch_related(
         Prefetch('raw_projections', queryset=models.SlatePlayerRawProjection.objects.filter(projection_site='4for4'), to_attr='four4four')
@@ -41,4 +41,4 @@ def run():
         'actual': [s.fantasy_points for s in slate_players]
     })
 
-    df.to_csv('data/2021_site_projections_fanduel.csv')
+    df.to_csv('data/2021_site_projections_draftkings.csv')
