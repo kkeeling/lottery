@@ -2986,6 +2986,9 @@ def process_slate_players(slate_id, task_id):
                             success_count += 1
                             continue
                         
+                        if row['ID'] is None or row['ID'] == '': 
+                            continue
+                        
                         player_id = row['ID']
                         site_pos = row['Position']
                         player_name = f'{row["First Name"]} {row["Last Name"]}'.replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team').strip()
