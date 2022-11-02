@@ -3753,18 +3753,17 @@ def handle_projection_import(import_id, task_id):
 
                                 stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
                         
-                        ao = float(rec_projection) * 2.75 + float(rush_att_projection) if projection_import.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection)
                         try:
                             models.SlatePlayerRawProjection.objects.create(
                                 slate_player=slate_player,
                                 projection_site=projection_import.projection_site,
                                 projection=mu,
-                                value=mu / (slate_player.salary / 1000),
+                                # value=mu / (slate_player.salary / 1000),
                                 floor=flr,
                                 ceiling=ceil,
                                 stdev=stdev,
                                 ownership_projection=float(ownership_projection) if float(ownership_projection) < 1.0 else float(ownership_projection)/100.0,
-                                adjusted_opportunity=0.0
+                                adjusted_opportunity=float(rec_projection) * 2.75 + float(rush_att_projection) if projection_import.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection)
                             )
                                 
                             success_count += 1
