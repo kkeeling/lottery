@@ -674,9 +674,9 @@ class SlateAdmin(admin.ModelAdmin):
         'datetime',
         'name',
         'week',
-        'num_cycles',
-        'lineups_per_cycle',
         'is_main_slate',
+        'is_showdown',
+        'salaries',
         'is_complete',
         'site',
         'get_num_games',
@@ -686,17 +686,16 @@ class SlateAdmin(admin.ModelAdmin):
         'get_h2h_builds_link',
         'update_button',
         'sim_button',
-        'make_lineups_button',
-        'export_button',
     )
     list_editable = (
-        'is_main_slate',
         'is_complete',
+        'salaries',
     )
     list_filter = (
         'site',
         'is_main_slate',
-        
+        'is_showdown',
+        ('week', RelatedDropdownFilter),
     )
     actions = [
         'process_slates', 
@@ -802,43 +801,59 @@ class SlateAdmin(admin.ModelAdmin):
                     messages.WARNING,
                     'Processing actuals for {}.'.format(str(slate)))
         else:
-            find_games_task = BackgroundTask()
-            find_games_task.name = 'Finding Slate Games'
-            find_games_task.user = request.user
-            find_games_task.save()
-
             slate_players_task = BackgroundTask()
             slate_players_task.name = 'Process Slate Players'
             slate_players_task.user = request.user
             slate_players_task.save()
-
-            _ = chain(
-                tasks.find_slate_games.si(slate.id, find_games_task.id), 
-                tasks.process_slate_players.si(slate.id, slate_players_task.id),
-                group([
-                    tasks.handle_projection_import.si(
-                        s.id, 
-                        BackgroundTask.objects.create(
-                            name=f'Process Projections from {s.projection_site}',
+            
+            if slate.is_showdown:
+                _ = chain(
+                    tasks.process_slate_players.si(slate.id, slate_players_task.id),
+                    group([
+                        tasks.handle_projection_import.si(
+                            s.id, 
+                            BackgroundTask.objects.create(
+                                name=f'Process Projections from {s.projection_site}',
+                                user=request.user
+                            ).id
+                        ) for s in slate.projection_imports.all()
+                    ]),
+                    tasks.handle_base_projections.si(slate.id, BackgroundTask.objects.create(
+                            name='Process Base Projections',
                             user=request.user
-                        ).id
-                    ) for s in slate.projection_imports.all()
-                ]),
-                tasks.handle_base_projections.si(slate.id, BackgroundTask.objects.create(
-                        name='Process Base Projections',
-                        user=request.user
-                ).id),
-                # group([
-                #     tasks.process_ownership_sheet.s(s.id, BackgroundTask.objects.create(
-                #         name=f'Process Ownership Projections from {s.projection_site}',
-                #         user=request.user
-                #     ).id) for s in slate.ownership_projections_sheets.all()
-                # ]),
-                tasks.assign_zscores_to_players.si(slate.id, BackgroundTask.objects.create(
-                        name='Assign Z-Scores to Players',
-                        user=request.user
-                ).id)
-            )()
+                    ).id),
+                    tasks.assign_zscores_to_players.si(slate.id, BackgroundTask.objects.create(
+                            name='Assign Z-Scores to Players',
+                            user=request.user
+                    ).id)
+                )()
+            else:
+                find_games_task = BackgroundTask()
+                find_games_task.name = 'Finding Slate Games'
+                find_games_task.user = request.user
+                find_games_task.save()
+
+                _ = chain(
+                    tasks.find_slate_games.si(slate.id, find_games_task.id), 
+                    tasks.process_slate_players.si(slate.id, slate_players_task.id),
+                    group([
+                        tasks.handle_projection_import.si(
+                            s.id, 
+                            BackgroundTask.objects.create(
+                                name=f'Process Projections from {s.projection_site}',
+                                user=request.user
+                            ).id
+                        ) for s in slate.projection_imports.all()
+                    ]),
+                    tasks.handle_base_projections.si(slate.id, BackgroundTask.objects.create(
+                            name='Process Base Projections',
+                            user=request.user
+                    ).id),
+                    tasks.assign_zscores_to_players.si(slate.id, BackgroundTask.objects.create(
+                            name='Assign Z-Scores to Players',
+                            user=request.user
+                    ).id)
+                )()
 
             messages.add_message(
                 request,
@@ -4127,10 +4142,45 @@ class WeekAdmin(admin.ModelAdmin):
         'start',
         'end',
         'get_num_games',
+        'update_button',
     )
     date_hierarchy = 'start'
     actions = ['update_vegas']
     inlines = [GameInline]
+
+    def get_urls(self):
+        urls = super().get_urls()
+        my_urls = [
+            path('week-update/<int:pk>/', self.update, name="admin_nfl_update_week"),
+        ]
+        return my_urls + urls
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.process_week(request, obj)
+
+    def process_week(self, request, week):
+        chain(
+            tasks.update_vegas_for_week.si(
+                week.id,
+                BackgroundTask.objects.create(
+                    name='Update Vegas',
+                    user=request.user
+                ).id
+            ),
+            tasks.create_slates.si(
+                week.id,
+                BackgroundTask.objects.create(
+                    name='Create Slates',
+                    user=request.user
+                ).id
+            )
+        )()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Initializing {week}')
 
     def get_week_title(self, obj):
         return str(obj)
@@ -4152,6 +4202,30 @@ class WeekAdmin(admin.ModelAdmin):
     def get_num_games(self, obj):
         return mark_safe('<a href="/admin/nfl/game/?week__id__exact={}">{}</a>'.format(obj.id, obj.games.all().count()))
     get_num_games.short_description = '# Games'
+
+    def update(self, request, pk):
+        context = dict(
+           # Include common variables for rendering the admin template.
+           self.admin_site.each_context(request),
+           # Anything else you want in the context...
+        )
+
+        week = models.Week.objects.get(pk=pk)
+
+        task = BackgroundTask()
+        task.name = 'Update Vegas'
+        task.user = request.user
+        task.save()
+
+        tasks.update_vegas_for_week.delay(week.id, task.id)
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Updating odds for {week}.')
+
+        # redirect or TemplateResponse(request, "sometemplate.html", context)
+        return redirect(request.META.get('HTTP_REFERER'), context=context)
 
 
 @admin.register(models.Backtest)
@@ -4607,3 +4681,8 @@ class GroupImportSheetAdmin(admin.ModelAdmin):
             request,
             messages.WARNING,
             'Your group import is being processed.')
+
+
+@admin.register(models.MarketProjections)
+class MarketProjectionsAdmin(admin.ModelAdmin):
+    pass

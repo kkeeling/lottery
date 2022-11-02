@@ -98,6 +98,164 @@ def update_vegas_for_week(week_id, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
+@shared_task
+def update_market_projections():
+    logger.info('Update Market Projections')
+    r = requests.get(models.MarketProjections.URL)
+    models.MarketProjections.objects.create(
+        json_data = r.text
+    )
+    logger.info('Done.')
+
+
+@shared_task
+def create_slates(week_id, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+
+        week = models.Week.objects.get(id=week_id)
+
+        # for each dfs site, create Th-M, early, aft, primetime, main, and showdown slates
+        for site in models.SITE_OPTIONS:
+            # Th-M slate
+            slate, _ = models.Slate.objects.get_or_create(
+                datetime=datetime.datetime(week.start.year, week.start.month, week.start.day, 20, 0, 0),
+                end_datetime=datetime.datetime(week.end.year, week.end.month, week.end.day, 23, 59, 59),
+                name=f'ThM-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
+                week=week,
+                site=site[0],
+                is_main_slate=False,
+                is_showdown=False,
+                is_complete=False
+            )
+            
+            find_slate_games(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name=f'Finding slate games for {slate}',
+                    user=task.user
+                ).id
+            )
+
+            # main slate
+            sunday = week.start + datetime.timedelta(days=(6 - week.start.weekday() + 7) % 7)
+            slate, _ = models.Slate.objects.get_or_create(
+                datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 13, 0, 0),
+                end_datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 19, 59, 59),
+                name=f'Main-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
+                week=week,
+                site=site[0],
+                is_main_slate=True,
+                is_showdown=False,
+                is_complete=False
+            )
+            
+            find_slate_games(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name=f'Finding slate games for {slate}',
+                    user=task.user
+                ).id
+            )
+
+            # early slate
+            slate, _ = models.Slate.objects.get_or_create(
+                datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 13, 0, 0),
+                end_datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 15, 59, 59),
+                name=f'Early-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
+                week=week,
+                site=site[0],
+                is_main_slate=False,
+                is_showdown=False,
+                is_complete=False
+            )
+            
+            find_slate_games(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name=f'Finding slate games for {slate}',
+                    user=task.user
+                ).id
+            )
+
+            # afternoon slate
+            slate, _ = models.Slate.objects.get_or_create(
+                datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 16, 5, 0),
+                end_datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 19, 59, 59),
+                name=f'Aft-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
+                week=week,
+                site=site[0],
+                is_main_slate=False,
+                is_showdown=False,
+                is_complete=False
+            )
+            
+            find_slate_games(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name=f'Finding slate games for {slate}',
+                    user=task.user
+                ).id
+            )
+
+            # primetime slate
+            slate, _ = models.Slate.objects.get_or_create(
+                datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 20, 0, 0),
+                end_datetime=datetime.datetime(week.end.year, week.end.month, week.end.day, 23, 59, 59),
+                name=f'PT-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
+                week=week,
+                site=site[0],
+                is_main_slate=False,
+                is_showdown=False,
+                is_complete=False
+            )
+            
+            find_slate_games(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name=f'Finding slate games for {slate}',
+                    user=task.user
+                ).id
+            )
+
+            # showdown slates
+            for game in week.games.all():
+                slate, _ = models.Slate.objects.get_or_create(
+                    datetime=game.game_date,
+                    name=f'SD-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}-{game.away_team}@{game.home_team}',
+                    week=week,
+                    site=site[0],
+                    is_main_slate=False,
+                    is_showdown=True,
+                    is_complete=False
+                )
+                
+                models.SlateGame.objects.get_or_create(
+                    slate=slate,
+                    game=game
+                )
+
+
+        task.status = 'success'
+        task.content = 'Slates created for {}.'.format(str(week))
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem updating vegas odds: {e}'
+            task.save()
+
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+
 def find_qbs(qb=None):
     '''
     Query DB for relevant QBs.
@@ -2972,15 +3130,18 @@ def process_slate_players(slate_id, task_id):
                         if success_count < 8:
                             success_count += 1
                             continue
+                        
+                        start_col = 7 if slate.is_showdown else 10
 
-                        player_id = row[13]
-                        site_pos = row[10]
-                        player_name = row[12].strip()
+                        player_id = row[start_col + 3]
+                        site_pos = row[start_col]
+                        roster_pos = row[start_col + 4]
+                        player_name = row[start_col + 2].strip()
                         csv_name = f'{player_name} ({player_id})'
-                        salary = row[15]
-                        game = row[16].replace('@', '_').replace('JAX', 'JAC')
+                        salary = row[start_col + 5]
+                        game = row[start_col + 6].replace('@', '_').replace('JAX', 'JAC')
                         game = game[:game.find(' ')]
-                        team = 'JAC' if row[17] == 'JAX' else row[17]
+                        team = 'JAC' if row[start_col + 7] == 'JAX' else row[start_col + 7]
                     elif slate.site == 'yahoo':
                         if success_count < 6:
                             success_count += 1
@@ -3591,7 +3752,9 @@ def handle_projection_import(import_id, task_id):
                                 flr = float(floor_projection)
 
                                 stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
-
+                        
+                        logger.info(rush_att_projection)
+                        logger.info(rec_projection)
                         models.SlatePlayerRawProjection.objects.create(
                             slate_player=slate_player,
                             projection_site=projection_import.projection_site,

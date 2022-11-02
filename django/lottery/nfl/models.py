@@ -43,9 +43,9 @@ BuildEval = namedtuple('BuildEval', ['top_score', 'total_cashes', 'total_one_pct
 SIM_ITERATIONS = 10000
 
 SITE_OPTIONS = (
-    ('draftkings', 'DraftKings'),
-    ('fanduel', 'Fanduel'),
-    ('yahoo', 'Yahoo'),
+    ('draftkings', 'DK'),
+    ('fanduel', 'FD'),
+    ('yahoo', 'YH'),
 )
 
 BUILD_STATUS = (
@@ -71,6 +71,7 @@ PROJECTION_SITES = (
     ('fc', 'Fantasy Cruncher'),
     ('rts', 'Run The Sims'),
     ('sabersim', 'Saber Sim'),
+    ('labs', 'Fantasy Labs'),
 )
 
 PROJECTION_WEIGHTS = {
@@ -376,7 +377,7 @@ class Week(models.Model):
     end = models.DateField()
 
     class Meta:
-        ordering = ['start']
+        ordering = ['-start']
 
     def __str__(self):
         return '{} Week {}'.format(self.slate_year, self.num)
@@ -449,6 +450,12 @@ class Week(models.Model):
             except:
                 traceback.print_exc()
 
+    def update_button(self):
+        return format_html('<a href="{}" class="link" style="color: #ffffff; background-color: #30bf48; font-weight: bold; padding: 10px 15px;">Update Vegas</a>',
+            reverse_lazy("admin:admin_nfl_update_week", args=[self.pk])
+        )
+    update_button.short_description = ''
+
 
 class Game(models.Model):
     week = models.ForeignKey(Week, related_name='games', on_delete=models.CASCADE)
@@ -475,6 +482,7 @@ class Slate(models.Model):
     week = models.ForeignKey(Week, related_name='slates', verbose_name='Week', on_delete=models.SET_NULL, null=True, blank=True)
     site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='fanduel')
     is_main_slate = models.BooleanField(default=False)
+    is_showdown = models.BooleanField(default=False)
     is_complete = models.BooleanField(default=False)
 
     salaries_sheet_type = models.CharField(max_length=255, choices=SHEET_TYPES, default='site')
@@ -862,6 +870,7 @@ class SlatePlayer(models.Model):
     csv_name = models.CharField(max_length=255, null=True, blank=True)
     salary = models.IntegerField()
     site_pos = models.CharField(max_length=5)
+    roster_position = models.CharField(max_length=5, default='FLEX')
     team = models.CharField(max_length=4)
     fantasy_points = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
     game = models.CharField(max_length=10)
@@ -1702,6 +1711,19 @@ class CeilingProjectionRangeMapping(models.Model):
 
 
 # Importing
+
+
+class MarketProjections(models.Model):
+    URL = 'https://r1z9dkqvh3.execute-api.us-east-1.amazonaws.com/api/market-projections'
+    pull_time = models.DateTimeField(auto_now_add=True)
+    json_data = models.TextField()
+
+    def __str__(self):
+        return f'{self.pull_time}'
+
+    class Meta:
+        verbose_name = 'Market Projections'
+        verbose_name_plural = 'Market Projections'
 
 
 class SlateProjectionImport(models.Model):
