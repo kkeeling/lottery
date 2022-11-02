@@ -3764,7 +3764,7 @@ def handle_projection_import(import_id, task_id):
                                 ceiling=ceil,
                                 stdev=stdev,
                                 ownership_projection=float(ownership_projection) if float(ownership_projection) < 1.0 else float(ownership_projection)/100.0,
-                                adjusted_opportunity=decimal.Decimal(ao)
+                                adjusted_opportunity=0.0
                             )
                                 
                             success_count += 1
