@@ -3753,8 +3753,7 @@ def handle_projection_import(import_id, task_id):
 
                                 stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
                         
-                        logger.info(rush_att_projection)
-                        logger.info(rec_projection)
+                        logger.info(row)
                         models.SlatePlayerRawProjection.objects.create(
                             slate_player=slate_player,
                             projection_site=projection_import.projection_site,
