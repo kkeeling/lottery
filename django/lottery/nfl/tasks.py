@@ -3753,6 +3753,7 @@ def handle_projection_import(import_id, task_id):
 
                                 stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
                         
+                        ao = float(rec_projection) * 2.75 + float(rush_att_projection) if projection_import.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection)
                         try:
                             models.SlatePlayerRawProjection.objects.create(
                                 slate_player=slate_player,
@@ -3763,13 +3764,12 @@ def handle_projection_import(import_id, task_id):
                                 ceiling=ceil,
                                 stdev=stdev,
                                 ownership_projection=float(ownership_projection) if float(ownership_projection) < 1.0 else float(ownership_projection)/100.0,
-                                adjusted_opportunity=float(rec_projection) * 2.75 + float(rush_att_projection) if projection_import.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection)
+                                adjusted_opportunity=ao
                             )
                                 
                             success_count += 1
                         except:
                             logger.info(f'Could not create projection for {slate_player.name} with {projection_import.projection_site}')
-                            logger.info(float(rec_projection) * 2.75 + float(rush_att_projection) if projection_import.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection))
                     except models.SlatePlayer.DoesNotExist:
                         pass
                 else:
