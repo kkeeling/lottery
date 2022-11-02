@@ -3769,6 +3769,7 @@ def handle_projection_import(import_id, task_id):
                             success_count += 1
                         except:
                             logger.info(f'Could not create projection for {slate_player.name} with {projection_import.projection_site}')
+                            logger.info(float(rec_projection) * 2.75 + float(rush_att_projection) if projection_import.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection))
                     except models.SlatePlayer.DoesNotExist:
                         pass
                 else:
