@@ -3753,12 +3753,16 @@ def handle_projection_import(import_id, task_id):
 
                                 stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
                         
+                        if projection_import.slate.site == 'yahoo':
+                            val = mu / slate_player.salary
+                        else:
+                            val = mu / (slate_player.salary / 1000)
                         try:
                             models.SlatePlayerRawProjection.objects.create(
                                 slate_player=slate_player,
                                 projection_site=projection_import.projection_site,
                                 projection=mu,
-                                # value=mu / (slate_player.salary / 1000),
+                                value=val,
                                 floor=flr,
                                 ceiling=ceil,
                                 stdev=stdev,
