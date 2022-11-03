@@ -305,11 +305,14 @@ def find_players(qb, position, depth, find_opponent=False):
     return players[:depth]
 
 
-def get_corr_matrix(site):
+def get_corr_matrix(site, is_sd=False):
     if site == 'fanduel' or site == 'yahoo':
         r_df = pandas.read_csv('data/r.csv', index_col=0)
     elif site == 'draftkings':
-        r_df = pandas.read_csv('data/dk_r.csv', index_col=0)
+        if is_sd:
+            r_df = pandas.read_csv('data/dk_r_sd.csv', index_col=0)
+        else:
+            r_df = pandas.read_csv('data/dk_r.csv', index_col=0)
     return r_df
 
 
@@ -336,7 +339,7 @@ def simulate_game(game_id, task_id):
             dst_label = 'DST' 
 
         # set up correlation
-        r_df = get_corr_matrix(game.slate.site)
+        r_df = get_corr_matrix(game.slate.site, game.slate.is_showdown)
         c_target = r_df.to_numpy()
         r0 = [0] * c_target.shape[0]
         mv_norm = scipy.stats.multivariate_normal(mean=r0, cov=c_target)
@@ -355,6 +358,7 @@ def simulate_game(game_id, task_id):
         home_wr5 = None
         home_te1 = None
         home_te2 = None
+        home_k = None
         home_dst = None
         away_qb = None
         away_rb1 = None
@@ -367,7 +371,9 @@ def simulate_game(game_id, task_id):
         away_wr5 = None
         away_te1 = None
         away_te2 = None
+        away_k = None
         away_dst = None
+
         home_qb_rv = None 
         home_rb1_rv = None 
         home_rb2_rv = None 
@@ -379,6 +385,7 @@ def simulate_game(game_id, task_id):
         home_wr5_rv = None 
         home_te1_rv = None 
         home_te2_rv = None 
+        home_k_rv = None 
         home_dst_rv = None 
         away_qb_rv = None 
         away_rb1_rv = None 
@@ -391,16 +398,45 @@ def simulate_game(game_id, task_id):
         away_wr5_rv = None 
         away_te1_rv = None 
         away_te2_rv = None 
+        away_k_rv = None 
         away_dst_rv = None 
 
+        cpt_home_qb = None
+        cpt_home_rb1 = None
+        cpt_home_rb2 = None
+        cpt_home_rb3 = None
+        cpt_home_wr1 = None
+        cpt_home_wr2 = None
+        cpt_home_wr3 = None
+        cpt_home_wr4 = None
+        cpt_home_wr5 = None
+        cpt_home_te1 = None
+        cpt_home_te2 = None
+        cpt_home_k = None
+        cpt_home_dst = None
+        cpt_away_qb = None
+        cpt_away_rb1 = None
+        cpt_away_rb2 = None
+        cpt_away_rb3 = None
+        cpt_away_wr1 = None
+        cpt_away_wr2 = None
+        cpt_away_wr3 = None
+        cpt_away_wr4 = None
+        cpt_away_wr5 = None
+        cpt_away_te1 = None
+        cpt_away_te2 = None
+        cpt_away_k = None
+        cpt_away_dst = None
+
         # Set up game players
-        home_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_home_players().values_list('id', flat=True))
-        away_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_away_players().values_list('id', flat=True))
+        home_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_home_players().values_list('id', flat=True)).exclude(slate_player__roster_position__in=['CPT', 'MVP'])
+        away_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_away_players().values_list('id', flat=True)).exclude(slate_player__roster_position__in=['CPT', 'MVP'])
 
         home_qbs = home_players.filter(slate_player__site_pos='QB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
         home_rbs = home_players.filter(slate_player__site_pos='RB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
         home_wrs = home_players.filter(slate_player__site_pos='WR').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
         home_tes = home_players.filter(slate_player__site_pos='TE').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        home_ks = home_players.filter(slate_player__site_pos='K').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
         home_dsts = home_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
 
         home_qb = home_qbs[0]
@@ -420,12 +456,15 @@ def simulate_game(game_id, task_id):
         home_te1 = home_tes[0]
         if home_tes.count() > 1:
             home_te2 = home_tes[1]
+        if home_ks.count() > 0:
+            home_k = home_ks[0]
         home_dst = home_dsts[0]
 
         away_qbs = away_players.filter(slate_player__site_pos='QB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
         away_rbs = away_players.filter(slate_player__site_pos='RB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
         away_wrs = away_players.filter(slate_player__site_pos='WR').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
         away_tes = away_players.filter(slate_player__site_pos='TE').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        away_ks = away_players.filter(slate_player__site_pos='K').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
         away_dsts = away_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
 
         away_qb = away_qbs[0]
@@ -445,6 +484,8 @@ def simulate_game(game_id, task_id):
         away_te1 = away_tes[0]
         if away_tes.count() > 1:
             away_te2 = away_tes[1]
+        if away_ks.count() > 0:
+            away_k = away_ks[0]
         away_dst = away_dsts[0]
 
         # Simulate
@@ -466,6 +507,8 @@ def simulate_game(game_id, task_id):
         home_te1_rv = scipy.stats.gamma((float(home_te1.projection)/float(home_te1.stdev))**2, scale=(float(home_te1.stdev)**2)/float(home_te1.projection))
         if home_te2:
             home_te2_rv = scipy.stats.gamma((float(home_te2.projection)/float(home_te2.stdev))**2, scale=(float(home_te2.stdev)**2)/float(home_te2.projection))
+        if home_k:
+            home_k_rv = scipy.stats.gamma((float(home_k.projection)/float(home_k.stdev))**2, scale=(float(home_k.stdev)**2)/float(home_k.projection))
         home_dst_rv = scipy.stats.gamma((float(home_dst.projection)/float(home_dst.stdev))**2, scale=(float(home_dst.stdev)**2)/float(home_dst.projection))
         
         away_qb_rv = scipy.stats.gamma((float(away_qb.projection)/float(away_qb.stdev))**2, scale=(float(away_qb.stdev)**2)/float(away_qb.projection))
@@ -485,6 +528,8 @@ def simulate_game(game_id, task_id):
         away_te1_rv = scipy.stats.gamma((float(away_te1.projection)/float(away_te1.stdev))**2, scale=(float(away_te1.stdev)**2)/float(away_te1.projection))
         if away_te2:
             away_te2_rv = scipy.stats.gamma((float(away_te2.projection)/float(away_te2.stdev))**2, scale=(float(away_te2.stdev)**2)/float(away_te2.projection))
+        if away_k:
+            away_k_rv = scipy.stats.gamma((float(away_k.projection)/float(away_k.stdev))**2, scale=(float(away_k.stdev)**2)/float(away_k.projection))
         away_dst_rv = scipy.stats.gamma((float(away_dst.projection)/float(away_dst.stdev))**2, scale=(float(away_dst.stdev)**2)/float(away_dst.projection))
 
         arr = []
@@ -539,6 +584,11 @@ def simulate_game(game_id, task_id):
             rand_home_te2 = home_te2_rv.ppf(rand_U[:, i])
             arr.append(rand_home_te2)
 
+        if home_k_rv:
+            i += 1
+            rand_home_k = home_k_rv.ppf(rand_U[:, i])
+            arr.append(rand_home_k)
+
         i += 1
         rand_home_dst = home_dst_rv.ppf(rand_U[:, i])
         arr.append(rand_home_dst)
@@ -592,6 +642,11 @@ def simulate_game(game_id, task_id):
             i += 1
             rand_away_te2 = away_te2_rv.ppf(rand_U[:, i])
             arr.append(rand_away_te2)
+
+        if away_k_rv:
+            i += 1
+            rand_away_k = away_k_rv.ppf(rand_U[:, i])
+            arr.append(rand_away_k)
 
         i += 1
         rand_away_dst = away_dst_rv.ppf(rand_U[:, i])
@@ -676,6 +731,13 @@ def simulate_game(game_id, task_id):
             home_te2.s75 = numpy.percentile(home_te2.sim_scores, 75)
             home_te2.s90 = numpy.percentile(home_te2.sim_scores, 90)
             home_te2.save()
+        if home_k:
+            home_k.sim_scores = numpy.round(rand_home_k, 2).tolist()
+            home_k.median = numpy.median(home_k.sim_scores)
+            home_k.s20 = numpy.percentile(home_k.sim_scores, 20)
+            home_k.s75 = numpy.percentile(home_k.sim_scores, 75)
+            home_k.s90 = numpy.percentile(home_k.sim_scores, 90)
+            home_k.save()
         home_dst.sim_scores = numpy.round(rand_home_dst, 2).tolist()
         home_dst.median = numpy.median(home_dst.sim_scores)
         home_dst.s20 = numpy.percentile(home_dst.sim_scores, 20)
@@ -754,12 +816,265 @@ def simulate_game(game_id, task_id):
             away_te2.s75 = numpy.percentile(away_te2.sim_scores, 75)
             away_te2.s90 = numpy.percentile(away_te2.sim_scores, 90)
             away_te2.save()
+        if away_k:
+            away_k.sim_scores = numpy.round(rand_away_k, 2).tolist()
+            away_k.median = numpy.median(away_k.sim_scores)
+            away_k.s20 = numpy.percentile(away_k.sim_scores, 20)
+            away_k.s75 = numpy.percentile(away_k.sim_scores, 75)
+            away_k.s90 = numpy.percentile(away_k.sim_scores, 90)
+            away_k.save()
         away_dst.sim_scores = numpy.round(rand_away_dst, 2).tolist()
         away_dst.median = numpy.median(away_dst.sim_scores)
         away_dst.s20 = numpy.percentile(away_dst.sim_scores, 20)
         away_dst.s75 = numpy.percentile(away_dst.sim_scores, 75)
         away_dst.s90 = numpy.percentile(away_dst.sim_scores, 90)
         away_dst.save()
+        
+        # assign outcomes to captains if necessary
+        
+        cpt_home_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_home_players().values_list('id', flat=True)).filter(slate_player__roster_position__in=['CPT', 'MVP'])
+        cpt_away_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_away_players().values_list('id', flat=True)).filter(slate_player__roster_position__in=['CPT', 'MVP'])
+
+        cpt_home_qbs = cpt_home_players.filter(slate_player__site_pos='QB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        cpt_home_rbs = cpt_home_players.filter(slate_player__site_pos='RB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        cpt_home_wrs = cpt_home_players.filter(slate_player__site_pos='WR').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        cpt_home_tes = cpt_home_players.filter(slate_player__site_pos='TE').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        cpt_home_ks = cpt_home_players.filter(slate_player__site_pos='K').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        cpt_home_dsts = cpt_home_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+
+        cpt_home_qb = cpt_home_qbs[0]
+        cpt_home_rb1 = cpt_home_rbs[0]
+        if cpt_home_rbs.count() > 1:
+            cpt_home_rb2 = cpt_home_rbs[1]
+        if cpt_home_rbs.count() > 2:
+            cpt_home_rb3 = cpt_home_rbs[2]
+        cpt_home_wr1 = cpt_home_wrs[0]
+        cpt_home_wr2 = cpt_home_wrs[1]
+        if cpt_home_wrs.count() > 2:
+            cpt_home_wr3 = cpt_home_wrs[2]
+        if cpt_home_wrs.count() > 3:
+            cpt_home_wr4 = cpt_home_wrs[3]
+        if cpt_home_wrs.count() > 4:
+            cpt_home_wr5 = cpt_home_wrs[4]
+        cpt_home_te1 = cpt_home_tes[0]
+        if cpt_home_tes.count() > 1:
+            cpt_home_te2 = cpt_home_tes[1]
+        if cpt_home_ks.count() > 0:
+            cpt_home_k = cpt_home_ks[0]
+        cpt_home_dst = cpt_home_dsts[0]
+
+        cpt_away_qbs = cpt_away_players.filter(slate_player__site_pos='QB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        cpt_away_rbs = cpt_away_players.filter(slate_player__site_pos='RB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        cpt_away_wrs = cpt_away_players.filter(slate_player__site_pos='WR').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        cpt_away_tes = cpt_away_players.filter(slate_player__site_pos='TE').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        cpt_away_ks = cpt_away_players.filter(slate_player__site_pos='K').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+        cpt_away_dsts = cpt_away_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+
+        cpt_away_qb = cpt_away_qbs[0]
+        cpt_away_rb1 = cpt_away_rbs[0]
+        if cpt_away_rbs.count() > 1:
+            cpt_away_rb2 = cpt_away_rbs[1]
+        if cpt_away_rbs.count() > 2:
+            cpt_away_rb3 = cpt_away_rbs[2]
+        cpt_away_wr1 = cpt_away_wrs[0]
+        cpt_away_wr2 = cpt_away_wrs[1]
+        if cpt_away_wrs.count() > 2:
+            cpt_away_wr3 = cpt_away_wrs[2]
+        if cpt_away_wrs.count() > 3:
+            cpt_away_wr4 = cpt_away_wrs[3]
+        if cpt_away_wrs.count() > 4:
+            cpt_away_wr5 = cpt_away_wrs[4]
+        cpt_away_te1 = cpt_away_tes[0]
+        if cpt_away_tes.count() > 1:
+            cpt_away_te2 = cpt_away_tes[1]
+        if cpt_away_ks.count() > 0:
+            cpt_away_k = cpt_away_ks[0]
+        cpt_away_dst = cpt_away_dsts[0]
+
+        if cpt_home_qb:
+            cpt_home_qb.sim_scores = (numpy.round(rand_home_qb, 2) * 1.5).tolist()
+            cpt_home_qb.median = numpy.median(cpt_home_qb.sim_scores)
+            cpt_home_qb.s20 = numpy.percentile(cpt_home_qb.sim_scores, 20)
+            cpt_home_qb.s75 = numpy.percentile(cpt_home_qb.sim_scores, 75)
+            cpt_home_qb.s90 = numpy.percentile(cpt_home_qb.sim_scores, 90)
+            cpt_home_qb.save()
+        if cpt_home_rb1:
+            cpt_home_rb1.sim_scores = (numpy.round(rand_home_rb1, 2) * 1.5).tolist()
+            cpt_home_rb1.median = numpy.median(cpt_home_rb1.sim_scores)
+            cpt_home_rb1.s20 = numpy.percentile(cpt_home_rb1.sim_scores, 20)
+            cpt_home_rb1.s75 = numpy.percentile(cpt_home_rb1.sim_scores, 75)
+            cpt_home_rb1.s90 = numpy.percentile(cpt_home_rb1.sim_scores, 90)
+            cpt_home_rb1.save()
+        if cpt_home_rb2:
+            cpt_home_rb2.sim_scores = (numpy.round(rand_home_rb2, 2) * 1.5).tolist()
+            cpt_home_rb2.median = numpy.median(cpt_home_rb2.sim_scores)
+            cpt_home_rb2.s20 = numpy.percentile(cpt_home_rb2.sim_scores, 20)
+            cpt_home_rb2.s75 = numpy.percentile(cpt_home_rb2.sim_scores, 75)
+            cpt_home_rb2.s90 = numpy.percentile(cpt_home_rb2.sim_scores, 90)
+            cpt_home_rb2.save()
+        if cpt_home_rb3:
+            cpt_home_rb3.sim_scores = (numpy.round(rand_home_rb3, 2) * 1.5).tolist()
+            cpt_home_rb3.median = numpy.median(cpt_home_rb3.sim_scores)
+            cpt_home_rb3.s20 = numpy.percentile(cpt_home_rb3.sim_scores, 20)
+            cpt_home_rb3.s75 = numpy.percentile(cpt_home_rb3.sim_scores, 75)
+            cpt_home_rb3.s90 = numpy.percentile(cpt_home_rb3.sim_scores, 90)
+            cpt_home_rb3.save()
+        if cpt_home_wr1:
+            cpt_home_wr1.sim_scores = (numpy.round(rand_home_wr1, 2) * 1.5).tolist()
+            cpt_home_wr1.median = numpy.median(cpt_home_wr1.sim_scores)
+            cpt_home_wr1.s20 = numpy.percentile(cpt_home_wr1.sim_scores, 20)
+            cpt_home_wr1.s75 = numpy.percentile(cpt_home_wr1.sim_scores, 75)
+            cpt_home_wr1.s90 = numpy.percentile(cpt_home_wr1.sim_scores, 90)
+            cpt_home_wr1.save()
+        if cpt_home_wr2:
+            cpt_home_wr2.sim_scores = (numpy.round(rand_home_wr2, 2) * 1.5).tolist()
+            cpt_home_wr2.median = numpy.median(cpt_home_wr2.sim_scores)
+            cpt_home_wr2.s20 = numpy.percentile(cpt_home_wr2.sim_scores, 20)
+            cpt_home_wr2.s75 = numpy.percentile(cpt_home_wr2.sim_scores, 75)
+            cpt_home_wr2.s90 = numpy.percentile(cpt_home_wr2.sim_scores, 90)
+            cpt_home_wr2.save()
+        if cpt_home_wr3:
+            cpt_home_wr3.sim_scores = (numpy.round(rand_home_wr3, 2) * 1.5).tolist()
+            cpt_home_wr3.median = numpy.median(cpt_home_wr3.sim_scores)
+            cpt_home_wr3.s20 = numpy.percentile(cpt_home_wr3.sim_scores, 20)
+            cpt_home_wr3.s75 = numpy.percentile(cpt_home_wr3.sim_scores, 75)
+            cpt_home_wr3.s90 = numpy.percentile(cpt_home_wr3.sim_scores, 90)
+            cpt_home_wr3.save()
+        if cpt_home_wr4:
+            cpt_home_wr4.sim_scores = (numpy.round(rand_home_wr4, 2) * 1.5).tolist()
+            cpt_home_wr4.median = numpy.median(cpt_home_wr4.sim_scores)
+            cpt_home_wr4.s20 = numpy.percentile(cpt_home_wr4.sim_scores, 20)
+            cpt_home_wr4.s75 = numpy.percentile(cpt_home_wr4.sim_scores, 75)
+            cpt_home_wr4.s90 = numpy.percentile(cpt_home_wr4.sim_scores, 90)
+            cpt_home_wr4.save()
+        if cpt_home_wr5:
+            cpt_home_wr5.sim_scores = (numpy.round(rand_home_wr5, 2) * 1.5).tolist()
+            cpt_home_wr5.median = numpy.median(cpt_home_wr5.sim_scores)
+            cpt_home_wr5.s20 = numpy.percentile(cpt_home_wr5.sim_scores, 20)
+            cpt_home_wr5.s75 = numpy.percentile(cpt_home_wr5.sim_scores, 75)
+            cpt_home_wr5.s90 = numpy.percentile(cpt_home_wr5.sim_scores, 90)
+            cpt_home_wr5.save()
+        if cpt_home_te1:
+            cpt_home_te1.sim_scores = (numpy.round(rand_home_te1, 2) * 1.5).tolist()
+            cpt_home_te1.median = numpy.median(cpt_home_te1.sim_scores)
+            cpt_home_te1.s20 = numpy.percentile(cpt_home_te1.sim_scores, 20)
+            cpt_home_te1.s75 = numpy.percentile(cpt_home_te1.sim_scores, 75)
+            cpt_home_te1.s90 = numpy.percentile(cpt_home_te1.sim_scores, 90)
+            cpt_home_te1.save()
+        if cpt_home_te2:
+            cpt_home_te2.sim_scores = (numpy.round(rand_home_te2, 2) * 1.5).tolist()
+            cpt_home_te2.median = numpy.median(cpt_home_te2.sim_scores)
+            cpt_home_te2.s20 = numpy.percentile(cpt_home_te2.sim_scores, 20)
+            cpt_home_te2.s75 = numpy.percentile(cpt_home_te2.sim_scores, 75)
+            cpt_home_te2.s90 = numpy.percentile(cpt_home_te2.sim_scores, 90)
+            cpt_home_te2.save()
+        if cpt_home_k:
+            cpt_home_k.sim_scores = (numpy.round(rand_home_k, 2) * 1.5).tolist()
+            cpt_home_k.median = numpy.median(cpt_home_k.sim_scores)
+            cpt_home_k.s20 = numpy.percentile(cpt_home_k.sim_scores, 20)
+            cpt_home_k.s75 = numpy.percentile(cpt_home_k.sim_scores, 75)
+            cpt_home_k.s90 = numpy.percentile(cpt_home_k.sim_scores, 90)
+            cpt_home_k.save()
+
+        if cpt_home_dst:
+            cpt_home_dst.sim_scores = (numpy.round(rand_home_dst, 2) * 1.5).tolist()
+            cpt_home_dst.median = numpy.median(cpt_home_dst.sim_scores)
+            cpt_home_dst.s20 = numpy.percentile(cpt_home_dst.sim_scores, 20)
+            cpt_home_dst.s75 = numpy.percentile(cpt_home_dst.sim_scores, 75)
+            cpt_home_dst.s90 = numpy.percentile(cpt_home_dst.sim_scores, 90)
+            cpt_home_dst.save()
+
+        if cpt_away_qb:
+            cpt_away_qb.sim_scores = (numpy.round(rand_away_qb, 2) * 1.5).tolist()
+            cpt_away_qb.median = numpy.median(cpt_away_qb.sim_scores)
+            cpt_away_qb.s20 = numpy.percentile(cpt_away_qb.sim_scores, 20)
+            cpt_away_qb.s75 = numpy.percentile(cpt_away_qb.sim_scores, 75)
+            cpt_away_qb.s90 = numpy.percentile(cpt_away_qb.sim_scores, 90)
+            cpt_away_qb.save()
+        if cpt_away_rb1:
+            cpt_away_rb1.sim_scores = (numpy.round(rand_away_rb1, 2) * 1.5).tolist()
+            cpt_away_rb1.median = numpy.median(cpt_away_rb1.sim_scores)
+            cpt_away_rb1.s20 = numpy.percentile(cpt_away_rb1.sim_scores, 20)
+            cpt_away_rb1.s75 = numpy.percentile(cpt_away_rb1.sim_scores, 75)
+            cpt_away_rb1.s90 = numpy.percentile(cpt_away_rb1.sim_scores, 90)
+            cpt_away_rb1.save()
+        if cpt_away_rb2:
+            cpt_away_rb2.sim_scores = (numpy.round(rand_away_rb2, 2) * 1.5).tolist()
+            cpt_away_rb2.median = numpy.median(cpt_away_rb2.sim_scores)
+            cpt_away_rb2.s20 = numpy.percentile(cpt_away_rb2.sim_scores, 20)
+            cpt_away_rb2.s75 = numpy.percentile(cpt_away_rb2.sim_scores, 75)
+            cpt_away_rb2.s90 = numpy.percentile(cpt_away_rb2.sim_scores, 90)
+            cpt_away_rb2.save()
+        if cpt_away_rb3:
+            cpt_away_rb3.sim_scores = (numpy.round(rand_away_rb3, 2) * 1.5).tolist()
+            cpt_away_rb3.median = numpy.median(cpt_away_rb3.sim_scores)
+            cpt_away_rb3.s20 = numpy.percentile(cpt_away_rb3.sim_scores, 20)
+            cpt_away_rb3.s75 = numpy.percentile(cpt_away_rb3.sim_scores, 75)
+            cpt_away_rb3.s90 = numpy.percentile(cpt_away_rb3.sim_scores, 90)
+            cpt_away_rb3.save()
+        if cpt_away_wr1:
+            cpt_away_wr1.sim_scores = (numpy.round(rand_away_wr1, 2) * 1.5).tolist()
+            cpt_away_wr1.median = numpy.median(cpt_away_wr1.sim_scores)
+            cpt_away_wr1.s20 = numpy.percentile(cpt_away_wr1.sim_scores, 20)
+            cpt_away_wr1.s75 = numpy.percentile(cpt_away_wr1.sim_scores, 75)
+            cpt_away_wr1.s90 = numpy.percentile(cpt_away_wr1.sim_scores, 90)
+            cpt_away_wr1.save()
+        if cpt_away_wr2:
+            cpt_away_wr2.sim_scores = (numpy.round(rand_away_wr2, 2) * 1.5).tolist()
+            cpt_away_wr2.median = numpy.median(cpt_away_wr2.sim_scores)
+            cpt_away_wr2.s20 = numpy.percentile(cpt_away_wr2.sim_scores, 20)
+            cpt_away_wr2.s75 = numpy.percentile(cpt_away_wr2.sim_scores, 75)
+            cpt_away_wr2.s90 = numpy.percentile(cpt_away_wr2.sim_scores, 90)
+            cpt_away_wr2.save()
+        if cpt_away_wr3:
+            cpt_away_wr3.sim_scores = (numpy.round(rand_away_wr3, 2) * 1.5).tolist()
+            cpt_away_wr3.median = numpy.median(cpt_away_wr3.sim_scores)
+            cpt_away_wr3.s20 = numpy.percentile(cpt_away_wr3.sim_scores, 20)
+            cpt_away_wr3.s75 = numpy.percentile(cpt_away_wr3.sim_scores, 75)
+            cpt_away_wr3.s90 = numpy.percentile(cpt_away_wr3.sim_scores, 90)
+            cpt_away_wr3.save()
+        if cpt_away_wr4:
+            cpt_away_wr4.sim_scores = (numpy.round(rand_away_wr4, 2) * 1.5).tolist()
+            cpt_away_wr4.median = numpy.median(cpt_away_wr4.sim_scores)
+            cpt_away_wr4.s20 = numpy.percentile(cpt_away_wr4.sim_scores, 20)
+            cpt_away_wr4.s75 = numpy.percentile(cpt_away_wr4.sim_scores, 75)
+            cpt_away_wr4.s90 = numpy.percentile(cpt_away_wr4.sim_scores, 90)
+            cpt_away_wr4.save()
+        if cpt_away_wr5:
+            cpt_away_wr5.sim_scores = (numpy.round(rand_away_wr5, 2) * 1.5).tolist()
+            cpt_away_wr5.median = numpy.median(cpt_away_wr5.sim_scores)
+            cpt_away_wr5.s20 = numpy.percentile(cpt_away_wr5.sim_scores, 20)
+            cpt_away_wr5.s75 = numpy.percentile(cpt_away_wr5.sim_scores, 75)
+            cpt_away_wr5.s90 = numpy.percentile(cpt_away_wr5.sim_scores, 90)
+            cpt_away_wr5.save()
+        if cpt_away_te1:
+            cpt_away_te1.sim_scores = (numpy.round(rand_away_te1, 2) * 1.5).tolist()
+            cpt_away_te1.median = numpy.median(cpt_away_te1.sim_scores)
+            cpt_away_te1.s20 = numpy.percentile(cpt_away_te1.sim_scores, 20)
+            cpt_away_te1.s75 = numpy.percentile(cpt_away_te1.sim_scores, 75)
+            cpt_away_te1.s90 = numpy.percentile(cpt_away_te1.sim_scores, 90)
+            cpt_away_te1.save()
+        if cpt_away_te2:
+            cpt_away_te2.sim_scores = (numpy.round(rand_away_te2, 2) * 1.5).tolist()
+            cpt_away_te2.median = numpy.median(cpt_away_te2.sim_scores)
+            cpt_away_te2.s20 = numpy.percentile(cpt_away_te2.sim_scores, 20)
+            cpt_away_te2.s75 = numpy.percentile(cpt_away_te2.sim_scores, 75)
+            cpt_away_te2.s90 = numpy.percentile(cpt_away_te2.sim_scores, 90)
+            cpt_away_te2.save()
+        if cpt_away_k:
+            cpt_away_k.sim_scores = (numpy.round(rand_away_k, 2) * 1.5).tolist()
+            cpt_away_k.median = numpy.median(cpt_away_k.sim_scores)
+            cpt_away_k.s20 = numpy.percentile(cpt_away_k.sim_scores, 20)
+            cpt_away_k.s75 = numpy.percentile(cpt_away_k.sim_scores, 75)
+            cpt_away_k.s90 = numpy.percentile(cpt_away_k.sim_scores, 90)
+            cpt_away_k.save()
+        if cpt_away_dst:
+            cpt_away_dst.sim_scores = (numpy.round(rand_away_dst, 2) * 1.5).tolist()
+            cpt_away_dst.median = numpy.median(cpt_away_dst.sim_scores)
+            cpt_away_dst.s20 = numpy.percentile(cpt_away_dst.sim_scores, 20)
+            cpt_away_dst.s75 = numpy.percentile(cpt_away_dst.sim_scores, 75)
+            cpt_away_dst.s90 = numpy.percentile(cpt_away_dst.sim_scores, 90)
+            cpt_away_dst.save()
 
         task.status = 'success'
         task.content = f'Simulation of {game} complete.'
@@ -956,26 +1271,33 @@ def execute_h2h_workflow(build_id, task_id):
         build.matchups.all().delete()
         build.field_lineups_to_beat.all().delete()
         build.winning_lineups.all().delete()
+        build.sd_matchups.all().delete()
+        build.field_sd_lineups_to_beat.all().delete()
+        build.winning_sd_lineups.all().delete()
 
-        # build_filter = None
-        # if build.slate.site == 'draftkings':
-        #     build_filter = models.BUILD_TYPE_FILTERS_DK.get(build.build_type)
-        # elif build.slate.site == 'fanduel':
-        #     build_filter = models.BUILD_TYPE_FILTERS_FD.get(build.build_type)
-        # else:
-        #     build_filter = models.BUILD_TYPE_FILTERS_YH.get(build.build_type)
-
-        chord([
-            optimize_for_ownership.si(
-                s.projection_site,
-                build.id,
-                list(models.SlatePlayerRawProjection.objects.filter(
-                    projection_site=s.projection_site,
-                    slate_player__slate=build.slate,
-                    ownership_projection__gte=0.01
-                ).values_list('id', flat=True)), s.field_lineup_count
-            ) for s in build.slate.projection_imports.filter(field_lineup_count__gt=0)
-        ], start_h2h_comparison.si(build.id, task.id))()
+        if build.slate.is_showdown:
+            chain([
+                optimize_for_mean_projection.si(
+                    build.id,
+                    100
+                ), 
+                start_h2h_comparison.si(
+                    build.id, 
+                    task.id
+                )
+            ])()
+        else:
+            chord([
+                optimize_for_ownership.si(
+                    s.projection_site,
+                    build.id,
+                    list(models.SlatePlayerRawProjection.objects.filter(
+                        projection_site=s.projection_site,
+                        slate_player__slate=build.slate,
+                        ownership_projection__gte=0.01
+                    ).values_list('id', flat=True)), s.field_lineup_count
+                ) for s in build.slate.projection_imports.filter(field_lineup_count__gt=0)
+            ], start_h2h_comparison.si(build.id, task.id))()
     except Exception as e:
         if task is not None:
             task.status = 'error'
@@ -1060,13 +1382,150 @@ def optimize_for_ownership(projection_site, build_id, raw_projections, num_lineu
 
 
 @shared_task
+def optimize_for_mean_projection(build_id, num_lineups):
+    build = models.FindWinnerBuild.objects.get(id=build_id)
+    projections = build.slate.get_projections().filter(projection__gte=0.5).exclude(sim_scores=None)
+    player_sim_scores = {}
+
+    # get the player outcomes
+    for p in projections:
+        player_sim_scores[p.slate_player.player_id] = p.sim_scores
+
+    lineups = optimize.optimize_for_showdown(
+        build.slate.site,
+        projections,
+        num_lineups,
+        0.8
+    )
+
+    for (index, lineup) in enumerate(lineups):
+        if build.slate.is_showdown:
+            cpt = lineup.players[0].id
+            flex1 = lineup.players[1].id
+            flex2 = lineup.players[2].id
+            flex3 = lineup.players[3].id
+            flex4 = lineup.players[4].id
+            flex5 = lineup.players[5].id if len(lineup.players) > 5 else None
+
+            # score the lineup
+            sim_scores = numpy.array(player_sim_scores[cpt], dtype=numpy.float64) + numpy.array(player_sim_scores[flex1], dtype=numpy.float64) + numpy.array(player_sim_scores[flex2], dtype=numpy.float64) + numpy.array(player_sim_scores[flex3], dtype=numpy.float64) + numpy.array(player_sim_scores[flex4], dtype=numpy.float64)
+            if flex5 is not None:
+                sim_scores += numpy.array(player_sim_scores[flex5], dtype=numpy.float64)
+
+                slate_lineup = build.slate.possible_sd_lineups.filter(
+                    cpt__player_id=cpt,
+                    flex1__player_id__in=[flex1, flex2, flex3, flex4, flex5],
+                    flex2__player_id__in=[flex1, flex2, flex3, flex4, flex5],
+                    flex3__player_id__in=[flex1, flex2, flex3, flex4, flex5],
+                    flex4__player_id__in=[flex1, flex2, flex3, flex4, flex5],
+                    flex5__player_id__in=[flex1, flex2, flex3, flex4, flex5]
+                )
+            else:
+                slate_lineup = build.slate.possible_sd_lineups.filter(
+                    cpt__player_id=cpt,
+                    flex1__player_id__in=[flex1, flex2, flex3, flex4, flex5],
+                    flex2__player_id__in=[flex1, flex2, flex3, flex4, flex5],
+                    flex3__player_id__in=[flex1, flex2, flex3, flex4, flex5],
+                    flex4__player_id__in=[flex1, flex2, flex3, flex4, flex5]
+                )
+            
+            if slate_lineup.count() == 0:
+                slate_lineup = models.SlateSDLineup.objects.create(
+                    slate=build.slate,
+                    cpt=models.SlatePlayer.objects.get(slate=build.slate, player_id=cpt),
+                    flex1=models.SlatePlayer.objects.get(slate=build.slate, player_id=flex1),
+                    flex2=models.SlatePlayer.objects.get(slate=build.slate, player_id=flex2),
+                    flex3=models.SlatePlayer.objects.get(slate=build.slate, player_id=flex3),
+                    flex4=models.SlatePlayer.objects.get(slate=build.slate, player_id=flex4),
+                    flex5=models.SlatePlayer.objects.get(slate=build.slate, player_id=flex5) if flex5 is not None else None
+                )
+                slate_lineup.simulate()
+                
+                slate_lineup.sim_scores = sim_scores.tolist()
+                slate_lineup.save()
+
+                slate_lineup = [slate_lineup]
+
+            l = models.FieldSDLineupToBeat.objects.create(
+                build=build,
+                opponent_handle=f'{index}',
+                slate_lineup=slate_lineup[0]
+            )
+
+            l.median = numpy.median(sim_scores)
+            l.s75 = numpy.percentile(sim_scores, 75)
+            l.s90 = numpy.percentile(sim_scores, 90)
+            l.save()
+        else:
+            qb = lineup.players[0].id
+            rb1 = lineup.players[1].id
+            rb2 = lineup.players[2].id
+            wr1 = lineup.players[3].id
+            wr2 = lineup.players[4].id
+            wr3 = lineup.players[5].id
+            te = lineup.players[6].id
+            flex = lineup.players[7].id
+            dst = lineup.players[8].id
+
+            # score the lineup
+            sim_scores = numpy.array(player_sim_scores[qb], dtype=numpy.float64) + numpy.array(player_sim_scores[rb1], dtype=numpy.float64) + numpy.array(player_sim_scores[rb2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr1], dtype=numpy.float64) + numpy.array(player_sim_scores[wr2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr3], dtype=numpy.float64) + numpy.array(player_sim_scores[te], dtype=numpy.float64) + numpy.array(player_sim_scores[flex], dtype=numpy.float64) + numpy.array(player_sim_scores[dst], dtype=numpy.float64)
+
+            slate_lineup = build.slate.possible_lineups.filter(
+                qb__player_id=qb,
+                rb1__player_id__in=[rb1, rb2, flex],
+                rb2__player_id__in=[rb1, rb2, flex],
+                wr1__player_id__in=[wr1, wr2, wr3, flex],
+                wr2__player_id__in=[wr1, wr2, wr3, flex],
+                wr3__player_id__in=[wr1, wr2, wr3, flex],
+                te__player_id__in=[te, flex],
+                flex__player_id__in=[rb1, rb2, wr1, wr2, wr3, te, flex],
+                dst__player_id=dst
+            )
+            
+            if slate_lineup.count() == 0:
+                slate_lineup = models.SlateLineup.objects.create(
+                    slate=build.slate,
+                    qb=models.SlatePlayer.objects.get(slate=build.slate, player_id=qb),
+                    rb1=models.SlatePlayer.objects.get(slate=build.slate, player_id=rb1),
+                    rb2=models.SlatePlayer.objects.get(slate=build.slate, player_id=rb2),
+                    wr1=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr1),
+                    wr2=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr2),
+                    wr3=models.SlatePlayer.objects.get(slate=build.slate, player_id=wr3),
+                    te=models.SlatePlayer.objects.get(slate=build.slate, player_id=te),
+                    flex=models.SlatePlayer.objects.get(slate=build.slate, player_id=flex),
+                    dst=models.SlatePlayer.objects.get(slate=build.slate, player_id=dst)
+                )
+                slate_lineup.simulate()
+                
+                slate_lineup.sim_scores = sim_scores.tolist()
+                slate_lineup.save()
+
+                slate_lineup = [slate_lineup]
+
+            l = models.FieldLineupToBeat.objects.create(
+                build=build,
+                opponent_handle=f'{index}',
+                slate_lineup=slate_lineup[0]
+            )
+
+            l.median = numpy.median(sim_scores)
+            l.s75 = numpy.percentile(sim_scores, 75)
+            l.s90 = numpy.percentile(sim_scores, 90)
+            l.save()
+
+
+@shared_task
 def start_h2h_comparison(build_id, task_id):
     task = BackgroundTask.objects.get(id=task_id)
     build = models.FindWinnerBuild.objects.get(id=build_id)
 
     start = time.time()
-    field_lineups = build.field_lineups_to_beat.all().values_list('slate_lineup_id', flat=True)
-    possible_lineups = models.SlateLineup.objects.filter(id__in=field_lineups).order_by('id').values_list('id', flat=True)
+    if build.slate.is_showdown:
+        field_lineups = build.field_sd_lineups_to_beat.all().values_list('slate_lineup_id', flat=True)
+        possible_lineups = models.SlateSDLineup.objects.filter(id__in=field_lineups).order_by('id').values_list('id', flat=True)
+    else:
+        field_lineups = build.field_lineups_to_beat.all().values_list('slate_lineup_id', flat=True)
+        possible_lineups = models.SlateLineup.objects.filter(id__in=field_lineups).order_by('id').values_list('id', flat=True)
     logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(possible_lineups)} lineups.')
 
     chunk_size = 10
@@ -1080,8 +1539,13 @@ def compare_lineups_h2h(lineup_ids, build_id):
     build = models.FindWinnerBuild.objects.get(id=build_id)
 
     start = time.time()
-    slate_lineups = models.SlateLineup.objects.filter(id__in=lineup_ids).order_by('id')
-    logger.info(f'Getting slate lineups took {time.time() - start}s')
+    if build.slate.is_showdown:
+        slate_lineups = models.SlateSDLineup.objects.filter(id__in=lineup_ids).order_by('id')
+        field_lineups = build.field_sd_lineups_to_beat.all().order_by('id')
+    else:
+        slate_lineups = models.SlateLineup.objects.filter(id__in=lineup_ids).order_by('id')
+        field_lineups = build.field_lineups_to_beat.all().order_by('id')
+    logger.info(f'Getting lineups took {time.time() - start}s')
     
     for l in slate_lineups:
         if l.sim_scores is None:
@@ -1092,9 +1556,9 @@ def compare_lineups_h2h(lineup_ids, build_id):
     logger.info(f'  Initial dataframe took {time.time() - start}s')
     logger.info(df_slate_lineups)
 
-    start = time.time()
-    field_lineups = build.field_lineups_to_beat.all().order_by('id')
-    logger.info(f'Getting field lineups took {time.time() - start}s.')
+    # start = time.time()
+    # field_lineups = build.field_lineups_to_beat.all().order_by('id')
+    # logger.info(f'Getting field lineups took {time.time() - start}s.')
 
     start = time.time()
     df_field_lineups = pandas.DataFrame(field_lineups.values_list('slate_lineup__sim_scores', flat=True), index=list(field_lineups.values_list('id', flat=True)), dtype=numpy.float16)
@@ -1110,33 +1574,62 @@ def compare_lineups_h2h(lineup_ids, build_id):
     logger.info(f'Matchups took {time.time() - start}s. There are {df_matchups.size} matchups.')
 
     start = time.time()
-    df_matchups.to_sql('nfl_lineupmatchup', engine, if_exists='append', index=False, chunksize=1000)
-    logger.info(f'Write matchups to db took {time.time() - start}s')
+    if build.slate.is_showdown:
+        df_matchups.to_sql('nfl_lineupsdmatchup', engine, if_exists='append', index=False, chunksize=1000)
+        logger.info(f'Write matchups to db took {time.time() - start}s')
 
-    start = time.time()
-    build_lineup_ids = df_matchups.slate_lineup_id.unique()
-    for bl in build_lineup_ids:
-        try:
-            sim_scores = df_slate_lineups.loc[int(bl)].to_list()
-            opponents = list(build.field_lineups_to_beat.all().values_list('opponent_handle', flat=True))
-            opponents = list(set(opponents))
-            win_rates = list(build.matchups.filter(slate_lineup_id=bl).values_list('win_rate', flat=True))
-            rake_free_win_rates = list(filter(lambda wr: wr >= 0.55, win_rates))
+        start = time.time()
+        build_lineup_ids = df_matchups.slate_lineup_id.unique()
+        for bl in build_lineup_ids:
+            try:
+                sim_scores = df_slate_lineups.loc[int(bl)].to_list()
+                opponents = list(build.field_sd_lineups_to_beat.all().values_list('opponent_handle', flat=True))
+                opponents = list(set(opponents))
+                win_rates = list(build.sd_matchups.filter(slate_lineup_id=bl).values_list('win_rate', flat=True))
+                rake_free_win_rates = list(filter(lambda wr: wr >= 0.55, win_rates))
 
-            logger.info(rake_free_win_rates)
-            models.WinningLineup.objects.create(
-                build=build,
-                slate_lineup_id=bl,
-                median=numpy.median(sim_scores),
-                s75=numpy.percentile(sim_scores, 75),
-                s90=numpy.percentile(sim_scores, 90),
-                win_rate=numpy.median(rake_free_win_rates) if len(rake_free_win_rates) > 0 else 0.0,
-                win_count=len(rake_free_win_rates) if len(rake_free_win_rates) > 0 else 0.0,
-                rating=numpy.median(rake_free_win_rates) * (2 * len(rake_free_win_rates)) if len(rake_free_win_rates) > 0 else 0.0
-            )
-        except KeyError:
-            pass
-    logger.info(f'Adding build lineups took {time.time() - start}s')
+                logger.info(rake_free_win_rates)
+                models.WinningSDLineup.objects.create(
+                    build=build,
+                    slate_lineup_id=bl,
+                    median=numpy.median(sim_scores),
+                    s75=numpy.percentile(sim_scores, 75),
+                    s90=numpy.percentile(sim_scores, 90),
+                    win_rate=numpy.median(rake_free_win_rates) if len(rake_free_win_rates) > 0 else 0.0,
+                    win_count=len(rake_free_win_rates) if len(rake_free_win_rates) > 0 else 0.0,
+                    rating=numpy.median(rake_free_win_rates) * (2 * len(rake_free_win_rates)) if len(rake_free_win_rates) > 0 else 0.0
+                )
+            except KeyError:
+                pass
+        logger.info(f'Adding build lineups took {time.time() - start}s')
+    else:
+        df_matchups.to_sql('nfl_lineupmatchup', engine, if_exists='append', index=False, chunksize=1000)
+        logger.info(f'Write matchups to db took {time.time() - start}s')
+
+        start = time.time()
+        build_lineup_ids = df_matchups.slate_lineup_id.unique()
+        for bl in build_lineup_ids:
+            try:
+                sim_scores = df_slate_lineups.loc[int(bl)].to_list()
+                opponents = list(build.field_lineups_to_beat.all().values_list('opponent_handle', flat=True))
+                opponents = list(set(opponents))
+                win_rates = list(build.matchups.filter(slate_lineup_id=bl).values_list('win_rate', flat=True))
+                rake_free_win_rates = list(filter(lambda wr: wr >= 0.55, win_rates))
+
+                logger.info(rake_free_win_rates)
+                models.WinningLineup.objects.create(
+                    build=build,
+                    slate_lineup_id=bl,
+                    median=numpy.median(sim_scores),
+                    s75=numpy.percentile(sim_scores, 75),
+                    s90=numpy.percentile(sim_scores, 90),
+                    win_rate=numpy.median(rake_free_win_rates) if len(rake_free_win_rates) > 0 else 0.0,
+                    win_count=len(rake_free_win_rates) if len(rake_free_win_rates) > 0 else 0.0,
+                    rating=numpy.median(rake_free_win_rates) * (2 * len(rake_free_win_rates)) if len(rake_free_win_rates) > 0 else 0.0
+                )
+            except KeyError:
+                pass
+        logger.info(f'Adding build lineups took {time.time() - start}s')
 
 
 @shared_task
@@ -3130,6 +3623,7 @@ def process_slate_players(slate_id, task_id):
                     if slate.site == 'fanduel':
                         player_id = row['Id']
                         site_pos = row['Position']
+                        roster_pos = row['Position']
                         player_name = row['Nickname'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
                         csv_name = f'{player_id}:{player_name}'
                         salary = int(row['Salary'])
@@ -3161,6 +3655,7 @@ def process_slate_players(slate_id, task_id):
                         
                         player_id = row['ID']
                         site_pos = row['Position']
+                        roster_pos = row['Position']
                         player_name = f'{row["First Name"]} {row["Last Name"]}'.replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team').strip()
                         csv_name = f'{player_id} - ({player_name})'
                         salary = int(row["Salary"])
@@ -3180,6 +3675,7 @@ def process_slate_players(slate_id, task_id):
                         site_pos = row['Pos']
                         csv_name = f'{player_name} ({player_id})'
 
+                    roster_pos = site_pos
                     salary = int(row['Salary'])                    
                     team = row['Team']
                     opp = row['Opp']
@@ -3196,6 +3692,7 @@ def process_slate_players(slate_id, task_id):
                         site_pos = 'DEF'
                     else:
                         site_pos = row['Pos'].split(',')[0]
+                    roster_pos = site_pos
                     player_name = row['Name'].replace('Oakland Raiders', 'Las Vegas Raiders').replace('Washington Redskins', 'Washington Football Team')
                     salary = int(row['Salary'])                    
                     team = row['Team'].replace('JAX', 'JAC')
@@ -3212,20 +3709,22 @@ def process_slate_players(slate_id, task_id):
                         slate_player = models.SlatePlayer.objects.get(
                             slate=slate,
                             name=alias.get_alias(slate.site),
-                            team=team
+                            team=team,
+                            roster_position=roster_pos,
+                            site_pos=site_pos
                         )
                     except models.SlatePlayer.DoesNotExist:
                         slate_player = models.SlatePlayer(
                             slate=slate,
                             team=team,
-                            name=alias.get_alias(slate.site)
+                            name=alias.get_alias(slate.site),
+                            roster_position=roster_pos,
+                            site_pos=site_pos
                         )
 
                     slate_player.player_id = player_id
                     slate_player.salary = salary
-                    slate_player.site_pos = site_pos
                     slate_player.csv_name = csv_name
-                    # slate_player.game = game
                     slate_player.slate_game = slate_player.get_slate_game()
                     slate_player.save()
 
@@ -3723,9 +4222,15 @@ def handle_projection_import(import_id, task_id):
                 ceiling_projection = row[column_headers.column_ceiling_projection] if column_headers.column_ceiling_projection is not None and row[column_headers.column_ceiling_projection] != '' and not math.isnan(row[column_headers.column_ceiling_projection]) else 0.0
                 rush_att_projection = row[column_headers.column_rush_att_projection] if column_headers.column_rush_att_projection is not None and row[column_headers.column_rush_att_projection] != '' and not math.isnan(row[column_headers.column_rush_att_projection]) else 0.0
                 rec_projection = row[column_headers.column_rec_projection] if column_headers.column_rec_projection is not None and row[column_headers.column_rec_projection] != '' and not math.isnan(row[column_headers.column_rec_projection]) else 0.0
-                ownership_projection = float(row[column_headers.column_own_projection]) if column_headers.column_own_projection is not None and row[column_headers.column_own_projection] != '' and row[column_headers.column_own_projection] != '-' and not math.isnan(row[column_headers.column_own_projection]) else 0.0
+                ownership_projection = float(row[column_headers.column_own_projection]) if column_headers.column_own_projection is not None and row[column_headers.column_own_projection] != '' and row[column_headers.column_own_projection] != '-' and not math.isnan(float(row[column_headers.column_own_projection])) else 0.0
 
                 if projection_import.projection_site == 'etr':
+                    ownership_projection /= 100.0
+                    alias = models.Alias.find_alias(player_name, projection_import.slate.site)
+                elif projection_import.projection_site == 'etr_sd':
+                    ownership_projection /= 100.0
+                    alias = models.Alias.find_alias(player_name, projection_import.slate.site)
+                elif projection_import.projection_site == 'etr_sg':
                     ownership_projection /= 100.0
                     alias = models.Alias.find_alias(player_name, projection_import.slate.site)
                 elif projection_import.projection_site == 'rg':
@@ -3745,7 +4250,8 @@ def handle_projection_import(import_id, task_id):
                         slate_player = models.SlatePlayer.objects.get(
                             slate=projection_import.slate,
                             name=alias.get_alias(projection_import.slate.site),
-                            team=team
+                            team=team,
+                            roster_position__in=['QB', 'RB', 'WR', 'TE', 'DST', 'D', 'DEF', 'FLEX', 'UTIL']
                         )
 
                         mu = 0.0
@@ -3766,6 +4272,7 @@ def handle_projection_import(import_id, task_id):
                             val = mu / slate_player.salary
                         else:
                             val = mu / (slate_player.salary / 1000)
+
                         try:
                             models.SlatePlayerRawProjection.objects.create(
                                 slate_player=slate_player,
@@ -3778,6 +4285,48 @@ def handle_projection_import(import_id, task_id):
                                 ownership_projection=float(ownership_projection) if float(ownership_projection) < 1.0 else float(ownership_projection)/100.0,
                                 adjusted_opportunity=float(rec_projection) * 2.75 + float(rush_att_projection) if projection_import.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection)
                             )
+
+                            # create captain/mvp version if necessary
+                            try:
+                                cpt_slate_player = models.SlatePlayer.objects.get(
+                                    slate=projection_import.slate,
+                                    name=alias.get_alias(projection_import.slate.site),
+                                    team=team,
+                                    roster_position__in=['CPT', 'MVP']
+                                )
+
+                                mu = 0.0
+                                ceil = 0.0
+                                flr = 0.0
+                                stdev = 0.0
+
+                                if median_projection is not None and median_projection != '' and median_projection > 0.0:
+                                    mu = float(median_projection) * 1.5
+
+                                    if floor_projection is not None and ceiling_projection is not None:
+                                        ceil = float(ceiling_projection) * 1.5
+                                        flr = float(floor_projection) * 1.5
+
+                                        stdev = numpy.std([mu, ceil, flr], dtype=numpy.float64)
+                                
+                                if projection_import.slate.site == 'yahoo':
+                                    val = mu / cpt_slate_player.salary
+                                else:
+                                    val = mu / (cpt_slate_player.salary / 1000)
+
+                                models.SlatePlayerRawProjection.objects.create(
+                                    slate_player=cpt_slate_player,
+                                    projection_site=projection_import.projection_site,
+                                    projection=mu,
+                                    value=val,
+                                    floor=flr,
+                                    ceiling=ceil,
+                                    stdev=stdev,
+                                    ownership_projection=float(ownership_projection) if float(ownership_projection) < 1.0 else float(ownership_projection)/100.0,
+                                    adjusted_opportunity=float(rec_projection) * 2.75 + float(rush_att_projection) if projection_import.slate.site == 'draftkings' else float(rec_projection) * 2.0 + float(rush_att_projection)
+                                )
+                            except models.SlatePlayer.DoesNotExist:
+                                pass
                                 
                             success_count += 1
                         except:
@@ -4026,7 +4575,6 @@ def handle_base_projections(slate_id, task_id):
                 projection.stdev = agg_std
                 projection.ownership_projection = agg_own
                 projection.adjusted_opportunity=ao_projection.adjusted_opportunity if ao_projection is not None else 0.0
-                # projection.in_play = slate.in_play_criteria.meets_threshold(projection)
                 projection.save()
             except models.SlatePlayerRawProjection.DoesNotExist:
                 projection.in_play = False

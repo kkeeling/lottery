@@ -1241,6 +1241,7 @@ class SlatePlayerAdmin(admin.ModelAdmin):
         'team',
         'slate',
         'site_pos',
+        'roster_position',
         'salary',
         'fantasy_points',
     )
@@ -1248,6 +1249,7 @@ class SlatePlayerAdmin(admin.ModelAdmin):
     list_filter = (
         ('slate__name', DropdownFilter),
         ('site_pos', DropdownFilter),
+        ('roster_position', DropdownFilter),
         'team')
 
 
@@ -1315,6 +1317,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         'get_player_name',
         'get_player_salary',
         'get_player_position',
+        'get_player_roster_position',
         'get_player_team',
         'get_player_game',
         'get_player_game_z',
@@ -1356,6 +1359,7 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
             slate=F('slate_player__slate'), 
             player_name=F('slate_player__name'), 
             site_pos=F('slate_player__site_pos'), 
+            roster_position=F('slate_player__roster_position'), 
             player_salary=F('slate_player__salary'),
             player_game=F('slate_player__slate_game')
         )
@@ -1385,6 +1389,11 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
         return obj.site_pos
     get_player_position.short_description = 'Pos'
     get_player_position.admin_order_field = 'site_pos'
+
+    def get_player_roster_position(self, obj):
+        return obj.roster_position
+    get_player_roster_position.short_description = 'Ros'
+    get_player_roster_position.admin_order_field = 'roster_position'
 
     def get_player_team(self, obj):
         return obj.slate_player.team
@@ -1840,6 +1849,65 @@ class SlateLineupAdmin(admin.ModelAdmin):
     get_dst.short_description = 'DST'
 
 
+@admin.register(models.SlateSDLineup)
+class SlateSDLineupAdmin(admin.ModelAdmin):
+    list_per_page = 10
+    list_display = (
+        'get_cpt',
+        'get_flex1',
+        'get_flex2',
+        'get_flex3',
+        'get_flex4',
+        'get_flex5',
+        'total_salary',
+    )
+
+    search_fields = (
+        'cpt__slate_player__name',
+        'flex1__slate_player__name',
+        'flex2__slate_player__name',
+        'flex3__slate_player__name',
+        'flex4__slate_player__name',
+        'flex5__slate_player__name',
+    )
+
+    list_filter = (
+        'slate',
+    )
+    raw_id_fields = (
+        'cpt',
+        'flex1',
+        'flex2',
+        'flex3',
+        'flex4',
+        'flex5',
+    )
+
+    def get_cpt(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.cpt.get_team_color(), obj.cpt))
+    get_cpt.short_description = 'cpt'
+
+    def get_flex1(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.flex1.get_team_color(), obj.flex1))
+    get_flex1.short_description = 'flex1'
+
+    def get_flex2(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.flex2.get_team_color(), obj.flex2))
+    get_flex2.short_description = 'flex2'
+
+    def get_flex3(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.flex3.get_team_color(), obj.flex3))
+    get_flex3.short_description = 'flex3'
+
+    def get_flex4(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.flex4.get_team_color(), obj.flex4))
+    get_flex4.short_description = 'flex4'
+
+    def get_flex5(self, obj):
+        return mark_safe('<p style="background-color:{}; color:#ffffff;">{}</p>'.format(obj.flex5.get_team_color(), obj.flex5))
+    get_flex5.short_description = 'flex5'
+
+
 @admin.register(models.FindWinnerBuild)
 class FindWinnerBuildAdmin(admin.ModelAdmin):
     date_hierarchy = 'slate__datetime'
@@ -1978,20 +2046,32 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
     get_projections_link.short_description = 'Projections'
 
     def get_lineups_link(self, obj):
-        if obj.winning_lineups.all().count() > 0:
-            return mark_safe('<a href="/admin/nfl/winninglineup/?build__id__exact={}">Lineups</a>'.format(obj.id))
+        if obj.slate.is_showdown:
+            if obj.winning_sd_lineups.all().count() > 0:
+                return mark_safe('<a href="/admin/nfl/winningsdlineup/?build__id__exact={}">Lineups</a>'.format(obj.id))
+        else:
+            if obj.winning_lineups.all().count() > 0:
+                return mark_safe('<a href="/admin/nfl/winninglineup/?build__id__exact={}">Lineups</a>'.format(obj.id))
         return 'None'
     get_lineups_link.short_description = 'Lineups'
 
     def get_field_lineups_link(self, obj):
-        if obj.field_lineups_to_beat.all().count() > 0:
-            return mark_safe('<a href="/admin/nfl/fieldlineuptobeat/?build__id__exact={}">Field</a>'.format(obj.id))
+        if obj.slate.is_showdown:
+            if obj.field_sd_lineups_to_beat.all().count() > 0:
+                return mark_safe('<a href="/admin/nfl/fieldsdlineuptobeat/?build__id__exact={}">Field</a>'.format(obj.id))
+        else:
+            if obj.field_lineups_to_beat.all().count() > 0:
+                return mark_safe('<a href="/admin/nfl/fieldlineuptobeat/?build__id__exact={}">Field</a>'.format(obj.id))
         return 'None'
     get_field_lineups_link.short_description = 'Field Lineups'
 
     def get_matchup_lineups_link(self, obj):
-        if obj.matchups.all().count() > 0:
-            return mark_safe('<a href="/admin/nfl/lineupmatchup/?build__id__exact={}">Matchups</a>'.format(obj.id))
+        if obj.slate.is_showdown:
+            if obj.sd_matchups.all().count() > 0:
+                return mark_safe('<a href="/admin/nfl/lineupsdmatchup/?build__id__exact={}">Matchups</a>'.format(obj.id))
+        else:
+            if obj.matchups.all().count() > 0:
+                return mark_safe('<a href="/admin/nfl/lineupmatchup/?build__id__exact={}">Matchups</a>'.format(obj.id))
         return 'None'
     get_matchup_lineups_link.short_description = 'Matchups'
 
@@ -2012,15 +2092,15 @@ class WinningLineupAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
-        'lineup__qb__slate_player__name',
-        'lineup__rb1__slate_player__name',
-        'lineup__rb2__slate_player__name',
-        'lineup__wr1__slate_player__name',
-        'lineup__wr2__slate_player__name',
-        'lineup__wr3__slate_player__name',
-        'lineup__te__slate_player__name',
-        'lineup__flex__slate_player__name',
-        'lineup__dst__slate_player__name',
+        'slate_lineup__qb__slate_player__name',
+        'slate_lineup__rb1__slate_player__name',
+        'slate_lineup__rb2__slate_player__name',
+        'slate_lineup__wr1__slate_player__name',
+        'slate_lineup__wr2__slate_player__name',
+        'slate_lineup__wr3__slate_player__name',
+        'slate_lineup__te__slate_player__name',
+        'slate_lineup__flex__slate_player__name',
+        'slate_lineup__dst__slate_player__name',
     )
 
     def get_lineup(self, obj):
@@ -2044,6 +2124,51 @@ class WinningLineupAdmin(admin.ModelAdmin):
     get_actual_score.short_description = 'actual'
 
 
+@admin.register(models.WinningSDLineup)
+class WinningSDLineupAdmin(admin.ModelAdmin):
+    list_per_page = 10
+    list_display = (
+        'get_lineup',
+        'get_salary',
+        'median',
+        's75',
+        's90',
+        'get_win_rate',
+        'win_count',
+        'rating',
+        'get_actual_score',
+    )
+
+    search_fields = (
+        'slate_lineup__cpt__slate_player__name',
+        'slate_lineup__flex1__slate_player__name',
+        'slate_lineup__flex2__slate_player__name',
+        'slate_lineup__flex3__slate_player__name',
+        'slate_lineup__flex4__slate_player__name',
+        'slate_lineup__flex5__slate_player__name',
+    )
+
+    def get_lineup(self, obj):
+        return mark_safe(f'{obj.slate_lineup.cpt}<br />{obj.slate_lineup.flex1}<br />{obj.slate_lineup.flex2}<br />{obj.slate_lineup.flex3}<br />{obj.slate_lineup.flex4}<br />{obj.slate_lineup.flex5}')
+    get_lineup.short_description = ''
+
+    def get_salary(self, obj):
+        return obj.slate_lineup.total_salary
+    get_salary.short_description = 'salary'
+    get_salary.admin_order_field = 'slate_lineup__total_salary'
+
+    def get_win_rate(self, obj):
+        return '{:.2f}%'.format(obj.win_rate * 100)
+    get_win_rate.short_description = 'win %'
+    get_win_rate.admin_order_field = 'win_rate'
+
+    def get_actual_score(self, obj):
+        if obj.slate_lineup.cpt.fantasy_points is None or obj.slate_lineup.flex1.fantasy_points is None or obj.slate_lineup.flex2.fantasy_points is None or obj.slate_lineup.flex3.fantasy_points is None or obj.slate_lineup.flex4.fantasy_points is None or obj.slate_lineup.flex5.fantasy_points is None:
+            return None
+        return obj.slate_lineup.cpt.fantasy_points + obj.slate_lineup.flex1.fantasy_points + obj.slate_lineup.flex2.fantasy_points + obj.slate_lineup.flex3.fantasy_points + obj.slate_lineup.flex4.fantasy_points + obj.slate_lineup.flex5.fantasy_points
+    get_actual_score.short_description = 'actual'
+
+
 @admin.register(models.FieldLineupToBeat)
 class FieldLineupToBeatAdmin(admin.ModelAdmin):
     list_per_page = 10
@@ -2057,19 +2182,50 @@ class FieldLineupToBeatAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
-        'lineup__qb__slate_player__name',
-        'lineup__rb1__slate_player__name',
-        'lineup__rb2__slate_player__name',
-        'lineup__wr1__slate_player__name',
-        'lineup__wr2__slate_player__name',
-        'lineup__wr3__slate_player__name',
-        'lineup__te__slate_player__name',
-        'lineup__flex__slate_player__name',
-        'lineup__dst__slate_player__name',
+        'slate_lineup__qb__slate_player__name',
+        'slate_lineup__rb1__slate_player__name',
+        'slate_lineup__rb2__slate_player__name',
+        'slate_lineup__wr1__slate_player__name',
+        'slate_lineup__wr2__slate_player__name',
+        'slate_lineup__wr3__slate_player__name',
+        'slate_lineup__te__slate_player__name',
+        'slate_lineup__flex__slate_player__name',
+        'slate_lineup__dst__slate_player__name',
     )
 
     def get_lineup(self, obj):
         return mark_safe(f'{obj.slate_lineup.qb}<br />{obj.slate_lineup.rb1}<br />{obj.slate_lineup.rb2}<br />{obj.slate_lineup.wr1}<br />{obj.slate_lineup.wr2}<br />{obj.slate_lineup.wr3}<br />{obj.slate_lineup.te}<br />{obj.slate_lineup.flex}<br />{obj.slate_lineup.dst}')
+    get_lineup.short_description = ''
+
+    def get_salary(self, obj):
+        return obj.slate_lineup.total_salary
+    get_salary.short_description = 'salary'
+    get_salary.admin_order_field = 'slate_lineup__total_salary'
+
+
+@admin.register(models.FieldSDLineupToBeat)
+class FieldSDLineupToBeatAdmin(admin.ModelAdmin):
+    list_per_page = 10
+    list_display = (
+        'opponent_handle',
+        'get_lineup',
+        'get_salary',
+        'median',
+        's75',
+        's90',
+    )
+
+    search_fields = (
+        'slate_lineup__cpt__slate_player__name',
+        'slate_lineup__flex1__slate_player__name',
+        'slate_lineup__flex2__slate_player__name',
+        'slate_lineup__flex3__slate_player__name',
+        'slate_lineup__flex4__slate_player__name',
+        'slate_lineup__flex5__slate_player__name',
+    )
+
+    def get_lineup(self, obj):
+        return mark_safe(f'{obj.slate_lineup.cpt}<br />{obj.slate_lineup.flex1}<br />{obj.slate_lineup.flex2}<br />{obj.slate_lineup.flex3}<br />{obj.slate_lineup.flex4}<br />{obj.slate_lineup.flex5}')
     get_lineup.short_description = ''
 
     def get_salary(self, obj):
@@ -2111,6 +2267,47 @@ class LineupMatchupAdmin(admin.ModelAdmin):
 
     def get_opponent(self, obj):
         return mark_safe(f'{obj.field_lineup.slate_lineup.qb}<br />{obj.field_lineup.slate_lineup.rb1}<br />{obj.field_lineup.slate_lineup.rb2}<br />{obj.field_lineup.slate_lineup.wr1}<br />{obj.field_lineup.slate_lineup.wr2}<br />{obj.field_lineup.slate_lineup.wr3}<br />{obj.field_lineup.slate_lineup.te}<br />{obj.field_lineup.slate_lineup.flex}<br />{obj.field_lineup.slate_lineup.dst}')
+    get_opponent.short_description = 'vs.'
+
+    def get_win_rate(self, obj):
+        return '{:.2f}%'.format(obj.win_rate * 100)
+    get_win_rate.short_description = 'win %'
+    get_win_rate.admin_order_field = 'win_rate'
+
+
+@admin.register(models.LineupSDMatchup)
+class LineupSDMatchupAdmin(admin.ModelAdmin):
+    list_per_page = 25
+    list_display = (
+        'get_lineup',
+        'get_opponent',
+        'get_win_rate',
+    )
+
+    search_fields = (
+        'slate_lineup__qb__name',
+        'slate_lineup__rb1__name',
+        'slate_lineup__rb2__name',
+        'slate_lineup__wr1__name',
+        'slate_lineup__wr2__name',
+        'slate_lineup__wr3__name',
+        'slate_lineup__te__name',
+        'slate_lineup__flex__name',
+        'slate_lineup__dst__name',
+    )
+
+    raw_id_fields = (
+        'slate_lineup',
+        'field_lineup',
+        'build',
+    )
+
+    def get_lineup(self, obj):
+        return mark_safe(f'{obj.slate_lineup.cpt}<br />{obj.slate_lineup.flex1}<br />{obj.slate_lineup.flex2}<br />{obj.slate_lineup.flex3}<br />{obj.slate_lineup.flex4}<br />{obj.slate_lineup.flex5}')
+    get_lineup.short_description = ''
+
+    def get_opponent(self, obj):
+        return mark_safe(f'{obj.field_lineup.slate_lineup.cpt}<br />{obj.field_lineup.slate_lineup.flex1}<br />{obj.field_lineup.slate_lineup.flex2}<br />{obj.field_lineup.slate_lineup.flex3}<br />{obj.field_lineup.slate_lineup.flex4}<br />{obj.field_lineup.slate_lineup.flex5}')
     get_opponent.short_description = 'vs.'
 
     def get_win_rate(self, obj):

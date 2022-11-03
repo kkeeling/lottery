@@ -4,6 +4,7 @@ import datetime
 import decimal
 import difflib
 import math
+from random import choices
 from tabnanny import verbose
 import numpy
 import pandas
@@ -40,7 +41,7 @@ from . import tasks
 
 BuildEval = namedtuple('BuildEval', ['top_score', 'total_cashes', 'total_one_pct', 'total_half_pct', 'binked'])
 
-SIM_ITERATIONS = 10000
+SIM_ITERATIONS = 20000
 
 SITE_OPTIONS = (
     ('draftkings', 'DK'),
@@ -66,6 +67,8 @@ PROJECTION_SITES = (
     ('awesemo', 'Awesemo'),
     ('awesemo_own', 'Awesemo Ownership'),
     ('etr', 'Establish The Run'),
+    ('etr_sd', 'Establish The Run DK Showdown'),
+    ('etr_sg', 'Establish The Run FD Single Game'),
     ('tda', 'The Daily Average'),
     ('rg', 'Rotogrinders'),
     ('fc', 'Fantasy Cruncher'),
@@ -79,6 +82,13 @@ PROJECTION_WEIGHTS = {
     'rg': 0.40,
     'etr': 0.40,
 }
+
+ROSTER_POSITIONS = (
+    ('CPT', 'Captain'),
+    ('MVP', 'MVP'),
+    ('FLEX', 'Flex'),
+    ('UTIL', 'Util'),
+)
 
 OWNERSHIP_PROJECTION_WEIGHTS = {
     'rg': 0.50,
@@ -193,6 +203,10 @@ class Alias(models.Model):
                 alias = Alias.objects.get(awesemo_ownership_name=player_name)
             elif site == 'etr':
                 alias = Alias.objects.get(etr_name=player_name)
+            elif site == 'etr_sd':
+                alias = Alias.objects.get(etr_name=player_name)
+            elif site == 'etr_sg':
+                alias = Alias.objects.get(etr_name=player_name)
             elif site == 'tda':
                 alias = Alias.objects.get(tda_name=player_name)
             elif site == 'rg':
@@ -221,6 +235,10 @@ class Alias(models.Model):
             elif site == 'awesemo_own':
                 alias = Alias.objects.filter(awesemo_ownership_name=player_name)[0]
             elif site == 'etr':
+                alias = Alias.objects.filter(etr_name=player_name)[0]
+            elif site == 'etr_sd':
+                alias = Alias.objects.filter(etr_name=player_name)[0]
+            elif site == 'etr_sg':
                 alias = Alias.objects.filter(etr_name=player_name)[0]
             elif site == 'tda':
                 alias = Alias.objects.filter(tda_name=player_name)[0]
@@ -259,6 +277,12 @@ class Alias(models.Model):
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_ownership_name.lower())
                     score = seqmatch.quick_ratio()
                 elif site == 'etr':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.etr_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'etr_sd':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.etr_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'etr_sg':
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.etr_name.lower())
                     score = seqmatch.quick_ratio()
                 elif site == 'tda':
@@ -314,6 +338,10 @@ class Alias(models.Model):
         elif for_site == 'awesemo_own':
             return self.awesemo_ownership_name
         elif for_site == 'etr':
+            return self.etr_name
+        elif for_site == 'etr_sd':
+            return self.etr_name
+        elif for_site == 'etr_sg':
             return self.etr_name
         elif for_site == 'tda':
             return self.tda_name
@@ -870,7 +898,7 @@ class SlatePlayer(models.Model):
     csv_name = models.CharField(max_length=255, null=True, blank=True)
     salary = models.IntegerField()
     site_pos = models.CharField(max_length=5)
-    roster_position = models.CharField(max_length=5, default='FLEX')
+    roster_position = models.CharField(max_length=5, choices=ROSTER_POSITIONS, default='FLEX')
     team = models.CharField(max_length=4)
     fantasy_points = models.DecimalField(decimal_places=2, max_digits=10, null=True, blank=True)
     game = models.CharField(max_length=10)
@@ -1431,6 +1459,45 @@ class SlateLineup(models.Model):
     def simulate(self):
         self.total_salary = sum([p.salary for p in self.players])
         self.save()
+ 
+        
+class SlateSDLineup(models.Model):
+    slate = models.ForeignKey(Slate, related_name='possible_sd_lineups', on_delete=models.CASCADE)
+    cpt = models.ForeignKey(SlatePlayer, db_index=True, related_name='cpt', on_delete=models.CASCADE)
+    flex1 = models.ForeignKey(SlatePlayer, db_index=True, related_name='flex1', on_delete=models.CASCADE)
+    flex2 = models.ForeignKey(SlatePlayer, db_index=True, related_name='flex2', on_delete=models.CASCADE)
+    flex3 = models.ForeignKey(SlatePlayer, db_index=True, related_name='flex3', on_delete=models.CASCADE)
+    flex4 = models.ForeignKey(SlatePlayer, db_index=True, related_name='flex4', on_delete=models.CASCADE)
+    flex5 = models.ForeignKey(SlatePlayer, db_index=True, related_name='flex5', null=True, blank=True, on_delete=models.CASCADE)
+    total_salary = models.IntegerField(default=0)
+    sim_scores = ArrayField(models.FloatField(), null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Slate SD Lineup'
+        verbose_name_plural = 'Slate SD Lineups'
+        ordering = ['-total_salary']
+
+    # def __str__(self):
+    #     return f'{self.cpt} {self.flex1} {self.flex2} {self.flex3} {self.flex4} {self.flex5}'
+
+    @property
+    def players(self):
+        p = [
+            self.cpt, 
+            self.flex1,
+            self.flex2,
+            self.flex3,
+            self.flex4
+        ]
+
+        if self.flex5 is not None:
+            p.append(self.flex5)
+
+        return p
+
+    def simulate(self):
+        self.total_salary = sum([p.salary for p in self.players])
+        self.save()
 
 
 # Rules & Configuration
@@ -1888,6 +1955,40 @@ class WinningLineup(models.Model):
             self.slate_lineup.flex,
             self.slate_lineup.dst,
         ]
+ 
+        
+class WinningSDLineup(models.Model):
+    build = models.ForeignKey(FindWinnerBuild, verbose_name='Build', related_name='winning_sd_lineups', on_delete=models.CASCADE)
+    slate_lineup = models.ForeignKey(SlateSDLineup, verbose_name='Lineup', related_name='winner_sd_builds', on_delete=models.CASCADE)
+    win_rate = models.FloatField(db_index=True, default=0.0)
+    win_count = models.IntegerField(db_index=True, default=0)
+    rating = models.FloatField(db_index=True, default=0.0)
+    median = models.FloatField(db_index=True, default=0.0)
+    s75 = models.FloatField(db_index=True, default=0.0)
+    s90 = models.FloatField(db_index=True, default=0.0)
+
+    class Meta:
+        verbose_name = 'SD Lineup'
+        verbose_name_plural = 'SD Lineups'
+        ordering = ['-rating']
+
+    def __str__(self):
+        return f'{self.slate_lineup}'
+
+    @property
+    def players(self):
+        p = [
+            self.slate_lineup.cpt, 
+            self.slate_lineup.flex1,
+            self.slate_lineup.flex2,
+            self.slate_lineup.flex3,
+            self.slate_lineup.flex4
+        ]
+
+        if self.slate_lineup.flex5 is not None:
+            p.append(self.slate_lineup.flex5)
+
+        return p
 
 
 class FieldLineupToBeat(models.Model):
@@ -1921,6 +2022,38 @@ class FieldLineupToBeat(models.Model):
         ]
 
 
+
+class FieldSDLineupToBeat(models.Model):
+    build = models.ForeignKey(FindWinnerBuild, verbose_name='Build', related_name='field_sd_lineups_to_beat', on_delete=models.CASCADE)
+    opponent_handle = models.CharField(max_length=100, blank=True, null=True)
+    slate_lineup = models.ForeignKey(SlateSDLineup, verbose_name='Lineup', related_name='field_sd_builds', blank=True, null=True, on_delete=models.CASCADE)
+    median = models.FloatField(db_index=True, default=0.0)
+    s75 = models.FloatField(db_index=True, default=0.0)
+    s90 = models.FloatField(db_index=True, default=0.0)
+
+    class Meta:
+        verbose_name = 'Field SD Lineup'
+        verbose_name_plural = 'Field SD Lineups'
+        ordering = ['-median']
+
+    def __str__(self):
+        return f'{self.slate_lineup}'
+
+    @property
+    def players(self):
+        p = [
+            self.slate_lineup.cpt, 
+            self.slate_lineup.flex1,
+            self.slate_lineup.flex2,
+            self.slate_lineup.flex3,
+            self.slate_lineup.flex4
+        ]
+
+        if self.slate_lineup.flex5 is not None:
+            p.append(self.slate_lineup.flex5)
+
+        return p
+
 class LineupMatchup(models.Model):
     build = models.ForeignKey(FindWinnerBuild, verbose_name='Build', related_name='matchups', on_delete=models.CASCADE)
     slate_lineup = models.ForeignKey(SlateLineup, related_name='matchups', on_delete=models.CASCADE)
@@ -1934,6 +2067,20 @@ class LineupMatchup(models.Model):
 
     def __str__(self):
         return f'Lineup {self.slate_lineup.id} vs. {self.field_lineup.opponent_handle}'
+
+class LineupSDMatchup(models.Model):
+    build = models.ForeignKey(FindWinnerBuild, verbose_name='Build', related_name='sd_matchups', on_delete=models.CASCADE)
+    slate_lineup = models.ForeignKey(SlateSDLineup, related_name='sd_matchups', on_delete=models.CASCADE)
+    field_lineup = models.ForeignKey(FieldSDLineupToBeat, related_name='sd_matchups', on_delete=models.CASCADE)
+    win_rate = models.FloatField(db_index=True, default=0.0)
+
+    class Meta:
+        verbose_name = 'SD Lineup Matchup'
+        verbose_name_plural = 'SD Lineup Matchups'
+        ordering = ['-win_rate']
+
+    def __str__(self):
+        return f'SD Lineup {self.slate_lineup.id} vs. {self.field_lineup.opponent_handle}'
 
 
 class SlateBuild(models.Model):
