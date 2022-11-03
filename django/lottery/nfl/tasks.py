@@ -972,7 +972,7 @@ def execute_h2h_workflow(build_id, task_id):
                 list(models.SlatePlayerRawProjection.objects.filter(
                     projection_site=s.projection_site,
                     slate_player__slate=build.slate,
-                    ownership_projection__gte=0.5
+                    ownership_projection__gte=0.01
                 ).values_list('id', flat=True)), s.field_lineup_count
             ) for s in build.slate.projection_imports.filter(field_lineup_count__gt=0)
         ], start_h2h_comparison.si(build.id, task.id))()
