@@ -699,7 +699,7 @@ class Slate(models.Model):
 
         for (index, projection) in enumerate(self.get_projections().filter(slate_player__site_pos=position, projection__gt=0.0)):
             projection.zscore = zscores[index]
-            projection.ao_zscore = ao_zscores[index] if ao_zscores is not None else 0.0
+            projection.ao_zscore = ao_zscores[index] if ao_zscores is not None and len(ao_zscores) > index else 0.0
             projection.ceiling_zscore = ceiling_zscores[index] if ceiling_zscores is not None else 0.0
             # projection.in_play = self.in_play_criteria.meets_threshold(projection)
             projection.save()        
