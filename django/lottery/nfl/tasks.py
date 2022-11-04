@@ -831,7 +831,6 @@ def simulate_game(game_id, task_id):
         away_dst.save()
         
         # assign outcomes to captains if necessary
-        
         cpt_home_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_home_players().values_list('id', flat=True)).filter(slate_player__roster_position__in=['CPT', 'MVP'])
         cpt_away_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_away_players().values_list('id', flat=True)).filter(slate_player__roster_position__in=['CPT', 'MVP'])
 
@@ -842,26 +841,32 @@ def simulate_game(game_id, task_id):
         cpt_home_ks = cpt_home_players.filter(slate_player__site_pos='K').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
         cpt_home_dsts = cpt_home_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
 
-        cpt_home_qb = cpt_home_qbs[0]
-        cpt_home_rb1 = cpt_home_rbs[0]
+        if cpt_home_qbs.count() > 0:
+            cpt_home_qb = cpt_home_qbs[0]
+        if cpt_home_rbs.count() > 0:
+            cpt_home_rb1 = cpt_home_rbs[0]
         if cpt_home_rbs.count() > 1:
             cpt_home_rb2 = cpt_home_rbs[1]
         if cpt_home_rbs.count() > 2:
             cpt_home_rb3 = cpt_home_rbs[2]
-        cpt_home_wr1 = cpt_home_wrs[0]
-        cpt_home_wr2 = cpt_home_wrs[1]
+        if cpt_home_wrs.count() > 0:
+            cpt_home_wr1 = cpt_home_wrs[0]
+        if cpt_home_wrs.count() > 1:
+            cpt_home_wr2 = cpt_home_wrs[1]
         if cpt_home_wrs.count() > 2:
             cpt_home_wr3 = cpt_home_wrs[2]
         if cpt_home_wrs.count() > 3:
             cpt_home_wr4 = cpt_home_wrs[3]
         if cpt_home_wrs.count() > 4:
             cpt_home_wr5 = cpt_home_wrs[4]
-        cpt_home_te1 = cpt_home_tes[0]
+        if cpt_home_tes.count() > 0:
+            cpt_home_te1 = cpt_home_tes[0]
         if cpt_home_tes.count() > 1:
             cpt_home_te2 = cpt_home_tes[1]
         if cpt_home_ks.count() > 0:
             cpt_home_k = cpt_home_ks[0]
-        cpt_home_dst = cpt_home_dsts[0]
+        if cpt_home_dsts.count() > 0:
+            cpt_home_dst = cpt_home_dsts[0]
 
         cpt_away_qbs = cpt_away_players.filter(slate_player__site_pos='QB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
         cpt_away_rbs = cpt_away_players.filter(slate_player__site_pos='RB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
@@ -870,26 +875,32 @@ def simulate_game(game_id, task_id):
         cpt_away_ks = cpt_away_players.filter(slate_player__site_pos='K').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
         cpt_away_dsts = cpt_away_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
 
-        cpt_away_qb = cpt_away_qbs[0]
-        cpt_away_rb1 = cpt_away_rbs[0]
+        if cpt_away_qbs.count() > 0:
+            cpt_away_qb = cpt_away_qbs[0]
+        if cpt_away_rbs.count() > 0:
+            cpt_away_rb1 = cpt_away_rbs[0]
         if cpt_away_rbs.count() > 1:
             cpt_away_rb2 = cpt_away_rbs[1]
         if cpt_away_rbs.count() > 2:
             cpt_away_rb3 = cpt_away_rbs[2]
-        cpt_away_wr1 = cpt_away_wrs[0]
-        cpt_away_wr2 = cpt_away_wrs[1]
+        if cpt_away_wrs.count() > 0:
+            cpt_away_wr1 = cpt_away_wrs[0]
+        if cpt_away_wrs.count() > 1:
+            cpt_away_wr2 = cpt_away_wrs[1]
         if cpt_away_wrs.count() > 2:
             cpt_away_wr3 = cpt_away_wrs[2]
         if cpt_away_wrs.count() > 3:
             cpt_away_wr4 = cpt_away_wrs[3]
         if cpt_away_wrs.count() > 4:
             cpt_away_wr5 = cpt_away_wrs[4]
-        cpt_away_te1 = cpt_away_tes[0]
+        if cpt_away_tes.count() > 0:
+            cpt_away_te1 = cpt_away_tes[0]
         if cpt_away_tes.count() > 1:
             cpt_away_te2 = cpt_away_tes[1]
         if cpt_away_ks.count() > 0:
             cpt_away_k = cpt_away_ks[0]
-        cpt_away_dst = cpt_away_dsts[0]
+        if cpt_away_dsts.count() > 0:
+            cpt_away_dst = cpt_away_dsts[0]
 
         if cpt_home_qb:
             cpt_home_qb.sim_scores = (numpy.round(rand_home_qb, 2) * 1.5).tolist()
@@ -1334,9 +1345,6 @@ def optimize_for_ownership(projection_site, build_id, raw_projections, num_lineu
         flex = lineup.players[7].id
         dst = lineup.players[8].id
 
-        # score the lineup
-        sim_scores = numpy.array(player_sim_scores[qb], dtype=numpy.float64) + numpy.array(player_sim_scores[rb1], dtype=numpy.float64) + numpy.array(player_sim_scores[rb2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr1], dtype=numpy.float64) + numpy.array(player_sim_scores[wr2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr3], dtype=numpy.float64) + numpy.array(player_sim_scores[te], dtype=numpy.float64) + numpy.array(player_sim_scores[flex], dtype=numpy.float64) + numpy.array(player_sim_scores[dst], dtype=numpy.float64)
-
         slate_lineup = build.slate.possible_lineups.filter(
             qb__player_id=qb,
             rb1__player_id__in=[rb1, rb2, flex],
@@ -1363,22 +1371,25 @@ def optimize_for_ownership(projection_site, build_id, raw_projections, num_lineu
                 dst=models.SlatePlayer.objects.get(slate=build.slate, player_id=dst)
             )
             slate_lineup.simulate()
+
+            # score the lineup
+            sim_scores = numpy.array(player_sim_scores[qb], dtype=numpy.float64) + numpy.array(player_sim_scores[rb1], dtype=numpy.float64) + numpy.array(player_sim_scores[rb2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr1], dtype=numpy.float64) + numpy.array(player_sim_scores[wr2], dtype=numpy.float64) + numpy.array(player_sim_scores[wr3], dtype=numpy.float64) + numpy.array(player_sim_scores[te], dtype=numpy.float64) + numpy.array(player_sim_scores[flex], dtype=numpy.float64) + numpy.array(player_sim_scores[dst], dtype=numpy.float64)
             
             slate_lineup.sim_scores = sim_scores.tolist()
             slate_lineup.save()
 
             slate_lineup = [slate_lineup]
 
-        l = models.FieldLineupToBeat.objects.create(
-            build=build,
-            opponent_handle=f'{projection_site}_{index}',
-            slate_lineup=slate_lineup[0]
-        )
+            l = models.FieldLineupToBeat.objects.create(
+                build=build,
+                opponent_handle=f'{projection_site}_{index}',
+                slate_lineup=slate_lineup[0]
+            )
 
-        l.median = numpy.median(sim_scores)
-        l.s75 = numpy.percentile(sim_scores, 75)
-        l.s90 = numpy.percentile(sim_scores, 90)
-        l.save()
+            l.median = numpy.median(sim_scores)
+            l.s75 = numpy.percentile(sim_scores, 75)
+            l.s90 = numpy.percentile(sim_scores, 90)
+            l.save()
 
 
 @shared_task
@@ -3638,7 +3649,7 @@ def process_slate_players(slate_id, task_id):
 
                         player_id = row[start_col + 3]
                         site_pos = row[start_col]
-                        roster_pos = row[start_col + 4]
+                        roster_pos = row[start_col + 4] if slate.is_showdown else site_pos
                         player_name = row[start_col + 2].strip()
                         csv_name = f'{player_name} ({player_id})'
                         salary = row[start_col + 5]

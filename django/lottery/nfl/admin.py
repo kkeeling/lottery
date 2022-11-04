@@ -806,6 +806,9 @@ class SlateAdmin(admin.ModelAdmin):
             slate_players_task.user = request.user
             slate_players_task.save()
             
+            slate.possible_lineups.all().delete()
+            slate.possible_sd_lineups.all().delete()
+
             if slate.is_showdown:
                 _ = chain(
                     tasks.process_slate_players.si(slate.id, slate_players_task.id),
