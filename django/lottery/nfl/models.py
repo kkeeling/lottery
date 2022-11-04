@@ -88,6 +88,13 @@ ROSTER_POSITIONS = (
     ('MVP', 'MVP'),
     ('FLEX', 'Flex'),
     ('UTIL', 'Util'),
+    ('QB', 'QB'),
+    ('RB', 'RB'),
+    ('WR', 'WR'),
+    ('TE', 'TE'),
+    ('DST', 'DST'),
+    ('D', 'D'),
+    ('DEF', 'DEF'),
 )
 
 OWNERSHIP_PROJECTION_WEIGHTS = {
