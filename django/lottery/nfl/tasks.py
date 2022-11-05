@@ -1325,7 +1325,7 @@ def optimize_for_ownership(projection_site, build_id, raw_projections, num_lineu
     player_sim_scores = {}
 
     # get the player outcomes
-    for p in build.slate.get_projections():
+    for p in build.slate.get_projections().filter(ownership_projection__gte=0.01):
         player_sim_scores[p.slate_player.player_id] = p.sim_scores
         if p.sim_scores is not None and len(p.sim_scores) > models.SIM_ITERATIONS:
             logger.info(f'{p} has {len(p.sim_scores)} outcomes.')

@@ -41,7 +41,7 @@ from . import tasks
 
 BuildEval = namedtuple('BuildEval', ['top_score', 'total_cashes', 'total_one_pct', 'total_half_pct', 'binked'])
 
-SIM_ITERATIONS = 10000
+SIM_ITERATIONS = 20000
 
 SITE_OPTIONS = (
     ('draftkings', 'DK'),
