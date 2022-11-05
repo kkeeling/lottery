@@ -1305,6 +1305,7 @@ def execute_h2h_workflow(build_id, task_id):
                     list(models.SlatePlayerRawProjection.objects.filter(
                         projection_site=s.projection_site,
                         slate_player__slate=build.slate,
+                        projection__gte=2.99,
                         ownership_projection__gte=0.01
                     ).values_list('id', flat=True)), s.field_lineup_count
                 ) for s in build.slate.projection_imports.filter(field_lineup_count__gt=0)
@@ -1322,17 +1323,18 @@ def execute_h2h_workflow(build_id, task_id):
 @shared_task
 def optimize_for_ownership(projection_site, build_id, raw_projections, num_lineups):
     build = models.FindWinnerBuild.objects.get(id=build_id)
+    r_proj = models.SlatePlayerRawProjection.objects.filter(id__in=raw_projections)
     player_sim_scores = {}
 
     # get the player outcomes
-    for p in build.slate.get_projections().filter(ownership_projection__gte=0.01):
+    for p in build.slate.get_projections().filter(slate_player__id__in=r_proj.values_list('slate_player__id', flat=True)):
         player_sim_scores[p.slate_player.player_id] = p.sim_scores
         if p.sim_scores is not None and len(p.sim_scores) > models.SIM_ITERATIONS:
             logger.info(f'{p} has {len(p.sim_scores)} outcomes.')
 
     lineups = optimize.optimize_for_ownership(
         build.slate.site,
-        models.SlatePlayerRawProjection.objects.filter(id__in=raw_projections),
+        r_proj,
         num_lineups
     )
 
