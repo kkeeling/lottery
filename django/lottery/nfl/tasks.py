@@ -4223,13 +4223,16 @@ def handle_projection_import(import_id, task_id):
 
                 if row[column_headers.column_team] is None or row[column_headers.column_team] == '':
                     continue
-
-                if row[column_headers.column_team] == 'JAX':
-                    team = 'JAC'
-                elif row[column_headers.column_team] == 'LA':
-                    team = 'LAR'
-                else:
-                    team = row[column_headers.column_team].strip()
+                
+                try:
+                    if row[column_headers.column_team] == 'JAX':
+                        team = 'JAC'
+                    elif row[column_headers.column_team] == 'LA':
+                        team = 'LAR'
+                    else:
+                        team = row[column_headers.column_team].strip()
+                except:
+                    continue
 
                 median_projection = row[column_headers.column_median_projection] if column_headers.column_median_projection is not None and row[column_headers.column_median_projection] != '' and not math.isnan(row[column_headers.column_median_projection]) else 0.0
                 floor_projection = row[column_headers.column_floor_projection] if column_headers.column_floor_projection is not None and row[column_headers.column_floor_projection] != '' and not math.isnan(row[column_headers.column_floor_projection]) else 0.0
