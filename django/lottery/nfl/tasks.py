@@ -1305,7 +1305,7 @@ def execute_h2h_workflow(build_id, task_id):
                     list(models.SlatePlayerRawProjection.objects.filter(
                         projection_site=s.projection_site,
                         slate_player__slate=build.slate,
-                        ownership_projection__gte=0.01
+                        ownership_projection__gte=0.05
                     ).values_list('id', flat=True)), s.field_lineup_count
                 ) for s in build.slate.projection_imports.filter(field_lineup_count__gt=0)
             ], start_h2h_comparison.si(build.id, task.id))()
@@ -1568,7 +1568,7 @@ def compare_lineups_h2h(lineup_ids, build_id):
     start = time.time()
     df_slate_lineups = pandas.DataFrame(slate_lineups.values_list('sim_scores', flat=True), index=list(slate_lineups.values_list('id', flat=True)), dtype=numpy.float16)
     logger.info(f'  Initial dataframe took {time.time() - start}s')
-    logger.info(df_slate_lineups)
+    # logger.info(df_slate_lineups)
 
     # start = time.time()
     # field_lineups = build.field_lineups_to_beat.all().order_by('id')
