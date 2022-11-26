@@ -184,3 +184,67 @@ class SlateBuildSerializer(serializers.ModelSerializer):
             'lineups',
             'groups',
         )
+
+
+class SlateLineupSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.SlateLineup
+        depth = 1
+        fields = [
+            'qb',
+            'rb1',
+            'rb2',
+            'wr1',
+            'wr2',
+            'wr3',
+            'te',
+            'flex',
+            'dst',
+            'total_salary',
+        ]
+
+
+class SlateSDLineupSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.SlateSDLineup
+        fields = [
+            'cpt',
+            'flex1',
+            'flex2',
+            'flex3',
+            'flex4',
+            'flex5',
+            'total_salary',
+        ]
+
+
+class WinningLineupSerializer(serializers.ModelSerializer):
+    slate_lineup = SlateLineupSerializer()
+
+    class Meta:
+        model = models.WinningLineup
+        fields = '__all__'
+
+
+class WinningSDLineupSerializer(serializers.ModelSerializer):
+    slate_lineup = SlateSDLineupSerializer()
+
+    class Meta:
+        model = models.WinningSDLineup
+        fields = '__all__'
+
+
+class FindWinnerBuildSerializer(serializers.ModelSerializer):
+    num_lineups = serializers.SerializerMethodField('get_num_lineups')
+
+    class Meta:
+        model = models.FindWinnerBuild
+        fields = '__all__'
+        depth = 1
+    
+    def get_num_lineups(self, obj):
+        if obj.slate.is_showdown:
+            return obj.winning_sd_lineups.all().count()
+        return obj.winning_lineups.all().count()

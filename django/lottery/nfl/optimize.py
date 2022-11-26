@@ -85,7 +85,7 @@ def optimize(site, projections, num_lineups=1):
     return lineups
 
 
-def optimize_for_ownership(site, projections, num_lineups=1, min_sal_pct=0.99):
+def optimize_for_classic(site, projections, num_lineups=1, min_sal_pct=0.99, optimized_field='projection', allow_two_tes=False):
     if site == 'fanduel':
         optimizer = get_optimizer(Site.FANDUEL, Sport.FOOTBALL)
         min_salary = int(60000 * min_sal_pct)
@@ -118,6 +118,8 @@ def optimize_for_ownership(site, projections, num_lineups=1, min_sal_pct=0.99):
             game_started=False
         )
 
+        projection = player_projection.projection if optimized_field == 'projection' else player_projection.ownership_projection
+
         player = Player(
             player_projection.slate_player.player_id,
             first,
@@ -125,7 +127,7 @@ def optimize_for_ownership(site, projections, num_lineups=1, min_sal_pct=0.99):
             ['D' if player_projection.position == 'DST' and player_projection.slate_player.slate.site == 'fanduel' else player_projection.position],
             player_projection.team,
             player_projection.salary,
-            float(player_projection.ownership_projection),
+            float(projection),
             game_info=game_info
         )
 
@@ -134,20 +136,21 @@ def optimize_for_ownership(site, projections, num_lineups=1, min_sal_pct=0.99):
     optimizer.load_players(player_list)
     optimizer.set_min_salary_cap(min_salary)
 
-    group_player_list = []
-    for player in projections.filter(slate_player__site_pos='TE'): 
-        p = optimizer.get_player_by_id(player.slate_player.player_id)
+    if not allow_two_tes:
+        group_player_list = []
+        for player in projections.filter(slate_player__site_pos='TE'): 
+            p = optimizer.get_player_by_id(player.slate_player.player_id)
 
-        if p is not None:
-            group_player_list.append(p)
-    
-    if len(group_player_list) > 0:
-        opto_group = PlayersGroup(
-            group_player_list, 
-            min_from_group=1,
-            max_from_group=1
-        )
-        optimizer.add_players_group(opto_group)
+            if p is not None:
+                group_player_list.append(p)
+        
+        if len(group_player_list) > 0:
+            opto_group = PlayersGroup(
+                group_player_list, 
+                min_from_group=1,
+                max_from_group=1
+            )
+            optimizer.add_players_group(opto_group)
     
     lineups = []
     try:
@@ -163,7 +166,7 @@ def optimize_for_ownership(site, projections, num_lineups=1, min_sal_pct=0.99):
     return lineups
 
 
-def optimize_for_showdown(site, projections, num_lineups=1, min_sal_pct=0.99):
+def optimize_for_showdown(site, projections, num_lineups=1, min_sal_pct=0.99, optimized_field='projection'):
     if site == 'fanduel':
         optimizer = get_optimizer(Site.FANDUEL_SINGLE_GAME, Sport.FOOTBALL)
         min_salary = int(60000 * min_sal_pct)
@@ -193,6 +196,8 @@ def optimize_for_showdown(site, projections, num_lineups=1, min_sal_pct=0.99):
             game_started=False
         )
 
+        projection = player_projection.projection if optimized_field == 'projection' else player_projection.ownership_projection
+
         player = Player(
             player_projection.slate_player.player_id,
             first,
@@ -200,7 +205,7 @@ def optimize_for_showdown(site, projections, num_lineups=1, min_sal_pct=0.99):
             [player_projection.slate_player.roster_position],
             player_projection.team,
             player_projection.salary,
-            float(player_projection.projection),
+            float(projection),
             game_info=game_info
         )
 

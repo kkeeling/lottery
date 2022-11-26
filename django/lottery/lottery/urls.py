@@ -20,6 +20,7 @@ router = DefaultRouter()
 router.register(r'backgroundtask', configuration.views.BackgroundTaskViewSet, basename='backgroundtask')
 router.register(r'nfl/build-player-projection', nfl.views.BuildPlayerProjectionViewSet, basename='nfl_build_player_projections')
 router.register(r'nfl/slate-build', nfl.views.SlateBuildViewSet, basename='nfl_slate_build')
+router.register(r'nfl/find-winner-build', nfl.views.FindWinnerBuildViewSet, basename='nfl_find_winner_build')
 
 urlpatterns += [
     url(r'^admin_tools/', include('admin_tools.urls')),

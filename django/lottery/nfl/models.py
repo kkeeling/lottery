@@ -42,6 +42,7 @@ from . import tasks
 BuildEval = namedtuple('BuildEval', ['top_score', 'total_cashes', 'total_one_pct', 'total_half_pct', 'binked'])
 
 SIM_ITERATIONS = 20000
+MARKET_PROJECTIONS_URL = 'https://r1z9dkqvh3.execute-api.us-east-1.amazonaws.com/api/market-projections'
 
 SITE_OPTIONS = (
     ('draftkings', 'DK'),
@@ -66,11 +67,14 @@ PROJECTION_SITES = (
     ('4for4', '4For4'),
     ('awesemo', 'Awesemo'),
     ('awesemo_own', 'Awesemo Ownership'),
+    ('awesemo_sd', 'Awesemo Showdown'),
+    ('awesemo_own_sd', 'Awesemo Showdown Ownership'),
     ('etr', 'Establish The Run'),
     ('etr_sd', 'Establish The Run DK Showdown'),
     ('etr_sg', 'Establish The Run FD Single Game'),
     ('tda', 'The Daily Average'),
     ('rg', 'Rotogrinders'),
+    ('rg_sd', 'Rotogrinders SD'),
     ('fc', 'Fantasy Cruncher'),
     ('rts', 'Run The Sims'),
     ('sabersim', 'Saber Sim'),
@@ -206,7 +210,11 @@ class Alias(models.Model):
                 alias = Alias.objects.get(four4four_name=player_name)
             elif site == 'awesemo':
                 alias = Alias.objects.get(awesemo_name=player_name)
+            elif site == 'awesemo_sd':
+                alias = Alias.objects.get(awesemo_name=player_name)
             elif site == 'awesemo_own':
+                alias = Alias.objects.get(awesemo_ownership_name=player_name)
+            elif site == 'awesemo_own_sd':
                 alias = Alias.objects.get(awesemo_ownership_name=player_name)
             elif site == 'etr':
                 alias = Alias.objects.get(etr_name=player_name)
@@ -217,6 +225,8 @@ class Alias(models.Model):
             elif site == 'tda':
                 alias = Alias.objects.get(tda_name=player_name)
             elif site == 'rg':
+                alias = Alias.objects.get(rg_name=player_name)
+            elif site == 'rg_sd':
                 alias = Alias.objects.get(rg_name=player_name)
             elif site == 'fc':
                 alias = Alias.objects.get(fc_name=player_name)
@@ -239,7 +249,11 @@ class Alias(models.Model):
                 alias = Alias.objects.filter(four4four_name=player_name)[0]
             elif site == 'awesemo':
                 alias = Alias.objects.filter(awesemo_name=player_name)[0]
+            elif site == 'awesemo_sd':
+                alias = Alias.objects.filter(awesemo_name=player_name)[0]
             elif site == 'awesemo_own':
+                alias = Alias.objects.filter(awesemo_ownership_name=player_name)[0]
+            elif site == 'awesemo_own_sd':
                 alias = Alias.objects.filter(awesemo_ownership_name=player_name)[0]
             elif site == 'etr':
                 alias = Alias.objects.filter(etr_name=player_name)[0]
@@ -250,6 +264,8 @@ class Alias(models.Model):
             elif site == 'tda':
                 alias = Alias.objects.filter(tda_name=player_name)[0]
             elif site == 'rg':
+                alias = Alias.objects.filter(rg_name=player_name)[0]
+            elif site == 'rg_sd':
                 alias = Alias.objects.filter(rg_name=player_name)[0]
             elif site == 'fc':
                 alias = Alias.objects.filter(fc_name=player_name)[0]
@@ -280,7 +296,13 @@ class Alias(models.Model):
                 elif site == 'awesemo':
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_name.lower())
                     score = seqmatch.quick_ratio()
+                elif site == 'awesemo_sd':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_name.lower())
+                    score = seqmatch.quick_ratio()
                 elif site == 'awesemo_own':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_ownership_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'awesemo_own_sd':
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_ownership_name.lower())
                     score = seqmatch.quick_ratio()
                 elif site == 'etr':
@@ -296,6 +318,9 @@ class Alias(models.Model):
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.tda_name.lower())
                     score = seqmatch.quick_ratio()
                 elif site == 'rg':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rg_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'rg_sd':
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rg_name.lower())
                     score = seqmatch.quick_ratio()
                 elif site == 'fc':
@@ -1794,12 +1819,12 @@ class CeilingProjectionRangeMapping(models.Model):
 
 
 class MarketProjections(models.Model):
-    URL = 'https://r1z9dkqvh3.execute-api.us-east-1.amazonaws.com/api/market-projections'
+    site = models.CharField(max_length=50, choices=SITE_OPTIONS, default='draftkings')
+    projection_site = models.CharField(max_length=255, choices=PROJECTION_SITES, default='4for4')
+    projection_sheet = models.FileField(upload_to='uploads/projections', blank=True, null=True)
     pull_time = models.DateTimeField(auto_now_add=True)
-    json_data = models.TextField()
-
-    def __str__(self):
-        return f'{self.pull_time}'
+    week = models.ForeignKey(Week, related_name='market_projections', on_delete=models.SET_NULL, null=True, blank=True)
+    data = models.TextField(blank=True, null=True)
 
     class Meta:
         verbose_name = 'Market Projections'
@@ -1813,15 +1838,9 @@ class SlateProjectionImport(models.Model):
     )
     slate = models.ForeignKey(Slate, related_name='projection_imports', on_delete=models.CASCADE)
     projection_site = models.CharField(max_length=255, choices=PROJECTION_SITES, default='4for4')
-    url = models.URLField(blank=True, null=True)
-    headers = models.TextField(blank=True, null=True)
-    projection_sheet = models.FileField(upload_to='uploads/projections', blank=True, null=True)
-    content_type = models.CharField(max_length=5, default='csv', choices=CONTENT_TYPES)
-    has_scoring_projections = models.BooleanField(default=True)
-    has_ownership_projections = models.BooleanField(default=True)
     projection_weight = models.FloatField(default=0.0)
     ownership_weight = models.FloatField(default=0.0)
-    field_lineup_count = models.IntegerField('# Field Lineups', default=50)
+    field_lineup_count = models.IntegerField('# Field Lineups', default=100)
 
     def __str__(self):
         return f'{self.projection_site}'
@@ -1904,10 +1923,26 @@ class GroupImportSheet(models.Model):
 
 
 class FindWinnerBuild(models.Model):
+    LINEUP_CREATION_STRATEGIES = (
+        ('optimize_by_ownership', 'Optimize by Ownership'),
+        ('optimize_by_projection', 'Optimize by Projection'),
+    )
+    RUN_IT_TWICE_STRATEGIES = (
+        ('h2h', 'Head-to-Head'),
+        ('se', 'Single Entry'),
+    )
+
     slate = models.ForeignKey(Slate, related_name='find_winner_builds', on_delete=models.CASCADE)
     build_type = models.CharField(max_length=10, choices=BUILD_TYPES, default='h2h')
     created = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     field_lineup_upload = models.FileField(upload_to='uploads/field_lineups', blank=True, null=True)
+
+    # Configuration
+    field_lineup_creation_strategy = models.CharField(max_length=50, choices=LINEUP_CREATION_STRATEGIES, default='optimize_by_ownership')
+    allow_two_tes = models.BooleanField(default=False)
+    run_it_twice = models.BooleanField(default=False)
+    run_it_twice_count = models.IntegerField(default=3)
+    run_it_twice_strategy = models.CharField(max_length=5, choices=RUN_IT_TWICE_STRATEGIES, default='h2h')
 
     class Meta:
         verbose_name = 'Find Winner Build'
@@ -1943,6 +1978,9 @@ class WinningLineup(models.Model):
     win_rate = models.FloatField(db_index=True, default=0.0)
     win_count = models.IntegerField(db_index=True, default=0)
     rating = models.FloatField(db_index=True, default=0.0)
+    win_rate_2 = models.FloatField(db_index=True, null=True, blank=True)
+    win_count_2 = models.IntegerField(db_index=True, null=True, blank=True)
+    rating_2 = models.FloatField(db_index=True, null=True, blank=True)
     median = models.FloatField(db_index=True, default=0.0)
     s75 = models.FloatField(db_index=True, default=0.0)
     s90 = models.FloatField(db_index=True, default=0.0)
@@ -1977,6 +2015,9 @@ class WinningSDLineup(models.Model):
     win_count = models.IntegerField(db_index=True, default=0)
     rating = models.FloatField(db_index=True, default=0.0)
     median = models.FloatField(db_index=True, default=0.0)
+    win_rate_2 = models.FloatField(db_index=True, null=True, blank=True)
+    win_count_2 = models.IntegerField(db_index=True, null=True, blank=True)
+    rating_2 = models.FloatField(db_index=True, null=True, blank=True)
     s75 = models.FloatField(db_index=True, default=0.0)
     s90 = models.FloatField(db_index=True, default=0.0)
 
@@ -2035,7 +2076,6 @@ class FieldLineupToBeat(models.Model):
         ]
 
 
-
 class FieldSDLineupToBeat(models.Model):
     build = models.ForeignKey(FindWinnerBuild, verbose_name='Build', related_name='field_sd_lineups_to_beat', on_delete=models.CASCADE)
     opponent_handle = models.CharField(max_length=100, blank=True, null=True)
@@ -2067,6 +2107,7 @@ class FieldSDLineupToBeat(models.Model):
 
         return p
 
+
 class LineupMatchup(models.Model):
     build = models.ForeignKey(FindWinnerBuild, verbose_name='Build', related_name='matchups', on_delete=models.CASCADE)
     slate_lineup = models.ForeignKey(SlateLineup, related_name='matchups', on_delete=models.CASCADE)
@@ -2080,6 +2121,7 @@ class LineupMatchup(models.Model):
 
     def __str__(self):
         return f'Lineup {self.slate_lineup.id} vs. {self.field_lineup.opponent_handle}'
+
 
 class LineupSDMatchup(models.Model):
     build = models.ForeignKey(FindWinnerBuild, verbose_name='Build', related_name='sd_matchups', on_delete=models.CASCADE)

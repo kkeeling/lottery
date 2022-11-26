@@ -1,0 +1,224 @@
+{% extends "admin/change_list.html" %}
+{% load i18n static admin_static admin_list %}
+{% load slate_build %}
+
+{% block extrastyle %}
+{{ block.super }}
+<!-- Include the core CSS, this is needed by the grid -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/jqc-1.12.4/dt-1.12.1/b-2.2.3/sl-1.4.0/datatables.min.css"/>
+<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/fomantic-ui/2.8.8/semantic.min.css"/>
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.1/css/dataTables.semanticui.min.css"/>
+<link rel="stylesheet" type="text/css" href="{% static 'admin/css/editor.dataTables.css' %}">
+ 
+<style type="text/css">
+    .table { display:table; }
+    .row   { display:table-row; }
+    .cell  { display:table-cell; border:1px solid black; padding:3px; width:110px; }
+    .exposure {
+        display: inline-block;
+        margin-right: 20px;
+    }
+    .action {
+        display: inline-block;
+        margin: 20px;
+    }
+    .value  { width:50px; }
+    .progress {
+        margin: auto;
+        width: 100px;
+        height: 100px;
+        position: relative;
+    }
+
+    .progress > svg {
+        height: 100%;
+        display: block;
+    }
+
+</style>
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script type="text/javascript" src="https://cdn.datatables.net/v/dt/jqc-1.12.4/dt-1.12.1/b-2.2.3/sl-1.4.0/datatables.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.2/moment.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/1.13.1/js/dataTables.semanticui.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/fomantic-ui/2.8.8/semantic.min.js"></script>
+<script type="text/javascript" src="{% static 'admin/js/dataTables.editor.js' %}"></script>
+
+{% endblock %}
+
+{% block content %}
+    {% block object-tools %}
+    <script type="text/javascript">
+        function showLineups(buildId) {
+            console.log(buildId)
+        }
+
+        function createLineups(buildId) {
+            console.log(buildId)
+        }
+
+        $(document).ready(function() {
+            var build_table = $('#buildTable').DataTable( {
+                createdRow: function(row, data, dataIndex) {
+                    this.api()
+                        .columns()
+                        .every(function () {
+                            var column = this;
+                            if (column.index() == 3 || column.index() == 4) {
+                                var title;
+
+                                if (column.index() == 3) {
+                                    title = 'Showdown?';
+                                } else if (column.index() == 4) {
+                                    title = "Site";
+                                }
+
+                                var select = $('<select><option value="">' + title + '</option></select>')
+                                    .appendTo($(column.header()).empty())
+                                    .on('change', function () {
+                                        var val = $.fn.dataTable.util.escapeRegex($(this).val());
+            
+                                        column.search(val ? '^' + val + '$' : '', true, false).draw();
+                                    });
+            
+                                column
+                                    .data()
+                                    .unique()
+                                    .sort()
+                                    .each(function (d, j) {
+                                        select.append('<option value="' + d + '">' + d + '</option>');
+                                    });
+                            }
+                        });
+                },
+                ajax: {
+                    url: '/api/nfl/find-winner-build/',
+                    dataSrc: ''
+                },
+                processing: true,
+                stateSave: true,
+                lengthMenu: [
+                    [25, 50, 100, -1],
+                    [25, 50, 100, 'All'],
+                ],
+                order: [[ 2, 'desc' ]],
+                columns: [
+                    {
+                        data: null,
+                        render: function ( data, type, row ) {
+                            if ( type === 'display' ) {
+                                return '<button type="button">Reset</button>';
+                            }
+                            return data;
+                        },
+                        orderable: false
+                    },
+                    { data: "slate.name" },
+                    { 
+                        data: "slate.datetime",
+                        render: DataTable.render.datetime('MM/DD/YYYY h:mm a'),
+                    },
+                    { 
+                        data: "slate.is_showdown",
+                        render: function ( data, type, row ) {
+                            if ( type === 'display' ) {
+                                if (data) {
+                                    return '<img src="/static/admin/img/icon-yes.svg" alt="True">';
+                                }
+                                return '<img src="/static/admin/img/icon-no.svg" alt="False">';
+                            }
+                            return data;
+                        },
+                    },
+                    { data: "slate.site" },
+                    { 
+                        data: "num_lineups" ,
+                        render: function ( data, type, row ) {
+                            if ( type === 'display' ) {
+                                if (data > 0) {
+                                    return '<button type="button" onclick="showLineups(' + row.id + ')">Show</button>';
+                                }
+                                return '<button type="button" onclick="createLineups(' + row.id + ')">Create</button>';
+                            }
+                            return data;
+                        },
+                    }
+                ]
+            } );
+
+            $('#classicLineupTable').hide();
+        });
+    </script>
+    {{ block.super }}
+    {% endblock %}
+
+    <table id="buildTable" class="ui celled table" style="width:100%">
+        <thead>
+            <tr>
+                <th></th>
+                <th>Slate</th>
+                <th>Date/Time</th>
+                <th>Showdown?</th>
+                <th>Site</th>
+                <th>Lineups</th>
+            </tr>
+        </thead>
+        <tfoot>
+            <tr>
+                <th></th>
+                <th>Slate</th>
+                <th>Date/Time</th>
+                <th>Showdown?</th>
+                <th>Site</th>
+                <th>Lineups</th>
+            </tr>
+        </tfoot>
+    </table>
+
+    <table id="classicLineupTable" class="ui celled table" style="width:100%">
+        <thead>
+            <tr>
+                <th></th>
+                <th>QB</th>
+                <th>RB</th>
+                <th>RB</th>
+                <th>WR</th>
+                <th>WR</th>
+                <th>WR</th>
+                <th>TE</th>
+                <th>FLEX</th>
+                <th>DST</th>
+                <th>Proj</th>
+                <th>75th</th>
+                <th>Ceil</th>
+                <th>Avg Win %</th>
+                <th>Win #</th>
+                <th>Rating</th>
+                <th>Actual</th>
+            </tr>
+        </thead>
+        <tfoot>
+            <tr>
+                <th></th>
+                <th>QB</th>
+                <th>RB</th>
+                <th>RB</th>
+                <th>WR</th>
+                <th>WR</th>
+                <th>WR</th>
+                <th>TE</th>
+                <th>FLEX</th>
+                <th>DST</th>
+                <th>Proj</th>
+                <th>75th</th>
+                <th>Ceil</th>
+                <th>Avg Win %</th>
+                <th>Win #</th>
+                <th>Rating</th>
+                <th>Actual</th>
+            </tr>
+        </tfoot>
+    </table>
+{% endblock %}

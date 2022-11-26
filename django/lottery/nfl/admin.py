@@ -577,13 +577,21 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 alias.four4four_name = missing_alias.player_name
             elif missing_alias.site == 'awesemo':
                 alias.awesemo_name = missing_alias.player_name
+            elif missing_alias.site == 'awesemo_sd':
+                alias.awesemo_name = missing_alias.player_name
             elif missing_alias.site == 'awesemo_own':
                 alias.awesemo_ownership_name = missing_alias.player_name
+            elif missing_alias.site == 'awesemo_own_sd':
+                alias.awesemo_ownership_name = missing_alias.player_name
             elif missing_alias.site == 'etr':
+                alias.etr_name = missing_alias.player_name
+            elif missing_alias.site == 'etr_sd':
                 alias.etr_name = missing_alias.player_name
             elif missing_alias.site == 'tda':
                 alias.tda_name = missing_alias.player_name
             elif missing_alias.site == 'rg':
+                alias.rg_name = missing_alias.player_name
+            elif missing_alias.site == 'rg_sd':
                 alias.rg_name = missing_alias.player_name
             elif missing_alias.site == 'fc':
                 alias.fc_name = missing_alias.player_name
@@ -666,6 +674,15 @@ class SheetColumnHeadersAdmin(admin.ModelAdmin):
         'use_for_data_feed',
     )
 
+    actions = [
+        'duplicate'
+    ]
+
+    def duplicate(self, request, queryset):
+        for d in queryset:
+            d.id = None
+            d.save()
+    duplicate.short_description = 'Duplicate selected column headers'
 
 @admin.register(models.Slate)
 class SlateAdmin(admin.ModelAdmin):
@@ -704,6 +721,7 @@ class SlateAdmin(admin.ModelAdmin):
         'export_field',
         'export_player_outcomes',
         'analyze_projections',
+        'sim_slates',
         'export_game_sims',
     ]
     inlines = (
@@ -809,54 +827,39 @@ class SlateAdmin(admin.ModelAdmin):
             slate.possible_lineups.all().delete()
             slate.possible_sd_lineups.all().delete()
 
-            if slate.is_showdown:
-                _ = chain(
-                    tasks.process_slate_players.si(slate.id, slate_players_task.id),
-                    group([
-                        tasks.handle_projection_import.si(
-                            s.id, 
-                            BackgroundTask.objects.create(
-                                name=f'Process Projections from {s.projection_site}',
-                                user=request.user
-                            ).id
-                        ) for s in slate.projection_imports.all()
-                    ]),
-                    tasks.handle_base_projections.si(slate.id, BackgroundTask.objects.create(
-                            name='Process Base Projections',
-                            user=request.user
-                    ).id),
-                    tasks.assign_zscores_to_players.si(slate.id, BackgroundTask.objects.create(
-                            name='Assign Z-Scores to Players',
-                            user=request.user
-                    ).id)
-                )()
-            else:
+            jobs = []
+
+            if not slate.is_showdown:
                 find_games_task = BackgroundTask()
                 find_games_task.name = 'Finding Slate Games'
                 find_games_task.user = request.user
                 find_games_task.save()
 
-                _ = chain(
-                    tasks.find_slate_games.si(slate.id, find_games_task.id), 
-                    tasks.process_slate_players.si(slate.id, slate_players_task.id),
-                    group([
-                        tasks.handle_projection_import.si(
-                            s.id, 
-                            BackgroundTask.objects.create(
-                                name=f'Process Projections from {s.projection_site}',
-                                user=request.user
-                            ).id
-                        ) for s in slate.projection_imports.all()
-                    ]),
-                    tasks.handle_base_projections.si(slate.id, BackgroundTask.objects.create(
-                            name='Process Base Projections',
-                            user=request.user
-                    ).id),
-                    tasks.assign_zscores_to_players.si(slate.id, BackgroundTask.objects.create(
-                            name='Assign Z-Scores to Players',
-                            user=request.user
-                    ).id)
-                )()
+                jobs.append(tasks.find_slate_games.si(slate.id, find_games_task.id))
+            
+            jobs.append(tasks.process_slate_players.si(slate.id, slate_players_task.id))
+            jobs.append(
+                tasks.update_slate_from_mp.si(
+                    slate.id,
+                    BackgroundTask.objects.create(
+                        name=f'Update {slate} from market projections',
+                        user=request.user
+                    ).id
+                ),
+            )
+            jobs.append(
+                tasks.handle_base_projections.si(slate.id, BackgroundTask.objects.create(
+                        name='Process Base Projections',
+                        user=request.user
+                ).id),
+            )
+            jobs.append(
+                tasks.assign_zscores_to_players.si(slate.id, BackgroundTask.objects.create(
+                        name='Assign Z-Scores to Players',
+                        user=request.user
+                ).id)
+            )
+            chain(jobs)()
 
             messages.add_message(
                 request,
@@ -903,7 +906,7 @@ class SlateAdmin(admin.ModelAdmin):
     get_mme_builds_link.short_description = 'MME'
 
     def get_h2h_builds_link(self, obj):
-        if obj.players.all().count() > 0:
+        if obj.find_winner_builds.all().count() > 0:
             return mark_safe('<a href="/admin/nfl/findwinnerbuild/?slate__id={}">H2H/Cash/SE</a>'.format(obj.id))
         return 'None'
     get_h2h_builds_link.short_description = 'H2H/Cash/SE'
@@ -950,6 +953,23 @@ class SlateAdmin(admin.ModelAdmin):
         for slate in queryset:
             slate.analyze_projections()
     analyze_projections.short_description = 'Analyze projections for selected slates'
+
+    def sim_slates(self, request, queryset):
+        group([
+            tasks.simulate_game.s(
+                slate_game.id,
+                BackgroundTask.objects.create(
+                    name=f'Simulate {slate_game}',
+                    user=request.user
+                ).id
+            ) for slate_game in models.SlateGame.objects.filter(slate__in=queryset)
+        ])()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Simulating games for {} slates'.format(queryset.count()))
+    sim_slates.short_description = 'Sim games for selected slates'
 
     def export_game_sims(self, request, queryset):
         jobs = []
@@ -1916,7 +1936,6 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
     date_hierarchy = 'slate__datetime'
     list_display = (
         'slate',
-        'build_type',
         'get_projections_link',
         'get_lineups_link',
         'get_field_lineups_link',
@@ -1927,10 +1946,28 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
     list_filter = (
         ('slate', RelatedDropdownFilter),
     )
+    fieldsets = (
+        (None,  {
+            'fields': (
+                'slate',
+            )
+        }),
+        ('Config (optional)',  {
+            'fields': (
+                'field_lineup_creation_strategy',
+                'allow_two_tes',        
+                'run_it_twice',        
+                'run_it_twice_count',        
+                'run_it_twice_strategy',        
+            ),
+            'classes':('collapse',)
+        }),
+    )
     raw_id_fields = (
         'slate',
     )
     search_fields = ('slate__name',)
+    # change_list_template = 'admin/nfl/find_winner_build_changelist.html'
 
     def get_urls(self):
         urls = super().get_urls()
@@ -1968,41 +2005,19 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         )
 
         build = models.FindWinnerBuild.objects.get(pk=pk)
+        tasks.execute_h2h_workflow.delay(
+            build.id,
+            BackgroundTask.objects.create(
+                name='Run NFL Workflow',
+                user=request.user
+            ).id
+        )
 
-        if build.build_type == 'h2h':
-            tasks.execute_h2h_workflow.delay(
-                build.id,
-                BackgroundTask.objects.create(
-                    name='Run H2H Workflow',
-                    user=request.user
-                ).id
-            )
-
-            messages.add_message(
-                request,
-                messages.WARNING,
-                f'Running H2H Workflow'
-            )
-        elif build.build_type == 'se':
-            tasks.execute_se_workflow.delay(
-                build.id,
-                BackgroundTask.objects.create(
-                    name='Run SE Workflow',
-                    user=request.user
-                ).id
-            )
-
-            messages.add_message(
-                request,
-                messages.WARNING,
-                f'Running SE Workflow'
-            )
-        else:
-            messages.add_message(
-                request,
-                messages.ERRROR,
-                f'{build.build_type} is not supported yet'
-            )
+        messages.add_message(
+            request,
+            messages.WARNING,
+            f'Executing build'
+        )
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
@@ -4885,4 +4900,32 @@ class GroupImportSheetAdmin(admin.ModelAdmin):
 
 @admin.register(models.MarketProjections)
 class MarketProjectionsAdmin(admin.ModelAdmin):
-    pass
+    date_hierarchy = 'pull_time'
+    list_display = (
+        'pull_time',
+        'week',
+        'site',
+        'projection_site',
+    )
+    list_filter = (
+        'site',
+        'projection_site',
+    )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.process(request, obj)
+
+    def process(self, request, mp):
+        tasks.read_market_projection_csv.delay(
+            mp.id,
+            BackgroundTask.objects.create(
+                name='Read Market Projections',
+                user=request.user
+            ).id
+        )
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Your build is being initialized. You may continue to use GreatLeaf while you\'re waiting. A new message will appear here once the slate is ready.')
