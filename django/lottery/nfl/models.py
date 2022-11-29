@@ -64,21 +64,51 @@ SHEET_TYPES = (
 )
 
 PROJECTION_SITES = (
-    ('4for4', '4For4'),
-    ('awesemo', 'Awesemo'),
-    ('awesemo_own', 'Awesemo Ownership'),
+    ('4for4', '4For4 Main'),
+    ('4for4_thu_mon', '4for4 Thu-Mon'),
+    ('4for4_sun_mon', '4for4 Sun-Mon'),
+    ('4for4_early', '4for4 1pm Only'),
+    ('4for4_afternoon', '4for4 Afternoon Only'),
+    ('4for4_turbo', '4for4 Turbo'),
+    ('4for4_primetime', '4for4 Primetime'),
+    ('4for4_mon_thu', '4for4 Mon-Thu'),
+    ('awesemo', 'Awesemo Main'),
+    ('awesemo_own', 'Awesemo Main Ownership'),
+    ('awesemo_thu_mon', 'Awesemo Thu-Mon'),
+    ('awesemo_own_thu_mon', 'Awesemo Thu-Mon Ownership'),
+    ('awesemo_sun_mon', 'Awesemo Sun-Mon'),
+    ('awesemo_own_sun_mon', 'Awesemo Sun-Mon Ownership'),
+    ('awesemo_early', 'Awesemo 1pm Only'),
+    ('awesemo_own_early', 'Awesemo 1pm Only Ownership'),
+    ('awesemo_afternoon', 'Awesemo Afternoon Only'),
+    ('awesemo_own_afternoon', 'Awesemo Afternoon Only Ownership'),
+    ('awesemo_turbo', 'Awesemo Turbo'),
+    ('awesemo_own_turbo', 'Awesemo Turbo Ownership'),
+    ('awesemo_primetime', 'Awesemo Primetime'),
+    ('awesemo_own_primetime', 'Awesemo Primetime Ownership'),
+    ('awesemo_mon_thu', 'Awesemo Mon-Thu'),
+    ('awesemo_own_mon_thu', 'Awesemo Mon-Thu Ownership'),
     ('awesemo_sd', 'Awesemo Showdown'),
     ('awesemo_own_sd', 'Awesemo Showdown Ownership'),
-    ('etr', 'Establish The Run'),
+    ('etr', 'Establish The Run Main'),
+    ('etr_all', 'Establish The Run All'),
     ('etr_sd', 'Establish The Run DK Showdown'),
     ('etr_sg', 'Establish The Run FD Single Game'),
-    ('tda', 'The Daily Average'),
-    ('rg', 'Rotogrinders'),
-    ('rg_sd', 'Rotogrinders SD'),
-    ('fc', 'Fantasy Cruncher'),
-    ('rts', 'Run The Sims'),
-    ('sabersim', 'Saber Sim'),
-    ('labs', 'Fantasy Labs'),
+    ('rg', 'Rotogrinders Main'),
+    ('rg_all', 'Rotogrinders All'),
+    ('rg_thu_mon', 'Rotogrinders Thu-Mon'),
+    ('rg_sun_mon', 'Rotogrinders Sun-Mon'),
+    ('rg_early', 'Rotogrinders 1pm Only'),
+    ('rg_afternoon', 'Rotogrinders Afternoon Only'),
+    ('rg_turbo', 'Rotogrinders Turbo'),
+    ('rg_primetime', 'Rotogrinders Primetime'),
+    ('rg_mon_thu', 'Rotogrinders Mon-Thu'),
+    ('rg_sd', 'Rotogrinders Showdown'),
+    # ('tda', 'The Daily Average'),
+    # ('fc', 'Fantasy Cruncher'),
+    # ('rts', 'Run The Sims'),
+    # ('sabersim', 'Saber Sim'),
+    # ('labs', 'Fantasy Labs'),
 )
 
 PROJECTION_WEIGHTS = {
@@ -186,6 +216,7 @@ class Alias(models.Model):
     tda_name = models.CharField(max_length=255, null=True, blank=True)
     fd_name = models.CharField(max_length=255, null=True, blank=True)
     etr_name = models.CharField(max_length=255, null=True, blank=True)
+    etr_all_name = models.CharField(max_length=255, null=True, blank=True)
     rg_name = models.CharField(max_length=255, null=True, blank=True)
     rts_name = models.CharField(max_length=255, null=True, blank=True)
     yahoo_name = models.CharField(max_length=255, null=True, blank=True)
@@ -206,37 +237,29 @@ class Alias(models.Model):
                 alias = Alias.objects.get(dk_name=player_name)
             elif site == 'fanduel':
                 alias = Alias.objects.get(fd_name=player_name)
-            elif site == '4for4':
+            elif site.startswith('4for4'):
                 alias = Alias.objects.get(four4four_name=player_name)
-            elif site == 'awesemo':
-                alias = Alias.objects.get(awesemo_name=player_name)
-            elif site == 'awesemo_sd':
-                alias = Alias.objects.get(awesemo_name=player_name)
-            elif site == 'awesemo_own':
+            elif site.startswith('awesemo_own'):
                 alias = Alias.objects.get(awesemo_ownership_name=player_name)
-            elif site == 'awesemo_own_sd':
-                alias = Alias.objects.get(awesemo_ownership_name=player_name)
-            elif site == 'etr':
+            elif site.startswith('awesemo'):
+                alias = Alias.objects.get(awesemo_name=player_name)
+            elif site == 'etr_all':
+                alias = Alias.objects.get(etr_all_name=player_name)
+            elif site.startswith('etr'):
                 alias = Alias.objects.get(etr_name=player_name)
-            elif site == 'etr_sd':
-                alias = Alias.objects.get(etr_name=player_name)
-            elif site == 'etr_sg':
-                alias = Alias.objects.get(etr_name=player_name)
-            elif site == 'tda':
+            elif site.startswith('tda'):
                 alias = Alias.objects.get(tda_name=player_name)
-            elif site == 'rg':
+            elif site.startswith('rg'):
                 alias = Alias.objects.get(rg_name=player_name)
-            elif site == 'rg_sd':
-                alias = Alias.objects.get(rg_name=player_name)
-            elif site == 'fc':
+            elif site.startswith('fc'):
                 alias = Alias.objects.get(fc_name=player_name)
-            elif site == 'rts':
+            elif site.startswith('rts'):
                 alias = Alias.objects.get(rts_name=player_name)
-            elif site == 'yahoo':
+            elif site.startswith('yahoo'):
                 alias = Alias.objects.get(yahoo_name=player_name)
-            elif site == 'rotogrinders':
+            elif site.startswith('rotogrinders'):
                 alias = Alias.objects.get(rg_name=player_name)
-            elif site == 'sabersim':
+            elif site.startswith('sabersim'):
                 alias = Alias.objects.get(ss_name=player_name)
             else:
                 raise Exception('{} is not a supported site yet.'.format(site))
@@ -245,37 +268,29 @@ class Alias(models.Model):
                 alias = Alias.objects.filter(dk_name=player_name)[0]
             elif site == 'fanduel':
                 alias = Alias.objects.filter(fd_name=player_name)[0]
-            elif site == '4for4':
+            elif site.startswith('4for4'):
                 alias = Alias.objects.filter(four4four_name=player_name)[0]
-            elif site == 'awesemo':
-                alias = Alias.objects.filter(awesemo_name=player_name)[0]
-            elif site == 'awesemo_sd':
-                alias = Alias.objects.filter(awesemo_name=player_name)[0]
-            elif site == 'awesemo_own':
+            elif site.startswith('awesemo_own'):
                 alias = Alias.objects.filter(awesemo_ownership_name=player_name)[0]
-            elif site == 'awesemo_own_sd':
-                alias = Alias.objects.filter(awesemo_ownership_name=player_name)[0]
-            elif site == 'etr':
+            elif site.startswith('awesemo'):
+                alias = Alias.objects.filter(awesemo_name=player_name)[0]
+            elif site == 'etr_all':
+                alias = Alias.objects.filter(etr_all_name=player_name)[0]
+            elif site.startswith('etr'):
                 alias = Alias.objects.filter(etr_name=player_name)[0]
-            elif site == 'etr_sd':
-                alias = Alias.objects.filter(etr_name=player_name)[0]
-            elif site == 'etr_sg':
-                alias = Alias.objects.filter(etr_name=player_name)[0]
-            elif site == 'tda':
+            elif site.startswith('tda'):
                 alias = Alias.objects.filter(tda_name=player_name)[0]
-            elif site == 'rg':
+            elif site.startswith('rg'):
                 alias = Alias.objects.filter(rg_name=player_name)[0]
-            elif site == 'rg_sd':
-                alias = Alias.objects.filter(rg_name=player_name)[0]
-            elif site == 'fc':
+            elif site.startswith('fc'):
                 alias = Alias.objects.filter(fc_name=player_name)[0]
-            elif site == 'rts':
+            elif site.startswith('rts'):
                 alias = Alias.objects.filter(rts_name=player_name)[0]
-            elif site == 'yahoo':
+            elif site.startswith('yahoo'):
                 alias = Alias.objects.filter(yahoo_name=player_name)[0]
-            elif site == 'rotogrinders':
+            elif site.startswith('rotogrinders'):
                 alias = Alias.objects.filter(rg_name=player_name)[0]
-            elif site == 'sabersim':
+            elif site.startswith('sabersim'):
                 alias = Alias.objects.filter(ss_name=player_name)[0]
             else:
                 raise Exception('{} is not a supported site yet.'.format(site))
@@ -290,52 +305,40 @@ class Alias(models.Model):
                 elif site == 'fanduel':
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.fd_name.lower())
                     score = seqmatch.quick_ratio()
-                elif site == '4for4':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.four4four_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'awesemo':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'awesemo_sd':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'awesemo_own':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_ownership_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'awesemo_own_sd':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_ownership_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'etr':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.etr_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'etr_sd':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.etr_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'etr_sg':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.etr_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'tda':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.tda_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'rg':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rg_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'rg_sd':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rg_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'fc':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.fc_name.lower())
-                    score = seqmatch.quick_ratio()
-                elif site == 'rts':
-                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rts_name.lower())
-                    score = seqmatch.quick_ratio()
                 elif site == 'yahoo':
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.yahoo_name.lower())
                     score = seqmatch.quick_ratio()
-                elif site == 'rotogrinders':
+                elif site.startswith('4for4'):
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.four4four_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site.startswith('awesemo_own'):
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_ownership_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site.startswith('awesemo'):
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.awesemo_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'etr_all':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.etr_all_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site.startswith('etr'):
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.etr_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site.startswith('tda'):
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.tda_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site.startswith('rg'):
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rg_name.lower())
                     score = seqmatch.quick_ratio()
-                elif site == 'sabersim':
+                elif site.startswith('fc'):
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.fc_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site.startswith('rts'):
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rts_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site.startswith('rotogrinders'):
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rg_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site.startswith('sabersim'):
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.ss_name.lower())
                     score = seqmatch.quick_ratio()
                 else:
@@ -363,22 +366,20 @@ class Alias(models.Model):
             return self.fd_name
         elif for_site == 'draftkings':
             return self.dk_name
-        elif for_site == '4for4':
+        elif for_site.startswith('4for4'):
             return self.four4four_name
-        elif for_site == 'awesemo':
-            return self.awesemo_name
-        elif for_site == 'awesemo_own':
+        elif for_site.startswith('awesemo_own'):
             return self.awesemo_ownership_name
-        elif for_site == 'etr':
+        elif for_site.startswith('awesemo'):
+            return self.awesemo_name
+        elif for_site == 'etr_all':
+            return self.etr_all_name
+        elif for_site.startswith('etr'):
             return self.etr_name
-        elif for_site == 'etr_sd':
-            return self.etr_name
-        elif for_site == 'etr_sg':
-            return self.etr_name
+        elif for_site.startswith('rg'):
+            return self.rg_name
         elif for_site == 'tda':
             return self.tda_name
-        elif for_site == 'rg':
-            return self.rg_name
         elif for_site == 'fc':
             return self.fc_name
         elif for_site == 'rts':

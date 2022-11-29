@@ -575,23 +575,25 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 alias.dk_name = missing_alias.player_name
             elif missing_alias.site == '4for4':
                 alias.four4four_name = missing_alias.player_name
-            elif missing_alias.site == 'awesemo':
+            elif missing_alias.site.startswith('awesemo'):
                 alias.awesemo_name = missing_alias.player_name
-            elif missing_alias.site == 'awesemo_sd':
+            elif missing_alias.site.startswith('awesemo_sd'):
                 alias.awesemo_name = missing_alias.player_name
-            elif missing_alias.site == 'awesemo_own':
+            elif missing_alias.site.startswith('awesemo_own'):
                 alias.awesemo_ownership_name = missing_alias.player_name
-            elif missing_alias.site == 'awesemo_own_sd':
+            elif missing_alias.site.startswith('awesemo_own_sd'):
                 alias.awesemo_ownership_name = missing_alias.player_name
-            elif missing_alias.site == 'etr':
+            elif missing_alias.site == 'etr_all':
+                alias.etr_all_name = missing_alias.player_name
+            elif missing_alias.site.startswith('etr'):
                 alias.etr_name = missing_alias.player_name
-            elif missing_alias.site == 'etr_sd':
+            elif missing_alias.site.startswith('etr_sd'):
                 alias.etr_name = missing_alias.player_name
-            elif missing_alias.site == 'tda':
+            elif missing_alias.site.startswith('tda'):
                 alias.tda_name = missing_alias.player_name
-            elif missing_alias.site == 'rg':
+            elif missing_alias.site.startswith('rg'):
                 alias.rg_name = missing_alias.player_name
-            elif missing_alias.site == 'rg_sd':
+            elif missing_alias.site.startswith('rg_sd'):
                 alias.rg_name = missing_alias.player_name
             elif missing_alias.site == 'fc':
                 alias.fc_name = missing_alias.player_name
@@ -4908,8 +4910,9 @@ class MarketProjectionsAdmin(admin.ModelAdmin):
         'projection_site',
     )
     list_filter = (
-        'site',
-        'projection_site',
+        ('site', DropdownFilter),
+        ('week', RelatedDropdownFilter),
+        ('projection_site', DropdownFilter),
     )
 
     def save_model(self, request, obj, form, change):

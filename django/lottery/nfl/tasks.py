@@ -204,9 +204,9 @@ def create_slates(week_id, task_id):
         for site in models.SITE_OPTIONS:
             # Th-M slate
             slate, _ = models.Slate.objects.get_or_create(
-                datetime=datetime.datetime(week.start.year, week.start.month, week.start.day, 20, 0, 0),
+                datetime=datetime.datetime(week.start.year, week.start.month, week.start.day, 20, 15, 0),
                 end_datetime=datetime.datetime(week.end.year, week.end.month, week.end.day, 23, 59, 59),
-                name=f'ThM-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
+                name=f'ThuMon-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
                 week=week,
                 site=site[0],
                 is_main_slate=False,
@@ -216,7 +216,7 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='4for4'
+                projection_site='4for4_thu_mon'
             )
             if created:
                 spi.projection_weight = 0.25
@@ -226,7 +226,7 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='etr'
+                projection_site='etr_all'
             )
             if created:
                 spi.projection_weight = 0.32
@@ -236,17 +236,17 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='rg'
+                projection_site='rg_thu_mon'
             )
             if created:
                 spi.projection_weight = 0.33
-                spi.ownership_weight = 0.0
-                spi.field_lineup_count = 0
+                spi.ownership_weight = 0.5
+                spi.field_lineup_count = 200
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo'
+                projection_site='awesemo_thu_mon'
             )
             if created:
                 spi.projection_weight = 0.10
@@ -256,11 +256,11 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo_own'
+                projection_site='awesemo_own_thu_mon'
             )
             if created:
                 spi.projection_weight = 0.0
-                spi.ownership_weight = 1.0
+                spi.ownership_weight = 0.5
                 spi.field_lineup_count = 200
                 spi.save()
 
@@ -278,8 +278,160 @@ def create_slates(week_id, task_id):
                 ).id
             )
 
-            # main slate
+            # Sun-Mon slate
             sunday = week.start + datetime.timedelta(days=(6 - week.start.weekday() + 7) % 7)
+            slate, _ = models.Slate.objects.get_or_create(
+                datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 13, 0, 0),
+                end_datetime=datetime.datetime(week.end.year, week.end.month, week.end.day, 23, 59, 59),
+                name=f'SunMon-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
+                week=week,
+                site=site[0],
+                is_main_slate=False,
+                is_showdown=False,
+                is_complete=False
+            )
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='4for4_sun_mon'
+            )
+            if created:
+                spi.projection_weight = 0.25
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 0
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='etr_all'
+            )
+            if created:
+                spi.projection_weight = 0.32
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 0
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='rg_sun_mon'
+            )
+            if created:
+                spi.projection_weight = 0.33
+                spi.ownership_weight = 0.5
+                spi.field_lineup_count = 200
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='awesemo_sun_mon'
+            )
+            if created:
+                spi.projection_weight = 0.10
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 0
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='awesemo_own_sun_mon'
+            )
+            if created:
+                spi.projection_weight = 0.0
+                spi.ownership_weight = 0.5
+                spi.field_lineup_count = 200
+                spi.save()
+
+            build, _ = models.FindWinnerBuild.objects.get_or_create(
+                slate=slate
+            )
+            build.field_lineup_creation_strategy = 'optimize_by_ownership'
+            build.save()
+            
+            find_slate_games(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name=f'Finding slate games for {slate}',
+                    user=task.user
+                ).id
+            )
+
+            # early slate
+            slate, _ = models.Slate.objects.get_or_create(
+                datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 13, 0, 0),
+                end_datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 15, 59, 59),
+                name=f'Early-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
+                week=week,
+                site=site[0],
+                is_main_slate=False,
+                is_showdown=False,
+                is_complete=False
+            )
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='4for4_early'
+            )
+            if created:
+                spi.projection_weight = 0.25
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 100
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='etr'
+            )
+            if created:
+                spi.projection_weight = 0.32
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 100
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='rg_early'
+            )
+            if created:
+                spi.projection_weight = 0.33
+                spi.ownership_weight = 0.5
+                spi.field_lineup_count = 100
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='awesemo_early'
+            )
+            if created:
+                spi.projection_weight = 0.10
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 0
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='awesemo_own_early'
+            )
+            if created:
+                spi.projection_weight = 0.0
+                spi.ownership_weight = 0.5
+                spi.field_lineup_count = 100
+                spi.save()
+
+            build, _ = models.FindWinnerBuild.objects.get_or_create(
+                slate=slate
+            )
+            build.field_lineup_creation_strategy = 'optimize_by_ownership'
+            build.save()
+            
+            find_slate_games(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name=f'Finding slate games for {slate}',
+                    user=task.user
+                ).id
+            )
+
+            # main slate
             slate, _ = models.Slate.objects.get_or_create(
                 datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 13, 0, 0),
                 end_datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 19, 59, 59),
@@ -341,83 +493,11 @@ def create_slates(week_id, task_id):
                 spi.field_lineup_count = 100
                 spi.save()
 
-            models.FindWinnerBuild.objects.get_or_create(
+            build, _ = models.FindWinnerBuild.objects.get_or_create(
                 slate=slate
             )
-            
-            find_slate_games(
-                slate.id,
-                BackgroundTask.objects.create(
-                    name=f'Finding slate games for {slate}',
-                    user=task.user
-                ).id
-            )
-
-            # early slate
-            slate, _ = models.Slate.objects.get_or_create(
-                datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 13, 0, 0),
-                end_datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 15, 59, 59),
-                name=f'Early-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
-                week=week,
-                site=site[0],
-                is_main_slate=False,
-                is_showdown=False,
-                is_complete=False
-            )
-        
-            spi, created = models.SlateProjectionImport.objects.get_or_create(
-                slate=slate,
-                projection_site='4for4'
-            )
-            if created:
-                spi.projection_weight = 0.25
-                spi.ownership_weight = 0.0
-                spi.field_lineup_count = 100
-                spi.save()
-        
-            spi, created = models.SlateProjectionImport.objects.get_or_create(
-                slate=slate,
-                projection_site='etr'
-            )
-            if created:
-                spi.projection_weight = 0.32
-                spi.ownership_weight = 0.5
-                spi.field_lineup_count = 100
-                spi.save()
-        
-            spi, created = models.SlateProjectionImport.objects.get_or_create(
-                slate=slate,
-                projection_site='rg'
-            )
-            if created:
-                spi.projection_weight = 0.33
-                spi.ownership_weight = 0.25
-                spi.field_lineup_count = 100
-                spi.save()
-        
-            spi, created = models.SlateProjectionImport.objects.get_or_create(
-                slate=slate,
-                projection_site='awesemo'
-            )
-            if created:
-                spi.projection_weight = 0.10
-                spi.ownership_weight = 0.0
-                spi.field_lineup_count = 0
-                spi.save()
-        
-            spi, created = models.SlateProjectionImport.objects.get_or_create(
-                slate=slate,
-                projection_site='awesemo_own'
-            )
-            if created:
-                spi.projection_weight = 0.0
-                spi.ownership_weight = 0.25
-                spi.field_lineup_count = 100
-                spi.save()
-
-            models.FindWinnerBuild.objects.get_or_create(
-                slate=slate
-            )
+            build.field_lineup_creation_strategy = 'optimize_by_ownership'
+            build.save()
             
             find_slate_games(
                 slate.id,
@@ -441,12 +521,12 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='4for4'
+                projection_site='4for4_afternoon'
             )
             if created:
                 spi.projection_weight = 0.25
                 spi.ownership_weight = 0.0
-                spi.field_lineup_count = 100
+                spi.field_lineup_count = 0
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
@@ -455,23 +535,23 @@ def create_slates(week_id, task_id):
             )
             if created:
                 spi.projection_weight = 0.32
-                spi.ownership_weight = 0.5
-                spi.field_lineup_count = 100
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 0
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='rg'
+                projection_site='rg_afternoon'
             )
             if created:
                 spi.projection_weight = 0.33
-                spi.ownership_weight = 0.25
-                spi.field_lineup_count = 100
+                spi.ownership_weight = 0.5
+                spi.field_lineup_count = 200
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo'
+                projection_site='awesemo_afternoon'
             )
             if created:
                 spi.projection_weight = 0.10
@@ -481,18 +561,94 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo_own'
+                projection_site='awesemo_own_afternoon'
             )
             if created:
                 spi.projection_weight = 0.0
-                spi.ownership_weight = 0.25
-                spi.field_lineup_count = 100
+                spi.ownership_weight = 0.5
+                spi.field_lineup_count = 200
                 spi.save()
 
             build, _ = models.FindWinnerBuild.objects.get_or_create(
                 slate=slate
             )
-            build.field_lineup_creation_strategy = 'optimize_by_projection'
+            build.field_lineup_creation_strategy = 'optimize_by_ownership'
+            build.save()
+            
+            find_slate_games(
+                slate.id,
+                BackgroundTask.objects.create(
+                    name=f'Finding slate games for {slate}',
+                    user=task.user
+                ).id
+            )
+
+            # turbo slate
+            slate, _ = models.Slate.objects.get_or_create(
+                datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 16, 25, 0),
+                end_datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 19, 59, 59),
+                name=f'Turbo-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
+                week=week,
+                site=site[0],
+                is_main_slate=False,
+                is_showdown=False,
+                is_complete=False
+            )
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='4for4_turbo'
+            )
+            if created:
+                spi.projection_weight = 0.25
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 0
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='etr'
+            )
+            if created:
+                spi.projection_weight = 0.32
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 0
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='rg_turbo'
+            )
+            if created:
+                spi.projection_weight = 0.33
+                spi.ownership_weight = 0.5
+                spi.field_lineup_count = 200
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='awesemo_turbo'
+            )
+            if created:
+                spi.projection_weight = 0.10
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 0
+                spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='awesemo_own_turbo'
+            )
+            if created:
+                spi.projection_weight = 0.0
+                spi.ownership_weight = 0.5
+                spi.field_lineup_count = 200
+                spi.save()
+
+            build, _ = models.FindWinnerBuild.objects.get_or_create(
+                slate=slate
+            )
+            build.field_lineup_creation_strategy = 'optimize_by_ownership'
             build.save()
             
             find_slate_games(
@@ -505,7 +661,7 @@ def create_slates(week_id, task_id):
 
             # primetime slate
             slate, _ = models.Slate.objects.get_or_create(
-                datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 20, 0, 0),
+                datetime=datetime.datetime(sunday.year, sunday.month, sunday.day, 20, 20, 0),
                 end_datetime=datetime.datetime(week.end.year, week.end.month, week.end.day, 23, 59, 59),
                 name=f'PT-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}',
                 week=week,
@@ -517,37 +673,37 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='4for4'
+                projection_site='4for4_primetime'
             )
             if created:
                 spi.projection_weight = 0.25
                 spi.ownership_weight = 0.0
-                spi.field_lineup_count = 100
+                spi.field_lineup_count = 0
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='etr'
+                projection_site='etr_all'
             )
             if created:
                 spi.projection_weight = 0.32
-                spi.ownership_weight = 0.5
-                spi.field_lineup_count = 100
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 0
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='rg'
+                projection_site='rg_primetime'
             )
             if created:
                 spi.projection_weight = 0.33
-                spi.ownership_weight = 0.25
-                spi.field_lineup_count = 100
+                spi.ownership_weight = 0.5
+                spi.field_lineup_count = 200
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo'
+                projection_site='awesemo_primetime'
             )
             if created:
                 spi.projection_weight = 0.10
@@ -557,18 +713,18 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo_own'
+                projection_site='awesemo_own_primetime'
             )
             if created:
                 spi.projection_weight = 0.0
-                spi.ownership_weight = 0.25
-                spi.field_lineup_count = 100
+                spi.ownership_weight = 0.5
+                spi.field_lineup_count = 200
                 spi.save()
 
             build, _ = models.FindWinnerBuild.objects.get_or_create(
                 slate=slate
             )
-            build.field_lineup_creation_strategy = 'optimize_by_projection'
+            build.field_lineup_creation_strategy = 'optimize_by_ownership'
             build.save()
             
             find_slate_games(
@@ -581,6 +737,8 @@ def create_slates(week_id, task_id):
 
             # showdown slates
             for game in week.games.all():
+                is_island = (game.game_date == datetime.datetime(week.start.year, week.start.month, week.start.day, 20, 15, 0)) or (game.game_date == datetime.datetime(sunday.year, sunday.month, sunday.day, 20, 20, 0)) or (game.game_date == datetime.datetime(week.end.year, week.end.month, week.end.day, 20, 15, 0))
+
                 slate, _ = models.Slate.objects.get_or_create(
                     datetime=game.game_date,
                     name=f'SD-{str(week.slate_year)[-2:]}-{site[1]}-{str(week.num).zfill(2)}-{game.away_team}@{game.home_team}',
@@ -591,55 +749,56 @@ def create_slates(week_id, task_id):
                     is_complete=False
                 )
         
-                spi, created = models.SlateProjectionImport.objects.get_or_create(
-                    slate=slate,
-                    projection_site='4for4'
-                )
-                if created:
-                    spi.projection_weight = 0.25
-                    spi.ownership_weight = 0.0
-                    spi.field_lineup_count = 0
-                    spi.save()
+                # spi, created = models.SlateProjectionImport.objects.get_or_create(
+                #     slate=slate,
+                #     projection_site='4for4'
+                # )
+                # if created:
+                #     spi.projection_weight = 0.25
+                #     spi.ownership_weight = 0.0
+                #     spi.field_lineup_count = 0
+                #     spi.save()
         
                 spi, created = models.SlateProjectionImport.objects.get_or_create(
                     slate=slate,
-                    projection_site='etr'
+                    projection_site='etr_sd' if is_island else 'etr_all'
                 )
                 if created:
-                    spi.projection_weight = 0.32
+                    spi.projection_weight = 0.42
+                    spi.ownership_weight = 0.5 if is_island else 0.0
+                    spi.field_lineup_count = 0
+                    spi.save()
+            
+                spi, created = models.SlateProjectionImport.objects.get_or_create(
+                    slate=slate,
+                    projection_site='rg_sd' if is_island else 'rg_all'
+                )
+                if created:
+                    spi.projection_weight = 0.43
+                    spi.ownership_weight = 0.25 if is_island else 0.0
+                    spi.field_lineup_count = 0
+                    spi.save()
+            
+                spi, created = models.SlateProjectionImport.objects.get_or_create(
+                    slate=slate,
+                    projection_site='awesemo_sd' if is_island else 'awesemo'
+                )
+                if created:
+                    spi.projection_weight = 0.15
                     spi.ownership_weight = 0.0
                     spi.field_lineup_count = 0
                     spi.save()
             
-                spi, created = models.SlateProjectionImport.objects.get_or_create(
-                    slate=slate,
-                    projection_site='rg_sd'
-                )
-                if created:
-                    spi.projection_weight = 0.33
-                    spi.ownership_weight = 0.5
-                    spi.field_lineup_count = 0
-                    spi.save()
-            
-                spi, created = models.SlateProjectionImport.objects.get_or_create(
-                    slate=slate,
-                    projection_site='awesemo'
-                )
-                if created:
-                    spi.projection_weight = 0.10
-                    spi.ownership_weight = 0.0
-                    spi.field_lineup_count = 0
-                    spi.save()
-            
-                spi, created = models.SlateProjectionImport.objects.get_or_create(
-                    slate=slate,
-                    projection_site='awesemo_own'
-                )
-                if created:
-                    spi.projection_weight = 0.0
-                    spi.ownership_weight = 0.5
-                    spi.field_lineup_count = 0
-                    spi.save()
+                if is_island:
+                    spi, created = models.SlateProjectionImport.objects.get_or_create(
+                        slate=slate,
+                        projection_site='awesemo_own_sd'
+                    )
+                    if created:
+                        spi.projection_weight = 0.0
+                        spi.ownership_weight = 0.25
+                        spi.field_lineup_count = 0
+                        spi.save()
 
                 build, _ = models.FindWinnerBuild.objects.get_or_create(
                     slate=slate
@@ -753,22 +912,16 @@ def update_slate_from_mp(slate_id, task_id):
                         # TODO: don't include OP
                         ownership_projection = float(row[column_headers.column_own_projection]) if column_headers.column_own_projection is not None and row[column_headers.column_own_projection] != '' and row[column_headers.column_own_projection] != '-' and not math.isnan(float(row[column_headers.column_own_projection])) else 0.0
 
-                        if proj_src.projection_site == 'etr':
-                            ownership_projection /= 100.0
-                            alias = models.Alias.find_alias(player_name, slate.site if bool(mp.projection_sheet.name) else proj_src.projection_site)  # use site name if market projection is from csv, otherwise use projection site alias
-                        elif proj_src.projection_site == 'etr_sd':
-                            ownership_projection /= 100.0
-                            alias = models.Alias.find_alias(player_name, slate.site if bool(mp.projection_sheet.name) else proj_src.projection_site)  # use site name if market projection is from csv, otherwise use projection site alias
-                        elif proj_src.projection_site == 'etr_sg':
-                            ownership_projection /= 100.0
-                            alias = models.Alias.find_alias(player_name, slate.site if bool(mp.projection_sheet.name) else proj_src.projection_site)  # use site name if market projection is from csv, otherwise use projection site alias
-                        elif proj_src.projection_site == 'rg':
-                            ownership_projection /= 100.0
-                            alias = models.Alias.find_alias(player_name, slate.site if bool(mp.projection_sheet.name) else proj_src.projection_site)  # use site name if market projection is from csv, otherwise use projection site alias
-                        elif proj_src.projection_site == 'awesemo_own':
+                        if proj_src.projection_site == 'etr_all':
                             ownership_projection /= 100.0
                             alias = models.Alias.find_alias(player_name, proj_src.projection_site)
-                        elif proj_src.projection_site == 'awesemo_own_sd':
+                        elif proj_src.projection_site.startswith('etr'):
+                            ownership_projection /= 100.0
+                            alias = models.Alias.find_alias(player_name, slate.site if bool(mp.projection_sheet.name) else proj_src.projection_site)  # use site name if market projection is from csv, otherwise use projection site alias
+                        elif proj_src.projection_site.startswith('rg'):
+                            ownership_projection /= 100.0
+                            alias = models.Alias.find_alias(player_name, slate.site if bool(mp.projection_sheet.name) else proj_src.projection_site)  # use site name if market projection is from csv, otherwise use projection site alias
+                        elif proj_src.projection_site.startswith('awesemo_own'):
                             ownership_projection /= 100.0
                             alias = models.Alias.find_alias(player_name, proj_src.projection_site)
                         elif proj_src.projection_site == 'sabersim':

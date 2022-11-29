@@ -38,7 +38,7 @@ def run():
         '2019',
         '2018',
     ]
-    atp_frames = {}
+    wta_frames = {}
     wta_frames = {}
 
     for year in years:
@@ -118,8 +118,12 @@ def run():
             'loser_name',
             'winner_rank',
             'loser_rank',
+            'w_ace',
+            'w_df',
             'w_bpSaved',
             'w_bpFaced',
+            'l_ace',
+            'l_df',
             'l_bpSaved',
             'l_bpFaced',
         ))
@@ -151,11 +155,11 @@ def run():
         #     pd.concat([df_merged]).to_excel(writer, sheet_name='matches')
 
         # break
-        atp_frames[year] = df_merged
+        wta_frames[year] = df_merged
 
     with pd.ExcelWriter('data/wta_odds.xlsx') as writer:
         for year in years:
-            atp_frames[year].to_excel(writer, sheet_name=year)
+            wta_frames[year].to_excel(writer, sheet_name=year)
 
     # for year in years:
     #     url = f'http://www.tennis-data.co.uk/{year}w/{year}.xlsx'
