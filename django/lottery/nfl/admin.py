@@ -2101,13 +2101,13 @@ class WinningLineupAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = (
         'get_lineup',
+        'get_rating',
         'get_salary',
         'median',
         's75',
         's90',
         'get_win_rate',
         'win_count',
-        'rating',
         'get_actual_score',
     )
 
@@ -2126,6 +2126,11 @@ class WinningLineupAdmin(admin.ModelAdmin):
     def get_lineup(self, obj):
         return mark_safe(f'{obj.slate_lineup.qb}<br />{obj.slate_lineup.rb1}<br />{obj.slate_lineup.rb2}<br />{obj.slate_lineup.wr1}<br />{obj.slate_lineup.wr2}<br />{obj.slate_lineup.wr3}<br />{obj.slate_lineup.te}<br />{obj.slate_lineup.flex}<br />{obj.slate_lineup.dst}')
     get_lineup.short_description = ''
+
+    def get_rating(self, obj):
+        return '{:.2f}'.format(obj.rating)
+    get_rating.short_description = 'rating'
+    get_rating.admin_order_field = 'rating'
 
     def get_salary(self, obj):
         return obj.slate_lineup.total_salary

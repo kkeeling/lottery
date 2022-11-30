@@ -940,8 +940,8 @@ class SlatePlayer(models.Model):
 
     def __str__(self):
         if self.fantasy_points is None:
-            return '{} {} ${} (vs. {}) -- {}%'.format(self.team, self.name, self.salary, self.get_opponent(), self.get_ownership_projection()*100)
-        return '{} {} ${} (vs. {}) -- {}% -- {}'.format(self.team, self.name, self.salary, self.get_opponent(), self.get_ownership_projection()*100, self.fantasy_points)
+            return '{} {} ${} (vs. {}) -- {}%'.format(self.team, self.name, self.salary, self.get_opponent(), round(self.get_ownership_projection()*100, 2))
+        return '{} {} ${} (vs. {}) -- {}% -- {}'.format(self.team, self.name, self.salary, self.get_opponent(), round(self.get_ownership_projection()*100, 2), self.fantasy_points)
 
     @property
     def team_total(self):
