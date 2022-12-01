@@ -487,7 +487,6 @@ class Week(models.Model):
         url = 'https://www.fantasylabs.com/api/sportevents/1/{}_{}_{}/vegas/'.format(month, date, year)
         response = requests.get(url)
         
-        logger.info(url)
         event_details = response.json()
         for event in event_details:
             properties = event.get('EventDetails').get('Properties')
