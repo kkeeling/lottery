@@ -104,6 +104,22 @@ PROJECTION_SITES = (
     ('rg_primetime', 'Rotogrinders Primetime'),
     ('rg_mon_thu', 'Rotogrinders Mon-Thu'),
     ('rg_sd', 'Rotogrinders Showdown'),
+    ('dailyroto', 'DailyRoto Main'),
+    ('dailyroto_thu_mon', 'DailyRoto Thu-Mon'),
+    ('dailyroto_sun_mon', 'DailyRoto Sun-Mon'),
+    ('dailyroto_early', 'DailyRoto 1pm Only'),
+    ('dailyroto_afternoon', 'DailyRoto Afternoon Only'),
+    ('dailyroto_turbo', 'DailyRoto Turbo'),
+    ('dailyroto_primetime', 'DailyRoto Primetime'),
+    ('dailyroto_mon_thu', 'DailyRoto Mon-Thu'),
+    ('linestar', 'Linestar Main'),
+    ('linestar_thu_mon', 'Linestar Thu-Mon'),
+    ('linestar_sun_mon', 'Linestar Sun-Mon'),
+    ('linestar_early', 'Linestar 1pm Only'),
+    ('linestar_afternoon', 'Linestar Afternoon Only'),
+    ('linestar_turbo', 'Linestar Turbo'),
+    ('linestar_primetime', 'Linestar Primetime'),
+    ('linestar_mon_thu', 'Linestar Mon-Thu'),
     ('tda', 'The Daily Average'),
     ('fc', 'Fantasy Cruncher'),
     ('rts', 'Run The Sims'),
@@ -147,7 +163,7 @@ GREAT_BUILD_CASH_THRESHOLD = 0.3
 BUILD_TYPES = (
     ('h2h', 'Head-to-Head'),
     # ('cash', '50/50s'),
-    ('se', 'Hi-Stakes SE'),
+    ('se', 'Single Entry'),
     # ('mme', 'MME'),
 )
 
@@ -222,6 +238,8 @@ class Alias(models.Model):
     yahoo_name = models.CharField(max_length=255, null=True, blank=True)
     rg_name = models.CharField(max_length=255, null=True, blank=True)
     ss_name = models.CharField(max_length=255, null=True, blank=True)
+    dr_name = models.CharField(max_length=255, null=True, blank=True)
+    linestar_name = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         verbose_name = 'Alias'
@@ -261,6 +279,10 @@ class Alias(models.Model):
                 alias = Alias.objects.get(rg_name=player_name)
             elif site.startswith('sabersim'):
                 alias = Alias.objects.get(ss_name=player_name)
+            elif site.startswith('dailyroto'):
+                alias = Alias.objects.get(dr_name=player_name)
+            elif site.startswith('linestar'):
+                alias = Alias.objects.get(linestar_name=player_name)
             else:
                 raise Exception('{} is not a supported site yet.'.format(site))
         except Alias.MultipleObjectsReturned:
@@ -292,6 +314,10 @@ class Alias(models.Model):
                 alias = Alias.objects.filter(rg_name=player_name)[0]
             elif site.startswith('sabersim'):
                 alias = Alias.objects.filter(ss_name=player_name)[0]
+            elif site.startswith('dailyroto'):
+                alias = Alias.objects.filter(dr_name=player_name)[0]
+            elif site.startswith('linestar'):
+                alias = Alias.objects.filter(linestar_name=player_name)[0]
             else:
                 raise Exception('{} is not a supported site yet.'.format(site))
         except Alias.DoesNotExist:
@@ -341,6 +367,12 @@ class Alias(models.Model):
                 elif site.startswith('sabersim'):
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.ss_name.lower())
                     score = seqmatch.quick_ratio()
+                elif site.startswith('dailyroto'):
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.dr_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site.startswith('linestar'):
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.linestar_name.lower())
+                    score = seqmatch.quick_ratio()
                 else:
                     raise Exception('{} is not a supported site yet.'.format(site))
 
@@ -378,6 +410,10 @@ class Alias(models.Model):
             return self.etr_name
         elif for_site.startswith('rg'):
             return self.rg_name
+        elif for_site.startswith('dailyroto'):
+            return self.dr_name
+        elif for_site.startswith('linestar'):
+            return self.linestar_name
         elif for_site == 'tda':
             return self.tda_name
         elif for_site == 'fc':

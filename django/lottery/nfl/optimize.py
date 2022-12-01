@@ -166,7 +166,7 @@ def optimize_for_classic(site, projections, num_lineups=1, min_sal_pct=0.99, opt
     return lineups
 
 
-def optimize_for_showdown(site, projections, num_lineups=1, min_sal_pct=0.99, optimized_field='projection'):
+def optimize_for_showdown(site, projections, num_lineups=1, min_sal_pct=0.99, optimized_field='projection', locked_player_id=None):
     if site == 'fanduel':
         optimizer = get_optimizer(Site.FANDUEL_SINGLE_GAME, Sport.FOOTBALL)
         min_salary = int(60000 * min_sal_pct)
@@ -213,6 +213,12 @@ def optimize_for_showdown(site, projections, num_lineups=1, min_sal_pct=0.99, op
     
     optimizer.load_players(player_list)
     optimizer.set_min_salary_cap(min_salary)
+
+    # Locked Players
+    if locked_player_id is not None:
+        player = optimizer.get_player_by_id(locked_player_id)
+        if player is not None:
+            optimizer.add_player_to_lineup(player)
     
     lineups = []
     try:

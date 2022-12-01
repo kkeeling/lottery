@@ -573,28 +573,24 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 alias.fd_name = missing_alias.player_name
             elif missing_alias.site == 'draftkings':
                 alias.dk_name = missing_alias.player_name
-            elif missing_alias.site == '4for4':
+            elif missing_alias.site.startswith('4for4'):
                 alias.four4four_name = missing_alias.player_name
             elif missing_alias.site.startswith('awesemo'):
                 alias.awesemo_name = missing_alias.player_name
-            elif missing_alias.site.startswith('awesemo_sd'):
-                alias.awesemo_name = missing_alias.player_name
             elif missing_alias.site.startswith('awesemo_own'):
-                alias.awesemo_ownership_name = missing_alias.player_name
-            elif missing_alias.site.startswith('awesemo_own_sd'):
                 alias.awesemo_ownership_name = missing_alias.player_name
             elif missing_alias.site == 'etr_all':
                 alias.etr_all_name = missing_alias.player_name
             elif missing_alias.site.startswith('etr'):
                 alias.etr_name = missing_alias.player_name
-            elif missing_alias.site.startswith('etr_sd'):
-                alias.etr_name = missing_alias.player_name
             elif missing_alias.site.startswith('tda'):
                 alias.tda_name = missing_alias.player_name
             elif missing_alias.site.startswith('rg'):
                 alias.rg_name = missing_alias.player_name
-            elif missing_alias.site.startswith('rg_sd'):
-                alias.rg_name = missing_alias.player_name
+            elif missing_alias.site.startswith('dailyroto'):
+                alias.dr_name = missing_alias.player_name
+            elif missing_alias.site.startswith('linestar'):
+                alias.linestar_name = missing_alias.player_name
             elif missing_alias.site == 'fc':
                 alias.fc_name = missing_alias.player_name
             elif missing_alias.site == 'rts':
@@ -617,10 +613,13 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 tda_name=missing_alias.player_name,
                 fd_name=missing_alias.player_name,
                 etr_name=missing_alias.player_name,
+                etr_all_name=missing_alias.player_name,
                 rts_name=missing_alias.player_name,
                 rg_name=missing_alias.player_name,
                 yahoo_name=missing_alias.player_name,
-                ss_name=missing_alias.player_name
+                ss_name=missing_alias.player_name,
+                dr_name=missing_alias.player_name,
+                linestar_name=missing_alias.player_name
             )
 
             self.message_user(request, 'New alias created: {}'.format(str(alias)), level=messages.INFO)
@@ -896,9 +895,14 @@ class SlateAdmin(admin.ModelAdmin):
     get_players_link.short_description = 'Players'
 
     def get_lineups_link(self, obj):
-        if obj.possible_lineups.all().count() == 0:
-            return None
-        return mark_safe('<a href="/admin/nfl/slatelineup/?slate__id={}">Lineups</a>'.format(obj.id))
+        if obj.is_showdown:
+            if obj.possible_sd_lineups.all().count() == 0:
+                return None
+            return mark_safe('<a href="/admin/nfl/slatesdlineup/?slate__id={}">Lineups</a>'.format(obj.id))
+        else:
+            if obj.possible_lineups.all().count() == 0:
+                return None
+            return mark_safe('<a href="/admin/nfl/slatelineup/?slate__id={}">Lineups</a>'.format(obj.id))
     get_lineups_link.short_description = 'Lineups'
 
     def get_mme_builds_link(self, obj):
@@ -2180,13 +2184,13 @@ class WinningSDLineupAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = (
         'get_lineup',
+        'get_rating',
         'get_salary',
         'median',
         's75',
         's90',
         'get_win_rate',
         'win_count',
-        'rating',
         'get_actual_score',
     )
 
@@ -2202,6 +2206,11 @@ class WinningSDLineupAdmin(admin.ModelAdmin):
     def get_lineup(self, obj):
         return mark_safe(f'{obj.slate_lineup.cpt}<br />{obj.slate_lineup.flex1}<br />{obj.slate_lineup.flex2}<br />{obj.slate_lineup.flex3}<br />{obj.slate_lineup.flex4}<br />{obj.slate_lineup.flex5}')
     get_lineup.short_description = ''
+
+    def get_rating(self, obj):
+        return '{:.2f}'.format(obj.rating)
+    get_rating.short_description = 'rating'
+    get_rating.admin_order_field = 'rating'
 
     def get_salary(self, obj):
         return obj.slate_lineup.total_salary

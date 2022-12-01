@@ -241,7 +241,7 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.33
                 spi.ownership_weight = 0.5
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
@@ -261,7 +261,27 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.0
                 spi.ownership_weight = 0.5
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
+                spi.save()
+        
+            # spi, created = models.SlateProjectionImport.objects.get_or_create(
+            #     slate=slate,
+            #     projection_site='dailyroto_thu_mon'
+            # )
+            # if created:
+            #     spi.projection_weight = 0.0
+            #     spi.ownership_weight = 0.0
+            #     spi.field_lineup_count = 100
+            #     spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='linestar_thu_mon'
+            )
+            if created:
+                spi.projection_weight = 0.0
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 100
                 spi.save()
 
             build, _ = models.FindWinnerBuild.objects.get_or_create(
@@ -318,7 +338,7 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.33
                 spi.ownership_weight = 0.5
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
@@ -338,7 +358,27 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.0
                 spi.ownership_weight = 0.5
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
+                spi.save()
+        
+            # spi, created = models.SlateProjectionImport.objects.get_or_create(
+            #     slate=slate,
+            #     projection_site='dailyroto_sun_mon'
+            # )
+            # if created:
+            #     spi.projection_weight = 0.0
+            #     spi.ownership_weight = 0.0
+            #     spi.field_lineup_count = 100
+            #     spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='linestar_sun_mon'
+            )
+            if created:
+                spi.projection_weight = 0.0
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 100
                 spi.save()
 
             build, _ = models.FindWinnerBuild.objects.get_or_create(
@@ -546,7 +586,7 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.33
                 spi.ownership_weight = 0.5
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
@@ -566,7 +606,27 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.0
                 spi.ownership_weight = 0.5
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
+                spi.save()
+        
+            # spi, created = models.SlateProjectionImport.objects.get_or_create(
+            #     slate=slate,
+            #     projection_site='dailyroto_afternoon'
+            # )
+            # if created:
+            #     spi.projection_weight = 0.0
+            #     spi.ownership_weight = 0.0
+            #     spi.field_lineup_count = 100
+            #     spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='linestar_afternoon'
+            )
+            if created:
+                spi.projection_weight = 0.0
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 100
                 spi.save()
 
             build, _ = models.FindWinnerBuild.objects.get_or_create(
@@ -622,7 +682,7 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.33
                 spi.ownership_weight = 0.5
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
@@ -642,7 +702,27 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.0
                 spi.ownership_weight = 0.5
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
+                spi.save()
+        
+            # spi, created = models.SlateProjectionImport.objects.get_or_create(
+            #     slate=slate,
+            #     projection_site='dailyroto_turbo'
+            # )
+            # if created:
+            #     spi.projection_weight = 0.0
+            #     spi.ownership_weight = 0.0
+            #     spi.field_lineup_count = 100
+            #     spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='linestar_turbo'
+            )
+            if created:
+                spi.projection_weight = 0.0
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 100
                 spi.save()
 
             build, _ = models.FindWinnerBuild.objects.get_or_create(
@@ -698,7 +778,7 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.33
                 spi.ownership_weight = 0.5
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
@@ -718,7 +798,27 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.0
                 spi.ownership_weight = 0.5
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
+                spi.save()
+        
+            # spi, created = models.SlateProjectionImport.objects.get_or_create(
+            #     slate=slate,
+            #     projection_site='dailyroto_primetime'
+            # )
+            # if created:
+            #     spi.projection_weight = 0.0
+            #     spi.ownership_weight = 0.0
+            #     spi.field_lineup_count = 100
+            #     spi.save()
+        
+            spi, created = models.SlateProjectionImport.objects.get_or_create(
+                slate=slate,
+                projection_site='linestar_primetime'
+            )
+            if created:
+                spi.projection_weight = 0.0
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 100
                 spi.save()
 
             build, _ = models.FindWinnerBuild.objects.get_or_create(
@@ -800,11 +900,16 @@ def create_slates(week_id, task_id):
                         spi.field_lineup_count = 0
                         spi.save()
 
-                build, _ = models.FindWinnerBuild.objects.get_or_create(
-                    slate=slate
+                models.FindWinnerBuild.objects.get_or_create(
+                    slate=slate,
+                    field_lineup_creation_strategy='optimize_by_projection'
                 )
-                build.field_lineup_creation_strategy = 'optimize_by_projection'
-                build.save()
+
+                models.FindWinnerBuild.objects.get_or_create(
+                    slate=slate,
+                    build_type='se',
+                    field_lineup_creation_strategy='csv_upload'
+                )
                 
                 models.SlateGame.objects.get_or_create(
                     slate=slate,
@@ -922,6 +1027,12 @@ def update_slate_from_mp(slate_id, task_id):
                             ownership_projection /= 100.0
                             alias = models.Alias.find_alias(player_name, slate.site if bool(mp.projection_sheet.name) else proj_src.projection_site)  # use site name if market projection is from csv, otherwise use projection site alias
                         elif proj_src.projection_site.startswith('awesemo_own'):
+                            ownership_projection /= 100.0
+                            alias = models.Alias.find_alias(player_name, proj_src.projection_site)
+                        elif proj_src.projection_site.startswith('dailyroto'):
+                            ownership_projection /= 100.0
+                            alias = models.Alias.find_alias(player_name, proj_src.projection_site)
+                        elif proj_src.projection_site.startswith('linestar'):
                             ownership_projection /= 100.0
                             alias = models.Alias.find_alias(player_name, proj_src.projection_site)
                         elif proj_src.projection_site == 'sabersim':
@@ -2045,7 +2156,7 @@ def execute_build(build_id, user_id):
 
 
 @shared_task
-def optimize_for_ownership(projection_site, build_id, raw_projections, num_lineups):
+def optimize_for_ownership(projection_site, build_id, raw_projections, num_lineups, add_to_field=True):
     build = models.FindWinnerBuild.objects.get(id=build_id)
     r_proj = models.SlatePlayerRawProjection.objects.filter(id__in=raw_projections)
     player_sim_scores = {}
@@ -2065,7 +2176,7 @@ def optimize_for_ownership(projection_site, build_id, raw_projections, num_lineu
             'ownership_projection'
         )
 
-        make_sd_lineups(build, lineups, player_sim_scores)
+        make_sd_lineups(build, lineups, player_sim_scores, add_to_field)
     else:
         lineups = optimize.optimize_for_classic(
             build.slate.site,
@@ -2076,11 +2187,11 @@ def optimize_for_ownership(projection_site, build_id, raw_projections, num_lineu
             build.allow_two_tes
         )
 
-        make_classic_lineups(build, lineups, player_sim_scores, projection_site)
+        make_classic_lineups(build, lineups, player_sim_scores, projection_site, add_to_field)
 
 
 @shared_task
-def optimize_for_mean_projection(build_id, num_lineups):
+def optimize_for_mean_projection(build_id, num_lineups, add_to_field=True):
     build = models.FindWinnerBuild.objects.get(id=build_id)
     projections = build.slate.get_projections().filter(projection__gte=0.5).exclude(sim_scores=None)
     player_sim_scores = {}
@@ -2098,7 +2209,7 @@ def optimize_for_mean_projection(build_id, num_lineups):
             'projection'
         )
 
-        make_sd_lineups(build, lineups, player_sim_scores)
+        make_sd_lineups(build, lineups, player_sim_scores, add_to_field)
     else:
         lineups = optimize.optimize_for_classic(
             build.slate.site,
@@ -2109,7 +2220,29 @@ def optimize_for_mean_projection(build_id, num_lineups):
             build.allow_two_tes
         )
 
-        make_classic_lineups(build, lineups, player_sim_scores, 'aggregate')
+        make_classic_lineups(build, lineups, player_sim_scores, 'aggregate', add_to_field)
+
+
+@shared_task
+def optimize_for_locked_captain(build_id, num_lineups, locked_captain_id, add_to_field=True):
+    build = models.FindWinnerBuild.objects.get(id=build_id)
+    projections = build.slate.get_projections().filter(projection__gte=0.5).exclude(sim_scores=None)
+    player_sim_scores = {}
+
+    # get the player outcomes
+    for p in projections:
+        player_sim_scores[p.slate_player.player_id] = p.sim_scores
+    
+    lineups = optimize.optimize_for_showdown(
+        build.slate.site,
+        projections,
+        num_lineups,
+        0.8,
+        'projection',
+        locked_captain_id
+    )
+
+    make_sd_lineups(build, lineups, player_sim_scores, add_to_field)
 
 
 @shared_task
@@ -2183,7 +2316,7 @@ def execute_h2h_workflow(build_id, task_id):
         logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
 
 
-def make_classic_lineups(build, lineups, player_sim_scores, projection_site):
+def make_classic_lineups(build, lineups, player_sim_scores, projection_site, add_to_field=True):
     for (index, lineup) in enumerate(lineups):
         qb = lineup.players[0].id
         rb1 = lineup.players[1].id
@@ -2230,19 +2363,20 @@ def make_classic_lineups(build, lineups, player_sim_scores, projection_site):
 
             slate_lineup = [slate_lineup]
 
-            l = models.FieldLineupToBeat.objects.create(
-                build=build,
-                opponent_handle=f'{projection_site}_{index}',
-                slate_lineup=slate_lineup[0]
-            )
+            if add_to_field:
+                l = models.FieldLineupToBeat.objects.create(
+                    build=build,
+                    opponent_handle=f'{projection_site}_{index}',
+                    slate_lineup=slate_lineup[0]
+                )
 
-            l.median = numpy.median(sim_scores)
-            l.s75 = numpy.percentile(sim_scores, 75)
-            l.s90 = numpy.percentile(sim_scores, 90)
-            l.save()
+                l.median = numpy.median(sim_scores)
+                l.s75 = numpy.percentile(sim_scores, 75)
+                l.s90 = numpy.percentile(sim_scores, 90)
+                l.save()
 
 
-def make_sd_lineups(build, lineups, player_sim_scores):
+def make_sd_lineups(build, lineups, player_sim_scores, add_to_field=True):
     for (index, lineup) in enumerate(lineups):
         cpt = lineup.players[0].id
         flex1 = lineup.players[1].id
@@ -2290,16 +2424,17 @@ def make_sd_lineups(build, lineups, player_sim_scores):
 
             slate_lineup = [slate_lineup]
 
-        l = models.FieldSDLineupToBeat.objects.create(
-            build=build,
-            opponent_handle=f'{index}',
-            slate_lineup=slate_lineup[0]
-        )
+        if add_to_field:
+            l = models.FieldSDLineupToBeat.objects.create(
+                build=build,
+                opponent_handle=f'{index}',
+                slate_lineup=slate_lineup[0]
+            )
 
-        l.median = numpy.median(sim_scores)
-        l.s75 = numpy.percentile(sim_scores, 75)
-        l.s90 = numpy.percentile(sim_scores, 90)
-        l.save()
+            l.median = numpy.median(sim_scores)
+            l.s75 = numpy.percentile(sim_scores, 75)
+            l.s90 = numpy.percentile(sim_scores, 90)
+            l.save()
 
 
 @shared_task
@@ -2499,12 +2634,28 @@ def execute_se_workflow(build_id, task_id):
                 ) for s in build.slate.projection_imports.filter(field_lineup_count__gt=0)
             ], start_non_h2h_comparison.si(build.id, task.id))()
         else:
-            build.matchups.all().delete()
-            build.winning_lineups.all().delete()
-            build.sd_matchups.all().delete()
-            build.winning_sd_lineups.all().delete()
-            
-            start_non_h2h_comparison.delay(build.id, task.id)
+            if build.slate.is_showdown:
+                build.sd_matchups.all().delete()
+                build.winning_sd_lineups.all().delete()
+
+                chord([
+                    optimize_for_locked_captain.si(
+                        build.id,
+                        20,
+                        p.slate_player.player_id,
+                        False
+                    ) for p in build.slate.get_projections().filter(
+                        slate_player__roster_position__in=['CPT', 'MVP'], 
+                        projection__gte=3.0
+                    )
+                ], start_non_h2h_comparison.si(build.id, task.id))()
+            else:
+                build.field_lineups_to_beat.all().delete()
+                build.winning_lineups.all().delete()
+                build.field_sd_lineups_to_beat.all().delete()
+                build.winning_sd_lineups.all().delete()
+
+                start_non_h2h_comparison.delay(build.id, task.id)
             
     except Exception as e:
         if task is not None:
@@ -2523,17 +2674,17 @@ def start_non_h2h_comparison(build_id, task_id):
 
     start = time.time()
     if build.slate.is_showdown:
-        field_lineups = build.field_sd_lineups_to_beat.all().values_list('slate_lineup_id', flat=True)
-        possible_lineups = models.SlateSDLineup.objects.filter(id__in=field_lineups).order_by('id').values_list('id', flat=True)
+        # field_lineups = build.field_sd_lineups_to_beat.all().values_list('slate_lineup_id', flat=True)
+        possible_lineups = models.SlateSDLineup.objects.filter(slate=build.slate).order_by('id').values_list('id', flat=True)
     else:
-        field_lineups = build.field_lineups_to_beat.all().values_list('slate_lineup_id', flat=True)
-        possible_lineups = models.SlateLineup.objects.filter(id__in=field_lineups).order_by('id').values_list('id', flat=True)
+        # field_lineups = build.field_lineups_to_beat.all().values_list('slate_lineup_id', flat=True)
+        possible_lineups = models.SlateLineup.objects.filter(slate=build.slate).order_by('id').values_list('id', flat=True)
     logger.info(f'Filtered slate lineups took {time.time() - start}s. There are {len(possible_lineups)} lineups.')
 
-    chain([
-        compare_lineups_se.si(list(possible_lineups.values_list('id', flat=True)), build.id),
-        complete_se_workflow.si(task.id)
-    ])()
+    chunk_size = 1
+    chord([
+        compare_lineups_se.si(possible_lineups[i:i+chunk_size], build.id) for i in range(0, len(possible_lineups), chunk_size)
+    ], complete_se_workflow.si(task.id))()
 
 
 @shared_task
