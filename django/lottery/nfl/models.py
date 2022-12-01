@@ -104,11 +104,11 @@ PROJECTION_SITES = (
     ('rg_primetime', 'Rotogrinders Primetime'),
     ('rg_mon_thu', 'Rotogrinders Mon-Thu'),
     ('rg_sd', 'Rotogrinders Showdown'),
-    # ('tda', 'The Daily Average'),
-    # ('fc', 'Fantasy Cruncher'),
-    # ('rts', 'Run The Sims'),
-    # ('sabersim', 'Saber Sim'),
-    # ('labs', 'Fantasy Labs'),
+    ('tda', 'The Daily Average'),
+    ('fc', 'Fantasy Cruncher'),
+    ('rts', 'Run The Sims'),
+    ('sabersim', 'Saber Sim'),
+    ('labs', 'Fantasy Labs'),
 )
 
 PROJECTION_WEIGHTS = {
@@ -146,9 +146,9 @@ GREAT_BUILD_CASH_THRESHOLD = 0.3
 
 BUILD_TYPES = (
     ('h2h', 'Head-to-Head'),
-    ('cash', '50/50s'),
+    # ('cash', '50/50s'),
     ('se', 'Hi-Stakes SE'),
-    ('mme', 'MME'),
+    # ('mme', 'MME'),
 )
 
 BUILD_TYPE_FILTERS_DK = {
@@ -1927,6 +1927,7 @@ class FindWinnerBuild(models.Model):
     LINEUP_CREATION_STRATEGIES = (
         ('optimize_by_ownership', 'Optimize by Ownership'),
         ('optimize_by_projection', 'Optimize by Projection'),
+        ('csv_upload', 'CSV Upload'),
     )
     RUN_IT_TWICE_STRATEGIES = (
         ('h2h', 'Head-to-Head'),
@@ -1979,9 +1980,6 @@ class WinningLineup(models.Model):
     win_rate = models.FloatField(db_index=True, default=0.0)
     win_count = models.IntegerField(db_index=True, default=0)
     rating = models.FloatField(db_index=True, default=0.0)
-    win_rate_2 = models.FloatField(db_index=True, null=True, blank=True)
-    win_count_2 = models.IntegerField(db_index=True, null=True, blank=True)
-    rating_2 = models.FloatField(db_index=True, null=True, blank=True)
     median = models.FloatField(db_index=True, default=0.0)
     s75 = models.FloatField(db_index=True, default=0.0)
     s90 = models.FloatField(db_index=True, default=0.0)

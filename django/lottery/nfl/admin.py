@@ -1938,6 +1938,8 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
     date_hierarchy = 'slate__datetime'
     list_display = (
         'slate',
+        'build_type',
+        'field_lineup_creation_strategy',
         'get_projections_link',
         'get_lineups_link',
         'get_field_lineups_link',
@@ -1956,11 +1958,10 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         }),
         ('Config (optional)',  {
             'fields': (
+                'build_type',
                 'field_lineup_creation_strategy',
+                'field_lineup_upload',
                 'allow_two_tes',        
-                'run_it_twice',        
-                'run_it_twice_count',        
-                'run_it_twice_strategy',        
             ),
             'classes':('collapse',)
         }),
@@ -1969,7 +1970,9 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         'slate',
     )
     search_fields = ('slate__name',)
-    # change_list_template = 'admin/nfl/find_winner_build_changelist.html'
+    actions = [
+        'duplicate'
+    ]
 
     def get_urls(self):
         urls = super().get_urls()
@@ -1982,8 +1985,21 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         self.process_build(request, obj)
+    
+    def duplicate(self, request, queryset):
+        for build in queryset:
+            build.id = None
+            build.save()
+    duplicate.short_description = 'Duplicate selected builds'
 
     def process_build(self, request, build):
+        build.matchups.all().delete()
+        build.field_lineups_to_beat.all().delete()
+        build.winning_lineups.all().delete()
+        build.sd_matchups.all().delete()
+        build.field_sd_lineups_to_beat.all().delete()
+        build.winning_sd_lineups.all().delete()
+
         chain(
             tasks.process_build.si(
                 build.id,
@@ -2007,13 +2023,23 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         )
 
         build = models.FindWinnerBuild.objects.get(pk=pk)
-        tasks.execute_h2h_workflow.delay(
-            build.id,
-            BackgroundTask.objects.create(
-                name='Run NFL Workflow',
-                user=request.user
-            ).id
-        )
+
+        if build.build_type == 'h2h':
+            tasks.execute_h2h_workflow.delay(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Run NFL Workflow',
+                    user=request.user
+                ).id
+            )
+        else:
+            tasks.execute_se_workflow.delay(
+                build.id,
+                BackgroundTask.objects.create(
+                    name='Run NFL Workflow',
+                    user=request.user
+                ).id
+            )
 
         messages.add_message(
             request,
