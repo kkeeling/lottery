@@ -236,17 +236,17 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='rg_thu_mon'
+                projection_site='rg_all'
             )
             if created:
                 spi.projection_weight = 0.33
-                spi.ownership_weight = 0.5
-                spi.field_lineup_count = 150
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 0
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo_thu_mon'
+                projection_site='awesemo'
             )
             if created:
                 spi.projection_weight = 0.10
@@ -260,8 +260,8 @@ def create_slates(week_id, task_id):
             )
             if created:
                 spi.projection_weight = 0.0
-                spi.ownership_weight = 0.5
-                spi.field_lineup_count = 150
+                spi.ownership_weight = 1.0
+                spi.field_lineup_count = 200
                 spi.save()
         
             # spi, created = models.SlateProjectionImport.objects.get_or_create(
@@ -281,7 +281,7 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.0
                 spi.ownership_weight = 0.0
-                spi.field_lineup_count = 100
+                spi.field_lineup_count = 200
                 spi.save()
 
             build, _ = models.FindWinnerBuild.objects.get_or_create(
@@ -333,17 +333,17 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='rg_sun_mon'
+                projection_site='rg_all'
             )
             if created:
                 spi.projection_weight = 0.33
-                spi.ownership_weight = 0.5
-                spi.field_lineup_count = 150
+                spi.ownership_weight = 0.0
+                spi.field_lineup_count = 0
                 spi.save()
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo_sun_mon'
+                projection_site='awesemo'
             )
             if created:
                 spi.projection_weight = 0.10
@@ -357,8 +357,8 @@ def create_slates(week_id, task_id):
             )
             if created:
                 spi.projection_weight = 0.0
-                spi.ownership_weight = 0.5
-                spi.field_lineup_count = 150
+                spi.ownership_weight = 1.0
+                spi.field_lineup_count = 200
                 spi.save()
         
             # spi, created = models.SlateProjectionImport.objects.get_or_create(
@@ -378,7 +378,7 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.0
                 spi.ownership_weight = 0.0
-                spi.field_lineup_count = 100
+                spi.field_lineup_count = 200
                 spi.save()
 
             build, _ = models.FindWinnerBuild.objects.get_or_create(
@@ -439,7 +439,7 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo_early'
+                projection_site='awesemo'
             )
             if created:
                 spi.projection_weight = 0.10
@@ -591,7 +591,7 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo_afternoon'
+                projection_site='awesemo'
             )
             if created:
                 spi.projection_weight = 0.10
@@ -687,7 +687,7 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo_turbo'
+                projection_site='awesemo'
             )
             if created:
                 spi.projection_weight = 0.10
@@ -783,7 +783,7 @@ def create_slates(week_id, task_id):
         
             spi, created = models.SlateProjectionImport.objects.get_or_create(
                 slate=slate,
-                projection_site='awesemo_primetime'
+                projection_site='awesemo'
             )
             if created:
                 spi.projection_weight = 0.10

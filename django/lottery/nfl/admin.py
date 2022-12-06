@@ -685,6 +685,7 @@ class SheetColumnHeadersAdmin(admin.ModelAdmin):
             d.save()
     duplicate.short_description = 'Duplicate selected column headers'
 
+
 @admin.register(models.Slate)
 class SlateAdmin(admin.ModelAdmin):
     date_hierarchy = 'datetime'
@@ -695,6 +696,7 @@ class SlateAdmin(admin.ModelAdmin):
         'is_main_slate',
         'is_showdown',
         'salaries',
+        'fc_actuals_sheet',
         'is_complete',
         'site',
         'get_num_games',
@@ -708,6 +710,7 @@ class SlateAdmin(admin.ModelAdmin):
     list_editable = (
         'is_complete',
         'salaries',
+        'fc_actuals_sheet',
     )
     list_filter = (
         'site',
