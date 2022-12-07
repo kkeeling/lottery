@@ -2650,10 +2650,8 @@ def execute_se_workflow(build_id, task_id):
                     )
                 ], start_non_h2h_comparison.si(build.id, task.id))()
             else:
-                build.field_lineups_to_beat.all().delete()
+                build.matchups.all().delete()
                 build.winning_lineups.all().delete()
-                build.field_sd_lineups_to_beat.all().delete()
-                build.winning_sd_lineups.all().delete()
 
                 start_non_h2h_comparison.delay(build.id, task.id)
             
