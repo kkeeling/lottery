@@ -585,6 +585,8 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 alias.etr_name = missing_alias.player_name
             elif missing_alias.site.startswith('tda'):
                 alias.tda_name = missing_alias.player_name
+            elif missing_alias.site == 'rg_all':
+                alias.rg_all_name = missing_alias.player_name
             elif missing_alias.site.startswith('rg'):
                 alias.rg_name = missing_alias.player_name
             elif missing_alias.site.startswith('dailyroto'):
@@ -615,6 +617,7 @@ class MissingAliasAdmin(admin.ModelAdmin):
                 etr_name=missing_alias.player_name,
                 etr_all_name=missing_alias.player_name,
                 rts_name=missing_alias.player_name,
+                rg_all_name=missing_alias.player_name,
                 rg_name=missing_alias.player_name,
                 yahoo_name=missing_alias.player_name,
                 ss_name=missing_alias.player_name,
@@ -720,12 +723,13 @@ class SlateAdmin(admin.ModelAdmin):
     )
     actions = [
         'process_slates', 
+        'sim_slates',
+        # 'build_slates',
         'flatten_projections',
         'get_field_lineup_outcomes',
         'export_field',
         'export_player_outcomes',
         'analyze_projections',
-        'sim_slates',
         'export_game_sims',
     ]
     inlines = (
@@ -979,6 +983,23 @@ class SlateAdmin(admin.ModelAdmin):
             messages.WARNING,
             'Simulating games for {} slates'.format(queryset.count()))
     sim_slates.short_description = 'Sim games for selected slates'
+
+    def build_slates(self, request, queryset):
+        chain([
+            tasks.execute_h2h_workflow.si(
+                build.id,
+                BackgroundTask.objects.create(
+                    name=f'Run H2H NFL Workflow for {build}',
+                    user=request.user
+                ).id
+            ) for build in models.FindWinnerBuild.objects.filter(slate__in=queryset, build_type='h2h')
+        ])()
+
+        messages.add_message(
+            request,
+            messages.WARNING,
+            'Build lineups for {} slates'.format(queryset.count()))
+    build_slates.short_description = 'Build lineups for selected slates'
 
     def export_game_sims(self, request, queryset):
         jobs = []
@@ -2035,7 +2056,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
             tasks.execute_h2h_workflow.delay(
                 build.id,
                 BackgroundTask.objects.create(
-                    name='Run NFL Workflow',
+                    name=f'Run H2H NFL Workflow for {build}',
                     user=request.user
                 ).id
             )
@@ -2043,7 +2064,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
             tasks.execute_se_workflow.delay(
                 build.id,
                 BackgroundTask.objects.create(
-                    name='Run NFL Workflow',
+                    name=f'Run SE NFL Workflow for {build}',
                     user=request.user
                 ).id
             )
@@ -2135,13 +2156,13 @@ class WinningLineupAdmin(admin.ModelAdmin):
     list_display = (
         'get_lineup',
         'get_rating',
+        'get_win_rate',
+        'win_count',
+        'get_actual_score',
         'get_salary',
         'median',
         's75',
         's90',
-        'get_win_rate',
-        'win_count',
-        'get_actual_score',
     )
 
     search_fields = (
@@ -2188,13 +2209,13 @@ class WinningSDLineupAdmin(admin.ModelAdmin):
     list_display = (
         'get_lineup',
         'get_rating',
+        'get_win_rate',
+        'win_count',
+        'get_actual_score',
         'get_salary',
         'median',
         's75',
         's90',
-        'get_win_rate',
-        'win_count',
-        'get_actual_score',
     )
 
     search_fields = (

@@ -227,6 +227,7 @@ class Alias(models.Model):
     etr_name = models.CharField(max_length=255, null=True, blank=True)
     etr_all_name = models.CharField(max_length=255, null=True, blank=True)
     rg_name = models.CharField(max_length=255, null=True, blank=True)
+    rg_all_name = models.CharField(max_length=255, null=True, blank=True)
     rts_name = models.CharField(max_length=255, null=True, blank=True)
     yahoo_name = models.CharField(max_length=255, null=True, blank=True)
     rg_name = models.CharField(max_length=255, null=True, blank=True)
@@ -260,6 +261,8 @@ class Alias(models.Model):
                 alias = Alias.objects.get(etr_name=player_name)
             elif site.startswith('tda'):
                 alias = Alias.objects.get(tda_name=player_name)
+            elif site == 'rg_all':
+                alias = Alias.objects.get(rg_all_name=player_name)
             elif site.startswith('rg'):
                 alias = Alias.objects.get(rg_name=player_name)
             elif site.startswith('fc'):
@@ -295,6 +298,8 @@ class Alias(models.Model):
                 alias = Alias.objects.filter(etr_name=player_name)[0]
             elif site.startswith('tda'):
                 alias = Alias.objects.filter(tda_name=player_name)[0]
+            elif site == 'rg_all':
+                alias = Alias.objects.filter(rg_all_name=player_name)[0]
             elif site.startswith('rg'):
                 alias = Alias.objects.filter(rg_name=player_name)[0]
             elif site.startswith('fc'):
@@ -344,6 +349,9 @@ class Alias(models.Model):
                     score = seqmatch.quick_ratio()
                 elif site.startswith('tda'):
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.tda_name.lower())
+                    score = seqmatch.quick_ratio()
+                elif site == 'rg_all':
+                    seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rg_all_name.lower())
                     score = seqmatch.quick_ratio()
                 elif site.startswith('rg'):
                     seqmatch = difflib.SequenceMatcher(None, normal_name.lower(), possible_match.rg_name.lower())
@@ -401,6 +409,8 @@ class Alias(models.Model):
             return self.etr_all_name
         elif for_site.startswith('etr'):
             return self.etr_name
+        elif for_site == 'rg_all':
+            return self.rg_all_name
         elif for_site.startswith('rg'):
             return self.rg_name
         elif for_site.startswith('dailyroto'):

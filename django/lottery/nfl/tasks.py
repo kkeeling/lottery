@@ -1020,6 +1020,9 @@ def update_slate_from_mp(slate_id, task_id):
                         if proj_src.projection_site == 'etr_all':
                             ownership_projection /= 100.0
                             alias = models.Alias.find_alias(player_name, proj_src.projection_site)
+                        elif proj_src.projection_site == 'rg_all':
+                            ownership_projection /= 100.0
+                            alias = models.Alias.find_alias(player_name, proj_src.projection_site)
                         elif proj_src.projection_site.startswith('etr'):
                             ownership_projection /= 100.0
                             alias = models.Alias.find_alias(player_name, slate.site if bool(mp.projection_sheet.name) else proj_src.projection_site)  # use site name if market projection is from csv, otherwise use projection site alias
@@ -2568,7 +2571,7 @@ def complete_h2h_workflow(task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         task.status = 'success'
-        task.content = f'H2H workflow complete'
+        task.content = f'{task.name} complete.'
         task.save()
     except Exception as e:
         if task is not None:
@@ -2757,7 +2760,7 @@ def complete_se_workflow(task_id):
             task = BackgroundTask.objects.get(id=task_id)
 
         task.status = 'success'
-        task.content = f'SE workflow complete'
+        task.content = f'{task.name} complete.'
         task.save()
     except Exception as e:
         if task is not None:
