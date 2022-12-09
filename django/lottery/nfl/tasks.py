@@ -35,8 +35,8 @@ from configuration.models import BackgroundTask
 from fanduel import models as fanduel_models
 from yahoo import models as yahoo_models
 
-from . import models
-from . import optimize
+from . import models, optimize, utils
+# from . import optimize
 
 from lottery.celery import app
 
@@ -261,7 +261,7 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.0
                 spi.ownership_weight = 1.0
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
                 spi.save()
         
             # spi, created = models.SlateProjectionImport.objects.get_or_create(
@@ -281,7 +281,7 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.0
                 spi.ownership_weight = 0.0
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
                 spi.save()
 
             build, _ = models.FindWinnerBuild.objects.get_or_create(
@@ -358,7 +358,7 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.0
                 spi.ownership_weight = 1.0
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
                 spi.save()
         
             # spi, created = models.SlateProjectionImport.objects.get_or_create(
@@ -378,7 +378,7 @@ def create_slates(week_id, task_id):
             if created:
                 spi.projection_weight = 0.0
                 spi.ownership_weight = 0.0
-                spi.field_lineup_count = 200
+                spi.field_lineup_count = 150
                 spi.save()
 
             build, _ = models.FindWinnerBuild.objects.get_or_create(
@@ -5610,23 +5610,10 @@ def handle_base_projections(slate_id, task_id):
 
         slate = models.Slate.objects.get(id=slate_id)
 
-        # raw_projections = models.SlatePlayerRawProjection.objects.filter(
-        #     slate_player__slate=slate
-        # )
         ao_projections = models.SlatePlayerRawProjection.objects.filter(
             slate_player__slate=slate,
             projection_site='4for4'
         )
-
-        # primary_sheet = slate.projections.get(is_primary=True)
-        # primary_projections = models.SlatePlayerRawProjection.objects.filter(
-        #     slate_player__slate=slate,
-        #     projection_site=primary_sheet.projection_site
-        # )
-        # ao_projections = models.SlatePlayerRawProjection.objects.filter(
-        #     slate_player__slate=slate,
-        #     projection_site='4for4'
-        # )
         
         for slate_player in slate.players.all():
             (projection, _) = models.SlatePlayerProjection.objects.get_or_create(
@@ -5692,7 +5679,7 @@ def handle_base_projections(slate_id, task_id):
                 projection.balanced_projection = agg_proj
                 projection.floor = agg_floor
                 projection.ceiling = agg_ceil
-                projection.stdev = agg_std
+                projection.stdev = agg_std if slate_player.site_pos == 'K' else utils.get_variance(slate_player.slate.site, slate_player.site_pos, agg_proj)
                 projection.ownership_projection = agg_own
                 projection.adjusted_opportunity=ao_projection.adjusted_opportunity if ao_projection is not None else 0.0
                 projection.save()

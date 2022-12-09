@@ -1408,7 +1408,9 @@ class SlatePlayerProjectionAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        qs = qs.annotate(
+        qs = qs.exclude(
+            slate_player__roster_position__in=['CPT', 'MVP']
+        ).annotate(
             slate=F('slate_player__slate'), 
             player_name=F('slate_player__name'), 
             site_pos=F('slate_player__site_pos'), 
