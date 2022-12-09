@@ -1863,7 +1863,7 @@ class MarketProjections(models.Model):
     projection_site = models.CharField(max_length=255, choices=PROJECTION_SITES, default='4for4')
     projection_sheet = models.FileField(upload_to='uploads/projections', blank=True, null=True)
     pull_time = models.DateTimeField(auto_now_add=True)
-    week = models.ForeignKey(Week, related_name='market_projections', on_delete=models.SET_NULL, default=Week.objects.all().order_by('-start')[0].id, null=True, blank=True)
+    week = models.ForeignKey(Week, related_name='market_projections', on_delete=models.SET_NULL, null=True, blank=True)
     data = models.TextField(blank=True, null=True)
 
     class Meta:
