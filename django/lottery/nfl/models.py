@@ -481,7 +481,7 @@ class Week(models.Model):
     
     @classmethod
     def get_default_pk(cls):
-        return cls.objects.all().order_by('-start')[0]
+        return cls.objects.all().order_by('-start')[0].pk
 
     def __str__(self):
         return '{} Week {}'.format(self.slate_year, self.num)
