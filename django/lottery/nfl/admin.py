@@ -1972,7 +1972,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         'field_lineup_creation_strategy',
         'get_top_actual_by_rating',
         'get_top_actual_by_win_rate',
-        # 'get_top_actual_by_win_rate_with_thresh',
+        'get_top_actual_by_win_rate_with_thresh',
         'get_top_actual_by_median',
         'get_top_actual_by_s75',
         'get_top_actual_by_s90',
