@@ -1971,8 +1971,8 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         'build_type',
         'field_lineup_creation_strategy',
         'get_top_actual_by_rating',
-        'get_top_actual_by_win_rate_20',
         'get_top_actual_by_win_rate',
+        'foo',
         'get_top_actual_by_median',
         'get_top_actual_by_s75',
         'get_top_actual_by_s90',
@@ -1988,6 +1988,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         ('slate__is_showdown', DropdownFilter),
         'build_type',
         'field_lineup_creation_strategy',
+        'allow_two_tes',
     )
     fieldsets = (
         (None,  {
@@ -2156,9 +2157,9 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
             if lineup.slate_lineup.qb.fantasy_points is None or lineup.slate_lineup.rb1.fantasy_points is None or lineup.slate_lineup.rb2.fantasy_points is None or lineup.slate_lineup.wr1.fantasy_points is None or lineup.slate_lineup.wr2.fantasy_points is None or lineup.slate_lineup.wr3.fantasy_points is None or lineup.slate_lineup.te.fantasy_points is None or lineup.slate_lineup.flex.fantasy_points is None or lineup.slate_lineup.dst.fantasy_points is None:
                 return None
             return lineup.slate_lineup.qb.fantasy_points + lineup.slate_lineup.rb1.fantasy_points + lineup.slate_lineup.rb2.fantasy_points + lineup.slate_lineup.wr1.fantasy_points + lineup.slate_lineup.wr2.fantasy_points + lineup.slate_lineup.wr3.fantasy_points + lineup.slate_lineup.te.fantasy_points + lineup.slate_lineup.flex.fantasy_points + lineup.slate_lineup.dst.fantasy_points
-    get_top_actual_by_win_rate.short_description = 'win %'
+    get_top_actual_by_win_rate.short_description = 'win%'
 
-    def get_top_actual_by_win_rate_20(self, obj):
+    def foo(self, obj):
         if obj.slate.is_showdown:
             if obj.winning_sd_lineups.all().count() == 0 or obj.build_type == 'se':
                 return None
@@ -2173,7 +2174,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
             if lineup.slate_lineup.qb.fantasy_points is None or lineup.slate_lineup.rb1.fantasy_points is None or lineup.slate_lineup.rb2.fantasy_points is None or lineup.slate_lineup.wr1.fantasy_points is None or lineup.slate_lineup.wr2.fantasy_points is None or lineup.slate_lineup.wr3.fantasy_points is None or lineup.slate_lineup.te.fantasy_points is None or lineup.slate_lineup.flex.fantasy_points is None or lineup.slate_lineup.dst.fantasy_points is None:
                 return None
             return lineup.slate_lineup.qb.fantasy_points + lineup.slate_lineup.rb1.fantasy_points + lineup.slate_lineup.rb2.fantasy_points + lineup.slate_lineup.wr1.fantasy_points + lineup.slate_lineup.wr2.fantasy_points + lineup.slate_lineup.wr3.fantasy_points + lineup.slate_lineup.te.fantasy_points + lineup.slate_lineup.flex.fantasy_points + lineup.slate_lineup.dst.fantasy_points
-    get_top_actual_by_win_rate_20.short_description = 'win % 20'
+    foo.short_description = 'win% 20'
 
     def get_top_actual_by_median(self, obj):
         if obj.slate.is_showdown:
