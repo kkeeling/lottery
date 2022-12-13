@@ -1970,15 +1970,24 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         'slate',
         'build_type',
         'field_lineup_creation_strategy',
+        'get_top_actual_by_rating',
+        'get_top_actual_by_win_rate',
+        'get_top_actual_by_win_rate_with_thresh',
+        'get_top_actual_by_median',
+        'get_top_actual_by_s75',
+        'get_top_actual_by_s90',
         'get_projections_link',
         'get_lineups_link',
-        'get_field_lineups_link',
-        'get_matchup_lineups_link',
         'build_button',
         'export_button',
     )
     list_filter = (
         ('slate', RelatedDropdownFilter),
+        ('slate__week', RelatedDropdownFilter),
+        ('slate__site', DropdownFilter),
+        ('slate__is_showdown', DropdownFilter),
+        'build_type',
+        'field_lineup_creation_strategy',
     )
     fieldsets = (
         (None,  {
@@ -2114,6 +2123,108 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
 
         # redirect or TemplateResponse(request, "sometemplate.html", context)
         return redirect(request.META.get('HTTP_REFERER'), context=context)
+
+    def get_top_actual_by_rating(self, obj):
+        if obj.slate.is_showdown:
+            if obj.winning_sd_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_sd_lineups.all().order_by('-rating')[0]
+            if lineup.slate_lineup.cpt.fantasy_points is None or lineup.slate_lineup.flex1.fantasy_points is None or lineup.slate_lineup.flex2.fantasy_points is None or lineup.slate_lineup.flex3.fantasy_points is None or lineup.slate_lineup.flex4.fantasy_points is None or lineup.slate_lineup.flex5.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.cpt.fantasy_points + lineup.slate_lineup.flex1.fantasy_points + lineup.slate_lineup.flex2.fantasy_points + lineup.slate_lineup.flex3.fantasy_points + lineup.slate_lineup.flex4.fantasy_points + lineup.slate_lineup.flex5.fantasy_points
+        else:
+            if obj.winning_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_lineups.all().order_by('-rating')[0]
+            if lineup.slate_lineup.qb.fantasy_points is None or lineup.slate_lineup.rb1.fantasy_points is None or lineup.slate_lineup.rb2.fantasy_points is None or lineup.slate_lineup.wr1.fantasy_points is None or lineup.slate_lineup.wr2.fantasy_points is None or lineup.slate_lineup.wr3.fantasy_points is None or lineup.slate_lineup.te.fantasy_points is None or lineup.slate_lineup.flex.fantasy_points is None or lineup.slate_lineup.dst.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.qb.fantasy_points + lineup.slate_lineup.rb1.fantasy_points + lineup.slate_lineup.rb2.fantasy_points + lineup.slate_lineup.wr1.fantasy_points + lineup.slate_lineup.wr2.fantasy_points + lineup.slate_lineup.wr3.fantasy_points + lineup.slate_lineup.te.fantasy_points + lineup.slate_lineup.flex.fantasy_points + lineup.slate_lineup.dst.fantasy_points
+    get_top_actual_by_rating.short_description = 'rating'
+
+    def get_top_actual_by_win_rate(self, obj):
+        if obj.slate.is_showdown:
+            if obj.winning_sd_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_sd_lineups.all().order_by('-win_rate')[0]
+            if lineup.slate_lineup.cpt.fantasy_points is None or lineup.slate_lineup.flex1.fantasy_points is None or lineup.slate_lineup.flex2.fantasy_points is None or lineup.slate_lineup.flex3.fantasy_points is None or lineup.slate_lineup.flex4.fantasy_points is None or lineup.slate_lineup.flex5.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.cpt.fantasy_points + lineup.slate_lineup.flex1.fantasy_points + lineup.slate_lineup.flex2.fantasy_points + lineup.slate_lineup.flex3.fantasy_points + lineup.slate_lineup.flex4.fantasy_points + lineup.slate_lineup.flex5.fantasy_points
+        else:
+            if obj.winning_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_lineups.all().order_by('-win_rate')[0]
+            if lineup.slate_lineup.qb.fantasy_points is None or lineup.slate_lineup.rb1.fantasy_points is None or lineup.slate_lineup.rb2.fantasy_points is None or lineup.slate_lineup.wr1.fantasy_points is None or lineup.slate_lineup.wr2.fantasy_points is None or lineup.slate_lineup.wr3.fantasy_points is None or lineup.slate_lineup.te.fantasy_points is None or lineup.slate_lineup.flex.fantasy_points is None or lineup.slate_lineup.dst.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.qb.fantasy_points + lineup.slate_lineup.rb1.fantasy_points + lineup.slate_lineup.rb2.fantasy_points + lineup.slate_lineup.wr1.fantasy_points + lineup.slate_lineup.wr2.fantasy_points + lineup.slate_lineup.wr3.fantasy_points + lineup.slate_lineup.te.fantasy_points + lineup.slate_lineup.flex.fantasy_points + lineup.slate_lineup.dst.fantasy_points
+    get_top_actual_by_win_rate.short_description = 'win %'
+
+    def get_top_actual_by_win_rate_with_thresh(self, obj):
+        if obj.slate.is_showdown:
+            if obj.winning_sd_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_sd_lineups.filter(win_count__gte=20).order_by('-win_rate')[0]
+            if lineup.slate_lineup.cpt.fantasy_points is None or lineup.slate_lineup.flex1.fantasy_points is None or lineup.slate_lineup.flex2.fantasy_points is None or lineup.slate_lineup.flex3.fantasy_points is None or lineup.slate_lineup.flex4.fantasy_points is None or lineup.slate_lineup.flex5.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.cpt.fantasy_points + lineup.slate_lineup.flex1.fantasy_points + lineup.slate_lineup.flex2.fantasy_points + lineup.slate_lineup.flex3.fantasy_points + lineup.slate_lineup.flex4.fantasy_points + lineup.slate_lineup.flex5.fantasy_points
+        else:
+            if obj.winning_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_lineups.filter(win_count__gte=20).order_by('-win_rate')[0]
+            if lineup.slate_lineup.qb.fantasy_points is None or lineup.slate_lineup.rb1.fantasy_points is None or lineup.slate_lineup.rb2.fantasy_points is None or lineup.slate_lineup.wr1.fantasy_points is None or lineup.slate_lineup.wr2.fantasy_points is None or lineup.slate_lineup.wr3.fantasy_points is None or lineup.slate_lineup.te.fantasy_points is None or lineup.slate_lineup.flex.fantasy_points is None or lineup.slate_lineup.dst.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.qb.fantasy_points + lineup.slate_lineup.rb1.fantasy_points + lineup.slate_lineup.rb2.fantasy_points + lineup.slate_lineup.wr1.fantasy_points + lineup.slate_lineup.wr2.fantasy_points + lineup.slate_lineup.wr3.fantasy_points + lineup.slate_lineup.te.fantasy_points + lineup.slate_lineup.flex.fantasy_points + lineup.slate_lineup.dst.fantasy_points
+    get_top_actual_by_win_rate_with_thresh.short_description = 'win % 20'
+
+    def get_top_actual_by_median(self, obj):
+        if obj.slate.is_showdown:
+            if obj.winning_sd_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_sd_lineups.all().order_by('-median')[0]
+            if lineup.slate_lineup.cpt.fantasy_points is None or lineup.slate_lineup.flex1.fantasy_points is None or lineup.slate_lineup.flex2.fantasy_points is None or lineup.slate_lineup.flex3.fantasy_points is None or lineup.slate_lineup.flex4.fantasy_points is None or lineup.slate_lineup.flex5.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.cpt.fantasy_points + lineup.slate_lineup.flex1.fantasy_points + lineup.slate_lineup.flex2.fantasy_points + lineup.slate_lineup.flex3.fantasy_points + lineup.slate_lineup.flex4.fantasy_points + lineup.slate_lineup.flex5.fantasy_points
+        else:
+            if obj.winning_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_lineups.all().order_by('-median')[0]
+            if lineup.slate_lineup.qb.fantasy_points is None or lineup.slate_lineup.rb1.fantasy_points is None or lineup.slate_lineup.rb2.fantasy_points is None or lineup.slate_lineup.wr1.fantasy_points is None or lineup.slate_lineup.wr2.fantasy_points is None or lineup.slate_lineup.wr3.fantasy_points is None or lineup.slate_lineup.te.fantasy_points is None or lineup.slate_lineup.flex.fantasy_points is None or lineup.slate_lineup.dst.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.qb.fantasy_points + lineup.slate_lineup.rb1.fantasy_points + lineup.slate_lineup.rb2.fantasy_points + lineup.slate_lineup.wr1.fantasy_points + lineup.slate_lineup.wr2.fantasy_points + lineup.slate_lineup.wr3.fantasy_points + lineup.slate_lineup.te.fantasy_points + lineup.slate_lineup.flex.fantasy_points + lineup.slate_lineup.dst.fantasy_points
+    get_top_actual_by_median.short_description = 'median'
+
+    def get_top_actual_by_s75(self, obj):
+        if obj.slate.is_showdown:
+            if obj.winning_sd_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_sd_lineups.all().order_by('-s75')[0]
+            if lineup.slate_lineup.cpt.fantasy_points is None or lineup.slate_lineup.flex1.fantasy_points is None or lineup.slate_lineup.flex2.fantasy_points is None or lineup.slate_lineup.flex3.fantasy_points is None or lineup.slate_lineup.flex4.fantasy_points is None or lineup.slate_lineup.flex5.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.cpt.fantasy_points + lineup.slate_lineup.flex1.fantasy_points + lineup.slate_lineup.flex2.fantasy_points + lineup.slate_lineup.flex3.fantasy_points + lineup.slate_lineup.flex4.fantasy_points + lineup.slate_lineup.flex5.fantasy_points
+        else:
+            if obj.winning_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_lineups.all().order_by('-s75')[0]
+            if lineup.slate_lineup.qb.fantasy_points is None or lineup.slate_lineup.rb1.fantasy_points is None or lineup.slate_lineup.rb2.fantasy_points is None or lineup.slate_lineup.wr1.fantasy_points is None or lineup.slate_lineup.wr2.fantasy_points is None or lineup.slate_lineup.wr3.fantasy_points is None or lineup.slate_lineup.te.fantasy_points is None or lineup.slate_lineup.flex.fantasy_points is None or lineup.slate_lineup.dst.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.qb.fantasy_points + lineup.slate_lineup.rb1.fantasy_points + lineup.slate_lineup.rb2.fantasy_points + lineup.slate_lineup.wr1.fantasy_points + lineup.slate_lineup.wr2.fantasy_points + lineup.slate_lineup.wr3.fantasy_points + lineup.slate_lineup.te.fantasy_points + lineup.slate_lineup.flex.fantasy_points + lineup.slate_lineup.dst.fantasy_points
+    get_top_actual_by_s75.short_description = 's75'
+
+    def get_top_actual_by_s90(self, obj):
+        if obj.slate.is_showdown:
+            if obj.winning_sd_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_sd_lineups.all().order_by('-s90')[0]
+            if lineup.slate_lineup.cpt.fantasy_points is None or lineup.slate_lineup.flex1.fantasy_points is None or lineup.slate_lineup.flex2.fantasy_points is None or lineup.slate_lineup.flex3.fantasy_points is None or lineup.slate_lineup.flex4.fantasy_points is None or lineup.slate_lineup.flex5.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.cpt.fantasy_points + lineup.slate_lineup.flex1.fantasy_points + lineup.slate_lineup.flex2.fantasy_points + lineup.slate_lineup.flex3.fantasy_points + lineup.slate_lineup.flex4.fantasy_points + lineup.slate_lineup.flex5.fantasy_points
+        else:
+            if obj.winning_lineups.all().count() == 0 or obj.build_type == 'se':
+                return None
+            lineup = obj.winning_lineups.all().order_by('-s90')[0]
+            if lineup.slate_lineup.qb.fantasy_points is None or lineup.slate_lineup.rb1.fantasy_points is None or lineup.slate_lineup.rb2.fantasy_points is None or lineup.slate_lineup.wr1.fantasy_points is None or lineup.slate_lineup.wr2.fantasy_points is None or lineup.slate_lineup.wr3.fantasy_points is None or lineup.slate_lineup.te.fantasy_points is None or lineup.slate_lineup.flex.fantasy_points is None or lineup.slate_lineup.dst.fantasy_points is None:
+                return None
+            return lineup.slate_lineup.qb.fantasy_points + lineup.slate_lineup.rb1.fantasy_points + lineup.slate_lineup.rb2.fantasy_points + lineup.slate_lineup.wr1.fantasy_points + lineup.slate_lineup.wr2.fantasy_points + lineup.slate_lineup.wr3.fantasy_points + lineup.slate_lineup.te.fantasy_points + lineup.slate_lineup.flex.fantasy_points + lineup.slate_lineup.dst.fantasy_points
+    get_top_actual_by_s90.short_description = 's90'
 
     def get_projections_link(self, obj):
         if obj.slate.get_projections().count() > 0:
