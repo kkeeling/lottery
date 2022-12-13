@@ -1970,6 +1970,7 @@ class FindWinnerBuildAdmin(admin.ModelAdmin):
         'slate',
         'build_type',
         'field_lineup_creation_strategy',
+        'allow_two_tes',
         'get_top_actual_by_rating',
         'get_top_actual_by_win_rate',
         'get_top_actual_by_win_rate_20',
