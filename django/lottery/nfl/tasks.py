@@ -24,6 +24,7 @@ from contextlib import contextmanager
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.messages.api import success
+from django.db import connection
 from django.db.models.aggregates import Count, Sum
 from django.db.models import Q, F
 from django.db import transaction
@@ -1200,15 +1201,1418 @@ def find_players(qb, position, depth, find_opponent=False):
     return players[:depth]
 
 
-def get_corr_matrix(site, is_sd=False):
-    if site == 'fanduel' or site == 'yahoo':
-        r_df = pandas.read_csv('data/r.csv', index_col=0)
-    elif site == 'draftkings':
-        if is_sd:
-            r_df = pandas.read_csv('data/dk_r_sd.csv', index_col=0)
-        else:
-            r_df = pandas.read_csv('data/dk_r.csv', index_col=0)
-    return r_df
+# Finds correlation between players from the same team using kNN algorithm (k-=50) to find 50 comparable pairings and 
+# calculating the correlation between the outcomes from those pairings.
+
+'''
+In the second method, we estimate ρj1,j2
+(for players on the same team) by finding the 50 pairs
+of players and games in the training set for which the players are teammates and played the same
+positions as j1 and j2 and have expected value as close as possible to that of j1 and j2, and use
+the sample correlation of their actual game scores to estimate their correlation. For example, if
+a quarterback and wide receiver pair are on the same team and are expected to score 30 and 15
+points, respectively, we find the 50 instances in the training set of quarterback and wide receiver
+teammates with the sum of squared differences from 30 and 15 in expected values as low as possible.
+We calculate the corresponding correlation of actual scores on this subset of players, and use that
+as the parameter estimate. We do the same for players on opposing teams
+'''
+def find_knn_corr(p1, p2, site):
+    with connection.cursor() as cursor:
+        sql = '''
+            SELECT  p1.name,
+                    p1_proj.projection       as p1_proj,
+                    p1.fantasy_points        as p1_actual,
+                    p2.name,
+                    p2_proj.projection       as p2_proj,
+                    p2.fantasy_points        as p2_actual
+            FROM nfl_slateplayer p1
+            INNER JOIN nfl_slateplayer p2 on p1.team = p2.team AND p1.slate_id = p2.slate_id
+            LEFT JOIN nfl_slate slate ON slate.id = p1.slate_id
+            LEFT JOIN nfl_slateplayerprojection p1_proj ON p1_proj.slate_player_id = p1.id
+            LEFT JOIN nfl_slateplayerprojection p2_proj ON p2_proj.slate_player_id = p2.id
+            WHERE slate.is_main_slate = true
+                AND slate.site = %s
+                AND p1.site_pos = %s
+                AND p2.site_pos = %s
+                AND slate.datetime < '2022-02-28'
+                AND p1.fantasy_points >= 1.0
+                AND p2.fantasy_points >= 1.0
+        '''
+
+        cursor.execute(sql, [site, p1.slate_player.site_pos, p2.slate_player.site_pos])
+        rows = cursor.fetchall()
+
+    df = pandas.DataFrame.from_records(
+        rows,
+        columns=['p1_name', 'p1_proj', 'p1_actual', 'p2_name', 'p2_proj', 'p2_actual'],
+        coerce_float=True
+    )
+
+    X = df.drop(['p1_name', 'p1_actual', 'p2_name', 'p2_actual'], axis=1)
+
+    new_dp = numpy.array([
+        float(p1.projection),
+        float(p2.projection),
+    ])
+    distances = numpy.linalg.norm(X - new_dp, axis=1)
+    k = 50
+    nearest_neighbor_ids = distances.argsort()[:k]
+
+    comps = df.iloc[nearest_neighbor_ids]
+    # logger.info(comps)
+    return round(comps['p1_actual'].corr(comps['p2_actual']), 4)
+
+
+
+# Finds correlation between players from the same team using kNN algorithm (k-=50) to find 50 comparable pairings and 
+# calculating the correlation between the outcomes from those pairings.
+
+'''
+In the second method, we estimate ρj1,j2
+(for players on the same team) by finding the 50 pairs
+of players and games in the training set for which the players are teammates and played the same
+positions as j1 and j2 and have expected value as close as possible to that of j1 and j2, and use
+the sample correlation of their actual game scores to estimate their correlation. For example, if
+a quarterback and wide receiver pair are on the same team and are expected to score 30 and 15
+points, respectively, we find the 50 instances in the training set of quarterback and wide receiver
+teammates with the sum of squared differences from 30 and 15 in expected values as low as possible.
+We calculate the corresponding correlation of actual scores on this subset of players, and use that
+as the parameter estimate. We do the same for players on opposing teams
+'''
+def find_opp_knn_corr(p1, p2, site):
+    with connection.cursor() as cursor:
+        sql = '''
+            SELECT  p1.name,
+                    p1_proj.projection       as p1_proj,
+                    p1.fantasy_points        as p1_actual,
+                    p2.name,
+                    p2_proj.projection       as p2_proj,
+                    p2.fantasy_points        as p2_actual
+            FROM nfl_slateplayer p1
+            INNER JOIN nfl_slateplayer p2 on p1.team <> p2.team AND p1.slate_game_id = p2.slate_game_id
+            LEFT JOIN nfl_slate slate ON slate.id = p1.slate_id
+            LEFT JOIN nfl_slateplayerprojection p1_proj ON p1_proj.slate_player_id = p1.id
+            LEFT JOIN nfl_slateplayerprojection p2_proj ON p2_proj.slate_player_id = p2.id
+            WHERE slate.is_main_slate = true
+                AND slate.site = %s
+                AND p1.site_pos = %s
+                AND p2.site_pos = %s
+                AND slate.datetime < '2022-02-28'
+                AND p1.fantasy_points >= 1.0
+                AND p2.fantasy_points >= 1.0
+        '''
+
+        cursor.execute(sql, [site, p1.slate_player.site_pos, p2.slate_player.site_pos])
+        rows = cursor.fetchall()
+
+    df = pandas.DataFrame.from_records(
+        rows,
+        columns=['p1_name', 'p1_proj', 'p1_actual', 'p2_name', 'p2_proj', 'p2_actual'],
+        coerce_float=True
+    )
+
+    X = df.drop(['p1_name', 'p1_actual', 'p2_name', 'p2_actual'], axis=1)
+
+    new_dp = numpy.array([
+        float(p1.projection),
+        float(p2.projection),
+    ])
+    distances = numpy.linalg.norm(X - new_dp, axis=1)
+    k = 50
+    nearest_neighbor_ids = distances.argsort()[:k]
+
+    comps = df.iloc[nearest_neighbor_ids]
+    # logger.info(comps)
+    return round(comps['p1_actual'].corr(comps['p2_actual']), 4)
+
+
+def get_corr_matrix(game, is_sd=False):
+    if game.slate.site == 'fanduel':
+        dst_label = 'D' 
+    elif game.slate.site == 'yahoo':
+        dst_label = 'DEF' 
+    else:
+        dst_label = 'DST' 
+    
+    # initialize variables
+    slate = game.slate
+    home_qb = None
+    home_rb1 = None
+    home_rb2 = None
+    home_rb3 = None
+    home_wr1 = None
+    home_wr2 = None
+    home_wr3 = None
+    home_wr4 = None
+    home_wr5 = None
+    home_te1 = None
+    home_te2 = None
+    home_k = None
+    home_dst = None
+    away_qb = None
+    away_rb1 = None
+    away_rb2 = None
+    away_rb3 = None
+    away_wr1 = None
+    away_wr2 = None
+    away_wr3 = None
+    away_wr4 = None
+    away_wr5 = None
+    away_te1 = None
+    away_te2 = None
+    away_k = None
+    away_dst = None
+
+    # Set up game players
+    home_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_home_players().values_list('id', flat=True)).exclude(slate_player__roster_position__in=['CPT', 'MVP'])
+    away_players = models.SlatePlayerProjection.objects.filter(slate_player__id__in=game.get_away_players().values_list('id', flat=True)).exclude(slate_player__roster_position__in=['CPT', 'MVP'])
+
+    home_qbs = home_players.filter(slate_player__site_pos='QB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+    home_rbs = home_players.filter(slate_player__site_pos='RB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+    home_wrs = home_players.filter(slate_player__site_pos='WR').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+    home_tes = home_players.filter(slate_player__site_pos='TE').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+    home_ks = home_players.filter(slate_player__site_pos='K').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+    home_dsts = home_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+
+    home_qb = home_qbs[0]
+    home_rb1 = home_rbs[0]
+    if home_rbs.count() > 1:
+        home_rb2 = home_rbs[1]
+    if home_rbs.count() > 2:
+        home_rb3 = home_rbs[2]
+    home_wr1 = home_wrs[0]
+    home_wr2 = home_wrs[1]
+    if home_wrs.count() > 2:
+        home_wr3 = home_wrs[2]
+    if home_wrs.count() > 3:
+        home_wr4 = home_wrs[3]
+    if home_wrs.count() > 4:
+        home_wr5 = home_wrs[4]
+    home_te1 = home_tes[0]
+    if home_tes.count() > 1:
+        home_te2 = home_tes[1]
+    if home_ks.count() > 0:
+        home_k = home_ks[0]
+    home_dst = home_dsts[0]
+
+    away_qbs = away_players.filter(slate_player__site_pos='QB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+    away_rbs = away_players.filter(slate_player__site_pos='RB').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+    away_wrs = away_players.filter(slate_player__site_pos='WR').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+    away_tes = away_players.filter(slate_player__site_pos='TE').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+    away_ks = away_players.filter(slate_player__site_pos='K').exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+    away_dsts = away_players.filter(slate_player__site_pos=dst_label).exclude(projection__lte=0.0).exclude(stdev__lte=0.0).order_by('-projection', '-slate_player__salary')
+
+    away_qb = away_qbs[0]
+    away_rb1 = away_rbs[0]
+    if away_rbs.count() > 1:
+        away_rb2 = away_rbs[1]
+    if away_rbs.count() > 2:
+        away_rb3 = away_rbs[2]
+    away_wr1 = away_wrs[0]
+    away_wr2 = away_wrs[1]
+    if away_wrs.count() > 2:
+        away_wr3 = away_wrs[2]
+    if away_wrs.count() > 3:
+        away_wr4 = away_wrs[3]
+    if away_wrs.count() > 4:
+        away_wr5 = away_wrs[4]
+    away_te1 = away_tes[0]
+    if away_tes.count() > 1:
+        away_te2 = away_tes[1]
+    if away_ks.count() > 0:
+        away_k = away_ks[0]
+    away_dst = away_dsts[0]
+
+    # set up correlation combinations
+    correlations = []
+
+    # QB
+    logger.info('QB')
+    qb_corr = []
+    qb_corr.append(1.0)  # self
+    qb_corr.append(find_knn_corr(home_qb, home_rb1, slate.site))
+    if home_rb2:
+        qb_corr.append(find_knn_corr(home_qb, home_rb2, slate.site))
+    if home_rb3:
+        qb_corr.append(find_knn_corr(home_qb, home_rb3, slate.site))
+    qb_corr.append(find_knn_corr(home_qb, home_wr1, slate.site))
+    qb_corr.append(find_knn_corr(home_qb, home_wr2, slate.site))
+    if home_wr3:
+        qb_corr.append(find_knn_corr(home_qb, home_wr3, slate.site))
+    if home_wr4:
+        qb_corr.append(find_knn_corr(home_qb, home_wr4, slate.site))
+    if home_wr5:
+        qb_corr.append(find_knn_corr(home_qb, home_wr5, slate.site))
+    qb_corr.append(find_knn_corr(home_qb, home_te1, slate.site))
+    if home_te2:
+        qb_corr.append(find_knn_corr(home_qb, home_te2, slate.site))
+    qb_corr.append(0.1)
+    qb_corr.append(find_knn_corr(home_qb, home_dst, slate.site))
+    qb_corr.append(find_opp_knn_corr(home_qb, away_qb, slate.site))
+    qb_corr.append(find_opp_knn_corr(home_qb, away_rb1, slate.site))
+    if away_rb2:
+        qb_corr.append(find_opp_knn_corr(home_qb, away_rb2, slate.site))
+    if away_rb3:
+        qb_corr.append(find_opp_knn_corr(home_qb, away_rb3, slate.site))
+    qb_corr.append(find_opp_knn_corr(home_qb, away_wr1, slate.site))
+    qb_corr.append(find_opp_knn_corr(home_qb, away_wr2, slate.site))
+    if away_wr3:
+        qb_corr.append(find_opp_knn_corr(home_qb, away_wr3, slate.site))
+    if away_wr4:
+        qb_corr.append(find_opp_knn_corr(home_qb, away_wr4, slate.site))
+    if away_wr5:
+        qb_corr.append(find_opp_knn_corr(home_qb, away_wr5, slate.site))
+    qb_corr.append(find_opp_knn_corr(home_qb, away_te1, slate.site))
+    if away_te2:
+        qb_corr.append(find_opp_knn_corr(home_qb, away_te2, slate.site))
+    qb_corr.append(-0.03)
+    qb_corr.append(find_opp_knn_corr(home_qb, away_dst, slate.site))
+    correlations.append(qb_corr)
+    
+    # RB1
+    logger.info('RB1')
+    rb1_corr = []
+    rb1_corr.append(find_knn_corr(home_qb, home_rb1, slate.site))
+    rb1_corr.append(1.0)  # self
+    if home_rb2:
+        rb1_corr.append(find_knn_corr(home_rb1, home_rb2, slate.site))
+    if home_rb3:
+        rb1_corr.append(find_knn_corr(home_rb1, home_rb3, slate.site))
+    rb1_corr.append(find_knn_corr(home_rb1, home_wr1, slate.site))
+    rb1_corr.append(find_knn_corr(home_rb1, home_wr2, slate.site))
+    if home_wr3:
+        rb1_corr.append(find_knn_corr(home_rb1, home_wr3, slate.site))
+    if home_wr4:
+        rb1_corr.append(find_knn_corr(home_rb1, home_wr4, slate.site))
+    if home_wr5:
+        rb1_corr.append(find_knn_corr(home_rb1, home_wr5, slate.site))
+    rb1_corr.append(find_knn_corr(home_rb1, home_te1, slate.site))
+    if home_te2:
+        rb1_corr.append(find_knn_corr(home_rb1, home_te2, slate.site))
+    rb1_corr.append(0.06)
+    rb1_corr.append(find_knn_corr(home_rb1, home_dst, slate.site))
+    rb1_corr.append(find_opp_knn_corr(home_rb1, away_qb, slate.site))
+    rb1_corr.append(find_opp_knn_corr(home_rb1, away_rb1, slate.site))
+    if away_rb2:
+        rb1_corr.append(find_opp_knn_corr(home_rb1, away_rb2, slate.site))
+    if away_rb3:
+        rb1_corr.append(find_opp_knn_corr(home_rb1, away_rb3, slate.site))
+    rb1_corr.append(find_opp_knn_corr(home_rb1, away_wr1, slate.site))
+    rb1_corr.append(find_opp_knn_corr(home_rb1, away_wr2, slate.site))
+    if away_wr3:
+        rb1_corr.append(find_opp_knn_corr(home_rb1, away_wr3, slate.site))
+    if away_wr4:
+        rb1_corr.append(find_opp_knn_corr(home_rb1, away_wr4, slate.site))
+    if away_wr5:
+        rb1_corr.append(find_opp_knn_corr(home_rb1, away_wr5, slate.site))
+    rb1_corr.append(find_opp_knn_corr(home_rb1, away_te1, slate.site))
+    if away_te2:
+        rb1_corr.append(find_opp_knn_corr(home_rb1, away_te2, slate.site))
+    rb1_corr.append(-0.07)
+    rb1_corr.append(find_opp_knn_corr(home_rb1, away_dst, slate.site))
+    correlations.append(rb1_corr)
+    
+    # RB2
+    logger.info('RB2')
+    if home_rb2:
+        rb2_corr = []
+        rb2_corr.append(find_knn_corr(home_qb, home_rb2, slate.site))
+        rb2_corr.append(find_knn_corr(home_rb1, home_rb2, slate.site))
+        rb2_corr.append(1.0)  # self
+        if home_rb3:
+            rb2_corr.append(find_knn_corr(home_rb2, home_rb3, slate.site))
+        rb2_corr.append(find_knn_corr(home_rb2, home_wr1, slate.site))
+        rb2_corr.append(find_knn_corr(home_rb2, home_wr2, slate.site))
+        if home_wr3:
+            rb2_corr.append(find_knn_corr(home_rb2, home_wr3, slate.site))
+        if home_wr4:
+            rb2_corr.append(find_knn_corr(home_rb2, home_wr4, slate.site))
+        if home_wr5:
+            rb2_corr.append(find_knn_corr(home_rb2, home_wr5, slate.site))
+        rb2_corr.append(find_knn_corr(home_rb2, home_te1, slate.site))
+        if home_te2:
+            rb2_corr.append(find_knn_corr(home_rb2, home_te2, slate.site))
+        rb2_corr.append(0.06)
+        rb2_corr.append(find_knn_corr(home_rb2, home_dst, slate.site))
+        rb2_corr.append(find_opp_knn_corr(home_rb2, away_qb, slate.site))
+        rb2_corr.append(find_opp_knn_corr(home_rb2, away_rb1, slate.site))
+        if away_rb2:
+            rb2_corr.append(find_opp_knn_corr(home_rb2, away_rb2, slate.site))
+        if away_rb3:
+            rb2_corr.append(find_opp_knn_corr(home_rb2, away_rb3, slate.site))
+        rb2_corr.append(find_opp_knn_corr(home_rb2, away_wr1, slate.site))
+        rb2_corr.append(find_opp_knn_corr(home_rb2, away_wr2, slate.site))
+        if away_wr3:
+            rb2_corr.append(find_opp_knn_corr(home_rb2, away_wr3, slate.site))
+        if away_wr4:
+            rb2_corr.append(find_opp_knn_corr(home_rb2, away_wr4, slate.site))
+        if away_wr5:
+            rb2_corr.append(find_opp_knn_corr(home_rb2, away_wr5, slate.site))
+        rb2_corr.append(find_opp_knn_corr(home_rb2, away_te1, slate.site))
+        if away_te2:
+            rb2_corr.append(find_opp_knn_corr(home_rb2, away_te2, slate.site))
+        rb2_corr.append(-0.08)
+        rb2_corr.append(find_opp_knn_corr(home_rb2, away_dst, slate.site))
+        correlations.append(rb2_corr)
+    
+    # RB3
+    logger.info('RB3')
+    if home_rb3:
+        rb3_corr = []
+        rb3_corr.append(find_knn_corr(home_qb, home_rb3, slate.site))
+        rb3_corr.append(find_knn_corr(home_rb1, home_rb3, slate.site))
+        rb3_corr.append(find_knn_corr(home_rb2, home_rb3, slate.site))
+        rb3_corr.append(1.0)  # self
+        rb3_corr.append(find_knn_corr(home_rb3, home_wr1, slate.site))
+        rb3_corr.append(find_knn_corr(home_rb3, home_wr2, slate.site))
+        if home_wr3:
+            rb3_corr.append(find_knn_corr(home_rb3, home_wr3, slate.site))
+        if home_wr4:
+            rb3_corr.append(find_knn_corr(home_rb3, home_wr4, slate.site))
+        if home_wr5:
+            rb3_corr.append(find_knn_corr(home_rb3, home_wr5, slate.site))
+        rb3_corr.append(find_knn_corr(home_rb3, home_te1, slate.site))
+        if home_te2:
+            rb3_corr.append(find_knn_corr(home_rb3, home_te2, slate.site))
+        rb3_corr.append(0.06)
+        rb3_corr.append(find_knn_corr(home_rb3, home_dst, slate.site))
+        rb3_corr.append(find_opp_knn_corr(home_rb3, away_qb, slate.site))
+        rb3_corr.append(find_opp_knn_corr(home_rb3, away_rb1, slate.site))
+        if away_rb2:
+            rb3_corr.append(find_opp_knn_corr(home_rb3, away_rb2, slate.site))
+        if away_rb3:
+            rb3_corr.append(find_opp_knn_corr(home_rb3, away_rb3, slate.site))
+        rb3_corr.append(find_opp_knn_corr(home_rb3, away_wr1, slate.site))
+        rb3_corr.append(find_opp_knn_corr(home_rb3, away_wr2, slate.site))
+        if away_wr3:
+            rb3_corr.append(find_opp_knn_corr(home_rb3, away_wr3, slate.site))
+        if away_wr4:
+            rb3_corr.append(find_opp_knn_corr(home_rb3, away_wr4, slate.site))
+        if away_wr5:
+            rb3_corr.append(find_opp_knn_corr(home_rb3, away_wr5, slate.site))
+        rb3_corr.append(find_opp_knn_corr(home_rb3, away_te1, slate.site))
+        if away_te2:
+            rb3_corr.append(find_opp_knn_corr(home_rb3, away_te2, slate.site))
+        rb3_corr.append(-0.09)
+        rb3_corr.append(find_opp_knn_corr(home_rb3, away_dst, slate.site))
+        correlations.append(rb3_corr)
+
+    # WR1
+    logger.info('WR1')
+    wr1_corr = []
+    wr1_corr.append(find_knn_corr(home_qb, home_wr1, slate.site))
+    wr1_corr.append(find_knn_corr(home_rb1, home_wr1, slate.site))
+    if home_rb2:
+        wr1_corr.append(find_knn_corr(home_rb2, home_wr1, slate.site))
+    if home_rb3:
+        wr1_corr.append(find_knn_corr(home_rb3, home_wr1, slate.site))
+    wr1_corr.append(1.0)  # self
+    wr1_corr.append(find_knn_corr(home_wr1, home_wr2, slate.site))
+    if home_wr3:
+        wr1_corr.append(find_knn_corr(home_wr1, home_wr3, slate.site))
+    if home_wr4:
+        wr1_corr.append(find_knn_corr(home_wr1, home_wr4, slate.site))
+    if home_wr5:
+        wr1_corr.append(find_knn_corr(home_wr1, home_wr5, slate.site))
+    wr1_corr.append(find_knn_corr(home_wr1, home_te1, slate.site))
+    if home_te2:
+        wr1_corr.append(find_knn_corr(home_wr1, home_te2, slate.site))
+    wr1_corr.append(0.05)
+    wr1_corr.append(find_knn_corr(home_wr1, home_dst, slate.site))
+    wr1_corr.append(find_opp_knn_corr(home_wr1, away_qb, slate.site))
+    wr1_corr.append(find_opp_knn_corr(home_wr1, away_rb1, slate.site))
+    if away_rb2:
+        wr1_corr.append(find_opp_knn_corr(home_wr1, away_rb2, slate.site))
+    if away_rb3:
+        wr1_corr.append(find_opp_knn_corr(home_wr1, away_rb3, slate.site))
+    wr1_corr.append(find_opp_knn_corr(home_wr1, away_wr1, slate.site))
+    wr1_corr.append(find_opp_knn_corr(home_wr1, away_wr2, slate.site))
+    if away_wr3:
+        wr1_corr.append(find_opp_knn_corr(home_wr1, away_wr3, slate.site))
+    if away_wr4:
+        wr1_corr.append(find_opp_knn_corr(home_wr1, away_wr4, slate.site))
+    if away_wr5:
+        wr1_corr.append(find_opp_knn_corr(home_wr1, away_wr5, slate.site))
+    wr1_corr.append(find_opp_knn_corr(home_wr1, away_te1, slate.site))
+    if away_te2:
+        wr1_corr.append(find_opp_knn_corr(home_wr1, away_te2, slate.site))
+    wr1_corr.append(0.01)
+    wr1_corr.append(find_opp_knn_corr(home_wr1, away_dst, slate.site))
+    correlations.append(wr1_corr)
+
+    # WR2
+    logger.info('WR2')
+    wr2_corr = []
+    wr2_corr.append(find_knn_corr(home_qb, home_wr2, slate.site))
+    wr2_corr.append(find_knn_corr(home_rb1, home_wr2, slate.site))
+    if home_rb2:
+        wr2_corr.append(find_knn_corr(home_rb2, home_wr2, slate.site))
+    if home_rb3:
+        wr2_corr.append(find_knn_corr(home_rb3, home_wr2, slate.site))
+    wr2_corr.append(find_knn_corr(home_wr1, home_wr2, slate.site))
+    wr2_corr.append(1.0)  # self
+    if home_wr3:
+        wr2_corr.append(find_knn_corr(home_wr2, home_wr3, slate.site))
+    if home_wr4:
+        wr2_corr.append(find_knn_corr(home_wr2, home_wr4, slate.site))
+    if home_wr5:
+        wr2_corr.append(find_knn_corr(home_wr2, home_wr5, slate.site))
+    wr2_corr.append(find_knn_corr(home_wr2, home_te1, slate.site))
+    if home_te2:
+        wr2_corr.append(find_knn_corr(home_wr2, home_te2, slate.site))
+    wr2_corr.append(0.00)
+    wr2_corr.append(find_knn_corr(home_wr2, home_dst, slate.site))
+    wr2_corr.append(find_opp_knn_corr(home_wr2, away_qb, slate.site))
+    wr2_corr.append(find_opp_knn_corr(home_wr2, away_rb1, slate.site))
+    if away_rb2:
+        wr2_corr.append(find_opp_knn_corr(home_wr2, away_rb2, slate.site))
+    if away_rb3:
+        wr2_corr.append(find_opp_knn_corr(home_wr2, away_rb3, slate.site))
+    wr2_corr.append(find_opp_knn_corr(home_wr2, away_wr1, slate.site))
+    wr2_corr.append(find_opp_knn_corr(home_wr2, away_wr2, slate.site))
+    if away_wr3:
+        wr2_corr.append(find_opp_knn_corr(home_wr2, away_wr3, slate.site))
+    if away_wr4:
+        wr2_corr.append(find_opp_knn_corr(home_wr2, away_wr4, slate.site))
+    if away_wr5:
+        wr2_corr.append(find_opp_knn_corr(home_wr2, away_wr5, slate.site))
+    wr2_corr.append(find_opp_knn_corr(home_wr2, away_te1, slate.site))
+    if away_te2:
+        wr2_corr.append(find_opp_knn_corr(home_wr2, away_te2, slate.site))
+    wr2_corr.append(0.07)
+    wr2_corr.append(find_opp_knn_corr(home_wr2, away_dst, slate.site))
+    correlations.append(wr2_corr)
+    
+    # WR3
+    logger.info('WR3')
+    if home_wr3:
+        wr3_corr = []
+        wr3_corr.append(find_knn_corr(home_qb, home_wr3, slate.site))
+        wr3_corr.append(find_knn_corr(home_rb1, home_wr3, slate.site))
+        if home_rb2:
+            wr3_corr.append(find_knn_corr(home_rb2, home_wr3, slate.site))
+        if home_rb3:
+            wr3_corr.append(find_knn_corr(home_rb3, home_wr3, slate.site))
+        wr3_corr.append(find_knn_corr(home_wr1, home_wr3, slate.site))
+        wr3_corr.append(find_knn_corr(home_wr2, home_wr3, slate.site))
+        wr3_corr.append(1.0)  # self
+        if home_wr4:
+            wr3_corr.append(find_knn_corr(home_wr3, home_wr4, slate.site))
+        if home_wr5:
+            wr3_corr.append(find_knn_corr(home_wr3, home_wr5, slate.site))
+        wr3_corr.append(find_knn_corr(home_wr3, home_te1, slate.site))
+        if home_te2:
+            wr3_corr.append(find_knn_corr(home_wr3, home_te2, slate.site))
+        wr3_corr.append(0.01)
+        wr3_corr.append(find_knn_corr(home_wr3, home_dst, slate.site))
+        wr3_corr.append(find_opp_knn_corr(home_wr3, away_qb, slate.site))
+        wr3_corr.append(find_opp_knn_corr(home_wr3, away_rb1, slate.site))
+        if away_rb2:
+            wr3_corr.append(find_opp_knn_corr(home_wr3, away_rb2, slate.site))
+        if away_rb3:
+            wr3_corr.append(find_opp_knn_corr(home_wr3, away_rb3, slate.site))
+        wr3_corr.append(find_opp_knn_corr(home_wr3, away_wr1, slate.site))
+        wr3_corr.append(find_opp_knn_corr(home_wr3, away_wr2, slate.site))
+        if away_wr3:
+            wr3_corr.append(find_opp_knn_corr(home_wr3, away_wr3, slate.site))
+        if away_wr4:
+            wr3_corr.append(find_opp_knn_corr(home_wr3, away_wr4, slate.site))
+        if away_wr5:
+            wr3_corr.append(find_opp_knn_corr(home_wr3, away_wr5, slate.site))
+        wr3_corr.append(find_opp_knn_corr(home_wr3, away_te1, slate.site))
+        if away_te2:
+            wr3_corr.append(find_opp_knn_corr(home_wr3, away_te2, slate.site))
+        wr3_corr.append(-0.01)
+        wr3_corr.append(find_opp_knn_corr(home_wr3, away_dst, slate.site))
+        correlations.append(wr3_corr)
+    
+    # WR4
+    logger.info('WR4')
+    if home_wr4:
+        wr4_corr = []
+        wr4_corr.append(find_knn_corr(home_qb, home_wr4, slate.site))
+        wr4_corr.append(find_knn_corr(home_rb1, home_wr4, slate.site))
+        if home_rb2:
+            wr4_corr.append(find_knn_corr(home_rb2, home_wr4, slate.site))
+        if home_rb3:
+            wr4_corr.append(find_knn_corr(home_rb3, home_wr4, slate.site))
+        wr4_corr.append(find_knn_corr(home_wr1, home_wr4, slate.site))
+        wr4_corr.append(find_knn_corr(home_wr2, home_wr4, slate.site))
+        if home_wr3:
+            wr4_corr.append(find_knn_corr(home_wr3, home_wr4, slate.site))
+        wr4_corr.append(1.0)  # self
+        if home_wr5:
+            wr4_corr.append(find_knn_corr(home_wr4, home_wr5, slate.site))
+        wr4_corr.append(find_knn_corr(home_wr4, home_te1, slate.site))
+        if home_te2:
+            wr4_corr.append(find_knn_corr(home_wr4, home_te2, slate.site))
+        wr4_corr.append(0.00)
+        wr4_corr.append(find_knn_corr(home_wr4, home_dst, slate.site))
+        wr4_corr.append(find_opp_knn_corr(home_wr4, away_qb, slate.site))
+        wr4_corr.append(find_opp_knn_corr(home_wr4, away_rb1, slate.site))
+        if away_rb2:
+            wr4_corr.append(find_opp_knn_corr(home_wr4, away_rb2, slate.site))
+        if away_rb3:
+            wr4_corr.append(find_opp_knn_corr(home_wr4, away_rb3, slate.site))
+        wr4_corr.append(find_opp_knn_corr(home_wr4, away_wr1, slate.site))
+        wr4_corr.append(find_opp_knn_corr(home_wr4, away_wr2, slate.site))
+        if away_wr3:
+            wr4_corr.append(find_opp_knn_corr(home_wr4, away_wr3, slate.site))
+        if away_wr4:
+            wr4_corr.append(find_opp_knn_corr(home_wr4, away_wr4, slate.site))
+        if away_wr5:
+            wr4_corr.append(find_opp_knn_corr(home_wr4, away_wr5, slate.site))
+        wr4_corr.append(find_opp_knn_corr(home_wr4, away_te1, slate.site))
+        if away_te2:
+            wr4_corr.append(find_opp_knn_corr(home_wr4, away_te2, slate.site))
+        wr4_corr.append(-0.01)
+        wr4_corr.append(find_opp_knn_corr(home_wr4, away_dst, slate.site))
+        correlations.append(wr4_corr)
+    
+    # WR5
+    logger.info('WR5')
+    if home_wr5:
+        wr5_corr = []
+        wr5_corr.append(find_knn_corr(home_qb, home_wr5, slate.site))
+        wr5_corr.append(find_knn_corr(home_rb1, home_wr5, slate.site))
+        if home_rb2:
+            wr5_corr.append(find_knn_corr(home_rb2, home_wr5, slate.site))
+        if home_rb3:
+            wr5_corr.append(find_knn_corr(home_rb3, home_wr5, slate.site))
+        wr5_corr.append(find_knn_corr(home_wr1, home_wr5, slate.site))
+        wr5_corr.append(find_knn_corr(home_wr2, home_wr5, slate.site))
+        if home_wr3:
+            wr5_corr.append(find_knn_corr(home_wr3, home_wr5, slate.site))
+        if home_wr4:
+            wr5_corr.append(find_knn_corr(home_wr4, home_wr5, slate.site))
+        wr5_corr.append(1.0)  # self
+        wr5_corr.append(find_knn_corr(home_wr5, home_te1, slate.site))
+        if home_te2:
+            wr5_corr.append(find_knn_corr(home_wr5, home_te2, slate.site))
+        wr5_corr.append(0.00)
+        wr5_corr.append(find_knn_corr(home_wr5, home_dst, slate.site))
+        wr5_corr.append(find_opp_knn_corr(home_wr5, away_qb, slate.site))
+        wr5_corr.append(find_opp_knn_corr(home_wr5, away_rb1, slate.site))
+        if away_rb2:
+            wr5_corr.append(find_opp_knn_corr(home_wr5, away_rb2, slate.site))
+        if away_rb3:
+            wr5_corr.append(find_opp_knn_corr(home_wr5, away_rb3, slate.site))
+        wr5_corr.append(find_opp_knn_corr(home_wr5, away_wr1, slate.site))
+        wr5_corr.append(find_opp_knn_corr(home_wr5, away_wr2, slate.site))
+        if away_wr3:
+            wr5_corr.append(find_opp_knn_corr(home_wr5, away_wr3, slate.site))
+        if away_wr4:
+            wr5_corr.append(find_opp_knn_corr(home_wr5, away_wr4, slate.site))
+        if away_wr5:
+            wr5_corr.append(find_opp_knn_corr(home_wr5, away_wr5, slate.site))
+        wr5_corr.append(find_opp_knn_corr(home_wr5, away_te1, slate.site))
+        if away_te2:
+            wr5_corr.append(find_opp_knn_corr(home_wr5, away_te2, slate.site))
+        wr5_corr.append(-0.01)
+        wr5_corr.append(find_opp_knn_corr(home_wr5, away_dst, slate.site))
+        correlations.append(wr5_corr)
+
+    # TE1
+    logger.info('TE1')
+    te1_corr = []
+    te1_corr.append(find_knn_corr(home_qb, home_te1, slate.site))
+    te1_corr.append(find_knn_corr(home_rb1, home_te1, slate.site))
+    if home_rb2:
+        te1_corr.append(find_knn_corr(home_rb2, home_te1, slate.site))
+    if home_rb3:
+        te1_corr.append(find_knn_corr(home_rb3, home_te1, slate.site))
+    te1_corr.append(find_knn_corr(home_wr1, home_te1, slate.site))
+    te1_corr.append(find_knn_corr(home_wr2, home_te1, slate.site))
+    if home_wr3:
+        te1_corr.append(find_knn_corr(home_wr3, home_te1, slate.site))
+    if home_wr4:
+        te1_corr.append(find_knn_corr(home_wr4, home_te1, slate.site))
+    if home_wr5:
+        te1_corr.append(find_knn_corr(home_wr5, home_te1, slate.site))
+    te1_corr.append(1.0)  # self
+    if home_te2:
+        te1_corr.append(find_knn_corr(home_te1, home_te2, slate.site))
+    te1_corr.append(0.05)
+    te1_corr.append(find_knn_corr(home_te1, home_dst, slate.site))
+    te1_corr.append(find_opp_knn_corr(home_te1, away_qb, slate.site))
+    te1_corr.append(find_opp_knn_corr(home_te1, away_rb1, slate.site))
+    if away_rb2:
+        te1_corr.append(find_opp_knn_corr(home_te1, away_rb2, slate.site))
+    if away_rb3:
+        te1_corr.append(find_opp_knn_corr(home_te1, away_rb3, slate.site))
+    te1_corr.append(find_opp_knn_corr(home_te1, away_wr1, slate.site))
+    te1_corr.append(find_opp_knn_corr(home_te1, away_wr2, slate.site))
+    if away_wr3:
+        te1_corr.append(find_opp_knn_corr(home_te1, away_wr3, slate.site))
+    if away_wr4:
+        te1_corr.append(find_opp_knn_corr(home_te1, away_wr4, slate.site))
+    if away_wr5:
+        te1_corr.append(find_opp_knn_corr(home_te1, away_wr5, slate.site))
+    te1_corr.append(find_opp_knn_corr(home_te1, away_te1, slate.site))
+    if away_te2:
+        te1_corr.append(find_opp_knn_corr(home_te1, away_te2, slate.site))
+    te1_corr.append(0.00)
+    te1_corr.append(find_opp_knn_corr(home_te1, away_dst, slate.site))
+    correlations.append(te1_corr)
+
+    # TE2
+    logger.info('TE2')
+    if home_te2:
+        te2_corr = []
+        te2_corr.append(find_knn_corr(home_qb, home_te2, slate.site))
+        te2_corr.append(find_knn_corr(home_rb1, home_te2, slate.site))
+        if home_rb2:
+            te2_corr.append(find_knn_corr(home_rb2, home_te2, slate.site))
+        if home_rb3:
+            te2_corr.append(find_knn_corr(home_rb3, home_te2, slate.site))
+        te2_corr.append(find_knn_corr(home_wr1, home_te2, slate.site))
+        te2_corr.append(find_knn_corr(home_wr2, home_te2, slate.site))
+        if home_wr3:
+            te2_corr.append(find_knn_corr(home_wr3, home_te2, slate.site))
+        if home_wr4:
+            te2_corr.append(find_knn_corr(home_wr4, home_te2, slate.site))
+        if home_wr5:
+            te2_corr.append(find_knn_corr(home_wr5, home_te2, slate.site))
+        te2_corr.append(find_knn_corr(home_te1, home_te2, slate.site))
+        te2_corr.append(1.0)  # self
+        te2_corr.append(0.04)
+        te2_corr.append(find_knn_corr(home_te2, home_dst, slate.site))
+        te2_corr.append(find_opp_knn_corr(home_te2, away_qb, slate.site))
+        te2_corr.append(find_opp_knn_corr(home_te2, away_rb1, slate.site))
+        if away_rb2:
+            te2_corr.append(find_opp_knn_corr(home_te2, away_rb2, slate.site))
+        if away_rb3:
+            te2_corr.append(find_opp_knn_corr(home_te2, away_rb3, slate.site))
+        te2_corr.append(find_opp_knn_corr(home_te2, away_wr1, slate.site))
+        te2_corr.append(find_opp_knn_corr(home_te2, away_wr2, slate.site))
+        if away_wr3:
+            te2_corr.append(find_opp_knn_corr(home_te2, away_wr3, slate.site))
+        if away_wr4:
+            te2_corr.append(find_opp_knn_corr(home_te2, away_wr4, slate.site))
+        if away_wr5:
+            te2_corr.append(find_opp_knn_corr(home_te2, away_wr5, slate.site))
+        te2_corr.append(find_opp_knn_corr(home_te2, away_te1, slate.site))
+        if away_te2:
+            te2_corr.append(find_opp_knn_corr(home_te2, away_te2, slate.site))
+        te2_corr.append(0.00)
+        te2_corr.append(find_opp_knn_corr(home_te2, away_dst, slate.site))
+        correlations.append(te2_corr)
+
+    # K
+    logger.info('K')
+    k_corr = []
+    k_corr.append(0.1)
+    k_corr.append(0.06)
+    if home_rb2:
+        k_corr.append(0.06)
+    if home_rb3:
+        k_corr.append(0.06)
+    k_corr.append(0.05)
+    k_corr.append(0)
+    if home_wr3:
+        k_corr.append(0.01)
+    if home_wr4:
+        k_corr.append(0)
+    if home_wr5:
+        k_corr.append(0)
+    k_corr.append(0.05)
+    if home_te2:
+        k_corr.append(0.04)
+    k_corr.append(1.0)
+    k_corr.append(0.13)
+    k_corr.append(-0.03)
+    k_corr.append(-0.07)
+    if away_rb2:
+        k_corr.append(-0.08)
+    if away_rb3:
+        k_corr.append(-0.09)
+    k_corr.append(0.01)
+    k_corr.append(0.07)
+    if away_wr3:
+        k_corr.append(-0.01)
+    if away_wr4:
+        k_corr.append(-0.01)
+    if away_wr5:
+        k_corr.append(-0.01)
+    k_corr.append(0.0)
+    if away_te2:
+        k_corr.append(0.0)
+    k_corr.append(-0.05)
+    k_corr.append(-0.33)
+    correlations.append(k_corr)
+
+    # DST
+    logger.info('DST')
+    dst_corr = []
+    dst_corr.append(find_knn_corr(home_qb, home_dst, slate.site))
+    dst_corr.append(find_knn_corr(home_rb1, home_dst, slate.site))
+    if home_rb2:
+        dst_corr.append(find_knn_corr(home_rb2, home_dst, slate.site))
+    if home_rb3:
+        dst_corr.append(find_knn_corr(home_rb3, home_dst, slate.site))
+    dst_corr.append(find_knn_corr(home_wr1, home_dst, slate.site))
+    dst_corr.append(find_knn_corr(home_wr2, home_dst, slate.site))
+    if home_wr3:
+        dst_corr.append(find_knn_corr(home_wr3, home_dst, slate.site))
+    if home_wr4:
+        dst_corr.append(find_knn_corr(home_wr4, home_dst, slate.site))
+    if home_wr5:
+        dst_corr.append(find_knn_corr(home_wr5, home_dst, slate.site))
+    dst_corr.append(find_knn_corr(home_te1, home_dst, slate.site))
+    if home_te2:
+        dst_corr.append(find_knn_corr(home_te2, home_dst, slate.site))
+    dst_corr.append(0.13)
+    dst_corr.append(1.0)  # self
+    dst_corr.append(find_opp_knn_corr(home_dst, away_qb, slate.site))
+    dst_corr.append(find_opp_knn_corr(home_dst, away_rb1, slate.site))
+    if away_rb2:
+        dst_corr.append(find_opp_knn_corr(home_dst, away_rb2, slate.site))
+    if away_rb3:
+        dst_corr.append(find_opp_knn_corr(home_dst, away_rb3, slate.site))
+    dst_corr.append(find_opp_knn_corr(home_dst, away_wr1, slate.site))
+    dst_corr.append(find_opp_knn_corr(home_dst, away_wr2, slate.site))
+    if away_wr3:
+        dst_corr.append(find_opp_knn_corr(home_dst, away_wr3, slate.site))
+    if away_wr4:
+        dst_corr.append(find_opp_knn_corr(home_dst, away_wr4, slate.site))
+    if away_wr5:
+        dst_corr.append(find_opp_knn_corr(home_dst, away_wr5, slate.site))
+    dst_corr.append(find_opp_knn_corr(home_dst, away_te1, slate.site))
+    if away_te2:
+        dst_corr.append(find_opp_knn_corr(home_dst, away_te2, slate.site))
+    dst_corr.append(-.33)
+    dst_corr.append(find_opp_knn_corr(home_dst, away_dst, slate.site))
+    correlations.append(dst_corr)
+
+    # OPP QB
+    logger.info('OPP QB')
+    qb_opp_corr = []
+    qb_opp_corr.append(find_opp_knn_corr(home_qb, away_qb, slate.site))
+    qb_opp_corr.append(find_opp_knn_corr(home_rb1, away_qb, slate.site))
+    if home_rb2:
+        qb_opp_corr.append(find_opp_knn_corr(home_rb2, away_qb, slate.site))
+    if home_rb3:
+        qb_opp_corr.append(find_opp_knn_corr(home_rb3, away_qb, slate.site))
+    qb_opp_corr.append(find_opp_knn_corr(home_wr1, away_qb, slate.site))
+    qb_opp_corr.append(find_opp_knn_corr(home_wr2, away_qb, slate.site))
+    if home_wr3:
+        qb_opp_corr.append(find_opp_knn_corr(home_wr3, away_qb, slate.site))
+    if home_wr4:
+        qb_opp_corr.append(find_opp_knn_corr(home_wr4, away_qb, slate.site))
+    if home_wr5:
+        qb_opp_corr.append(find_opp_knn_corr(home_wr5, away_qb, slate.site))
+    qb_opp_corr.append(find_opp_knn_corr(home_te1, away_qb, slate.site))
+    if home_te2:
+        qb_opp_corr.append(find_opp_knn_corr(home_te2, away_qb, slate.site))
+    qb_opp_corr.append(-0.03)
+    qb_opp_corr.append(find_opp_knn_corr(home_dst, away_qb, slate.site))
+    qb_opp_corr.append(1.0)  # self
+    qb_opp_corr.append(find_knn_corr(away_qb, away_rb1, slate.site))
+    if away_rb2:
+        qb_opp_corr.append(find_knn_corr(away_qb, away_rb2, slate.site))
+    if away_rb3:
+        qb_opp_corr.append(find_knn_corr(away_qb, away_rb3, slate.site))
+    qb_opp_corr.append(find_knn_corr(away_qb, away_wr1, slate.site))
+    qb_opp_corr.append(find_knn_corr(away_qb, away_wr2, slate.site))
+    if away_wr3:
+        qb_opp_corr.append(find_knn_corr(away_qb, away_wr3, slate.site))
+    if away_wr4:
+        qb_opp_corr.append(find_knn_corr(away_qb, away_wr4, slate.site))
+    if away_wr5:
+        qb_opp_corr.append(find_knn_corr(away_qb, away_wr5, slate.site))
+    qb_opp_corr.append(find_knn_corr(away_qb, away_te1, slate.site))
+    if away_te2:
+        qb_opp_corr.append(find_knn_corr(away_qb, away_te2, slate.site))
+    qb_opp_corr.append(0.1)
+    qb_opp_corr.append(find_knn_corr(away_qb, away_dst, slate.site))
+    correlations.append(qb_opp_corr)
+    
+    # OPP RB1
+    logger.info('OPP RB1')
+    rb1_opp_corr = []
+    rb1_opp_corr.append(find_opp_knn_corr(home_qb, away_rb1, slate.site))
+    rb1_opp_corr.append(find_opp_knn_corr(home_rb1, away_rb1, slate.site))
+    if home_rb2:
+        rb1_opp_corr.append(find_opp_knn_corr(home_rb2, away_rb1, slate.site))
+    if home_rb3:
+        rb1_opp_corr.append(find_opp_knn_corr(home_rb3, away_rb1, slate.site))
+    rb1_opp_corr.append(find_opp_knn_corr(home_wr1, away_rb1, slate.site))
+    rb1_opp_corr.append(find_opp_knn_corr(home_wr2, away_rb1, slate.site))
+    if home_wr3:
+        rb1_opp_corr.append(find_opp_knn_corr(home_wr3, away_rb1, slate.site))
+    if home_wr4:
+        rb1_opp_corr.append(find_opp_knn_corr(home_wr4, away_rb1, slate.site))
+    if home_wr5:
+        rb1_opp_corr.append(find_opp_knn_corr(home_wr5, away_rb1, slate.site))
+    rb1_opp_corr.append(find_opp_knn_corr(home_te1, away_rb1, slate.site))
+    if home_te2:
+        rb1_opp_corr.append(find_opp_knn_corr(home_te2, away_rb1, slate.site))
+    rb1_opp_corr.append(-0.07)
+    rb1_opp_corr.append(find_opp_knn_corr(home_dst, away_rb1, slate.site))
+    rb1_opp_corr.append(find_knn_corr(away_qb, away_rb1, slate.site))
+    rb1_opp_corr.append(1.0)  # self
+    if away_rb2:
+        rb1_opp_corr.append(find_knn_corr(away_rb1, away_rb2, slate.site))
+    if away_rb3:
+        rb1_opp_corr.append(find_knn_corr(away_rb1, away_rb3, slate.site))
+    rb1_opp_corr.append(find_knn_corr(away_rb1, away_wr1, slate.site))
+    rb1_opp_corr.append(find_knn_corr(away_rb1, away_wr2, slate.site))
+    if away_wr3:
+        rb1_opp_corr.append(find_knn_corr(away_rb1, away_wr3, slate.site))
+    if away_wr4:
+        rb1_opp_corr.append(find_knn_corr(away_rb1, away_wr4, slate.site))
+    if away_wr5:
+        rb1_opp_corr.append(find_knn_corr(away_rb1, away_wr5, slate.site))
+    rb1_opp_corr.append(find_knn_corr(away_rb1, away_te1, slate.site))
+    if away_te2:
+        rb1_opp_corr.append(find_knn_corr(away_rb1, away_te2, slate.site))
+    rb1_opp_corr.append(0.06)
+    rb1_opp_corr.append(find_knn_corr(away_rb1, away_dst, slate.site))
+    correlations.append(rb1_opp_corr)
+    
+    # OPP RB2
+    logger.info('OPP RB2')
+    if away_rb2:
+        rb2_opp_corr = []
+        rb2_opp_corr.append(find_opp_knn_corr(home_qb, away_rb2, slate.site))
+        rb2_opp_corr.append(find_opp_knn_corr(home_rb1, away_rb2, slate.site))
+        if home_rb2:
+            rb2_opp_corr.append(find_opp_knn_corr(home_rb2, away_rb2, slate.site))
+        if home_rb3:
+            rb2_opp_corr.append(find_opp_knn_corr(home_rb3, away_rb2, slate.site))
+        rb2_opp_corr.append(find_opp_knn_corr(home_wr1, away_rb2, slate.site))
+        rb2_opp_corr.append(find_opp_knn_corr(home_wr2, away_rb2, slate.site))
+        if home_wr3:
+            rb2_opp_corr.append(find_opp_knn_corr(home_wr3, away_rb2, slate.site))
+        if home_wr4:
+            rb2_opp_corr.append(find_opp_knn_corr(home_wr4, away_rb2, slate.site))
+        if home_wr5:
+            rb2_opp_corr.append(find_opp_knn_corr(home_wr5, away_rb2, slate.site))
+        rb2_opp_corr.append(find_opp_knn_corr(home_te1, away_rb2, slate.site))
+        if home_te2:
+            rb2_opp_corr.append(find_opp_knn_corr(home_te2, away_rb2, slate.site))
+        rb2_opp_corr.append(-0.08)
+        rb2_opp_corr.append(find_opp_knn_corr(home_dst, away_rb2, slate.site))
+        rb2_opp_corr.append(find_knn_corr(away_qb, away_rb2, slate.site))
+        rb2_opp_corr.append(find_knn_corr(away_rb1, away_rb2, slate.site))
+        rb2_opp_corr.append(1.0)  # self
+        if away_rb3:
+            rb2_opp_corr.append(find_knn_corr(away_rb2, away_rb3, slate.site))
+        rb2_opp_corr.append(find_knn_corr(away_rb2, away_wr1, slate.site))
+        rb2_opp_corr.append(find_knn_corr(away_rb2, away_wr2, slate.site))
+        if away_wr3:
+            rb2_opp_corr.append(find_knn_corr(away_rb2, away_wr3, slate.site))
+        if away_wr4:
+            rb2_opp_corr.append(find_knn_corr(away_rb2, away_wr4, slate.site))
+        if away_wr5:
+            rb2_opp_corr.append(find_knn_corr(away_rb2, away_wr5, slate.site))
+        rb2_opp_corr.append(find_knn_corr(away_rb2, away_te1, slate.site))
+        if away_te2:
+            rb2_opp_corr.append(find_knn_corr(away_rb2, away_te2, slate.site))
+        rb2_opp_corr.append(0.06)
+        rb2_opp_corr.append(find_knn_corr(away_rb2, away_dst, slate.site))
+        correlations.append(rb2_opp_corr)
+    
+    # OPP RB3
+    logger.info('OPP RB3')
+    if away_rb3:
+        rb3_opp_corr = []
+        rb3_opp_corr.append(find_opp_knn_corr(home_qb, away_rb3, slate.site))
+        rb3_opp_corr.append(find_opp_knn_corr(home_rb1, away_rb3, slate.site))
+        rb3_opp_corr.append(find_opp_knn_corr(home_rb2, away_rb3, slate.site))
+        if home_rb3:
+            rb3_opp_corr.append(find_opp_knn_corr(home_rb3, away_rb3, slate.site))
+        rb3_opp_corr.append(find_opp_knn_corr(home_wr1, away_rb3, slate.site))
+        rb3_opp_corr.append(find_opp_knn_corr(home_wr2, away_rb3, slate.site))
+        if home_wr3:
+            rb3_opp_corr.append(find_opp_knn_corr(home_wr3, away_rb3, slate.site))
+        if home_wr4:
+            rb3_opp_corr.append(find_opp_knn_corr(home_wr4, away_rb3, slate.site))
+        if home_wr5:
+            rb3_opp_corr.append(find_opp_knn_corr(home_wr5, away_rb3, slate.site))
+        rb3_opp_corr.append(find_opp_knn_corr(home_te1, away_rb3, slate.site))
+        if home_te2:
+            rb3_opp_corr.append(find_opp_knn_corr(home_te2, away_rb3, slate.site))
+        rb3_opp_corr.append(-0.09)
+        rb3_opp_corr.append(find_opp_knn_corr(home_dst, away_rb3, slate.site))
+        rb3_opp_corr.append(find_knn_corr(away_qb, away_rb3, slate.site))
+        rb3_opp_corr.append(find_knn_corr(away_rb1, away_rb3, slate.site))
+        if away_rb2:
+            rb3_opp_corr.append(find_knn_corr(away_rb2, away_rb3, slate.site))
+        rb3_opp_corr.append(1.0)  # self
+        rb3_opp_corr.append(find_knn_corr(away_rb3, away_wr1, slate.site))
+        rb3_opp_corr.append(find_knn_corr(away_rb3, away_wr2, slate.site))
+        if away_wr3:
+            rb3_opp_corr.append(find_knn_corr(away_rb3, away_wr3, slate.site))
+        if away_wr4:
+            rb3_opp_corr.append(find_knn_corr(away_rb3, away_wr4, slate.site))
+        if away_wr5:
+            rb3_opp_corr.append(find_knn_corr(away_rb3, away_wr5, slate.site))
+        rb3_opp_corr.append(find_knn_corr(away_rb3, away_te1, slate.site))
+        if away_te2:
+            rb3_opp_corr.append(find_knn_corr(away_rb3, away_te2, slate.site))
+        rb3_opp_corr.append(0.06)
+        rb3_opp_corr.append(find_knn_corr(away_rb3, away_dst, slate.site))
+        correlations.append(rb3_opp_corr)
+
+    # OPP WR1
+    logger.info('OPP WR1')
+    wr1_opp_corr = []
+    wr1_opp_corr.append(find_opp_knn_corr(home_qb, away_wr1, slate.site))
+    wr1_opp_corr.append(find_opp_knn_corr(home_rb1, away_wr1, slate.site))
+    if home_rb2:
+        wr1_opp_corr.append(find_opp_knn_corr(home_rb2, away_wr1, slate.site))
+    if home_rb3:
+        wr1_opp_corr.append(find_opp_knn_corr(home_rb3, away_wr1, slate.site))
+    wr1_opp_corr.append(find_opp_knn_corr(home_wr1, away_wr1, slate.site))
+    wr1_opp_corr.append(find_opp_knn_corr(home_wr2, away_wr1, slate.site))
+    if home_wr3:
+        wr1_opp_corr.append(find_opp_knn_corr(home_wr3, away_wr1, slate.site))
+    if home_wr4:
+        wr1_opp_corr.append(find_opp_knn_corr(home_wr4, away_wr1, slate.site))
+    if home_wr5:
+        wr1_opp_corr.append(find_opp_knn_corr(home_wr5, away_wr1, slate.site))
+    wr1_opp_corr.append(find_opp_knn_corr(home_te1, away_wr1, slate.site))
+    if home_te2:
+        wr1_opp_corr.append(find_opp_knn_corr(home_te2, away_wr1, slate.site))
+    wr1_opp_corr.append(0.01)
+    wr1_opp_corr.append(find_opp_knn_corr(home_dst, away_wr1, slate.site))
+    wr1_opp_corr.append(find_knn_corr(away_qb, away_wr1, slate.site))
+    wr1_opp_corr.append(find_knn_corr(away_rb1, away_wr1, slate.site))
+    if away_rb2:
+        wr1_opp_corr.append(find_knn_corr(away_rb2, away_wr1, slate.site))
+    if away_rb3:
+        wr1_opp_corr.append(find_knn_corr(away_rb3, away_wr1, slate.site))
+    wr1_opp_corr.append(1.0)  # self
+    wr1_opp_corr.append(find_knn_corr(away_wr1, away_wr2, slate.site))
+    if away_wr3:
+        wr1_opp_corr.append(find_knn_corr(away_wr1, away_wr3, slate.site))
+    if away_wr4:
+        wr1_opp_corr.append(find_knn_corr(away_wr1, away_wr4, slate.site))
+    if away_wr5:
+        wr1_opp_corr.append(find_knn_corr(away_wr1, away_wr5, slate.site))
+    wr1_opp_corr.append(find_knn_corr(away_wr1, away_te1, slate.site))
+    if away_te2:
+        wr1_opp_corr.append(find_knn_corr(away_wr1, away_te2, slate.site))
+    wr1_opp_corr.append(0.05)
+    wr1_opp_corr.append(find_knn_corr(away_wr1, away_dst, slate.site))
+    correlations.append(wr1_opp_corr)
+
+    # OPP WR2
+    logger.info('OPP WR2')
+    wr2_opp_corr = []
+    wr2_opp_corr.append(find_opp_knn_corr(home_qb, away_wr2, slate.site))
+    wr2_opp_corr.append(find_opp_knn_corr(home_rb1, away_wr2, slate.site))
+    if home_rb2:
+        wr2_opp_corr.append(find_opp_knn_corr(home_rb2, away_wr2, slate.site))
+    if home_rb3:
+        wr2_opp_corr.append(find_opp_knn_corr(home_rb3, away_wr2, slate.site))
+    wr2_opp_corr.append(find_opp_knn_corr(home_wr1, away_wr2, slate.site))
+    wr2_opp_corr.append(find_opp_knn_corr(home_wr2, away_wr2, slate.site))
+    if home_wr3:
+        wr2_opp_corr.append(find_opp_knn_corr(home_wr3, away_wr2, slate.site))
+    if home_wr4:
+        wr2_opp_corr.append(find_opp_knn_corr(home_wr4, away_wr2, slate.site))
+    if home_wr5:
+        wr2_opp_corr.append(find_opp_knn_corr(home_wr5, away_wr2, slate.site))
+    wr2_opp_corr.append(find_opp_knn_corr(home_te1, away_wr2, slate.site))
+    if home_te2:
+        wr2_opp_corr.append(find_opp_knn_corr(home_te2, away_wr2, slate.site))
+    wr2_opp_corr.append(0.07)
+    wr2_opp_corr.append(find_opp_knn_corr(home_dst, away_wr2, slate.site))
+    wr2_opp_corr.append(find_knn_corr(away_qb, away_wr2, slate.site))
+    wr2_opp_corr.append(find_knn_corr(away_rb1, away_wr2, slate.site))
+    if away_rb2:
+        wr2_opp_corr.append(find_knn_corr(away_rb2, away_wr2, slate.site))
+    if away_rb3:
+        wr2_opp_corr.append(find_knn_corr(away_rb3, away_wr2, slate.site))
+    wr2_opp_corr.append(find_knn_corr(away_wr1, away_wr2, slate.site))
+    wr2_opp_corr.append(1.0)  # self
+    if away_wr3:
+        wr2_opp_corr.append(find_knn_corr(away_wr2, away_wr3, slate.site))
+    if away_wr4:
+        wr2_opp_corr.append(find_knn_corr(away_wr2, away_wr4, slate.site))
+    if away_wr5:
+        wr2_opp_corr.append(find_knn_corr(away_wr2, away_wr5, slate.site))
+    wr2_opp_corr.append(find_knn_corr(away_wr2, away_te1, slate.site))
+    if away_te2:
+        wr2_opp_corr.append(find_knn_corr(away_wr2, away_te2, slate.site))
+    wr2_opp_corr.append(0.00)
+    wr2_opp_corr.append(find_knn_corr(away_wr2, away_dst, slate.site))
+    correlations.append(wr2_opp_corr)
+    
+    # OPP WR3
+    logger.info('OPP WR3')
+    if away_wr3:
+        wr3_opp_corr = []
+        wr3_opp_corr.append(find_opp_knn_corr(home_qb, away_wr3, slate.site))
+        wr3_opp_corr.append(find_opp_knn_corr(home_rb1, away_wr3, slate.site))
+        if home_rb2:
+            wr3_opp_corr.append(find_opp_knn_corr(home_rb2, away_wr3, slate.site))
+        if home_rb3:
+            wr3_opp_corr.append(find_opp_knn_corr(home_rb3, away_wr3, slate.site))
+        wr3_opp_corr.append(find_opp_knn_corr(home_wr1, away_wr3, slate.site))
+        wr3_opp_corr.append(find_opp_knn_corr(home_wr2, away_wr3, slate.site))
+        if home_wr3:
+            wr3_opp_corr.append(find_opp_knn_corr(home_wr3, away_wr3, slate.site))
+        if home_wr4:
+            wr3_opp_corr.append(find_opp_knn_corr(home_wr4, away_wr3, slate.site))
+        if home_wr5:
+            wr3_opp_corr.append(find_opp_knn_corr(home_wr5, away_wr3, slate.site))
+        wr3_opp_corr.append(find_opp_knn_corr(home_te1, away_wr3, slate.site))
+        if home_te2:
+            wr3_opp_corr.append(find_opp_knn_corr(home_te2, away_wr3, slate.site))
+        wr3_opp_corr.append(-0.01)
+        wr3_opp_corr.append(find_opp_knn_corr(home_dst, away_wr3, slate.site))
+        wr3_opp_corr.append(find_knn_corr(away_qb, away_wr3, slate.site))
+        wr3_opp_corr.append(find_knn_corr(away_rb1, away_wr3, slate.site))
+        if away_rb2:
+            wr3_opp_corr.append(find_knn_corr(away_rb2, away_wr3, slate.site))
+        if away_rb3:
+            wr3_opp_corr.append(find_knn_corr(away_rb3, away_wr3, slate.site))
+        wr3_opp_corr.append(find_knn_corr(away_wr1, away_wr3, slate.site))
+        wr3_opp_corr.append(find_knn_corr(away_wr2, away_wr3, slate.site))
+        wr3_opp_corr.append(1.0)  # self
+        if away_wr4:
+            wr3_opp_corr.append(find_knn_corr(away_wr3, away_wr4, slate.site))
+        if away_wr5:
+            wr3_opp_corr.append(find_knn_corr(away_wr3, away_wr5, slate.site))
+        wr3_opp_corr.append(find_knn_corr(away_wr3, away_te1, slate.site))
+        if away_te2:
+            wr3_opp_corr.append(find_knn_corr(away_wr3, away_te2, slate.site))
+        wr3_opp_corr.append(0.00)
+        wr3_opp_corr.append(find_knn_corr(away_wr3, away_dst, slate.site))
+        correlations.append(wr3_opp_corr)
+    
+    # OPP WR4
+    logger.info('OPP WR4')
+    if away_wr4:
+        wr4_opp_corr = []
+        wr4_opp_corr.append(find_opp_knn_corr(home_qb, away_wr4, slate.site))
+        wr4_opp_corr.append(find_opp_knn_corr(home_rb1, away_wr4, slate.site))
+        if home_rb2:
+            wr4_opp_corr.append(find_opp_knn_corr(home_rb2, away_wr4, slate.site))
+        if home_rb3:
+            wr4_opp_corr.append(find_opp_knn_corr(home_rb3, away_wr4, slate.site))
+        wr4_opp_corr.append(find_opp_knn_corr(home_wr1, away_wr4, slate.site))
+        wr4_opp_corr.append(find_opp_knn_corr(home_wr2, away_wr4, slate.site))
+        if home_wr3:
+            wr4_opp_corr.append(find_opp_knn_corr(home_wr3, away_wr4, slate.site))
+        if home_wr4:
+            wr4_opp_corr.append(find_opp_knn_corr(home_wr4, away_wr4, slate.site))
+        if home_wr5:
+            wr4_opp_corr.append(find_opp_knn_corr(home_wr5, away_wr4, slate.site))
+        wr4_opp_corr.append(find_opp_knn_corr(home_te1, away_wr4, slate.site))
+        if home_te2:
+            wr4_opp_corr.append(find_opp_knn_corr(home_te2, away_wr4, slate.site))
+        wr4_opp_corr.append(-0.01)
+        wr4_opp_corr.append(find_opp_knn_corr(home_dst, away_wr4, slate.site))
+        wr4_opp_corr.append(find_knn_corr(away_qb, away_wr4, slate.site))
+        wr4_opp_corr.append(find_knn_corr(away_rb1, away_wr4, slate.site))
+        if away_rb2:
+            wr4_opp_corr.append(find_knn_corr(away_rb2, away_wr4, slate.site))
+        if away_rb3:
+            wr4_opp_corr.append(find_knn_corr(away_rb3, away_wr4, slate.site))
+        wr4_opp_corr.append(find_knn_corr(away_wr1, away_wr4, slate.site))
+        wr4_opp_corr.append(find_knn_corr(away_wr2, away_wr4, slate.site))
+        if away_wr3:
+            wr4_opp_corr.append(find_knn_corr(away_wr3, away_wr4, slate.site))
+        wr4_opp_corr.append(1.0)  # self
+        if away_wr5:
+            wr4_opp_corr.append(find_knn_corr(away_wr4, away_wr5, slate.site))
+        wr4_opp_corr.append(find_knn_corr(away_wr4, away_te1, slate.site))
+        if away_te2:
+            wr4_opp_corr.append(find_knn_corr(away_wr4, away_te2, slate.site))
+        wr4_opp_corr.append(0.01)
+        wr4_opp_corr.append(find_knn_corr(away_wr4, away_dst, slate.site))
+        correlations.append(wr4_opp_corr)
+    
+    # OPP WR5
+    logger.info('OPP WR5')
+    if away_wr5:
+        wr5_opp_corr = []
+        wr5_opp_corr.append(find_opp_knn_corr(home_qb, away_wr5, slate.site))
+        wr5_opp_corr.append(find_opp_knn_corr(home_rb1, away_wr5, slate.site))
+        if home_rb2:
+            wr5_opp_corr.append(find_opp_knn_corr(home_rb2, away_wr5, slate.site))
+        if home_rb3:
+            wr5_opp_corr.append(find_opp_knn_corr(home_rb3, away_wr5, slate.site))
+        wr5_opp_corr.append(find_opp_knn_corr(home_wr1, away_wr5, slate.site))
+        wr5_opp_corr.append(find_opp_knn_corr(home_wr2, away_wr5, slate.site))
+        if home_wr3:
+            wr5_opp_corr.append(find_opp_knn_corr(home_wr3, away_wr5, slate.site))
+        if home_wr4:
+            wr5_opp_corr.append(find_opp_knn_corr(home_wr4, away_wr5, slate.site))
+        if home_wr5:
+            wr5_opp_corr.append(find_opp_knn_corr(home_wr5, away_wr5, slate.site))
+        wr5_opp_corr.append(find_opp_knn_corr(home_te1, away_wr5, slate.site))
+        if home_te2:
+            wr5_opp_corr.append(find_opp_knn_corr(home_te2, away_wr5, slate.site))
+        wr5_opp_corr.append(-0.01)
+        wr5_opp_corr.append(find_opp_knn_corr(home_dst, away_wr5, slate.site))
+        wr5_opp_corr.append(find_knn_corr(away_qb, away_wr5, slate.site))
+        wr5_opp_corr.append(find_knn_corr(away_rb1, away_wr5, slate.site))
+        if away_rb2:
+            wr5_opp_corr.append(find_knn_corr(away_rb2, away_wr5, slate.site))
+        if away_rb3:
+            wr5_opp_corr.append(find_knn_corr(away_rb3, away_wr5, slate.site))
+        wr5_opp_corr.append(find_knn_corr(away_wr1, away_wr5, slate.site))
+        wr5_opp_corr.append(find_knn_corr(away_wr2, away_wr5, slate.site))
+        if away_wr3:
+            wr5_opp_corr.append(find_knn_corr(away_wr3, away_wr5, slate.site))
+        if away_wr4:
+            wr5_opp_corr.append(find_knn_corr(away_wr4, away_wr5, slate.site))
+        wr5_opp_corr.append(1.0)  # self
+        wr5_opp_corr.append(find_knn_corr(away_wr5, away_te1, slate.site))
+        if away_te2:
+            wr5_opp_corr.append(find_knn_corr(away_wr5, away_te2, slate.site))
+        wr5_opp_corr.append(0.00)
+        wr5_opp_corr.append(find_knn_corr(away_wr5, away_dst, slate.site))
+        correlations.append(wr5_opp_corr)
+
+    # OPP TE1
+    logger.info('OPP TE1')
+    te1_opp_corr = []
+    te1_opp_corr.append(find_opp_knn_corr(home_qb, away_te1, slate.site))
+    te1_opp_corr.append(find_opp_knn_corr(home_rb1, away_te1, slate.site))
+    if home_rb2:
+        te1_opp_corr.append(find_opp_knn_corr(home_rb2, away_te1, slate.site))
+    if home_rb3:
+        te1_opp_corr.append(find_opp_knn_corr(home_rb3, away_te1, slate.site))
+    te1_opp_corr.append(find_opp_knn_corr(home_wr1, away_te1, slate.site))
+    te1_opp_corr.append(find_opp_knn_corr(home_wr2, away_te1, slate.site))
+    if home_wr3:
+        te1_opp_corr.append(find_opp_knn_corr(home_wr3, away_te1, slate.site))
+    if home_wr4:
+        te1_opp_corr.append(find_opp_knn_corr(home_wr4, away_te1, slate.site))
+    if home_wr5:
+        te1_opp_corr.append(find_opp_knn_corr(home_wr5, away_te1, slate.site))
+    te1_opp_corr.append(find_opp_knn_corr(home_te1, away_te1, slate.site))
+    if home_te2:
+        te1_opp_corr.append(find_opp_knn_corr(home_te2, away_te1, slate.site))
+    te1_opp_corr.append(0.00)
+    te1_opp_corr.append(find_opp_knn_corr(home_dst, away_te1, slate.site))
+    te1_opp_corr.append(find_knn_corr(away_qb, away_te1, slate.site))
+    te1_opp_corr.append(find_knn_corr(away_rb1, away_te1, slate.site))
+    if away_rb2:
+        te1_opp_corr.append(find_knn_corr(away_rb2, away_te1, slate.site))
+    if away_rb3:
+        te1_opp_corr.append(find_knn_corr(away_rb3, away_te1, slate.site))
+    te1_opp_corr.append(find_knn_corr(away_wr1, away_te1, slate.site))
+    te1_opp_corr.append(find_knn_corr(away_wr2, away_te1, slate.site))
+    if away_wr3:
+        te1_opp_corr.append(find_knn_corr(away_wr3, away_te1, slate.site))
+    if away_wr4:
+        te1_opp_corr.append(find_knn_corr(away_wr4, away_te1, slate.site))
+    if away_wr5:
+        te1_opp_corr.append(find_knn_corr(away_wr5, away_te1, slate.site))
+    te1_opp_corr.append(1.0)  # self
+    if away_te2:
+        te1_opp_corr.append(find_knn_corr(away_te1, away_te2, slate.site))
+    te1_opp_corr.append(0.05)
+    te1_opp_corr.append(find_knn_corr(away_te1, away_dst, slate.site))
+    correlations.append(te1_opp_corr)
+
+    # OPP TE2
+    logger.info('OPP TE2')
+    if away_te2:
+        te2_opp_corr = []
+        te2_opp_corr.append(find_opp_knn_corr(home_qb, away_te2, slate.site))
+        te2_opp_corr.append(find_opp_knn_corr(home_rb1, away_te2, slate.site))
+        if home_rb2:
+            te2_opp_corr.append(find_opp_knn_corr(home_rb2, away_te2, slate.site))
+        if home_rb3:
+            te2_opp_corr.append(find_opp_knn_corr(home_rb3, away_te2, slate.site))
+        te2_opp_corr.append(find_opp_knn_corr(home_wr1, away_te2, slate.site))
+        te2_opp_corr.append(find_opp_knn_corr(home_wr2, away_te2, slate.site))
+        if home_wr3:
+            te2_opp_corr.append(find_opp_knn_corr(home_wr3, away_te2, slate.site))
+        if home_wr4:
+            te2_opp_corr.append(find_opp_knn_corr(home_wr4, away_te2, slate.site))
+        if home_wr5:
+            te2_opp_corr.append(find_opp_knn_corr(home_wr5, away_te2, slate.site))
+        te2_opp_corr.append(find_opp_knn_corr(home_te1, away_te2, slate.site))
+        if home_te2:
+            te2_opp_corr.append(find_opp_knn_corr(home_te2, away_te2, slate.site))
+        te2_opp_corr.append(0.00)
+        te2_opp_corr.append(find_opp_knn_corr(home_dst, away_te2, slate.site))
+        te2_opp_corr.append(find_knn_corr(away_qb, away_te2, slate.site))
+        te2_opp_corr.append(find_knn_corr(away_rb1, away_te2, slate.site))
+        if away_rb2:
+            te2_opp_corr.append(find_knn_corr(away_rb2, away_te2, slate.site))
+        if away_rb3:
+            te2_opp_corr.append(find_knn_corr(away_rb3, away_te2, slate.site))
+        te2_opp_corr.append(find_knn_corr(away_wr1, away_te2, slate.site))
+        te2_opp_corr.append(find_knn_corr(away_wr2, away_te2, slate.site))
+        if away_wr3:
+            te2_opp_corr.append(find_knn_corr(away_wr3, away_te2, slate.site))
+        if away_wr4:
+            te2_opp_corr.append(find_knn_corr(away_wr4, away_te2, slate.site))
+        if away_wr5:
+            te2_opp_corr.append(find_knn_corr(away_wr5, away_te2, slate.site))
+        te2_opp_corr.append(find_knn_corr(away_te1, away_te2, slate.site))
+        te2_opp_corr.append(1.0)  # self
+        te2_opp_corr.append(0.04)
+        te2_opp_corr.append(find_knn_corr(away_te2, away_dst, slate.site))
+        correlations.append(te2_opp_corr)
+
+    # OPP K
+    logger.info('OPP K')
+    k_opp_corr = []
+    k_opp_corr.append(-0.03)
+    k_opp_corr.append(-0.07)
+    if away_rb2:
+        k_opp_corr.append(-0.08)
+    if away_rb3:
+        k_opp_corr.append(-0.09)
+    k_opp_corr.append(0.01)
+    k_opp_corr.append(0.07)
+    if away_wr3:
+        k_opp_corr.append(-0.01)
+    if away_wr4:
+        k_opp_corr.append(-0.01)
+    if away_wr5:
+        k_opp_corr.append(-0.01)
+    k_opp_corr.append(0.0)
+    if away_te2:
+        k_opp_corr.append(0.0)
+    k_opp_corr.append(-0.05)
+    k_opp_corr.append(-0.33)
+    k_opp_corr.append(0.1)
+    k_opp_corr.append(0.06)
+    if home_rb2:
+        k_opp_corr.append(0.06)
+    if home_rb3:
+        k_opp_corr.append(0.06)
+    k_opp_corr.append(0.05)
+    k_opp_corr.append(0)
+    if home_wr3:
+        k_opp_corr.append(0.0)
+    if home_wr4:
+        k_opp_corr.append(0.01)
+    if home_wr5:
+        k_opp_corr.append(0)
+    k_opp_corr.append(0.05)
+    if home_te2:
+        k_opp_corr.append(0.04)
+    k_opp_corr.append(1.0)
+    k_opp_corr.append(0.13)
+    correlations.append(k_opp_corr)
+
+    # OPP DST
+    logger.info('OPP DST')
+    dst_opp_corr = []
+    dst_opp_corr.append(find_opp_knn_corr(home_qb, away_dst, slate.site))
+    dst_opp_corr.append(find_opp_knn_corr(home_rb1, away_dst, slate.site))
+    if home_rb2:
+        dst_opp_corr.append(find_opp_knn_corr(home_rb2, away_dst, slate.site))
+    if home_rb3:
+        dst_opp_corr.append(find_opp_knn_corr(home_rb3, away_dst, slate.site))
+    dst_opp_corr.append(find_opp_knn_corr(home_wr1, away_dst, slate.site))
+    dst_opp_corr.append(find_opp_knn_corr(home_wr2, away_dst, slate.site))
+    if home_wr3:
+        dst_opp_corr.append(find_opp_knn_corr(home_wr3, away_dst, slate.site))
+    if home_wr4:
+        dst_opp_corr.append(find_opp_knn_corr(home_wr4, away_dst, slate.site))
+    if home_wr5:
+        dst_opp_corr.append(find_opp_knn_corr(home_wr5, away_dst, slate.site))
+    dst_opp_corr.append(find_opp_knn_corr(home_te1, away_dst, slate.site))
+    if home_te2:
+        dst_opp_corr.append(find_opp_knn_corr(home_te2, away_dst, slate.site))
+    dst_opp_corr.append(-0.33)
+    dst_opp_corr.append(find_opp_knn_corr(home_dst, away_dst, slate.site))
+    dst_opp_corr.append(find_knn_corr(away_qb, away_dst, slate.site))
+    dst_opp_corr.append(find_knn_corr(away_rb1, away_dst, slate.site))
+    if away_rb2:
+        dst_opp_corr.append(find_knn_corr(away_rb2, away_dst, slate.site))
+    if away_rb3:
+        dst_opp_corr.append(find_knn_corr(away_rb3, away_dst, slate.site))
+    dst_opp_corr.append(find_knn_corr(away_wr1, away_dst, slate.site))
+    dst_opp_corr.append(find_knn_corr(away_wr2, away_dst, slate.site))
+    if away_wr3:
+        dst_opp_corr.append(find_knn_corr(away_wr3, away_dst, slate.site))
+    if away_wr4:
+        dst_opp_corr.append(find_knn_corr(away_wr4, away_dst, slate.site))
+    if away_wr5:
+        dst_opp_corr.append(find_knn_corr(away_wr5, away_dst, slate.site))
+    dst_opp_corr.append(find_knn_corr(away_te1, away_dst, slate.site))
+    if away_te2:
+        dst_opp_corr.append(find_knn_corr(away_te2, away_dst, slate.site))
+    dst_opp_corr.append(0.13)
+    dst_opp_corr.append(1.0)  # self
+    correlations.append(dst_opp_corr)
+
+    A = pandas.DataFrame(correlations)
+    utils.find_symmetric(A)
+
+    df = pandas.DataFrame(utils.nearcorr(A), columns=[
+        'qb',
+        'rb1',
+        'rb2',
+        'rb3',
+        'wr1',
+        'wr2',
+        'wr3',
+        'wr4',
+        'wr5',
+        'te1',
+        'te2',
+        'k',
+        'dst',
+        'opp qb',
+        'opp rb1',
+        'opp rb2',
+        'opp rb3',
+        'opp wr1',
+        'opp wr2',
+        'opp wr3',
+        'opp wr4',
+        'opp wr5',
+        'opp te1',
+        'opp te2',
+        'opp k',
+        'opp dst',
+    ], index=[
+        'qb',
+        'rb1',
+        'rb2',
+        'rb3',
+        'wr1',
+        'wr2',
+        'wr3',
+        'wr4',
+        'wr5',
+        'te1',
+        'te2',
+        'k',
+        'dst',
+        'opp qb',
+        'opp rb1',
+        'opp rb2',
+        'opp rb3',
+        'opp wr1',
+        'opp wr2',
+        'opp wr3',
+        'opp wr4',
+        'opp wr5',
+        'opp te1',
+        'opp te2',
+        'opp k',
+        'opp dst',
+    ])
+    logger.info(df)
+    return df
+
+
+    # if game.slate.site == 'fanduel' or game.slate.site == 'yahoo':
+    #     r_df = pandas.read_csv('data/r.csv', index_col=0)
+    # elif game.slate.site == 'draftkings':
+    #     if is_sd:
+    #         r_df = pandas.read_csv('data/dk_r_sd.csv', index_col=0)
+    #     else:
+    #         r_df = pandas.read_csv('data/dk_r.csv', index_col=0)
+    # logger.info(r_df)
+    # return r_df
 
 
 @shared_task
@@ -1234,10 +2638,10 @@ def simulate_game(game_id, task_id):
             dst_label = 'DST' 
 
         # set up correlation
-        r_df = get_corr_matrix(game.slate.site, game.slate.is_showdown)
+        r_df = get_corr_matrix(game, game.slate.is_showdown)
         c_target = r_df.to_numpy()
         r0 = [0] * c_target.shape[0]
-        mv_norm = scipy.stats.multivariate_normal(mean=r0, cov=c_target)
+        mv_norm = scipy.stats.multivariate_normal(mean=r0, cov=c_target, allow_singular=True)
         rand_Nmv = mv_norm.rvs(N) 
         rand_U = scipy.stats.norm.cdf(rand_Nmv)
 
@@ -2946,7 +4350,7 @@ def initialize_backtest(backtest_id):
         backtest = models.Backtest.objects.get(id=backtest_id)
         backtest.reset()
     except Exception as exc:
-        traceback.print_exc()
+        traceback.logger.info_exc()
 
         backtest.status = 'error'
         backtest.error_message = str(exc)
@@ -2959,7 +4363,7 @@ def prepare_projections_for_backtest(backtest_id):
         backtest = models.Backtest.objects.get(id=backtest_id)
         backtest.prepare_projections()
     except Exception as exc:
-        traceback.print_exc()
+        traceback.logger.info_exc()
 
         backtest.status = 'error'
         backtest.error_message = str(exc)
@@ -2972,7 +4376,7 @@ def prepare_construction_for_backtest(backtest_id):
         backtest = models.Backtest.objects.get(id=backtest_id)
         backtest.prepare_construction()
     except Exception as exc:
-        traceback.print_exc()
+        traceback.logger.info_exc()
 
         backtest.status = 'error'
         backtest.error_message = str(exc)
@@ -2985,7 +4389,7 @@ def analyze_backtest(backtest_id):
         backtest = models.Backtest.objects.get(id=backtest_id)
         backtest.analyze()
     except Exception as exc:
-        traceback.print_exc()
+        traceback.logger.info_exc()
 
 
 @shared_task
@@ -2994,7 +4398,7 @@ def prepare_projections(build_id):
         build = models.SlateBuild.objects.get(id=build_id)
         build.prepare_projections()
     except Exception as exc:
-        traceback.print_exc()
+        traceback.logger.info_exc()
 
         build.status = 'error'
         build.error_message = str(exc)
@@ -3007,7 +4411,7 @@ def prepare_construction(build_id):
         build = models.SlateBuild.objects.get(id=build_id)
         build.prepare_construction()
     except Exception as exc:
-        traceback.print_exc()
+        traceback.logger.info_exc()
 
         build.status = 'error'
         build.error_message = str(exc)
@@ -3180,7 +4584,7 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
 
     qb_lineup_count = round(float(qb.projection)/float(total_qb_projection) * float(build.total_lineups))
 
-    print('Making stacks for {} {} lineups...'.format(qb_lineup_count, qb.name))
+    logger.info('Making stacks for {} {} lineups...'.format(qb_lineup_count, qb.name))
     stack_players = build.projections.filter(
         Q(Q(slate_player__site_pos__in=build.configuration.qb_stack_positions) | Q(slate_player__site_pos__in=build.configuration.opp_qb_stack_positions))
     ).filter(
@@ -3439,7 +4843,7 @@ def create_stacks_for_qb(build_id, qb_id, total_qb_projection):
 
     total_stack_projection = models.SlateBuildStack.objects.filter(build=build, qb=qb).aggregate(total_projection=Sum('projection')).get('total_projection')
     for stack in models.SlateBuildStack.objects.filter(build=build, qb=qb):
-        print(stack, stack.projection/total_stack_projection, round(stack.projection/total_stack_projection * qb_lineup_count, 0))
+        logger.info(stack, stack.projection/total_stack_projection, round(stack.projection/total_stack_projection * qb_lineup_count, 0))
         stack.count = round(max(stack.projection/total_stack_projection * qb_lineup_count, 1), 0)
         # stack.count = 20
         stack.save()
@@ -3546,7 +4950,7 @@ def run_backtest(backtest_id, user_id):
         user = User.objects.get(pk=user_id)
         backtest.execute(user)
     except Exception as exc:
-        traceback.print_exc()
+        traceback.logger.info_exc()
 
         backtest.status = 'error'
         backtest.error_message = str(exc)
@@ -3559,7 +4963,7 @@ def find_optimals_for_backtest(backtest_id):
         backtest = models.Backtest.objects.get(id=backtest_id)
         backtest.find_optimals()
     except Exception as exc:
-        traceback.print_exc()
+        traceback.logger.info_exc()
 
         backtest.status = 'error'
         backtest.error_message = str(exc)
@@ -3572,7 +4976,7 @@ def speed_test(build_id):
         build = models.SlateBuild.objects.get(id=build_id)
         build.speed_test()
     except Exception as exc:
-        traceback.print_exc()
+        traceback.logger.info_exc()
 
         build.status = 'error'
         build.error_message = str(exc)
@@ -3586,7 +4990,7 @@ def run_slate_for_backtest(backtest_slate_id, user_id):
         user = User.objects.get(pk=user_id)
         slate.execute(user)
     except Exception as exc:
-        traceback.print_exc()
+        traceback.logger.info_exc()
         if slate is not None:
             slate.handle_exception(exc)        
 
@@ -3868,7 +5272,7 @@ def build_complete(build_id, task_id):
 
 @shared_task
 def build_completed_with_error(request, exc, traceback):
-    print('Task {0!r} raised error: {1!r}'.format(request.id, exc))
+    logger.info('Task {0!r} raised error: {1!r}'.format(request.id, exc))
 
 
 @shared_task
@@ -3883,7 +5287,7 @@ def build_optimals_for_stack(stack_id):
         stack.optimals_created = True
         stack.save()
     except:
-        traceback.print_exc()
+        traceback.logger.info_exc()
 
 
 @shared_task
@@ -5755,7 +7159,7 @@ def process_ownership_sheet(chained_results, sheet_id, task_id):
                             try:
                                 projection.save()
                             except:
-                                traceback.print_exc()
+                                traceback.logger.info_exc()
 
                             success_count += 1
 
@@ -6157,7 +7561,7 @@ def sim_outcomes_for_stacks(stack_ids, task_id):
                     stack.calc_sim_scores()
                     count += 1
                 except:
-                    traceback.print_exc()
+                    traceback.logger.info_exc()
         
         task.status = 'success'
         task.content = 'Calculated simulated outcomes for {} out of {} stacks.'.format(count, len(stack_ids))
@@ -6444,8 +7848,8 @@ def get_lineup_roi(lineup_id, slate_id, contest_id):
     # result_path = os.path.join(result_path, result_file)
     # df_payouts.to_csv(result_path)
 
-    # print(df_payouts)
+    # logger.info(df_payouts)
     roi = (df_payouts.loc[0, "sum"]  - (float(contest.cost * 10000))) / (float(contest.cost * 10000))
     lineup.roi = roi
     lineup.save()
-    print(f'ROI = {roi*100}%')
+    logger.info(f'ROI = {roi*100}%')

@@ -98,6 +98,7 @@ def run():
         'opp te2',
         'opp dst',
     ])
+    print(v)
 
     r = v.corr(method='pearson')
     print(r)
