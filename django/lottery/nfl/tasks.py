@@ -1433,38 +1433,62 @@ def get_corr_matrix(game, is_sd=False):
     qb_corr.append(find_knn_corr(home_qb, home_rb1, slate.site))
     if home_rb2:
         qb_corr.append(find_knn_corr(home_qb, home_rb2, slate.site))
+    else:
+        qb_corr.append(-0.025622789)
     if home_rb3:
         qb_corr.append(find_knn_corr(home_qb, home_rb3, slate.site))
+    else:
+        qb_corr.append(-0.047290854)
     qb_corr.append(find_knn_corr(home_qb, home_wr1, slate.site))
     qb_corr.append(find_knn_corr(home_qb, home_wr2, slate.site))
     if home_wr3:
         qb_corr.append(find_knn_corr(home_qb, home_wr3, slate.site))
+    else:
+        qb_corr.append(0.330832863)
     if home_wr4:
         qb_corr.append(find_knn_corr(home_qb, home_wr4, slate.site))
+    else:
+        qb_corr.append(0.187754957)
     if home_wr5:
         qb_corr.append(find_knn_corr(home_qb, home_wr5, slate.site))
+    else:
+        qb_corr.append(0.013339649)
     qb_corr.append(find_knn_corr(home_qb, home_te1, slate.site))
     if home_te2:
         qb_corr.append(find_knn_corr(home_qb, home_te2, slate.site))
+    else:
+        qb_corr.append(-0.006143195)
     qb_corr.append(0.1)
     qb_corr.append(find_knn_corr(home_qb, home_dst, slate.site))
     qb_corr.append(find_opp_knn_corr(home_qb, away_qb, slate.site))
     qb_corr.append(find_opp_knn_corr(home_qb, away_rb1, slate.site))
     if away_rb2:
         qb_corr.append(find_opp_knn_corr(home_qb, away_rb2, slate.site))
+    else:
+        qb_corr.append(-0.042254506)
     if away_rb3:
         qb_corr.append(find_opp_knn_corr(home_qb, away_rb3, slate.site))
+    else:
+        qb_corr.append(-0.084554648)
     qb_corr.append(find_opp_knn_corr(home_qb, away_wr1, slate.site))
     qb_corr.append(find_opp_knn_corr(home_qb, away_wr2, slate.site))
     if away_wr3:
         qb_corr.append(find_opp_knn_corr(home_qb, away_wr3, slate.site))
+    else:
+        qb_corr.append(0.076309881)
     if away_wr4:
         qb_corr.append(find_opp_knn_corr(home_qb, away_wr4, slate.site))
+    else:
+        qb_corr.append(-0.086595947)
     if away_wr5:
         qb_corr.append(find_opp_knn_corr(home_qb, away_wr5, slate.site))
+    else:
+        qb_corr.append(-0.058950959)
     qb_corr.append(find_opp_knn_corr(home_qb, away_te1, slate.site))
     if away_te2:
         qb_corr.append(find_opp_knn_corr(home_qb, away_te2, slate.site))
+    else:
+        qb_corr.append(-0.055769524)
     qb_corr.append(-0.03)
     qb_corr.append(find_opp_knn_corr(home_qb, away_dst, slate.site))
     correlations.append(qb_corr)
@@ -2545,74 +2569,72 @@ def get_corr_matrix(game, is_sd=False):
     A = pandas.DataFrame(correlations)
     utils.find_symmetric(A)
 
-    df = pandas.DataFrame(utils.nearcorr(A), columns=[
-        'qb',
-        'rb1',
-        'rb2',
-        'rb3',
-        'wr1',
-        'wr2',
-        'wr3',
-        'wr4',
-        'wr5',
-        'te1',
-        'te2',
-        'k',
-        'dst',
-        'opp qb',
-        'opp rb1',
-        'opp rb2',
-        'opp rb3',
-        'opp wr1',
-        'opp wr2',
-        'opp wr3',
-        'opp wr4',
-        'opp wr5',
-        'opp te1',
-        'opp te2',
-        'opp k',
-        'opp dst',
-    ], index=[
-        'qb',
-        'rb1',
-        'rb2',
-        'rb3',
-        'wr1',
-        'wr2',
-        'wr3',
-        'wr4',
-        'wr5',
-        'te1',
-        'te2',
-        'k',
-        'dst',
-        'opp qb',
-        'opp rb1',
-        'opp rb2',
-        'opp rb3',
-        'opp wr1',
-        'opp wr2',
-        'opp wr3',
-        'opp wr4',
-        'opp wr5',
-        'opp te1',
-        'opp te2',
-        'opp k',
-        'opp dst',
-    ])
+    try:
+        df = pandas.DataFrame(utils.nearcorr(A), columns=[
+            'qb',
+            'rb1',
+            'rb2',
+            'rb3',
+            'wr1',
+            'wr2',
+            'wr3',
+            'wr4',
+            'wr5',
+            'te1',
+            'te2',
+            'k',
+            'dst',
+            'opp qb',
+            'opp rb1',
+            'opp rb2',
+            'opp rb3',
+            'opp wr1',
+            'opp wr2',
+            'opp wr3',
+            'opp wr4',
+            'opp wr5',
+            'opp te1',
+            'opp te2',
+            'opp k',
+            'opp dst',
+        ], index=[
+            'qb',
+            'rb1',
+            'rb2',
+            'rb3',
+            'wr1',
+            'wr2',
+            'wr3',
+            'wr4',
+            'wr5',
+            'te1',
+            'te2',
+            'k',
+            'dst',
+            'opp qb',
+            'opp rb1',
+            'opp rb2',
+            'opp rb3',
+            'opp wr1',
+            'opp wr2',
+            'opp wr3',
+            'opp wr4',
+            'opp wr5',
+            'opp te1',
+            'opp te2',
+            'opp k',
+            'opp dst',
+        ])
+    except:
+        if game.slate.site == 'fanduel' or game.slate.site == 'yahoo':
+            df = pandas.read_csv('data/r.csv', index_col=0)
+        elif game.slate.site == 'draftkings':
+            if is_sd:
+                df = pandas.read_csv('data/dk_r_sd.csv', index_col=0)
+            else:
+                df = pandas.read_csv('data/dk_r.csv', index_col=0)
     logger.info(df)
     return df
-
-
-    # if game.slate.site == 'fanduel' or game.slate.site == 'yahoo':
-    #     r_df = pandas.read_csv('data/r.csv', index_col=0)
-    # elif game.slate.site == 'draftkings':
-    #     if is_sd:
-    #         r_df = pandas.read_csv('data/dk_r_sd.csv', index_col=0)
-    #     else:
-    #         r_df = pandas.read_csv('data/dk_r.csv', index_col=0)
-    # logger.info(r_df)
-    # return r_df
 
 
 @shared_task
