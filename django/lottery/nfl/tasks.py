@@ -3349,13 +3349,16 @@ def simulate_game(game_id, task_id):
             cpt_away_wr4.s75 = numpy.percentile(cpt_away_wr4.sim_scores, 75)
             cpt_away_wr4.s90 = numpy.percentile(cpt_away_wr4.sim_scores, 90)
             cpt_away_wr4.save()
-        if cpt_away_wr5:
-            cpt_away_wr5.sim_scores = (numpy.round(rand_away_wr5, 2) * 1.5).tolist()
-            cpt_away_wr5.median = numpy.median(cpt_away_wr5.sim_scores)
-            cpt_away_wr5.s20 = numpy.percentile(cpt_away_wr5.sim_scores, 20)
-            cpt_away_wr5.s75 = numpy.percentile(cpt_away_wr5.sim_scores, 75)
-            cpt_away_wr5.s90 = numpy.percentile(cpt_away_wr5.sim_scores, 90)
-            cpt_away_wr5.save()
+        try:
+            if cpt_away_wr5:
+                cpt_away_wr5.sim_scores = (numpy.round(rand_away_wr5, 2) * 1.5).tolist()
+                cpt_away_wr5.median = numpy.median(cpt_away_wr5.sim_scores)
+                cpt_away_wr5.s20 = numpy.percentile(cpt_away_wr5.sim_scores, 20)
+                cpt_away_wr5.s75 = numpy.percentile(cpt_away_wr5.sim_scores, 75)
+                cpt_away_wr5.s90 = numpy.percentile(cpt_away_wr5.sim_scores, 90)
+                cpt_away_wr5.save()
+        except:
+            pass
         if cpt_away_te1:
             cpt_away_te1.sim_scores = (numpy.round(rand_away_te1, 2) * 1.5).tolist()
             cpt_away_te1.median = numpy.median(cpt_away_te1.sim_scores)
