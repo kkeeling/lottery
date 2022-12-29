@@ -1015,8 +1015,14 @@ def update_slate_from_mp(slate_id, task_id):
                         rush_att_projection = row[column_headers.column_rush_att_projection] if column_headers.column_rush_att_projection is not None and row[column_headers.column_rush_att_projection] != '' and not math.isnan(float(row[column_headers.column_rush_att_projection])) else 0.0
                         rec_projection = row[column_headers.column_rec_projection] if column_headers.column_rec_projection is not None and row[column_headers.column_rec_projection] != '' and not math.isnan(float(row[column_headers.column_rec_projection])) else 0.0
                         
-                        # TODO: don't include OP
-                        ownership_projection = float(row[column_headers.column_own_projection]) if column_headers.column_own_projection is not None and row[column_headers.column_own_projection] != '' and row[column_headers.column_own_projection] != '-' and not math.isnan(float(row[column_headers.column_own_projection])) else 0.0
+                        ownership_projection = row[column_headers.column_own_projection] if column_headers.column_own_projection is not None and row[column_headers.column_own_projection] != '' and row[column_headers.column_own_projection] != '-' else 0.0
+                        if type(ownership_projection) == str:
+                            ownership_projection = ownership_projection.replace('%', '')
+                        if math.isnan(float(ownership_projection)):
+                            ownership_projection = 0.0
+                        else:
+                            ownership_projection = float(ownership_projection)  # just in case value is a string
+                        # ownership_projection = float(row[column_headers.column_own_projection].replace('%', '')) if column_headers.column_own_projection is not None and row[column_headers.column_own_projection] != '' and row[column_headers.column_own_projection] != '-' and not math.isnan(float(str(row[column_headers.column_own_projection]).replace('%', ''))) else 0.0
 
                         if proj_src.projection_site == 'etr_all':
                             ownership_projection /= 100.0
