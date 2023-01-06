@@ -1332,6 +1332,17 @@ def find_opp_knn_corr(p1, p2, site):
     return round(comps['p1_actual'].corr(comps['p2_actual']), 4)
 
 
+def get_static_corr_matrix(game, is_sd=False):
+    if game.slate.site == 'fanduel' or game.slate.site == 'yahoo':
+        df = pandas.read_csv('data/r.csv', index_col=0)
+    elif game.slate.site == 'draftkings':
+        if is_sd:
+            df = pandas.read_csv('data/dk_r_sd.csv', index_col=0)
+        else:
+            df = pandas.read_csv('data/dk_r.csv', index_col=0)
+    return df
+
+
 def get_corr_matrix(game, is_sd=False):
     if game.slate.site == 'fanduel':
         dst_label = 'D' 
@@ -1340,6 +1351,9 @@ def get_corr_matrix(game, is_sd=False):
     else:
         dst_label = 'DST' 
     
+    if not is_sd:
+        return get_static_corr_matrix(game, False)
+
     # initialize variables
     slate = game.slate
     home_qb = None
@@ -2609,13 +2623,7 @@ def get_corr_matrix(game, is_sd=False):
         ])
     except:
         logger.error(f'Error creating corrlations for {game}. Using default correlation matrix.')
-        if game.slate.site == 'fanduel' or game.slate.site == 'yahoo':
-            df = pandas.read_csv('data/r.csv', index_col=0)
-        elif game.slate.site == 'draftkings':
-            if is_sd:
-                df = pandas.read_csv('data/dk_r_sd.csv', index_col=0)
-            else:
-                df = pandas.read_csv('data/dk_r.csv', index_col=0)
+        df = get_static_corr_matrix(game, True)
     logger.info(df)
     return df
 
