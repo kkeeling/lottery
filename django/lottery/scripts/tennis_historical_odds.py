@@ -157,9 +157,9 @@ def run():
         # break
         wta_frames[year] = df_merged
 
-    with pd.ExcelWriter('data/wta_odds.xlsx') as writer:
-        for year in years:
-            wta_frames[year].to_excel(writer, sheet_name=year)
+    # with pd.ExcelWriter('data/wta_odds.xlsx') as writer:
+    #     for year in years:
+    #         wta_frames[year].to_excel(writer, sheet_name=year)
 
     # for year in years:
     #     url = f'http://www.tennis-data.co.uk/{year}w/{year}.xlsx'
