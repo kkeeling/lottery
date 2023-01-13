@@ -1044,7 +1044,7 @@ def update_slate_from_mp(slate_id, task_id):
                             alias = models.Alias.find_alias(player_name, proj_src.projection_site)
                         elif proj_src.projection_site.startswith('linestar'):
                             ownership_projection /= 100.0
-                            alias = models.Alias.find_alias(player_name, proj_src.projection_site)
+                            alias = models.Alias.find_alias(player_name, slate.site if bool(mp.projection_sheet.name) else proj_src.projection_site)  # use site name if market projection is from csv, otherwise use projection site alias
                         elif proj_src.projection_site == 'sabersim':
                             ownership_projection /= 100.0
                             alias = models.Alias.find_alias(player_name, proj_src.projection_site)
