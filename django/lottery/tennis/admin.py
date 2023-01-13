@@ -112,10 +112,6 @@ class ActivePlayerFilter(SimpleListFilter):
         return queryset
 
 
-class RankingHistoryInline(admin.TabularInline):
-    model = models.RankingHistory
-
-
 class PinnacleMatchOddsInline(admin.TabularInline):
     model = models.PinnacleMatchOdds
     extra = 0
@@ -152,14 +148,14 @@ class PlayerAdmin(admin.ModelAdmin):
         'full_name',
         'tour',
         'hand',
-        'dob',
+        # 'dob',
         'country',
-        'get_num_matches',
-        'get_ace_rate',
-        'get_v_ace_rate',
-        'get_df_rate',
-        'get_hold_rate',
-        'get_break_rate',
+        # 'get_num_matches',
+        # 'get_ace_rate',
+        # 'get_v_ace_rate',
+        # 'get_df_rate',
+        # 'get_hold_rate',
+        # 'get_break_rate',
     )
 
     list_filter = (
@@ -178,7 +174,7 @@ class PlayerAdmin(admin.ModelAdmin):
     ]
 
     inlines = [
-        RankingHistoryInline
+        # RankingHistoryInline
     ]
 
     def get_num_matches(self, obj):

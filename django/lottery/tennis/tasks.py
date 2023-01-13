@@ -6,9 +6,9 @@ import math
 import numpy
 import os
 import pandas
-import pandasql
 import requests
 import scipy
+import sqlalchemy
 import sys
 import time
 import traceback
@@ -154,6 +154,17 @@ WTA_MATCH_FILES = [
     'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2022.csv'
 ]
 
+user = settings.DATABASES['default']['USER']
+password = settings.DATABASES['default']['PASSWORD']
+database_name = settings.DATABASES['default']['NAME']
+database_url = 'postgresql://{user}:{password}@db:5432/{database_name}'.format(
+    user=user,
+    password=password,
+    database_name=database_name,
+)
+
+engine = sqlalchemy.create_engine(database_url, echo=False)
+
 
 # ensures that tasks only run once at most!
 @contextmanager
@@ -169,158 +180,254 @@ def lock_task(key, timeout=None):
             lock.release()
 
 
-@shared_task
-def update_player_list_from_ta(tour):
+def upsert_df(df: pandas.DataFrame, table_name: str, engine: sqlalchemy.engine.Engine):
+    """Implements the equivalent of pandas.DataFrame.to_sql(..., if_exists='update')
+    (which does not exist). Creates or updates the db records based on the
+    dataframe records.
+    Conflicts to determine update are based on the dataframes index.
+    This will set primary keys on the table equal to the index names
+    1. Create a temp table from the dataframe
+    2. Insert/update from temp table into table_name
+    Returns: True if successful
+    """
+
+    # If the table does not exist, we should just use to_sql to create it
+    if not engine.execute(
+        f"""SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE  table_schema = 'public'
+            AND    table_name   = '{table_name}');
+            """
+    ).first()[0]:
+        df.to_sql(table_name, engine)
+        return True
+
+    # If it already exists...
+    temp_table_name = f"temp_{uuid.uuid4().hex[:6]}"
+    df.to_sql(temp_table_name, engine, index=True)
+
+    index = list(df.index.names)
+    index_sql_txt = ", ".join([f'"{i}"' for i in index])
+    columns = list(df.columns)
+    headers = index + columns
+    headers_sql_txt = ", ".join(
+        [f'"{i}"' for i in headers]
+    )  # index1, index2, ..., column 1, col2, ...
+
+    # col1 = exluded.col1, col2=excluded.col2
+    update_column_stmt = ", ".join([f'"{col}" = EXCLUDED."{col}"' for col in columns])
+
+    # For the ON CONFLICT clause, postgres requires that the columns have unique constraint
+    query_pk = f"""
+    ALTER TABLE "{table_name}" ADD CONSTRAINT {table_name}_unique_constraint_for_upsert UNIQUE ({index_sql_txt});
+    """
     try:
-        if tour == 'atp':
-            url = 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_players.csv'
-        else:
-            url = 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_players.csv'
-
-        # ATP Players
-        with requests.Session() as s:
-            download = s.get(url)
-            decoded_content = download.content.decode('latin-1')
-
-            cr = csv.DictReader(decoded_content.splitlines())
-            # cr = csv.reader(decoded_content.splitlines(), delimiter=',')
-            rows = list(cr)
-            for row in rows:
-                try:
-                    dob = datetime.datetime.strptime(row['dob'], '%Y%m%d').date()
-                except:
-                    dob = None
-                
-                try:
-                    player = models.Player.objects.get(player_id=row['player_id'], tour=tour)
-                    print('Found {}'.format(str(player)))
-                except models.Player.DoesNotExist:
-                    player = models.Player.objects.create(
-                        player_id=row['player_id'],
-                        first_name=row['name_first'],
-                        last_name=row['name_last'],
-                        tour=tour,
-                        hand=row['hand'].lower(),
-                        dob=dob,
-                        country=row['ioc']
-                    )
-                    print('Added {}'.format(str(player)))        
+        engine.execute(query_pk)
     except Exception as e:
-        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+        # relation "unique_constraint_for_upsert" already exists
+        if not 'unique_constraint_for_upsert" already exists' in e.args[0]:
+            raise e
+
+    # Compose and execute upsert query
+    query_upsert = f"""
+    INSERT INTO "{table_name}" ({headers_sql_txt}) 
+    SELECT {headers_sql_txt} FROM "{temp_table_name}"
+    ON CONFLICT ({index_sql_txt}) DO UPDATE 
+    SET {update_column_stmt};
+    """
+    engine.execute(query_upsert)
+    engine.execute(f'DROP TABLE "{temp_table_name}"')
+
+    return True
 
 
 @shared_task
-def update_matches_from_ta(tour, year):
-    if tour == 'atp':
-        urls = ATP_MATCH_FILES
-    else:
-        urls = WTA_MATCH_FILES
+def update_player_list_from_ta():
+    atp_url = 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_players.csv'
+    wta_url = 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_players.csv'
 
-    current_year = datetime.date.today().year
-    file_index = len(urls) - (current_year - year) - 1
+    # ATP
+    df_players = pandas.read_csv(atp_url)
 
-    print(f'Updating {tour} matches from {year} (index = {file_index})')
+    df_players['first_name'] = df_players['name_first']
+    df_players['last_name'] = df_players['name_last']
+    df_players['tour'] = 'atp'
+    df_players['player_id'] = df_players['player_id'].map(lambda x: f'atp-{x}')
+    df_players['country'] = df_players['ioc']
+    df_players = df_players.set_index(df_players['player_id'])
+    df_players = df_players.drop([
+        'name_first',
+        'name_last',
+        'ioc',
+        'height',
+        'dob',
+        'wikidata_id',
+        'player_id'
+    ], axis=1)
+        
+    upsert_df(df=df_players, table_name='tennis_player', engine=engine)
 
-    url = urls[file_index]
+    # WTA
+    df_players = pandas.read_csv(wta_url)
 
-    with requests.Session() as s:
-        download = s.get(url)
-        decoded_content = download.content.decode('latin-1')
+    df_players['first_name'] = df_players['name_first']
+    df_players['last_name'] = df_players['name_last']
+    df_players['tour'] = 'wta'
+    df_players['player_id'] = df_players['player_id'].map(lambda x: f'wta-{x}')
+    df_players['country'] = df_players['ioc']
+    df_players = df_players.set_index(df_players['player_id'])
+    df_players = df_players.drop([
+        'name_first',
+        'name_last',
+        'ioc',
+        'height',
+        'dob',
+        'wikidata_id',
+        'player_id'
+    ], axis=1)
+        
+    upsert_df(df=df_players, table_name='tennis_player', engine=engine)
 
-        cr = csv.reader(decoded_content.splitlines(), delimiter=',')
-        rows = list(cr)
-        for index, row in enumerate(rows):
-            if index == 0:
-                continue
 
-            try:
-                tourney_date = datetime.datetime.strptime(row[5], '%Y%m%d').date()
-            except:
-                continue
+@shared_task
+def update_matches_from_ta():
+    ATP_MATCH_FILES = [
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1968.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1969.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1970.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1971.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1972.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1973.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1974.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1975.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1976.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1977.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1978.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1979.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1980.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1981.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1982.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1983.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1984.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1985.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1986.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1987.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1988.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1989.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1990.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1991.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1992.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1993.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1994.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1995.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1996.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1997.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1998.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_1999.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2000.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2001.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2002.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2003.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2004.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2005.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2006.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2007.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2008.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2009.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2010.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2011.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2012.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2013.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2014.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2015.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2016.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2017.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2018.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2019.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2020.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2021.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2022.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_2023.csv'
+    ]
+
+    WTA_MATCH_FILES = [
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1968.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1969.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1970.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1971.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1972.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1973.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1974.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1975.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1976.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1977.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1978.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1979.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1980.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1981.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1982.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1983.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1984.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1985.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1986.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1987.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1988.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1989.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1990.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1991.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1992.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1993.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1994.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1995.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1996.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1997.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1998.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_1999.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2000.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2001.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2002.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2003.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2004.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2005.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2006.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2007.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2008.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2009.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2010.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2011.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2012.csv',
+        # 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2013.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2014.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2015.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2016.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2017.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2018.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2019.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2020.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2021.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2022.csv',
+        'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2023.csv'
+    ]
+
+    models.Match.objects.all().delete()
+
+    # ATP
+    for m in ATP_MATCH_FILES:
+        df_matches = pandas.read_csv(m)
+        df_matches['winner_id'] = df_matches['winner_id'].map(lambda x: f'atp-{x}')
+        df_matches['loser_id'] = df_matches['loser_id'].map(lambda x: f'atp-{x}')
+        df_matches['tourney_date'] = df_matches['tourney_date'].map(lambda x: datetime.datetime.strptime(str(x), '%Y%m%d'))
             
-            try:
-                match = models.Match.objects.get(
-                    tourney_id=row[0],
-                    winner=models.Player.objects.get(
-                        player_id=row[7],
-                        tour=tour
-                    ),
-                    loser=models.Player.objects.get(
-                        player_id=row[15],
-                        tour=tour
-                    ),
-                )
-            except models.Match.DoesNotExist:
-                match = models.Match.objects.create(
-                    tourney_id=row[0],
-                    winner=models.Player.objects.get(
-                        player_id=row[7],
-                        tour=tour
-                    ),
-                    loser=models.Player.objects.get(
-                        player_id=row[15],
-                        tour=tour
-                    ),
-                )
-            except models.Player.DoesNotExist:
-                continue
+        df_matches.to_sql('tennis_match', engine, if_exists='append', index=False, chunksize=1000)
 
-            match.tourney_name = row[1]
-            match.surface = row[2]
-            match.draw_size = None if row[3] is None or row[3] == '' else int(row[3])
-            match.tourney_level = row[4]
-            match.tourney_date = tourney_date
-            match.match_num = None if row[6] is None or row[6] == '' else int(row[6])
-            try:
-                match.winner_seed = None if row[8] is None or row[8] == '' else int(row[8])
-            except:
-                pass
-            match.winner_entry = row[9]
-            match.winner_name = row[10]
-            match.winner_hand = row[11]
-            # match.winner_ht = None if row[12] is None or row[12] == '' else int(row[12])
-            match.winner_ioc = row[13]
-            match.winner_age = None if row[14] is None or row[14] == '' else float(row[14])
-            try:
-                match.loser_seed = None if row[16] is None or row[16] == '' else int(row[16])
-            except:
-                pass
-            match.loser_entry = row[17]
-            match.loser_name = row[18]
-            match.loser_hand = row[19]
-            # match.loser_ht = None if row[20] is None or row[20] == '' else int(row[20])
-            match.loser_ioc = row[21]
-            match.loser_age = None if row[22] is None or row[22] == '' else float(row[22])
-            match.score = row[23]
-            match.best_of = None if row[24] is None or row[24] == '' else int(row[24])
-            match.round = row[25]
-            match.minutes = None if row[26] is None or row[26] == '' else int(row[26])
-            match.w_ace = None if row[27] is None or row[27] == '' else int(row[27])
-            match.w_df = None if row[28] is None or row[28] == '' else int(row[28])
-            match.w_svpt = None if row[29] is None or row[29] == '' else int(row[29])
-            match.w_1stIn = None if row[30] is None or row[30] == '' else int(row[30])
-            match.w_1stWon = None if row[31] is None or row[31] == '' else int(row[31])
-            match.w_2ndWon = None if row[32] is None or row[32] == '' else int(row[32])
-            match.w_SvGms = None if row[33] is None or row[33] == '' else int(row[33])
-            match.w_bpSaved = None if row[34] is None or row[34] == '' else int(row[34])
-            match.w_bpFaced = None if row[35] is None or row[35] == '' else int(row[35])
-            match.l_ace = None if row[36] is None or row[36] == '' else int(row[36])
-            match.l_df = None if row[37] is None or row[37] == '' else int(row[37])
-            match.l_svpt = None if row[38] is None or row[38] == '' else int(row[38])
-            match.l_1stIn = None if row[39] is None or row[39] == '' else int(row[39])
-            match.l_1stWon = None if row[40] is None or row[40] == '' else int(row[40])
-            match.l_2ndWon = None if row[41] is None or row[41] == '' else int(row[41])
-            match.l_SvGms = None if row[42] is None or row[42] == '' else int(row[42])
-            match.l_bpSaved = None if row[43] is None or row[43] == '' else int(row[43])
-            match.l_bpFaced = None if row[44] is None or row[44] == '' else int(row[44])
-            match.winner_rank = None if row[45] is None or row[45] == '' else int(row[45])
-            match.winner_rank_points = None if row[46] is None or row[46] == '' else int(row[46])
-            match.loser_rank = None if row[47] is None or row[47] == '' else int(row[47])
-            match.loser_rank_points = None if row[48] is None or row[48] == '' else int(row[48])
-            match.save()
-                
-            print(match)
+    # WTA
+    for m in WTA_MATCH_FILES:
+        df_matches = pandas.read_csv(m)
+        df_matches['winner_id'] = df_matches['winner_id'].map(lambda x: f'wta-{x}')
+        df_matches['loser_id'] = df_matches['loser_id'].map(lambda x: f'wta-{x}')
+        df_matches['tourney_date'] = df_matches['tourney_date'].map(lambda x: datetime.datetime.strptime(str(x), '%Y%m%d'))
+            
+        df_matches.to_sql('tennis_match', engine, if_exists='append', index=False, chunksize=1000)
 
 
 @shared_task

@@ -88,13 +88,13 @@ class Player(models.Model):
         ('atp', 'ATP'),
         ('wta', 'WTA'),
     )
-    player_id = models.CharField(max_length=15)
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
+    player_id = models.CharField(primary_key=True, max_length=50)
+    first_name = models.CharField(max_length=100, null=True, blank=True)
+    last_name = models.CharField(max_length=100, null=True, blank=True)
     tour = models.CharField(max_length=3, choices=TOUR_CHOICES)
-    hand = models.CharField(max_length=1, choices=HAND_CHOICES)
+    hand = models.CharField(max_length=1, choices=HAND_CHOICES, null=True, blank=True)
     dob = models.DateField(null=True, blank=True)
-    country = models.CharField(max_length=3)
+    country = models.CharField(max_length=3, null=True, blank=True)
 
     class Meta:
         verbose_name = 'Player'
@@ -653,76 +653,6 @@ class Player(models.Model):
         }
 
 
-class RankingHistory(models.Model):
-    FILES = [
-        ('atp', 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_rankings_current.csv'),
-        ('wta', 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_rankings_current.csv'),
-        ('atp', 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_rankings_10s.csv'),
-        ('wta', 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_rankings_10s.csv'),
-        ('atp', 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_rankings_00s.csv'),
-        ('wta', 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_rankings_00s.csv'),
-        # ('atp', 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_rankings_90s.csv'),
-        # ('wta', 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_rankings_90s.csv'),
-        # ('wta', 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_rankings_80s.csv'),
-        # ('atp', 'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_rankings_80s.csv'),
-        # ('atp', 'https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_rankings_70s.csv')
-    ]
-    ranking_date = models.DateField()
-    ranking = models.PositiveIntegerField()
-    player = models.ForeignKey(Player, related_name='ranking_history', on_delete=models.CASCADE)
-
-    class Meta:
-        verbose_name = 'Ranking History'
-        verbose_name_plural = 'Ranking Histories'
-
-    def __str__(self):
-        return '{} Ranking on {}'.format(self.player, self.ranking_date)
-
-
-    @classmethod
-    def update_rankings(cls):
-        # cls.objects.all().delete()
-
-        for tup in cls.FILES:
-            tour = tup[0]
-            url = tup[1]
-            with requests.Session() as s:
-                download = s.get(url)
-                decoded_content = download.content.decode('latin-1')
-
-                cr = csv.reader(decoded_content.splitlines(), delimiter=',')
-                rows = list(cr)
-                for row in rows:
-                    try:
-                        ranking_date = datetime.datetime.strptime(row[0], '%Y%m%d').date()
-                    except:
-                        continue
-                    
-                    try:
-                        ranking = cls.objects.get(
-                            ranking_date=ranking_date,
-                            player=Player.objects.get(
-                                player_id=row[2],
-                                tour=tour
-                            )
-                        )
-                        # ranking.ranking = int(row[1])
-                        # ranking.save()
-                        print('Found {}.'.format(str(ranking)))
-                    except cls.DoesNotExist:
-                        ranking = cls.objects.create(
-                            ranking_date=ranking_date,
-                            player=Player.objects.get(
-                                player_id=row[2],
-                                tour=tour
-                            ),
-                            ranking=int(row[1])
-                        )
-                        print('Created {}.'.format(str(ranking)))
-                    except Player.DoesNotExist:
-                        pass
-
-
 class Match(models.Model):
     tourney_id = models.CharField(max_length=255, null=True, blank=True)
     tourney_name = models.CharField(max_length=255, null=True, blank=True)
@@ -773,6 +703,7 @@ class Match(models.Model):
     winner_rank_points = models.IntegerField(null=True, blank=True)
     loser_rank = models.IntegerField(null=True, blank=True)
     loser_rank_points = models.IntegerField(null=True, blank=True)
+    final_odds = models.IntegerField(null=True, blank=True)
 
     class Meta:
         verbose_name = 'Match'
