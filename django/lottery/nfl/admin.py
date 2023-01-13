@@ -675,6 +675,7 @@ class SheetColumnHeadersAdmin(admin.ModelAdmin):
 
     list_editable = (
         'projection_site',
+        'site',
     )
 
     list_filter = (
