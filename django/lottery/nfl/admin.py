@@ -657,6 +657,7 @@ class MissingAliasAdmin(admin.ModelAdmin):
 @admin.register(models.SheetColumnHeaders)
 class SheetColumnHeadersAdmin(admin.ModelAdmin):
     list_display = (
+        'id',
         'projection_site',
         'site',
         'use_for_data_feed',
@@ -670,6 +671,10 @@ class SheetColumnHeadersAdmin(admin.ModelAdmin):
         'column_own_projection',
         'column_ownership',
         'column_score',
+    )
+
+    list_editable = (
+        'projection_site',
     )
 
     list_filter = (
