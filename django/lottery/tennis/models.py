@@ -703,7 +703,34 @@ class Match(models.Model):
     winner_rank_points = models.IntegerField(null=True, blank=True)
     loser_rank = models.IntegerField(null=True, blank=True)
     loser_rank_points = models.IntegerField(null=True, blank=True)
-    final_odds = models.IntegerField(null=True, blank=True)
+
+    # dk scoring
+    winner_dk = models.FloatField(null=True, blank=True)
+    loser_dk = models.FloatField(null=True, blank=True)
+
+    # rates for players going into this match
+    winner_num_matches = models.IntegerField(null=True, blank=True)
+    winner_ace_rate = models.FloatField(null=True, blank=True)
+    winner_vace_rate = models.FloatField(null=True, blank=True)
+    winner_df_rate = models.FloatField(null=True, blank=True)
+    winner_firstin_rate = models.FloatField(null=True, blank=True)
+    winner_firstwon_rate = models.FloatField(null=True, blank=True)
+    winner_secondwon_rate = models.FloatField(null=True, blank=True)
+    winner_hold_rate = models.FloatField(null=True, blank=True)
+    winner_break_rate = models.FloatField(null=True, blank=True)
+    loser_num_matches = models.IntegerField(null=True, blank=True)
+    loser_ace_rate = models.FloatField(null=True, blank=True)
+    loser_vace_rate = models.FloatField(null=True, blank=True)
+    loser_df_rate = models.FloatField(null=True, blank=True)
+    loser_firstin_rate = models.FloatField(null=True, blank=True)
+    loser_firstwon_rate = models.FloatField(null=True, blank=True)
+    loser_secondwon_rate = models.FloatField(null=True, blank=True)
+    loser_hold_rate = models.FloatField(null=True, blank=True)
+    loser_break_rate = models.FloatField(null=True, blank=True)
+
+    # match odds
+    winner_odds = models.IntegerField(null=True, blank=True)
+    loser_odds = models.IntegerField(null=True, blank=True)
 
     class Meta:
         verbose_name = 'Match'
@@ -1039,58 +1066,58 @@ class Match(models.Model):
             return None
             
     def get_winner_num_matches(self, timeframe=52):
-        return self.winner.get_num_matches(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.winner.get_num_matches(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
 
     def get_winner_ace_rate(self, timeframe=52):
-        return self.winner.get_ace_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.winner.get_ace_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
 
     def get_winner_v_ace_rate(self, timeframe=52):
-        return self.winner.get_v_ace_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.winner.get_v_ace_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_winner_df_rate(self, timeframe=52):
-        return self.winner.get_df_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.winner.get_df_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_winner_first_in_rate(self, timeframe=52):
-        return self.winner.get_first_in_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.winner.get_first_in_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_winner_first_won_rate(self, timeframe=52):
-        return self.winner.get_first_won_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.winner.get_first_won_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_winner_second_won_rate(self, timeframe=52):
-        return self.winner.get_second_won_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.winner.get_second_won_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_winner_hold_rate(self, timeframe=52):
-        return self.winner.get_hold_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.winner.get_hold_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_winner_break_rate(self, timeframe=52):
-        return self.winner.get_break_rate(timeframe=timeframe, startingFrom=self.tourney_date)        
+        return self.winner.get_break_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)        
         
     def get_loser_num_matches(self, timeframe=52):
-        return self.loser.get_num_matches(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.loser.get_num_matches(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
 
     def get_loser_ace_rate(self, timeframe=52):
-        return self.loser.get_ace_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.loser.get_ace_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
 
     def get_loser_v_ace_rate(self, timeframe=52):
-        return self.loser.get_v_ace_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.loser.get_v_ace_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_loser_df_rate(self, timeframe=52):
-        return self.loser.get_df_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.loser.get_df_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_loser_first_in_rate(self, timeframe=52):
-        return self.loser.get_first_in_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.loser.get_first_in_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_loser_first_won_rate(self, timeframe=52):
-        return self.loser.get_first_won_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.loser.get_first_won_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_loser_second_won_rate(self, timeframe=52):
-        return self.loser.get_second_won_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.loser.get_second_won_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_loser_hold_rate(self, timeframe=52):
-        return self.loser.get_hold_rate(timeframe=timeframe, startingFrom=self.tourney_date)
+        return self.loser.get_hold_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)
         
     def get_loser_break_rate(self, timeframe=52):
-        return self.loser.get_break_rate(timeframe=timeframe, startingFrom=self.tourney_date)        
+        return self.loser.get_break_rate(timeframe=timeframe, startingFrom=self.tourney_date, on_surface=self.surface)        
 
 
 # Alias
@@ -1160,7 +1187,6 @@ class Alias(models.Model):
                 alias_2=scores[1].get('alias'),
                 alias_3=scores[2].get('alias'),
             )
-            print(a)
 
             return None
 
@@ -1216,9 +1242,11 @@ class MissingAlias(models.Model):
 
 class PinnacleMatch(models.Model):
     id = models.BigIntegerField(primary_key=True, unique=True)
-    event = models.CharField(max_length=255, default='foo')
+    tournament_name = models.CharField(max_length=255, default='foo')
     home_participant = models.CharField(max_length=255)
     away_participant = models.CharField(max_length=255)
+    home_player = models.ForeignKey(Player, related_name='match_odds_as_home', on_delete=models.SET_NULL, blank=True, null=True)
+    away_player = models.ForeignKey(Player, related_name='match_odds_as_away', on_delete=models.SET_NULL, blank=True, null=True)
     start_time = models.DateTimeField()
 
     def __str__(self):
@@ -1232,10 +1260,10 @@ class PinnacleMatch(models.Model):
     def favorite(self):
         odds = self.odds.all().order_by('-create_at')[0]
         if odds.home_price < odds.away_price:
-            fav = self.home_participant
+            fav = self.home_player
             fav_odds = odds.home_price
         else:
-            fav = self.away_participant
+            fav = self.away_player
             fav_odds = odds.away_price
         
         return (fav, fav_odds)
@@ -1244,10 +1272,10 @@ class PinnacleMatch(models.Model):
     def underdog(self):
         odds = self.odds.all().order_by('-create_at')[0]
         if odds.home_price >= odds.away_price:
-            dog = self.home_participant
+            dog = self.home_player
             dog_odds = odds.home_price
         else:
-            dog = self.away_participant
+            dog = self.away_player
             dog_odds = odds.away_price
         
         return (dog, dog_odds)
@@ -1267,14 +1295,14 @@ class PinnacleMatchOdds(models.Model):
     match = models.ForeignKey(PinnacleMatch, related_name='odds', on_delete=models.CASCADE)
     home_price = models.IntegerField(default=0)
     away_price = models.IntegerField(default=0)
-    home_spread = models.DecimalField(decimal_places=2, max_digits=4, default=0.0)
-    away_spread = models.DecimalField(decimal_places=2, max_digits=4, default=0.0)
+    home_spread = models.DecimalField(decimal_places=2, max_digits=4, null=True, blank=True)
+    away_spread = models.DecimalField(decimal_places=2, max_digits=4, null=True, blank=True)
 
     def __str__(self):
         return '{} ({}) vs {} ({})'.format(self.match.home_participant, self.home_price, self.match.away_participant, self.away_price)
 
     def get_event(self):
-        return self.match.event
+        return self.match.tournament_name
 
 
 # Lookups

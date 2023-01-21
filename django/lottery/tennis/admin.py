@@ -233,20 +233,20 @@ class PlayerAdmin(admin.ModelAdmin):
 class MatchAdmin(admin.ModelAdmin):
     date_hierarchy = 'tourney_date'
     list_display = (
-        'tourney_id',
-        'tourney_name',
-        'tourney_level',
+        'id',
         'surface',
-        'round',
         'best_of',
-        'tourney_date',
         'winner',
         'loser',
+        'winner_odds',
+        'loser_odds',
+        'w_ace',
+        'w_df',
+        'l_ace',
+        'l_df',
         'score',
-        'get_svpt_w',
-        'get_svpt_l',
-        'winner_dk_points',
-        'loser_dk_points',
+        'winner_dk',
+        'loser_dk',
     )
     list_filter = (
         ('surface', DropdownFilter),
@@ -298,7 +298,7 @@ class AliasAdmin(admin.ModelAdmin):
     )
     list_editable = (
         'pinn_name',
-        'player',
+        # 'player',
     )
     search_fields = (
         'dk_name',
@@ -846,13 +846,17 @@ class SlateBuildLineupAdmin(admin.ModelAdmin):
 @admin.register(models.PinnacleMatch)
 class PinnacleMatchAdmin(admin.ModelAdmin):
     list_display = (
-        'event',
-        'home_participant',
-        'away_participant',
+        'tournament_name',
+        'home_player',
+        'away_player',
         'start_time',
     )
+    raw_id_fields = (
+        'home_player',
+        'away_player',
+    )
     search_fields = (
-        'event',
+        'tournament_name',
         'home_participant',
         'away_participant'
     )
@@ -873,7 +877,7 @@ class PinnacleMatchOddsAdmin(admin.ModelAdmin):
         'away_spread'
     )
     search_fields = (
-        'match__event',
+        'match__tournament_name',
         'match__home_participant',
         'match__away_participant'
     )

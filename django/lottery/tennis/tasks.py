@@ -289,6 +289,35 @@ def update_player_list_from_ta():
     upsert_df(df=df_players, table_name='tennis_player', engine=engine)
 
 
+def get_name(x):
+    parts = x.split(" ")
+
+    s = f'{parts[-1]}'
+    z = 1
+
+    if parts[-2] == 'Van' or parts[-2] == 'De' or parts[-2] == 'Auger' or parts[-2] == 'Bautista' or parts[-2] == 'Carreno':
+        s = f'{parts[-2]} {parts[-1]}'
+        z = 2
+
+    for index, p in enumerate(parts):
+        if index < len(parts) - z:
+            s += f' {p[0]}.'
+    # s += '.'
+
+    return s
+
+
+def calc_american_odds(x):
+    if x == 1:
+        x = 1.0001
+        
+    if math.isnan(x): 
+        return None
+    if x >= 2:
+        return (x - 1) * 100
+    return round(-100/(x-1))
+
+
 @shared_task
 def update_matches_from_ta():
     ATP_MATCH_FILES = [
@@ -409,113 +438,276 @@ def update_matches_from_ta():
         'https://raw.githubusercontent.com/JeffSackmann/tennis_wta/master/wta_matches_2023.csv'
     ]
 
+    ATP_ODDS_FILES = [
+        'http://www.tennis-data.co.uk/2014/2014.xlsx',
+        'http://www.tennis-data.co.uk/2015/2015.xlsx',
+        'http://www.tennis-data.co.uk/2016/2016.xlsx',
+        'http://www.tennis-data.co.uk/2017/2017.xlsx',
+        'http://www.tennis-data.co.uk/2018/2018.xlsx',
+        'http://www.tennis-data.co.uk/2019/2019.xlsx',
+        'http://www.tennis-data.co.uk/2020/2020.xlsx',
+        'http://www.tennis-data.co.uk/2021/2021.xlsx',
+        'http://www.tennis-data.co.uk/2022/2022.xlsx',
+        'http://www.tennis-data.co.uk/2023/2023.xlsx'
+    ]
+
+    WTA_ODDS_FILES = [
+        'http://www.tennis-data.co.uk/2014w/2014.xlsx',
+        'http://www.tennis-data.co.uk/2015w/2015.xlsx',
+        'http://www.tennis-data.co.uk/2016w/2016.xlsx',
+        'http://www.tennis-data.co.uk/2017w/2017.xlsx',
+        'http://www.tennis-data.co.uk/2018w/2018.xlsx',
+        'http://www.tennis-data.co.uk/2019w/2019.xlsx',
+        'http://www.tennis-data.co.uk/2020w/2020.xlsx',
+        'http://www.tennis-data.co.uk/2021w/2021.xlsx',
+        'http://www.tennis-data.co.uk/2022w/2022.xlsx',
+        'http://www.tennis-data.co.uk/2023w/2023.xlsx'
+    ]
+
     models.Match.objects.all().delete()
 
     # ATP
-    for m in ATP_MATCH_FILES:
+    for index, m in enumerate(ATP_MATCH_FILES):
+        logger.info(m)
         df_matches = pandas.read_csv(m)
         df_matches['winner_id'] = df_matches['winner_id'].map(lambda x: f'atp-{x}')
         df_matches['loser_id'] = df_matches['loser_id'].map(lambda x: f'atp-{x}')
         df_matches['tourney_date'] = df_matches['tourney_date'].map(lambda x: datetime.datetime.strptime(str(x), '%Y%m%d'))
-            
-        df_matches.to_sql('tennis_match', engine, if_exists='append', index=False, chunksize=1000)
+        df_matches['winner'] = df_matches['winner_name'].map(lambda x: get_name(x))
+        df_matches['loser'] = df_matches['loser_name'].map(lambda x: get_name(x))
+        df_matches['id'] = df_matches['tourney_date'].map(lambda x: x.strftime('%m/%Y')) + '-' + df_matches['winner_rank'].map(lambda x: str(int(x)) if not math.isnan(x) else 'NaN') + df_matches['winner'] + '-' + df_matches['loser_rank'].map(lambda x: str(int(x)) if not math.isnan(x) else 'NaN') + df_matches['loser']
 
+        logger.info(ATP_ODDS_FILES[index])
+        df_odds = pandas.read_excel(ATP_ODDS_FILES[index])
+        df_odds['winner_odds'] = df_odds['PSW'].map(lambda x: calc_american_odds(x))
+        df_odds['loser_odds'] = df_odds['PSL'].map(lambda x: calc_american_odds(x))
+        df_odds['id'] = df_odds['Date'].map(lambda x: x.strftime('%m/%Y')) + '-' + df_odds['WRank'].map(lambda x: str(int(x)) if not math.isnan(x) else 'NaN') + df_odds['Winner'] + '-' + df_odds['LRank'].map(lambda x: str(int(x)) if not math.isnan(x) else 'NaN') + df_odds['Loser']
+        df_odds.drop(columns=[
+            'ATP',
+            'Location',
+            'Tournament',
+            'Date', 
+            'Series',
+            'Court',
+            'Surface',
+            'Round',
+            'Best of',
+            'Winner', 
+            'Loser',
+            'WRank',
+            'LRank',
+            'WPts',
+            'LPts',
+            'W1',
+            'L1',
+            'W2',
+            'L2',
+            'W3',
+            'L3',
+            'W4',
+            'L4',
+            'W5',
+            'L5',
+            'Wsets',
+            'Lsets',
+            'Comment',
+            'B365W',
+            'B365L',
+            'PSW',
+            'PSL',
+            'MaxW',
+            'MaxL',
+            'AvgW',
+            'AvgL'            
+        ], axis=1, inplace=True)
+
+        if 'EXW' in df_odds.columns:
+            df_odds.drop(['EXW'], axis=1, inplace=True)
+
+        if 'EXL' in df_odds.columns:
+            df_odds.drop(['EXL'], axis=1, inplace=True)
+
+        if 'LBW' in df_odds.columns:
+            df_odds.drop(['LBW'], axis=1, inplace=True)
+
+        if 'LBL' in df_odds.columns:
+            df_odds.drop(['LBL'], axis=1, inplace=True)
+
+        if 'SJW' in df_odds.columns:
+            df_odds.drop(['SJW'], axis=1, inplace=True)
+
+        if 'SJL' in df_odds.columns:
+            df_odds.drop(['SJL'], axis=1, inplace=True)
+        # logger.info(df_odds)
+
+        df_merged = df_matches.merge(df_odds, how='inner', on='id')
+        df_merged.drop([
+            'winner',
+            'loser',
+            'id'
+        ], axis=1, inplace=True)
+        # logger.info(df_merged)
+
+        df_merged.to_sql('tennis_match', engine, if_exists='append', index=False, chunksize=1000)
+    
     # WTA
-    for m in WTA_MATCH_FILES:
+    for index, m in enumerate(WTA_MATCH_FILES):
+        logger.info(m)
         df_matches = pandas.read_csv(m)
         df_matches['winner_id'] = df_matches['winner_id'].map(lambda x: f'wta-{x}')
         df_matches['loser_id'] = df_matches['loser_id'].map(lambda x: f'wta-{x}')
         df_matches['tourney_date'] = df_matches['tourney_date'].map(lambda x: datetime.datetime.strptime(str(x), '%Y%m%d'))
-            
-        df_matches.to_sql('tennis_match', engine, if_exists='append', index=False, chunksize=1000)
+        df_matches['winner'] = df_matches['winner_name'].map(lambda x: get_name(x))
+        df_matches['loser'] = df_matches['loser_name'].map(lambda x: get_name(x))
+        df_matches['id'] = df_matches['tourney_date'].map(lambda x: x.strftime('%m/%Y')) + '-' + df_matches['winner_rank'].map(lambda x: str(int(x)) if not math.isnan(x) else 'NaN') + df_matches['winner'] + '-' + df_matches['loser_rank'].map(lambda x: str(int(x)) if not math.isnan(x) else 'NaN') + df_matches['loser']
+
+        logger.info(WTA_ODDS_FILES[index])
+        df_odds = pandas.read_excel(WTA_ODDS_FILES[index])
+        df_odds['winner_odds'] = df_odds['PSW'].map(lambda x: calc_american_odds(x))
+        df_odds['loser_odds'] = df_odds['PSL'].map(lambda x: calc_american_odds(x))
+        df_odds['id'] = df_odds['Date'].map(lambda x: x.strftime('%m/%Y')) + '-' + df_odds['WRank'].map(lambda x: str(int(x)) if not math.isnan(x) else 'NaN') + df_odds['Winner'] + '-' + df_odds['LRank'].map(lambda x: str(int(x)) if not math.isnan(x) else 'NaN') + df_odds['Loser']
+        df_odds.drop(columns=[
+            'WTA',
+            'Location',
+            'Tournament',
+            'Date', 
+            'Tier',
+            'Court',
+            'Surface',
+            'Round',
+            'Best of',
+            'Winner', 
+            'Loser',
+            'WRank',
+            'LRank',
+            'WPts',
+            'LPts',
+            'W1',
+            'L1',
+            'W2',
+            'L2',
+            'W3',
+            'L3',
+            'Wsets',
+            'Lsets',
+            'Comment',
+            'B365W',
+            'B365L',
+            'PSW',
+            'PSL',
+            'MaxW',
+            'MaxL',
+            'AvgW',
+            'AvgL'            
+        ], axis=1, inplace=True)
+
+        if 'EXW' in df_odds.columns:
+            df_odds.drop(['EXW'], axis=1, inplace=True)
+
+        if 'EXL' in df_odds.columns:
+            df_odds.drop(['EXL'], axis=1, inplace=True)
+
+        if 'LBW' in df_odds.columns:
+            df_odds.drop(['LBW'], axis=1, inplace=True)
+
+        if 'LBL' in df_odds.columns:
+            df_odds.drop(['LBL'], axis=1, inplace=True)
+
+        if 'SJW' in df_odds.columns:
+            df_odds.drop(['SJW'], axis=1, inplace=True)
+
+        if 'SJL' in df_odds.columns:
+            df_odds.drop(['SJL'], axis=1, inplace=True)
+
+        # logger.info(df_odds)
+
+        df_merged = df_matches.merge(df_odds, how='inner', on='id')
+        df_merged.drop([
+            'winner',
+            'loser',
+            'id'
+        ], axis=1, inplace=True)
+        # logger.info(df_merged)
+
+        df_merged.to_sql('tennis_match', engine, if_exists='append', index=False, chunksize=1000)
+
+    # cache rates and scores
+    group([
+        cache_rates_and_scores.si(m.id) for m in models.Match.objects.all()
+    ])()
 
 
 @shared_task
-def get_pinn_odds(task_id):
-    task = None
+def cache_rates_and_scores(match_id):
+    m = models.Match.objects.get(id=match_id)
+    m.winner_dk = m.winner_dk_points
+    m.winner_num_matches = m.get_winner_num_matches()
+    m.winner_ace_rate = m.get_winner_ace_rate()
+    m.winner_vace_rate = m.get_winner_v_ace_rate()
+    m.winner_df_rate = m.get_winner_df_rate()
+    m.winner_firstin_rate = m.get_winner_first_in_rate()
+    m.winner_firstwon_rate = m.get_winner_first_won_rate()
+    m.winner_secondwon_rate = m.get_winner_second_won_rate()
+    m.winner_hold_rate = m.get_winner_hold_rate()
+    m.winner_break_rate = m.get_winner_break_rate()
+    m.loser_dk = m.loser_dk_points
+    m.loser_num_matches = m.get_loser_num_matches()
+    m.loser_ace_rate = m.get_loser_ace_rate()
+    m.loser_vace_rate = m.get_loser_v_ace_rate()
+    m.loser_df_rate = m.get_loser_df_rate()
+    m.loser_firstin_rate = m.get_loser_first_in_rate()
+    m.loser_firstwon_rate = m.get_loser_first_won_rate()
+    m.loser_secondwon_rate = m.get_loser_second_won_rate()
+    m.loser_hold_rate = m.get_loser_hold_rate()
+    m.loser_break_rate = m.get_loser_break_rate()
+    m.save()
 
-    try:
-        try:
-            task = BackgroundTask.objects.get(id=task_id)
-        except BackgroundTask.DoesNotExist:
-            time.sleep(0.2)
-            task = BackgroundTask.objects.get(id=task_id)
-        update_time = datetime.datetime.now()
-        matchup_url = 'https://guest.api.arcadia.pinnacle.com/0.1/sports/33/matchups'
-        odds_url = 'https://guest.api.arcadia.pinnacle.com/0.1/sports/33/markets/straight?primaryOnly=false'
-        headers = {
-            'authority': 'guest.api.arcadia.pinnacle.com',
-            'pragma': 'no-cache',
-            'cache-control': 'no-cache',
-            'accept': 'application/json',
-            'x-device-uuid': '00f06d96-7d7dd505-45d4f32f-23672660',
-            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.99 Safari/537.36',
-            'x-api-key': 'CmX2KcMrXuFmNg6YFbmTxE0y9CIrOi0R',
-            'content-type': 'application/json',
-            'sec-gpc': '1',
-            'origin': 'https://www.pinnacle.com',
-            'sec-fetch-site': 'same-site',
-            'sec-fetch-mode': 'cors',
-            'sec-fetch-dest': 'empty',
-            'referer': 'https://www.pinnacle.com/',
-            'accept-language': 'en-US,en;q=0.9',
-        }        
-        response = requests.get(matchup_url, headers=headers)
+
+@shared_task
+def get_pinn_odds():
+    def find_player_id(player_name):
+        alias = models.Alias.find_alias(player_name, 'pinnacle')
         
-        matchups = response.json()
-        for matchup in matchups:
-            if matchup.get('parent') == None and 'special' not in matchup:
-                try:
-                    match = models.PinnacleMatch.objects.get(id=matchup.get('id'))
-                except models.PinnacleMatch.DoesNotExist:
-                    match = models.PinnacleMatch.objects.create(
-                        id=matchup.get('id'),
-                        event=matchup.get('league').get('name'),
-                        home_participant=matchup.get('participants')[0].get('name'),
-                        away_participant=matchup.get('participants')[1].get('name'),
-                        start_time=datetime.datetime.strptime(matchup.get('startTime'), '%Y-%m-%dT%H:%M:%SZ')
-                    )
+        if alias and alias.player:
+            return alias.player.player_id
+        return None
 
-        response = requests.get(odds_url, headers=headers)
-        odds_list = response.json()
-        for odds in odds_list:
-            if odds.get('type') == 'moneyline' and odds.get('period') == 0:
-                try:
-                    match = models.PinnacleMatch.objects.get(id=odds.get('matchupId'))
-                    (pinnacle_odds, _) = models.PinnacleMatchOdds.objects.get_or_create(
-                        match=match,
-                        create_at=update_time
-                    )
-                    pinnacle_odds.home_price=odds.get('prices')[0].get('price')
-                    pinnacle_odds.away_price=odds.get('prices')[1].get('price')
-                    pinnacle_odds.save()
-                except models.PinnacleMatch.DoesNotExist:
-                    pass
-            elif odds.get('type') == 'spread' and odds.get('period') == 0:
-                try:
-                    match = models.PinnacleMatch.objects.get(id=odds.get('matchupId'))
-                    (pinnacle_odds, _) = models.PinnacleMatchOdds.objects.get_or_create(
-                        match=match,
-                        create_at=update_time
-                    )
-                    if pinnacle_odds.home_spread == 0.0:
-                        pinnacle_odds.home_spread=odds.get('prices')[0].get('points')
-                        pinnacle_odds.away_spread=odds.get('prices')[1].get('points')
-                        pinnacle_odds.save()
-                except models.PinnacleMatch.DoesNotExist:
-                    pass
+    url = 'https://5j7her7vt4.execute-api.us-east-1.amazonaws.com/dev/'
+    df_pinn = pandas.read_csv(url)
 
-        task.status = 'success'
-        task.content = 'Pinnacle odds updated.'
-        task.save()
-    except Exception as e:
-        if task is not None:
-            task.status = 'error'
-            task.content = f'There was a problem finding matches for slate: {e}'
-            task.save()
+    # get the matchups
+    df_matchup = df_pinn.iloc[:,[1,2,3,4,6]]
+    df_matchup['home_player_id'] = df_matchup['home_participant'].map(lambda x: find_player_id(x))
+    df_matchup['away_player_id'] = df_matchup['away_participant'].map(lambda x: find_player_id(x))
+    df_matchup['start_time'] = df_matchup['start_time'].map(lambda x: datetime.datetime.strptime(x, '%Y-%m-%d %H:%M'))
+    df_matchup = df_matchup.set_index(df_matchup['id'])
+    df_matchup.drop(['id'], axis=1, inplace=True)
 
-        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
-        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+    upsert_df(df=df_matchup, table_name='tennis_pinnaclematch', engine=engine)
+
+    # get the odds
+    df_odds = df_pinn.iloc[:, [1,7,8,9,10,11,12,13,14,15,16]]
+    df_odds['create_at'] = datetime.datetime.now()
+    df_odds['match_id'] = df_odds['id']
+    df_odds['home_price'] = df_odds['home_moneyline']
+    df_odds['away_price'] = df_odds['away_moneyline']
+    df_odds['home_spread'] = df_odds['home_spread_games']
+    df_odds['away_spread'] = df_odds['away_spread_games']
+    df_odds.drop([
+        'id',
+        'home_spread_sets',
+        'away_spread_sets',
+        'over_sets',
+        'under_sets',
+        'home_moneyline',
+        'away_moneyline',
+        'home_spread_games',
+        'away_spread_games',
+        'over_games',
+        'under_games',
+    ], axis=1, inplace=True)
+
+    df_odds.to_sql('tennis_pinnaclematchodds', engine, if_exists='append', index=False, chunksize=1000)
 
 
 @shared_task
