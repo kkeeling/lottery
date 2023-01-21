@@ -104,6 +104,7 @@ PROJECTION_SITES = (
     ('awesemo_sun', 'Awesemo Sunday'),
     ('awesemo_own_sun', 'Awesemo Sunday Ownership'),
     ('etr_sun', 'Establish The Run Sunday'),
+    ('linestar_sun', 'Linestar Sunday'),
     ('rg_sun', 'Rotogrinders Sunday'),
     ('4for4_sun_mon', '4for4 Sun-Mon'),
     ('awesemo_own_sun_mon', 'Awesemo Sun-Mon Ownership'),
