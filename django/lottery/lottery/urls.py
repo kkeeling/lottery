@@ -7,6 +7,7 @@ from rest_framework.routers import DefaultRouter
 
 
 import nfl.views
+import tennis.views
 import configuration.views
 
 # from .admin import lottery_admin_site
@@ -21,6 +22,7 @@ router.register(r'backgroundtask', configuration.views.BackgroundTaskViewSet, ba
 router.register(r'nfl/build-player-projection', nfl.views.BuildPlayerProjectionViewSet, basename='nfl_build_player_projections')
 router.register(r'nfl/slate-build', nfl.views.SlateBuildViewSet, basename='nfl_slate_build')
 router.register(r'nfl/find-winner-build', nfl.views.FindWinnerBuildViewSet, basename='nfl_find_winner_build')
+router.register(r'tennis/simulate-slate', tennis.views.SlateSimulatorViewSet, basename='tennis_simulate_slate')
 
 urlpatterns += [
     url(r'^admin_tools/', include('admin_tools.urls')),
