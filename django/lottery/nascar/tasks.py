@@ -2188,6 +2188,39 @@ def create_slate_lineups(slate_id, task_id):
 
 
 @shared_task
+def export_slate_lineups(slate_id, result_path, result_url, task_id):
+    task = None
+
+    try:
+        try:
+            task = BackgroundTask.objects.get(id=task_id)
+        except BackgroundTask.DoesNotExist:
+            time.sleep(0.2)
+            task = BackgroundTask.objects.get(id=task_id)
+        slate = models.Slate.objects.get(pk=slate_id)
+        df_lineups = pandas.DataFrame.from_records(slate.possible_lineups.all().values(
+            "player_1__csv_name",
+            "player_2__csv_name",
+            "player_3__csv_name",
+            "player_4__csv_name",
+            "player_5__csv_name",
+            "player_6__csv_name",
+        ))
+        df_lineups.to_csv(result_path)
+
+        task.status = 'download'
+        task.content = result_url
+        task.save()
+        
+    except Exception as e:
+        if task is not None:
+            task.status = 'error'
+            task.content = f'There was a problem generating your export {e}'
+            task.save()
+        logger.error("Unexpected error: " + str(sys.exc_info()[0]))
+        logger.exception("error info: " + str(sys.exc_info()[1]) + "\n" + str(sys.exc_info()[2]))
+
+@shared_task
 def execute_cash_workflow(build_id, task_id):
     task = None
 

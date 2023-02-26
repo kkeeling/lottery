@@ -868,8 +868,9 @@ class SlateAdmin(admin.ModelAdmin):
         os.makedirs(result_path, exist_ok=True)
         result_path = os.path.join(result_path, result_file)
         result_url = '/media/temp/{}/{}'.format(request.user.username, result_file)
-
+        
         # tasks.export_build_for_upload.delay(build.id, result_path, result_url, task.id)
+        tasks.export_slate_lineups.delay(slate.id, result_path, result_url, task.id)
 
         messages.add_message(
             request,
