@@ -186,6 +186,7 @@ def process_sim_input_file(sim_id, task_id):
             driver = models.Driver.objects.get(driver_id=df_drivers.at[index, 'driver_id'])
             alias = models.Alias.find_alias(driver.full_name, 'f1')
 
+            logger.info(dk_salaries)
             dk_salary = dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries['Roster Position'] == 'D'),'Salary'].values[0] if dk_salaries is not None else None
             dk_name = dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries['Roster Position'] == 'D'),'Name + ID'].values[0] if dk_salaries is not None else None
             # dk_name = f'{alias.dk_name} ({dk_salaries.loc[(dk_salaries.Name == alias.dk_name) & (dk_salaries["Roster Position"] == "D"),"ID"].values[0]})' if dk_salaries is not None else None
