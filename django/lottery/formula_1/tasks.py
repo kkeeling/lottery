@@ -390,7 +390,7 @@ def execute_sim_iteration(sim_id):
     driver_index = int(numpy.where(fp_ranks == fp_rank)[0][0])
     driver_fl[driver_index] = 1
 
-    logger.info(fp_ranks)
+    logger.info(drivers)
 
     driver_dk = [
         (models.SITE_SCORING.get('draftkings').get('place_differential').get(str(driver_starting_positions[index] - fp_ranks.tolist()[index])) + 
