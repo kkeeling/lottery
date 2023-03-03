@@ -227,8 +227,7 @@ def process_sim_input_file(sim_id, task_id):
 
         # Constructors
         for constructor in models.Constructor.objects.all():
-            logger.info(constructor)
-            logger.info(dk_salaries)
+            alias = models.Alias.find_alias(constructor.name, 'f1')
             dk_salary = dk_salaries.loc[(dk_salaries.Name.apply(lambda x: x.strip()) == constructor.name) & (dk_salaries['Roster Position'] == 'CNSTR'),'Salary'].values[0]
             dk_name = dk_salaries.loc[(dk_salaries.Name.apply(lambda x: x.strip()) == constructor.name) & (dk_salaries['Roster Position'] == 'CNSTR'),'Name + ID'].values[0] if dk_salaries is not None else None
 
